@@ -1470,6 +1470,7 @@ size_t plm_buffer_write(plm_buffer_t *self, uint8_t *bytes, size_t length) {
 			new_size *= 2;
 		} while (new_size - self->length < length);
 		self->bytes = (uint8_t *)realloc(self->bytes, new_size);
+		assertf(self->bytes, "Out of memory");
 		self->capacity = new_size;
 	}
 

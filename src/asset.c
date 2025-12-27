@@ -247,7 +247,7 @@ void *asset_loadfd(int fd, int *sz)
     asset_header_t header;
     buf_size = asset_read_header(fd, &header, sz);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
-    assertf(buf, "Out of memory: cannot allocate %d bytes", buf_size);
+    assertf(buf, "Out of memory");
     asset_read(fd, &header, sz, buf, &buf_size);
     return buf;
 }
@@ -271,7 +271,7 @@ void *asset_load(const char *fn, int *sz)
     asset_header_t header;
     buf_size = asset_read_header(fd, &header, &size);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
-    assertf(buf, "Out of memory: cannot allocate %d bytes", buf_size);
+    assertf(buf, "Out of memory");
     asset_read(fd, &header, &size, buf, &buf_size);
     if (sz) *sz = size;
     close(fd);

@@ -559,7 +559,7 @@ int decompress_lzh5_pos(void *state) {
 void* decompress_lzh5_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
 {
 	void *s = memalign(ASSET_ALIGNMENT, size);
-	assertf(s, "asset_load: out of memory");
+	assertf(s, "Out of memory");
 
 	uint32_t rom_addr = 0;
 	#ifdef N64

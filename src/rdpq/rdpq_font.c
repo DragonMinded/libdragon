@@ -404,11 +404,13 @@ void rdpq_font_style(rdpq_font_t *fnt, uint8_t style_id, const rdpq_fontstyle_t 
         if (fnt->num_styles == 1) {
             fnt->num_styles = 16;
             fnt->styles = calloc(16, sizeof(style_t));
+            assertf(fnt->styles, "Out of memory");
             memcpy(&fnt->styles[0], &fnt->builtin_style, sizeof(style_t));
         } else {
             int old_styles = fnt->num_styles;
             fnt->num_styles = MAX(fnt->num_styles*2, MAX_STYLES);
             fnt->styles = realloc(fnt->styles, fnt->num_styles * sizeof(style_t));
+            assertf(fnt->styles, "Out of memory");
             memset(&fnt->styles[old_styles], 0, (fnt->num_styles - old_styles) * sizeof(style_t));
         }
     }

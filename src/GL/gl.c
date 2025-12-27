@@ -57,6 +57,7 @@ void gl_init()
     rdpq_init();
 
     state = calloc(1, sizeof(gl_state_t));
+    assertf(state, "Out of memory");
 
     gl_texture_init();
 

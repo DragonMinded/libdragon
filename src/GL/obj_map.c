@@ -21,6 +21,7 @@ void obj_map_new(obj_map_t *map)
     assertf(map->entries == NULL, "Map has not been freed!");
 
     map->entries = calloc(OBJ_MAP_MIN_CAPACITY, sizeof(obj_map_entry_t));
+    assertf(map->entries != NULL, "Out of memory");
     map->capacity = OBJ_MAP_MIN_CAPACITY;
     map->count = 0;
 }
@@ -90,6 +91,7 @@ void obj_map_expand(obj_map_t *map)
 
     map->capacity = old_capacity << 1;
     map->entries = calloc(map->capacity, sizeof(obj_map_entry_t));
+    assertf(map->entries != NULL, "Out of memory");
     map->count = 0;
 
     // Re-populate the map with all used entries

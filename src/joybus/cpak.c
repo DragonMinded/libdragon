@@ -81,6 +81,7 @@ int cpak_probe_banks(joypad_port_t port)
         if (bnk >= nsave_banks) {
             nsave_banks *= 2;
             save_label = realloc(save_label, nsave_banks * BLOCK_SIZE);
+            assert(save_label);
         }
 
         // Read the current label into the save area

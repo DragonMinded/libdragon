@@ -94,6 +94,7 @@ void glGenBuffersARB(GLsizei n, GLuint *buffers)
     for (GLsizei i = 0; i < n; i++)
     {
         gl_buffer_object_t *new_obj = calloc(sizeof(gl_buffer_object_t), 1);
+        assertf(new_obj, "Out of memory");
         new_obj->usage = GL_STATIC_DRAW_ARB;
         new_obj->access = GL_READ_WRITE_ARB;
         buffers[i] = (GLuint)new_obj;

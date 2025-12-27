@@ -312,7 +312,7 @@ static int fsck_chains(fsck_ctx_t *ctx, int num_banks, cpakfs_fat_entry_t fat[][
     // Allocate 2D bitsets: [bank][word] where each word covers 64 pages
     uint64_t (*visited)[WORDS_PER_BANK] = calloc(num_banks, sizeof(*visited));
     uint64_t (*processed)[WORDS_PER_BANK] = calloc(num_banks, sizeof(*processed));
-    if (!visited || !processed) return -1;
+    assert(visited && processed);
     
     // Phase 1: Validate existing root chains
     for (int i = 0; i < nroots; i++) {
