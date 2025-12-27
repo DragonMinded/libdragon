@@ -41,6 +41,7 @@ struct Config {
 	// For now, this is an internal toggle (default on).
 	bool par_auto = true;
 	bool audio = true;
+	bool seek = false;               // generate .seek file with IDR/I-frame offsets (opt-in)
 	std::string audio_compress;       // passed to audioconv64 --wav-compress (no validation)
 	int audio_rate = 32000;           // passed to audioconv64 --wav-resample
 	int audio_channels = 1;           // 1 => --wav-mono, 2 => no flag
@@ -152,6 +153,9 @@ int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double durati
 
 EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar);
 EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar);
+
+// Optional post-processing: generate a .seek sidecar file for the produced elementary stream.
+void vconv_generate_seek(const CodecInfo &ci, const std::string &video_path);
 
 // Audio bridge
 struct AudioResult {

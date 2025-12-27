@@ -68,6 +68,7 @@ static void usage(void) {
 	printf("   -r, --fps <N>               Force a specific framerate (default: auto)\n");
 	printf("   -q, --quality <0..100>      Synthetic quality scale (default: 80)\n");
 	printf("   -Q, --quick                 Quick encoding (speed up processing as much as possible)\n");
+	printf("       --seek                  Generate <output>.seek index for fast seeking\n");
 	printf("\n");
 	printf("Audio options:\n");
 	printf("       --audio-compress <N>    Pass through to audioconv64: --wav-compress <N>\n");
@@ -236,6 +237,8 @@ int main(int argc, char **argv) {
 				fatal("Invalid profile: %s", cfg.profile.c_str());
 		} else if (arg == "-Q" || arg == "--quick") {
 			cfg.quick = true;
+		} else if (arg == "--seek") {
+			cfg.seek = true;
 		} else if (arg == "--no-progress") {
 			cfg.progress = false;
 		} else if (arg == "-q" || arg == "--quality") {
@@ -308,9 +311,11 @@ int main(int argc, char **argv) {
 	if (cfg.codec == "mpeg1") {
 		EncodeResult er = vconv_encode_mpeg1(*ci, ar);
 		verbose(1, "Output video: %s", er.video_path.c_str());
+		if (cfg.seek) vconv_generate_seek(*ci, er.video_path);
 	} else if (cfg.codec == "h264") {
 		EncodeResult er = vconv_encode_h264(*ci, ar);
 		verbose(1, "Output video: %s", er.video_path.c_str());
+		if (cfg.seek) vconv_generate_seek(*ci, er.video_path);
 	} else {
 		fatal("Codec not implemented yet: %s", cfg.codec.c_str());
 	}
