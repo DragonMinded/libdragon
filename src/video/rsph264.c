@@ -51,11 +51,6 @@ inline void rsph264_begin_frame(void)
     last_packed_delta_buf = NULL;
 }
 
-inline void rsph264_end_frame(void)
-{
-    
-}
-
 inline void rsph264_sync(void)
 {
     rspq_wait();

@@ -1,4 +1,6 @@
 LIBDRAGON_OBJS += \
+	$(BUILD_DIR)/video/video.o \
+	$(BUILD_DIR)/video/fmv.o \
 	$(BUILD_DIR)/video/mpeg2.o \
 	$(BUILD_DIR)/video/yuv.o \
 	$(BUILD_DIR)/video/profile.o \

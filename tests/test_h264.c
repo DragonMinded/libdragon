@@ -1352,8 +1352,6 @@ int main(void)
     exhaustive_intrapred_test(&intratest, 512, verbose);
     printf("OK\n");
 
-    rsph264_end_frame();
-
     printf("\nALL TESTS PASSED\n");
 }
 

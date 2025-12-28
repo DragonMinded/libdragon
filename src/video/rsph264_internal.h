@@ -30,11 +30,6 @@ void rsph264_init(void);
 // used for other tasks.
 void rsph264_begin_frame(void);
 
-// End working on a frame. This function stops the RSP, so that
-// it becomes available for other tasks. After calling this
-// function, the RSP ucode can be changed.
-void rsph264_end_frame(void);
-
 // Sync RSP: wait for currently queued functions to terminate.
 // This can be used to force sync points in which all previously enqueued
 // tasks have been performed, but obviously wastes CPU cycles.

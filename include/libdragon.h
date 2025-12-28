@@ -68,6 +68,8 @@
 #include "exception.h"
 #include "dir.h"
 #include "yuv.h"
+#include "fmv.h"
+#include "video.h"
 #include "mpeg2.h"
 #include "h264.h"
 #include "mixer.h"
