@@ -562,7 +562,6 @@ void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COU
     gl_array_t *arrays[ATTRIB_COUNT];
     uint32_t offsets[ATTRIB_COUNT];
     uint32_t array_count = 0;
-    // TODO: convert matrix indices too as soon as they are supported
     for (size_t i = 0; i < ATTRIB_MTX_INDEX; i++)
     {
         if (!obj->arrays[i].enabled) continue;
