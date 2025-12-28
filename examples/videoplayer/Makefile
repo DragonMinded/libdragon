@@ -3,7 +3,7 @@ include $(N64_INST)/include/n64.mk
 
 MOVIE_FILE=caminandes.ogv
 MOVIE_URL=https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.ogv
-DFS_FILES=filesystem/movie.m1v filesystem/movie.wav64
+DFS_FILES=filesystem/movie.h264 filesystem/movie.wav64
 
 src = videoplayer.c
 
@@ -35,6 +35,28 @@ filesystem/movie.m1v: $(MOVIE_FILE)
 		echo "videoplayer: Skipping video re-encoding because the sample movie is missing" ; \
 		touch "$@" ; \
 	fi
+
+# Re-encode the movie's video stream if ffmpeg is available
+filesystem/movie.h264: $(MOVIE_FILE)
+	@mkdir -p "$(dir $@)"
+	@echo "    [FFMPEG] $@"
+	if [ -s "$<" ]; then \
+		if command -v ffmpeg >/dev/null; then \
+			ffmpeg -hide_banner -loglevel error -y -i "$<" -f h264 -c:v libx264 \
+				-profile:v baseline -an \
+				-vf "scale=288x160" \
+				-x264-params no-deblock=1 \
+				-crf 24 -tune film \
+			 	"$@" ; \
+		else \
+			echo "videoplayer: Skipping video re-encoding because ffmpeg is not installed" ; \
+			touch "$@" ; \
+		fi ; \
+	else \
+		echo "videoplayer: Skipping video re-encoding because the sample movie is missing" ; \
+		touch "$@" ; \
+	fi
+
 
 # Convert the movie's audio if it was extracted to wav
 filesystem/movie.wav64: $(BUILD_DIR)/movie.wav

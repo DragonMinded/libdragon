@@ -323,6 +323,7 @@ static void init_model_transforms(model64_t *model)
 static model64_t *make_model_instance(model64_data_t *model_data)
 {
     model64_t *instance = calloc(1, get_model_instance_size(model_data));
+    assertf(instance, "Out of memory");
     instance->data = model_data;
     instance->transforms = (node_transform_state_t *)&instance[1];
     init_model_transforms(instance);
@@ -654,6 +655,7 @@ static void alloc_anim_slot(model64_t *model, model64_anim_slot_t slot)
     state_size += (num_tracks*4)*sizeof(decoded_keyframe_t);
     state_size += sizeof(model64_keyframe_t);
     anim_state_t *anim_state = calloc(1, state_size);
+    assertf(anim_state, "Out of memory");
     anim_state->frames = PTR_DECODE(anim_state, sizeof(anim_state_t));
     anim_state->curr_frame = PTR_DECODE(anim_state->frames, (num_tracks*4)*sizeof(decoded_keyframe_t));
     anim_state->index = -1;

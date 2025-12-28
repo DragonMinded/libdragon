@@ -20,6 +20,7 @@
 #include "surface.h"
 #include "rsp.h"
 #include "kirq.h"
+#include "accounting_internal.h"
 
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
@@ -320,7 +321,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     vi_set_borders(vi_calc_borders(aspect_ratio, res.overscan_margin));
 
     surfaces = malloc(sizeof(surface_t) * __buffers);
-    assert(surfaces != NULL);
+    assertf(surfaces, "Out of memory");
 
     /* Initialize buffers and set parameters */
     for( int i = 0; i < __buffers; i++ )
@@ -329,7 +330,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         /* Grab a location to render to */
         tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
         surfaces[i] = surface_alloc(format, __width, __height);
-        assert(surfaces[i].buffer != NULL);
+        assertf(surfaces[i].buffer, "Out of memory");
 
         /* Baseline is blank */
         memset( surfaces[i].buffer, 0, __width * __height * __bitdepth );
@@ -476,7 +477,7 @@ surface_t* display_get(void)
     assertf(__buffers != 0, "Display not initialized.");
 
     kirq_wait_t kirq = kirq_begin_wait_vi();
-    RSP_WAIT_LOOP(200) {
+    ACCT_SCOPE(ACCT_CAT_DISPLAY) RSP_WAIT_LOOP(200) {
          if ((disp = display_try_get())) {
              break;
          }

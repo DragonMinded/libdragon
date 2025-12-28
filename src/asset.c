@@ -142,6 +142,7 @@ static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
         // Start an asynchronous DMA transfer, so that we can start decompressing as the
         // data flows in.
         uint32_t addr = rom_addr+lseek(fd, 0, SEEK_CUR);
+        assertf(addr % 2 == 0, "asset_load requires ROM data to be 2-byte aligned");
         dma_read_async(s+cmp_offset, addr, cmp_size);
 
         // Run the decompression racing with the DMA.
@@ -246,7 +247,7 @@ void *asset_loadfd(int fd, int *sz)
     asset_header_t header;
     buf_size = asset_read_header(fd, &header, sz);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
-    assertf(buf, "Out of memory: cannot allocate %d bytes", buf_size);
+    assertf(buf, "Out of memory");
     asset_read(fd, &header, sz, buf, &buf_size);
     return buf;
 }
@@ -270,7 +271,7 @@ void *asset_load(const char *fn, int *sz)
     asset_header_t header;
     buf_size = asset_read_header(fd, &header, &size);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
-    assertf(buf, "Out of memory: cannot allocate %d bytes", buf_size);
+    assertf(buf, "Out of memory");
     asset_read(fd, &header, &size, buf, &buf_size);
     if (sz) *sz = size;
     close(fd);
@@ -402,6 +403,7 @@ FILE *asset_fdopen(int fd, int *sz)
 
         int winsize = asset_winsize_from_flags(header.flags);
         cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size + winsize);
+        assertf(cookie, "Out of memory");
         cookie->read = algos[header.algo-1].decompress_read;
         cookie->reset = algos[header.algo-1].decompress_reset;
         algos[header.algo-1].decompress_init(cookie->state, fd, winsize);
@@ -419,6 +421,7 @@ FILE *asset_fdopen(int fd, int *sz)
     if (sz) *sz = lseek(fd, 0, SEEK_END);
     lseek(fd, pos - sizeof(asset_header_t), SEEK_SET);
     cookie_none_t *cookie = malloc(sizeof(cookie_none_t));
+    assertf(cookie, "Out of memory");
     cookie->fd = fd;
     cookie->seeked = false;
     return funopen(cookie, readfn_none, NULL, seekfn_none, closefn_none);

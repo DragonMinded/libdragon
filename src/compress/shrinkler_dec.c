@@ -198,6 +198,7 @@ static int shr_unpack(uint8_t *dst, uint8_t *src)
 bool decompress_shrinkler_full(int fd, size_t cmp_size, size_t size, void *buf, int *buf_size)
 {
     void *in = malloc(cmp_size);
+    assertf(in, "Out of memory");
     read(fd, in, cmp_size);
     if(buf == NULL || *buf_size < size) {
         *buf_size = size;

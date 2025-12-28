@@ -111,18 +111,6 @@ enum {
     RSPQ_CMD_TEST_WRITE_STATUS = 0x08,
 
     /**
-     * @brief RSPQ command: Wait for RDP to be idle.
-     * 
-     * This command will let the RSP spin-wait until the RDP is idle (that is,
-     * the DP_STATUS_BUSY bit in COP0_DP_STATUS goes to 0). Notice that the
-     * RDP is fully asynchronous, and reading DP_STATUS_BUSY basically makes
-     * sense only after a RDP SYNC_FULL command (#rdpq_sync_full()), when it
-     * really does make sure that all previous commands have finished
-     * running.
-     */
-    RSPQ_CMD_RDP_WAIT_IDLE     = 0x09,
-
-    /**
      * @brief RSPQ Command: send a new buffer to RDP and/or configure it for new commands
      * 
      * This command configures a new buffer in RSP for RDP commands. It requires three
@@ -133,7 +121,7 @@ enum {
      * some RDP commands that will be sent to RDP right away. Sentinel is the end of the
      * buffer. If cur==sentinel, the buffer is full and no more commands will be written to it. 
      */
-    RSPQ_CMD_RDP_SET_BUFFER    = 0x0A,
+    RSPQ_CMD_RDP_SET_BUFFER    = 0x09,
 
     /**
      * @brief RSPQ Command: send more data to RDP (appended to the end of the current buffer)
@@ -141,7 +129,7 @@ enum {
      * This commands basically just sets DP_END to the specified argument, allowing new
      * commands appended in the current buffer to be sent to RDP.
      */
-    RSPQ_CMD_RDP_APPEND_BUFFER = 0x0B,
+    RSPQ_CMD_RDP_APPEND_BUFFER = 0x0A,
 };
 
 /** @brief Write an internal command to the RSP queue */
@@ -208,29 +196,27 @@ typedef struct rspq_profile_slot_dmem_s {
 /**
  * @brief RSP Queue data in DMEM.
  * 
- * This structure is defined by rsp_queue.S, and represents the
+ * This structure is defined by rsp_queue.inc, and represents the
  * top portion of DMEM.
  */
 typedef struct rsp_queue_s {
+    uint8_t shift_consts[8];             ///< Shift constants
     rspq_ovl_table_t rspq_ovl_table;     ///< Overlay table
     /** @brief Pointer stack used by #RSPQ_CMD_CALL and #RSPQ_CMD_RET. */
     uint32_t rspq_pointer_stack[RSPQ_MAX_BLOCK_NESTING_LEVEL];
     uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)
     uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
     uint8_t banner[32];                  ///< Banner
+    uint32_t cmds[RSPQ_DMEM_BUFFER_SIZE/4]; ///< RSPQ command buffer
     rspq_rdp_mode_t rdp_mode;            ///< RDP current render mode definition
     uint64_t rdp_scissor_rect;           ///< Current RDP scissor rectangle
     uint32_t rspq_rdp_buffers[2];        ///< RDRAM Address of dynamic RDP buffers
     uint32_t rspq_rdp_current;           ///< Current RDP RDRAM write pointer (normally DP_END)
     uint32_t rspq_rdp_sentinel;          ///< Current RDP RDRAM end pointer (when rdp_current reaches this, the buffer is full)
     uint32_t rdp_fill_color;             ///< Current RDP fill color
+    uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
     uint8_t rdp_target_bitdepth;         ///< Current RDP target buffer bitdepth
     uint8_t rdp_syncfull_ongoing;        ///< True if a SYNC_FULL is currently ongoing
-    uint8_t rdpq_debug;                  ///< Debug mode flag
-    uint8_t padding;                     ///< Padding
-    uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
-    uint16_t current_ovl;                ///< Current overlay ID
-    uint16_t padding2;                   ///< Padding
 #if RSPQ_PROFILE
     uint32_t rspq_profile_cur_slot;
     uint32_t rspq_profile_start_time;
@@ -238,9 +224,6 @@ typedef struct rsp_queue_s {
     rspq_profile_slot_dmem_t rspq_profile_builtin_slot;
 #endif
  } __attribute__((aligned(16), packed)) rsp_queue_t;
-
-/** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
-#define RSPQ_DATA_ADDRESS                8
 
 /** @brief ID of the last syncpoint reached by RSP (plus padding). */
 extern volatile int __rspq_syncpoints_done[4];

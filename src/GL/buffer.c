@@ -130,6 +130,7 @@ void glGenBuffersARB(GLsizei n, GLuint *buffers)
     for (GLsizei i = 0; i < n; i++)
     {
         gl_buffer_object_t *new_obj = calloc(1, sizeof(gl_buffer_object_t));
+        assertf(new_obj, "Out of memory");
         new_obj->usage = GL_STATIC_DRAW_ARB;
         new_obj->access = GL_READ_WRITE_ARB;
         // Being assigned a "name" (the ID returned by this function) counts as a reference.

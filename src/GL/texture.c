@@ -34,6 +34,7 @@ void gl_texture_set_min_filter(gl_texture_object_t *obj, uint32_t offset, GLenum
 void gl_init_texture_object(gl_texture_object_t *obj)
 {
     gl_srv_texture_object_t *srv_obj = malloc_uncached(sizeof(gl_srv_texture_object_t));
+    assertf(srv_obj, "Out of memory");
     *srv_obj = (gl_srv_texture_object_t){
         .min_filter = GL_NEAREST_MIPMAP_LINEAR,
         .mag_filter = GL_LINEAR,
@@ -102,6 +103,7 @@ void gl_cleanup_texture_object(gl_texture_object_t *obj)
 void gl_texture_init()
 {
     state->default_textures = malloc_uncached(sizeof(gl_texture_object_t) * 2);
+    assertf(state->default_textures, "Out of memory");
 
     gl_init_texture_object(&state->default_textures[0]);
     gl_init_texture_object(&state->default_textures[1]);
@@ -638,6 +640,7 @@ void glGenTextures(GLsizei n, GLuint *textures)
     for (uint32_t i = 0; i < n; i++)
     {
         gl_texture_object_t *new_object = malloc_uncached(sizeof(gl_texture_object_t));
+        assertf(new_object, "Out of memory");
         gl_init_texture_object(new_object);
         textures[i] = (GLuint)new_object;
     }

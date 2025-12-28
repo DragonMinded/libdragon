@@ -33,6 +33,7 @@ libdragon: libdragon.a libdragonsys.a gen-version
 libdragonsys.a: $(BUILD_DIR)/system.o
 
 LIBDRAGON_OBJS += \
+	$(BUILD_DIR)/accounting.o \
 	$(BUILD_DIR)/n64sys.o \
 	$(BUILD_DIR)/vaddr64.o \
 	$(BUILD_DIR)/mi_memset.o \

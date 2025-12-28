@@ -526,6 +526,7 @@ static bool init_dfs_lookup(directory_entry_t *id_node)
     }
     uint32_t size = id_node->next_entry;
     lookup = malloc(size);
+    assertf(lookup, "Out of memory");
     data_cache_hit_writeback_invalidate(lookup, size);
     dma_read(lookup, romaddr, size);
     lookup_path_ofs = base_ptr+lookup->path_ofs;

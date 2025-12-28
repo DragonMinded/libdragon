@@ -428,7 +428,10 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
     // 0-3840:      temporary buffer holding up to 1920 FFT values (after deinterleaving)
     // 3840-7936:   DMEM backup
     static uint8_t *rsp_workram = NULL;
-    if (!rsp_workram) rsp_workram = malloc_uncached(3840+4096);
+    if (!rsp_workram) {
+        rsp_workram = malloc_uncached(3840+4096);
+        assertf(rsp_workram, "Out of memory");
+    }
 
     if (out == CachedAddr(out))
         data_cache_hit_writeback_invalidate(out, N*2*stride+overlap*2); // FIXME: maybe *stride is wrong? 
@@ -449,6 +452,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
         // RSP window function requires values to be swizzled according to
         // a specific pattern for optimization reasons
         rsp_window = malloc_uncached(overlap * 2 * sizeof(int16_t));
+        assertf(rsp_window, "Out of memory");
         assert((overlap % 8) == 0);
         for (int i=0;i<overlap;i+=8) {
             rsp_window[i+0] = window[i+0];

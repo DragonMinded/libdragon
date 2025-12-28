@@ -1,11 +1,13 @@
 /**
  * @file kqueue.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Jeff Kent <jeff@jkent.net>
  * @brief Thread-safe FIFO queue implementation for kernel use.
  */
 #include "kernel.h"
 #include "kernel_internal.h"
 #include "kqueue.h"
+#include "debug.h"
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -33,13 +35,11 @@ typedef struct kqueue_s {
 kqueue_t *kqueue_new(int size)
 {
     kqueue_t *queue = calloc(1, sizeof(kqueue_t) + size * sizeof(void*));
-    if (queue)
-    {
-        queue->size = size;
-        kmutex_init(&queue->mutex, KMUTEX_STANDARD);
-        kcond_init(&queue->not_empty);
-        kcond_init(&queue->not_full);
-    }
+    assertf(queue, "Out of memory");
+    queue->size = size;
+    kmutex_init(&queue->mutex, KMUTEX_STANDARD);
+    kcond_init(&queue->not_empty);
+    kcond_init(&queue->not_full);
     return queue;
 }
 

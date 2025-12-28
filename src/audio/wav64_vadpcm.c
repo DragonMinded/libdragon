@@ -352,6 +352,7 @@ static void wav64_vadpcm_init_huffman(wav64_t *wav) {
     wav64_vadpcm_huffctx_t *ctx = vhead->huff_ctx;
 
     vhead->huff_tbl = malloc(sizeof(wav64_vadpcm_hufftable_t) * 3);
+    assertf(vhead->huff_tbl, "Out of memory");
     memset(vhead->huff_tbl, 0, sizeof(wav64_vadpcm_hufftable_t) * 3);
 
     // Compute huffman tables

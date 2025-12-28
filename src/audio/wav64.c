@@ -166,7 +166,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	// Allocate heap memory
 	assert(heap_size % 16 == 0);
 	void *heap = memalign(16, heap_size);
-	assertf(heap != NULL, "wav64: failed to allocate %d bytes for %s", heap_size, file_name);
+	assertf(heap, "Out of memory");
 	if (!wav) wav = heap + heap_off_waveform;
 	wav->st = heap;
 	wav->st->ext = heap + heap_off_ext;

@@ -200,6 +200,7 @@
 #include "utils.h"
 #include "n64sys.h"
 #include "debug.h"
+#include "accounting_internal.h"
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -262,11 +263,16 @@ DEFINE_RSP_UCODE(rsp_queue,
  */
 typedef struct __attribute__((packed)) rspq_overlay_header_t {
     uint16_t state_start;       ///< Start of the portion of DMEM used as "state"
-    uint16_t state_size;        ///< Size of the portion of DMEM used as "state"
+    uint16_t state_size;        ///< Size of the portion of DMEM used as "state" (minus 1)
     uint32_t state_rdram;       ///< RDRAM address of the portion of DMEM used as "state"
-    uint32_t text_rdram;        ///< RDRAM address of the overlay's text section
-    uint16_t text_size;         ///< Size of the overlay's text section
     uint16_t command_base;      ///< Primary overlay ID used for this overlay
+    uint16_t overlay_id;        ///< Overlay ID (multiplied by 4)
+    uint32_t text_rdram;        ///< RDRAM address of the overlay's text section
+    uint16_t text_size;         ///< Size of the overlay's text section (minus 1)
+    uint16_t text_start;        ///< Offset of the overlay's text section in DMEM
+    uint32_t extraseg_rdram;    ///< RDRAM address of extra segment
+    uint16_t extraseg_size;     ///< Size of extra segment (minus 1)
+    uint16_t extraseg_start;    ///< Offset of extra segment in DMEM
     #if RSPQ_PROFILE
     uint16_t profile_slot_dmem; ///< Start of the profile slots in DMEM
     #endif
@@ -384,9 +390,9 @@ static void rspq_sp_interrupt(void)
 }
 
 /** @brief Extract the current overlay index and name from the RSP queue state */
-static void rspq_get_current_ovl(rsp_queue_t *rspq, uint8_t *ovl_id, const char **ovl_name)
+static void rspq_get_current_ovl(rspq_overlay_header_t *ovl_header, uint8_t *ovl_id, const char **ovl_name)
 {
-    *ovl_id = rspq->current_ovl;
+    *ovl_id = ovl_header->overlay_id >> 2;
     if (*ovl_id == 0) {
         *ovl_name = "builtin";
     } else if (*ovl_id < RSPQ_MAX_OVERLAYS && rspq_overlay_ucodes[*ovl_id]) {
@@ -398,12 +404,13 @@ static void rspq_get_current_ovl(rsp_queue_t *rspq, uint8_t *ovl_id, const char 
 /** @brief RSPQ crash handler. This shows RSPQ-specific info the in RSP crash screen. */
 static void rspq_crash_handler(rsp_snapshot_t *state)
 {
-    rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
+    uint32_t rsp_queue_data_size = rsp_queue_data_end - rsp_queue_data_start;
+    rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem);
+    rspq_overlay_header_t *ovl_header = (rspq_overlay_header_t*)(state->dmem + rsp_queue_data_size);
     uint32_t cur = rspq->rspq_dram_addr + state->gpr[28];
-    uint32_t dmem_buffer = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 8);
 
     const char *ovl_name; uint8_t ovl_id;
-    rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
+    rspq_get_current_ovl(ovl_header, &ovl_id, &ovl_name);
 
     printf("RSPQ: Normal  DRAM address: %08lx\n", rspq->rspq_dram_lowpri_addr);
     printf("RSPQ: Highpri DRAM address: %08lx\n", rspq->rspq_dram_highpri_addr);
@@ -418,7 +425,7 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
     debugf("RSPQ: Command queue:\n");
     for (int j=0;j<4;j++) {        
         for (int i=0;i<16;i++)
-            debugf("%08lx%c", ((uint32_t*)state->dmem)[dmem_buffer/4+i+j*16], state->gpr[28] == (j*16+i)*4 ? '*' : ' ');
+            debugf("%08lx%c", rspq->cmds[i+j*16], state->gpr[28] == (j*16+i)*4 ? '*' : ' ');
         debugf("\n");
     }
 
@@ -445,12 +452,11 @@ static void rspq_crash_handler(rsp_snapshot_t *state)
 /** @brief Special RSP assert handler for ASSERT_INVALID_COMMAND */
 static void rspq_assert_invalid_command(rsp_snapshot_t *state)
 {
-    rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
+    rspq_overlay_header_t *ovl_header = (rspq_overlay_header_t*)(state->dmem + (rsp_queue_data_end - rsp_queue_data_start));
     const char *ovl_name; uint8_t ovl_id;
-    rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
+    rspq_get_current_ovl(ovl_header, &ovl_id, &ovl_name);
 
-    uint32_t dmem_buffer = ROUND_UP(RSPQ_DATA_ADDRESS + sizeof(rsp_queue_t), 8);
-    uint32_t cur = dmem_buffer + state->gpr[28];
+    uint32_t cur = state->gpr[28]/4;
     printf("Invalid command\nCommand %02x not found in overlay %s (0x%01x)\n", state->dmem[cur], ovl_name, ovl_id);
 }
 
@@ -471,16 +477,17 @@ static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
             rspq_assert_invalid_command(state);
             break;
         default: {
-            rsp_queue_t *rspq = (rsp_queue_t*)(state->dmem + RSPQ_DATA_ADDRESS);
-
             // Check if there is an assert handler for the current overlay.
             // If it exists, forward request to it.
             // Be defensive against DMEM corruptions.
-            int ovl_id = rspq->current_ovl;
+            rspq_overlay_header_t *ovl_header = (rspq_overlay_header_t*)(state->dmem + (rsp_queue_data_end - rsp_queue_data_start));
+            uint8_t ovl_id = ovl_header->overlay_id >> 2;
             if (ovl_id < RSPQ_MAX_OVERLAYS &&
                 rspq_overlay_ucodes[ovl_id] &&
                 rspq_overlay_ucodes[ovl_id]->assert_handler)
                 rspq_overlay_ucodes[ovl_id]->assert_handler(state, assert_code);
+            else
+                printf("\n");
             break;
         }
     }
@@ -538,7 +545,7 @@ static void rspq_start(void)
 
     // Load data with initialized overlays into DMEM
     data_cache_hit_writeback(&rspq_data, sizeof(rsp_queue_t));
-    rsp_load_data(&rspq_data, sizeof(rsp_queue_t), RSPQ_DATA_ADDRESS);
+    rsp_load_data(&rspq_data, sizeof(rsp_queue_t), 0);
 
     static rspq_overlay_header_t dummy_header = (rspq_overlay_header_t){
         .state_start = 0,
@@ -578,6 +585,7 @@ static void rspq_init_context(rspq_ctx_t *ctx, int buf_size)
     memset(ctx, 0, sizeof(rspq_ctx_t));
     ctx->buffers[0] = malloc_uncached(buf_size * sizeof(uint32_t));
     ctx->buffers[1] = malloc_uncached(buf_size * sizeof(uint32_t));
+    assertf(ctx->buffers[0] && ctx->buffers[1], "Out of memory");
     memset(ctx->buffers[0], 0, buf_size * sizeof(uint32_t));
     memset(ctx->buffers[1], 0, buf_size * sizeof(uint32_t));
     ctx->buf_idx = 0;
@@ -619,14 +627,15 @@ void rspq_init(void)
     // Allocate the RDP dynamic buffers.
     rspq_rdp_dynamic_buffers[0] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
     rspq_rdp_dynamic_buffers[1] = malloc_uncached(RDPQ_DYNAMIC_BUFFER_SIZE);
-
+    assertf(rspq_rdp_dynamic_buffers[0] && rspq_rdp_dynamic_buffers[1], "Out of memory");
+    
     // Verify consistency of state
-    int banner_offset = RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, banner);
+    int banner_offset = offsetof(rsp_queue_t, banner);
     assertf(!memcmp(rsp_queue.data + banner_offset, "Dragon RSP Queue", 16),
         "rsp_queue_t does not seem to match DMEM; did you forget to update it?");
 
     // Load initial settings
-    memcpy(&rspq_data, rsp_queue.data + RSPQ_DATA_ADDRESS, sizeof(rsp_queue_t));
+    memcpy(&rspq_data, rsp_queue.data, sizeof(rsp_queue_t));
     rspq_data.rspq_dram_lowpri_addr = PhysicalAddr(lowpri.cur);
     rspq_data.rspq_dram_highpri_addr = PhysicalAddr(highpri.cur);
     rspq_data.rspq_dram_addr = rspq_data.rspq_dram_lowpri_addr;
@@ -658,7 +667,7 @@ void rspq_init(void)
     MEMORY_BARRIER();
     *DP_STATUS = DP_WSTATUS_RESET_XBUS_DMEM_DMA | DP_WSTATUS_RESET_FLUSH | DP_WSTATUS_RESET_FREEZE;
     MEMORY_BARRIER();
-    RSP_WAIT_LOOP(500) {
+    ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(500) {
         if (!(*DP_STATUS & (DP_STATUS_START_VALID | DP_STATUS_END_VALID))) {
             break;
         }
@@ -733,8 +742,8 @@ void* rspq_overlay_get_state(rsp_ucode_t *overlay_ucode)
         // state for. If so, read back the latest updated state from DMEM
         // manually via DMA, so that the caller finds the latest contents.
         const char *ovl_name; uint8_t ovl_id;
-        rsp_queue_t *rspq = (rsp_queue_t*)((uint8_t*)SP_DMEM + RSPQ_DATA_ADDRESS);
-        rspq_get_current_ovl(rspq, &ovl_id, &ovl_name);
+        rspq_overlay_header_t *ovl_header = (void*)SP_DMEM + (rsp_queue_data_end - rsp_queue_data_start);
+        rspq_get_current_ovl(ovl_header, &ovl_id, &ovl_name);
 
         if (ovl_id && rspq_overlay_ucodes[ovl_id] == overlay_ucode) {
             rsp_read_data(state_ptr, state_size, state_ptr - overlay_ucode->data);
@@ -751,7 +760,7 @@ rsp_queue_t* __rspq_get_state(void)
     rspq_wait();
 
     // Read the state and return it
-    rsp_read_data(&rspq_data, sizeof(rsp_queue_t), RSPQ_DATA_ADDRESS);
+    rsp_read_data(&rspq_data, sizeof(rsp_queue_t), 0);
     return &rspq_data;
 }
 
@@ -805,7 +814,7 @@ static void rspq_update_tables(bool is_highpri)
     data_cache_hit_writeback_invalidate(&rspq_data.rspq_ovl_table, sizeof(rspq_ovl_table_t));
     if (is_highpri) rspq_highpri_begin();
     rspq_dma_to_dmem(
-        RSPQ_DATA_ADDRESS + offsetof(rsp_queue_t, rspq_ovl_table),
+        offsetof(rsp_queue_t, rspq_ovl_table),
         &rspq_data.rspq_ovl_table, sizeof(rspq_ovl_table_t), false);
     if (is_highpri) rspq_highpri_end();
 }
@@ -861,7 +870,7 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
     for (uint32_t i = 0; i < slot_count; i++) {
         rspq_data.rspq_ovl_table.data_rdram[id + i] = 
             PhysicalAddr(overlay_data) | (((overlay_data_size - 1) >> 4) << 24);
-        rspq_data.rspq_ovl_table.idmap[id + i] = id;
+        rspq_data.rspq_ovl_table.idmap[id + i] = id << 2;
     }
 
     // Fill information in the overlay header
@@ -869,6 +878,7 @@ static uint32_t rspq_overlay_register_internal(rsp_ucode_t *overlay_ucode, uint3
     overlay_header->text_rdram = PhysicalAddr(overlay_code);
     overlay_header->state_rdram = PhysicalAddr(overlay_ucode->data) + overlay_header->state_start;
     overlay_header->command_base = id << 5;
+    overlay_header->overlay_id = id << 2;
     data_cache_hit_writeback_invalidate(overlay_header, sizeof(rspq_overlay_header_t));
 
     // Save the overlay pointer
@@ -889,6 +899,29 @@ void rspq_overlay_register_static(rsp_ucode_t *overlay_ucode, uint32_t overlay_i
     assertf((overlay_id & 0x0FFFFFFF) == 0, 
         "the specified overlay_id should only use the top 4 bits (must be preshifted by 28) (overlay: %s)", overlay_ucode->name);
     rspq_overlay_register_internal(overlay_ucode, overlay_id);
+}
+
+void rspq_overlay_share_state(rsp_ucode_t *overlay_dest, rsp_ucode_t *overlay_source)
+{
+    rspq_overlay_header_t *dsth = (rspq_overlay_header_t*)(overlay_dest->data + (rsp_queue_data_end - rsp_queue_data_start));
+    rspq_overlay_header_t *srch = (rspq_overlay_header_t*)(overlay_source->data + (rsp_queue_data_end - rsp_queue_data_start));
+    
+    assertf((dsth->text_rdram & (1<<31)) == 0, 
+        "Overlay %s is already using another shared state", overlay_dest->name);
+    assertf(dsth->state_size <= srch->state_size, "Overlays %s (dest) and %s (src) have non-compatible state size (%d vs %d)",
+        overlay_dest->name, overlay_source->name, dsth->state_size, srch->state_size);
+
+    // Mark as using shared state. We need to mark it in the text segment because
+    // it's what the rsp_queue ucode checks for.
+    dsth->text_rdram |= (1<<31);
+
+    // At overlay load time, copy state from source overlay into DMEM
+    dsth->extraseg_rdram = srch->state_rdram;
+    dsth->extraseg_size = dsth->state_size;
+    dsth->extraseg_start = dsth->state_start;
+
+    // At overlay save time, copy state from DMEM into source overlay
+    dsth->state_rdram = srch->state_rdram;
 }
 
 void rspq_overlay_unregister(uint32_t overlay_id)
@@ -940,7 +973,14 @@ void rspq_next_buffer(void) {
 
         // Allocate a new chunk of the block and switch to it.
         uint32_t *rspq2 = malloc_uncached(rspq_block_size*sizeof(uint32_t));
-        volatile uint32_t *prev = rspq_switch_buffer(rspq2, rspq_block_size, true);
+        assertf(rspq2, "Out of memory");
+
+        // Put the jump also at the end of the allocated memory, this makes it easier later to detect the end.
+        // The other write further down is the one the RSP sees if there is still room left.
+        volatile uint32_t* actual_end = rspq_cur_sentinel + (RSPQ_MAX_SHORT_COMMAND_SIZE + 2) - 1;
+        rspq_append1(actual_end, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
+
+        volatile uint32_t *prev = rspq_switch_buffer(rspq2, rspq_block_size, false);
 
         // Terminate the previous chunk with a JUMP op to the new chunk.
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(rspq2));
@@ -965,7 +1005,7 @@ void rspq_next_buffer(void) {
     MEMORY_BARRIER();
     if (!(*SP_STATUS & rspq_ctx->sp_status_bufdone)) {
         rspq_flush_internal();
-        RSP_WAIT_LOOP(200) {
+        ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
             __rspq_deferred_poll();
             if (*SP_STATUS & rspq_ctx->sp_status_bufdone)
                 break;
@@ -1099,7 +1139,7 @@ void rspq_highpri_sync(void)
     // Make sure the RSP is running, otherwise we might be blocking forever.
     rspq_flush_internal();
 
-    RSP_WAIT_LOOP(200) {
+    ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
         __rspq_deferred_poll();
         if (!(*SP_STATUS & (SP_STATUS_SIG_HIGHPRI_REQUESTED | SP_STATUS_SIG_HIGHPRI_RUNNING)))
             break;
@@ -1119,13 +1159,14 @@ void rspq_block_begin(void)
     // Allocate a new block (at minimum size) and initialize it.
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
     rspq_block = malloc_uncached(sizeof(rspq_block_t) + rspq_block_size*sizeof(uint32_t));
+    assertf(rspq_block, "Out of memory");
     rspq_block->nesting_level = 0;
     rspq_block->rdp_block = NULL;
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
-    rspq_switch_buffer(rspq_block->cmds, rspq_block_size, true);
+    rspq_switch_buffer(rspq_block->cmds, rspq_block_size, false);
 
     __rdpq_block_begin();
 }
@@ -1133,6 +1174,11 @@ void rspq_block_begin(void)
 rspq_block_t* rspq_block_end(void)
 {
     assertf(rspq_block, "a block was not being created");
+
+    // Put the return at the end of the allocated memory, this makes it easier later to detect the end.
+    // The other write further down is the one the RSP sees if there is still room left.
+    volatile uint32_t* actual_end = rspq_cur_sentinel + (RSPQ_MAX_SHORT_COMMAND_SIZE + 2) - 1;
+    rspq_append1(actual_end, RSPQ_CMD_RET, rspq_block->nesting_level<<2);
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
@@ -1158,11 +1204,9 @@ void rspq_block_free(rspq_block_t *block)
     // Start from the commands in the first chunk of the block
     int size = RSPQ_BLOCK_MIN_SIZE;
     void *start = block;
-    uint32_t *ptr = block->cmds + size;
+    uint32_t *ptr = block->cmds;
     while (1) {
-        // Rollback until we find a non-zero command
-        while (*--ptr == 0x00) {}
-        uint32_t cmd = *ptr;
+        uint32_t cmd = ptr[size-1];
 
         // If the last command is a JUMP
         if (cmd>>24 == RSPQ_CMD_JUMP) {
@@ -1171,7 +1215,7 @@ void rspq_block_free(rspq_block_t *block)
             // Get the pointer to the next chunk
             start = UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
             if (size < RSPQ_BLOCK_MAX_SIZE) size *= 2;
-            ptr = (uint32_t*)start + size;
+            ptr = (uint32_t*)start;
             continue;
         }
         // If the last command is a RET
@@ -1236,6 +1280,7 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx)
 {
     assertf(rspq_block, "no block is being created");
     rspq_block_cb_t *new_cb = malloc(sizeof(rspq_block_cb_t));
+    assertf(new_cb, "Out of memory");
     new_cb->cb = cb;
     new_cb->ctx = ctx;
     // Insert at the front of the list.
@@ -1291,7 +1336,7 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
     // Spinwait until the the syncpoint is reached.
     // TODO: with the kernel, it will be possible to wait for the RSP interrupt
     // to happen, without spinwaiting.
-    RSP_WAIT_LOOP(200) {
+    ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
         __rspq_deferred_poll();
         if (rspq_syncpoint_check(sync_id))
             break;
@@ -1332,8 +1377,9 @@ bool __rspq_deferred_poll(void)
 
         // If this call does not require waiting for next SYNC_FULL, call it.
         if (!(cur->flags & RSPQ_DCF_WAITRDP)) {
-            // Call the deferred calllback
-            cur->func(cur->arg);
+            // Call the deferred calllback. Account the time to user-time as
+            // this is actually a non-kernel activity that's just deferred.
+            ACCT_SCOPE(ACCT_CAT_USER) cur->func(cur->arg);
 
             // Remove it from the list (possibly updating the head/tail pointer)
             if (prev)
@@ -1360,6 +1406,7 @@ rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool wait
 
     // Allocate a new deferred call
     rspq_deferred_call_t *call = malloc(sizeof(rspq_deferred_call_t));
+    assertf(call, "Out of memory");
     call->func = func;
     call->arg = arg;
     call->next = NULL;
@@ -1405,7 +1452,7 @@ void rspq_wait(void)
 
     // Make sure to process all deferred calls. Since this is a full sync point,
     // it makes sense to give this guarantee to the user.
-    RSP_WAIT_LOOP(500) {
+    ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(500) {
         if (!__rspq_deferred_poll())
             break;
     }
@@ -1415,7 +1462,7 @@ void rspq_wait(void)
     // this code even just as documentation that we want to ensure that rspq_wait()
     // exits with all RSP idle.
     if (UNLIKELY(*SP_STATUS & SP_STATUS_DMA_BUSY)) {
-        RSP_WAIT_LOOP(200) {
+        ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
             if (!(*SP_STATUS & SP_STATUS_DMA_BUSY))
                 break;
         }
