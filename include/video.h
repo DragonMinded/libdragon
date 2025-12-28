@@ -3,7 +3,44 @@
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Video player subsystem
  * 
+ * This library allows to playback videos on the N64, using video codecs that
+ * can be registered into it. It provides an uniform and flexible API for any
+ * video-related tasks, including advanced uses such as showing videos are part
+ * of a 3D scene, or making a game based on videos.
  * 
+ * If you just want to display a full-motion video (FMV) with audio, consider using
+ * the fmv.h module instead, which provides a much higher-level API to do
+ * just that.
+ * 
+ * Currently two video codecs are supported and provided as part of libdragon:
+ * 
+ * * #mpeg1_codec: MPEG1
+ * * #h264_codec: H.264 Baseline Profile
+ * 
+ * Higher-level information on how to encode videos and suggested settings can be found
+ * in the Libdragon wiki: https://github.com/DragonMinded/libdragon/wiki/MPEG1-Player
+ * 
+ * The API in this file is quite simple. The main entry point is #video_open,
+ * which opens a video file and returns a handle to it. #video_get_info can be used
+ * to query information about the video, such as width, height, framerate, etc.
+ * 
+ * To play the video, the main loop should call #video_next_frame any time
+ * a new frame is needed (depending on the desired playback frequency),
+ * and then #video_get_frame to get the frame to display. The frame is
+ * returned as a #yuv_frame_t. You can then use the YUV library to display
+ * it, either fullscreen, in a smaller portion, or even into an offscreen
+ * surface to be used eg. like a texture.
+ * 
+ * In other words, this library only handles video decoding into a YUV surface
+ * in memory. It does not perform any display by itself; it is up to the
+ * client code to display the frames using the yuv.h library or any other
+ * method.
+ * 
+ * Notice that the time required to decode a frame is not constant, and can
+ * vary a lot; especially I-frames tend to be much heavier to decode, so if
+ * possible allow for some buffering to avoid slowdowns. Buffering can be
+ * done by calling #video_poll when possible (eg: in idle time), so that the
+ * decoder can keep decoding frames ahead of time.
  */
 
 /**
