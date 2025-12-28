@@ -30,140 +30,23 @@
 #ifndef LIBDRAGON_MPEG2_H
 #define LIBDRAGON_MPEG2_H
 
-#include <stdbool.h>
-#include "yuv.h"
+#include "video.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-///@cond
-typedef struct yuv_frame_s yuv_frame_t;
-typedef struct mpeg2_s mpeg2_t;
-///@endcond
-
 /**
- * @brief Open an MPEG1 video file
+ * @brief MPEG1 video codec
  * 
- * This function opens an MPEG1 video file and returns a handle to it.
+ * Register this codec via #video_register_codec to enable MPEG1 video playback
+ * using the video.h API.
  * 
- * The file must be a raw MPEG-1 stream with no audio. This means that standard
- * .mpg files (using the MPEG container format) are not directly
- * supported and must be split into the raw video and audio streams. MPEG 1
- * video streams often have a .m1v extension.
- * 
- * @param fn            Filename of the video to open (including filesystem prefix)
- * @return mpeg2_t*     Handle to the video
- * 
- * @see #mpeg2_next_frame
- * @see #mpeg2_close
+ * This codec supports MPEG1 video elementary streams with no container. The supported
+ * extension is ".m1v". Do not use this codec with container formats such as MPG
+ * or AVI.
  */
-mpeg2_t* mpeg2_open(const char *fn);
-
-/** 
- * @brief Get the framerate of the video
- * 
- * This function returns the expected playback rate of the video in frames per
- * second, as encoded in the video header.
- * 
- * Notice that this library does not by itself enforce the framerate. Any
- * time a frame is requested, the library will decode the next frame in the
- * stream, regardless of the time elapsed since the last frame. It is up to the
- * caller to decide how to handle the timing.
- * 
- * @param mp2           Handle to the video
- * @return float        Framerate in frames per second
- */
-float mpeg2_get_framerate(mpeg2_t *mp2);
-
-/**
- * @brief Return the width of the video in pixels
- * 
- * @param mp2           Handle to the video
- * @return int          Width of the video in pixels
- */
-int mpeg2_get_width(mpeg2_t *mp2);
-
-/**
- * @brief Return the height of the video in pixels
- * 
- * @param mp2           Handle to the video
- * @return int          Height of the video in pixels
- */
-int mpeg2_get_height(mpeg2_t *mp2);
-
-/**
- * @brief Get the display aspect ratio (DAR) of the stream.
- *
- * For normal video streams with square pixels, this will be identical
- * to width/height. Some streams might be anamorphic, meaning that the picture
- * has been encoded with non-square pixels. In this case, the aspect ratio
- * will be different, and must be used to correctly display the video.
- * 
- * Notice that MPEG-1 has very limited support for aspect ratios. To allow for
- * full anamorphic support, we support a libdragon-specific user data fragment
- * embedded in the video stream, which allows to specify arbitrary aspect ratios.
- * This user-data fragment is created by videoconv64, but will be missing if
- * the video is encoded using other tools.
- */
-float mpeg2_get_aspect_ratio(mpeg2_t *mp2);
-
-/**
- * @brief Get the YUV colorspace for the stream.
- *
- * This function is provided for completeness, but all MPEG-1 videos must/should be
- * encoded as BT.601 with TV range, so this function will always return
- * #YUV_BT601_TV.
- *
- * @return A colorspace structure (by value).
- */
-yuv_colorspace_t mpeg2_get_colorspace(mpeg2_t *mp2);
-
-/**
- * @brief Decode the next frame in the video stream
- * 
- * This function decodes the next frame in the video stream. If the frame
- * is successfully decoded, it can be retrieved with #mpeg2_get_frame. Otherwise,
- * the stream is finished and the function will return false.
- * 
- * @param mp2           Handle to the video
- * @return true         If a frame was successfully decoded
- * @return false        If the stream is finished
- */
-bool mpeg2_next_frame(mpeg2_t *mp2);
-
-/**
- * @brief Get the last decoded frame
- * 
- * This function returns the last frame decoded by #mpeg2_next_frame. The frame
- * is returned as a #yuv_frame_t, which can be used to display the frame on the
- * screen via the yuv.h library.
- * 
- * @param mp2               Handle to the video
- * @return yuv_frame_t      Decoded frame
- * 
- * @see #yuv_tex_blit
- * @see #yuv_blitter_new_fmv
- * @see #yuv_blitter_new
- */
-yuv_frame_t mpeg2_get_frame(mpeg2_t *mp2);
-
-/**
- * @brief Rewind the video stream to the beginning
- * 
- * This function rewinds the video stream to the beginning, so that the next
- * call to #mpeg2_next_frame will start decoding from the first frame.
- * 
- * @param mp2               Handle to the video
- */
-void mpeg2_rewind(mpeg2_t *mp2);
-
-/**
- * @brief Close the video stream and release resources
- * 
- * @param mp2               Handle to the video
- */
-void mpeg2_close(mpeg2_t *mp2);
+extern video_codec_t mpeg1_codec;
 
 #ifdef __cplusplus
 }

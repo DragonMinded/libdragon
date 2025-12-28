@@ -17,6 +17,10 @@ extern "C" {
  * 
  * Register this codec via #video_register_codec to enable H.264 video playback
  * using the video.h API.
+ * 
+ * This codec supports raw H264 elementary streams with no container. The supported
+ * extension is `.h264`. Do not use this codec with container formats such as MP4,
+ * MKV, AVI, etc.
  */
 extern video_codec_t h264_codec;
 

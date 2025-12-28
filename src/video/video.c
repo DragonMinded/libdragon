@@ -49,6 +49,7 @@ video_info_t video_get_info(video_t *v)
 
 int video_poll(video_t *v)
 {
+    if (!v->codec->poll) return 0;
     return v->codec->poll(v);
 }
 

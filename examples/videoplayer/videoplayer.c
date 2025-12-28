@@ -41,6 +41,7 @@ int main(void)
 	audio_init(AUDIO_HZ, 4);
 	mixer_init(8);
 
+	video_register_codec(&mpeg1_codec);
 	video_register_codec(&h264_codec);
 
 	// Initialize profiling (FIXME)
