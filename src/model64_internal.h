@@ -103,6 +103,7 @@ typedef struct model64_mat_s {
 typedef struct submesh_state_s {
     uint32_t vertex_vbo;
     uint32_t index_vbo;
+    uint32_t mtx_indices_vbo;
     uint32_t vao;
     uint32_t prim_mode;
 } submesh_state_t;

@@ -15,12 +15,13 @@
 
 #define MAX_ATTRIBUTE_COUNT    3
 #define MAX_CONVERSION_COUNT   4
+#define MAX_WEIGHT_ATTRIBUTE_COUNT 8
 
 typedef void (*convert_func)(uint8_t*,const float*);
 
 typedef struct
 {
-    cgltf_attribute *in_attr;
+    const cgltf_accessor *in_acc;
     float *buffer;
     uint32_t out_offset;
     uint32_t component_count;
@@ -35,6 +36,7 @@ void mesh_free(mgfx_mesh_t *mesh)
         if (submesh->vertex_layout.attributes != NULL) free(submesh->vertex_layout.attributes);
         if (submesh->vertices != NULL) free(submesh->vertices);
         if (submesh->indices != NULL) free(submesh->indices);
+        if (submesh->mtx_indices != NULL) free(submesh->mtx_indices);
     }
     free(mesh->submeshes);
 }
@@ -51,16 +53,6 @@ mg_primitive_topology_t convert_primitive_topology(cgltf_primitive_type in_type)
         default:
             return -1;
     }
-}
-
-cgltf_attribute *find_input_attribute(cgltf_primitive *primitive, cgltf_attribute_type type)
-{
-    for (size_t i = 0; i < primitive->attributes_count; i++)
-    {
-        if (primitive->attributes[i].type == type) return &primitive->attributes[i];
-    }
-
-    return NULL;
 }
 
 // Copy array of 16 bit values and convert to big endian
@@ -107,7 +99,7 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
 {
     const uint32_t invalid_index = 0xFFFFFFFF;
 
-    if (submesh->input_assembly_parms.primitive_topology != MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST) {
+    if (submesh->primitive_topology != MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST) {
         // Other modes not supported for now
         return 0;
     }
@@ -115,6 +107,10 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
     // Create new buffers
     uint8_t *vertex_buffer = calloc(submesh->vertices_count*2, submesh->vertex_layout.stride);
     uint16_t *index_buffer = calloc(submesh->indices_count, sizeof(uint16_t));
+    uint8_t *mtx_index_buffer = NULL;
+    if (submesh->mtx_indices != NULL) {
+        mtx_index_buffer = calloc(submesh->vertices_count*2, sizeof(uint8_t));
+    }
 
     // Optimize buffers
     uint32_t triangle_count = submesh->indices_count / 3;
@@ -189,6 +185,10 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
                 uint8_t *dst = vertex_buffer + new_index*size;
                 const uint8_t *src = (const uint8_t*)submesh->vertices + old_index*size;
                 memcpy(dst, src, size);
+
+                if (submesh->mtx_indices != NULL) {
+                    mtx_index_buffer[new_index] = submesh->mtx_indices[old_index];
+                }
             }
 
             uint32_t index_buffer_offset = emitted_triangle_count * 3;
@@ -204,6 +204,7 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
     if (error) {
         free(vertex_buffer);
         free(index_buffer);
+        if (mtx_index_buffer != NULL) free(mtx_index_buffer);
         return 1;
     }
 
@@ -212,6 +213,10 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
     free(submesh->indices);
     submesh->vertices = vertex_buffer;
     submesh->indices = index_buffer;
+    if (submesh->mtx_indices != NULL) {
+        free(submesh->mtx_indices);
+        submesh->mtx_indices = mtx_index_buffer;
+    }
 
     if (submesh->vertices_count != emitted_vtx_count) {
         if (flag_verbose) {
@@ -223,12 +228,117 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
     return 0;
 }
 
-int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh, int flag_verbose)
+int read_accessor_data(const cgltf_accessor *in_accessor, float **out_data, size_t *num_components)
 {
-    out_submesh->input_assembly_parms.primitive_restart_enabled = false;
-    out_submesh->input_assembly_parms.primitive_topology = convert_primitive_topology(in_primitive->type);
+    *num_components = cgltf_num_components(in_accessor->type);
+    size_t num_values = *num_components * in_accessor->count;
+    *out_data = malloc(sizeof(float) * num_values);
+    if (cgltf_accessor_unpack_floats(in_accessor, *out_data, num_values) == 0) {
+        fprintf(stderr, "Error: failed reading attribute data\n");
+        return 1;
+    }
+    return 0;
+}
 
-    if (out_submesh->input_assembly_parms.primitive_topology == -1) {
+int convert_mtx_indices(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh, int flag_verbose, bool strict)
+{
+    size_t attr_count = 0;
+
+    const cgltf_accessor *joints[MAX_WEIGHT_ATTRIBUTE_COUNT];
+    const cgltf_accessor *weights[MAX_WEIGHT_ATTRIBUTE_COUNT];
+
+    // Search for joints and weights attributes, always pairing corresponding attributes together.
+    // For each index, both joints and weights must be present.
+    for (size_t i = 0; i < MAX_WEIGHT_ATTRIBUTE_COUNT; i++)
+    {
+        const cgltf_accessor *in_joints = cgltf_find_accessor(in_primitive, cgltf_attribute_type_joints, attr_count);
+        const cgltf_accessor *in_weights = cgltf_find_accessor(in_primitive, cgltf_attribute_type_weights, attr_count);
+
+        if (in_joints == NULL || in_weights == NULL) break;
+
+        joints[attr_count] = in_joints;
+        weights[attr_count] = in_weights;
+        attr_count++;
+    }
+    
+    if (attr_count == 0) return 0;
+
+    bool has_error = false;
+
+    float *tmp_joints[MAX_WEIGHT_ATTRIBUTE_COUNT];
+    float *tmp_weights[MAX_WEIGHT_ATTRIBUTE_COUNT];
+
+    for (size_t i = 0; i < attr_count; i++)
+    {
+        size_t tmp;
+        if (read_accessor_data(joints[i], &tmp_joints[i], &tmp)) {
+            has_error = true;
+            break;
+        }
+        assert(tmp == 4);
+        
+        if (read_accessor_data(weights[i], &tmp_weights[i], &tmp)) {
+            has_error = true;
+            break;
+        }
+        assert(tmp == 4);
+    }
+
+    if (!has_error) {
+        out_submesh->mtx_indices = malloc(out_submesh->vertices_count);
+
+        for (size_t i = 0; i < out_submesh->vertices_count; i++)
+        {
+            size_t used_weights_count = 0;
+            float max_weight = 0.0f;
+            uint8_t mtx_index = 0;
+
+            for (size_t j = 0; j < attr_count; j++)
+            {
+                // joints and weights are guaranteed to be VEC4
+                for (size_t k = 0; k < 4; k++)
+                {
+                    float weight = tmp_weights[j][i * 4 + k];
+                    if (weight > 0.1f) {
+                        used_weights_count++;
+                    }
+                    if (weight > max_weight) {
+                        max_weight = weight;
+                        mtx_index = tmp_joints[j][i * 4 + k];
+                    }
+                }
+            }
+
+            if (strict && used_weights_count > 1) {
+                fprintf(stderr, "Error: Primitive is not rigidly skinned\n");
+                has_error = true;
+                break;
+            }
+            
+            out_submesh->mtx_indices[i] = mtx_index;
+        }
+
+        if (has_error) {
+            free(out_submesh->mtx_indices);
+            out_submesh->mtx_indices = NULL;
+        }
+    }
+    
+    for (size_t i = 0; i < attr_count; i++)
+    {
+        free(tmp_joints[i]);
+        free(tmp_weights[i]);
+    }
+
+    return has_error ? 1 : 0;
+}
+
+int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh, int flag_verbose, bool strict)
+{
+    out_submesh->primitive_restart_enabled = false;
+    out_submesh->primitive_topology = convert_primitive_topology(in_primitive->type);
+
+    if (out_submesh->primitive_topology == -1) {
         fprintf(stderr, "Error: only triangles are supported!\n");
         return 1;
     }
@@ -241,14 +351,14 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
     mg_vertex_attribute_t attributes[MAX_ATTRIBUTE_COUNT];
     attribute_conversion conversions[MAX_CONVERSION_COUNT] = {};
 
-    cgltf_attribute *in_pos = find_input_attribute(in_primitive, cgltf_attribute_type_position);
+    const cgltf_accessor *in_pos = cgltf_find_accessor(in_primitive, cgltf_attribute_type_position, 0);
     if (in_pos != NULL) {
         attributes[attribute_count++] = (mg_vertex_attribute_t) {
             .input = MGFX_ATTRIBUTE_POS_NORM,
             .offset = vertex_stride
         };
         conversions[conversion_count++] = (attribute_conversion) {
-            .in_attr = in_pos,
+            .in_acc = in_pos,
             .out_offset = vertex_stride,
             .convert_func = (convert_func)convert_position
         };
@@ -258,37 +368,37 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
         return 1;
     }
 
-    cgltf_attribute *in_norm = find_input_attribute(in_primitive, cgltf_attribute_type_normal);
+    const cgltf_accessor *in_norm = cgltf_find_accessor(in_primitive, cgltf_attribute_type_normal, 0);
     if (in_norm != NULL) {
         conversions[conversion_count++] = (attribute_conversion) {
-            .in_attr = in_norm,
+            .in_acc = in_norm,
             .out_offset = vertex_stride - sizeof(uint16_t),
             .convert_func = (convert_func)convert_normal
         };
     }
 
-    cgltf_attribute *in_color = find_input_attribute(in_primitive, cgltf_attribute_type_color);
+    const cgltf_accessor *in_color = cgltf_find_accessor(in_primitive, cgltf_attribute_type_color, 0);
     if (in_color != NULL) {
         attributes[attribute_count++] = (mg_vertex_attribute_t) {
             .input = MGFX_ATTRIBUTE_COLOR,
             .offset = vertex_stride
         };
         conversions[conversion_count++] = (attribute_conversion) {
-            .in_attr = in_color,
+            .in_acc = in_color,
             .out_offset = vertex_stride,
             .convert_func = (convert_func)convert_color
         };
         vertex_stride += sizeof(uint32_t);
     }
 
-    cgltf_attribute *in_tex = find_input_attribute(in_primitive, cgltf_attribute_type_texcoord);
+    const cgltf_accessor *in_tex = cgltf_find_accessor(in_primitive, cgltf_attribute_type_texcoord, 0);
     if (in_tex != NULL) {
         attributes[attribute_count++] = (mg_vertex_attribute_t) {
             .input = MGFX_ATTRIBUTE_TEXCOORD,
             .offset = vertex_stride
         };
         conversions[conversion_count++] = (attribute_conversion) {
-            .in_attr = in_tex,
+            .in_acc = in_tex,
             .out_offset = vertex_stride,
             .convert_func = (convert_func)convert_texcoord
         };
@@ -299,21 +409,16 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
 
     for (size_t i = 0; i < conversion_count; i++)
     {
-        // allocate buffers
-        cgltf_accessor *in_accessor = conversions[i].in_attr->data;
-        size_t num_components = cgltf_num_components(in_accessor->type);
-        size_t num_values = num_components * in_accessor->count;
-        conversions[i].component_count = num_components;
-        conversions[i].buffer = malloc(sizeof(float) * num_values);
-        if (cgltf_accessor_unpack_floats(in_accessor, conversions[i].buffer, num_values) == 0) {
-            fprintf(stderr, "Error: failed reading attribute data\n");
+        size_t num_components;
+        if (read_accessor_data(conversions[i].in_acc, &conversions[i].buffer, &num_components) != 0) {
             has_error = true;
             break;
         }
+        conversions[i].component_count = num_components;
     }
 
     if (!has_error) {
-        uint32_t vertex_count = in_pos->data->count;
+        uint32_t vertex_count = in_pos->count;
         out_submesh->vertices_count = vertex_count;
         out_submesh->vertices = malloc(vertex_stride * vertex_count);
 
@@ -327,6 +432,10 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
                 memcpy(tmp, src, sizeof(float) * conversions[j].component_count);
                 conversions[j].convert_func(dst + conversions[j].out_offset, tmp);
             }
+        }
+
+        if (convert_mtx_indices(in_primitive, out_submesh, flag_verbose, strict) != 0) {
+            has_error = true;
         }
     }
         
@@ -347,7 +456,7 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
         out_submesh->indices_count = in_indices->count;
 
         cgltf_uint *tmp_indices = malloc(sizeof(cgltf_uint) * in_indices->count);
-        if (cgltf_accessor_unpack_indices(in_indices, tmp_indices, in_indices->count) == 0) {
+        if (cgltf_accessor_unpack_indices(in_indices, tmp_indices, sizeof(cgltf_uint), in_indices->count) == 0) {
             fprintf(stderr, "Error: failed reading index data\n");
             free(tmp_indices);
             return 1;
@@ -368,7 +477,7 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
     return 0;
 }
 
-int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh, int flag_verbose)
+int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh, int flag_verbose, bool strict)
 {
     out_mesh->submesh_count = in_mesh->primitives_count;
     out_mesh->submeshes = calloc(in_mesh->primitives_count, sizeof(mgfx_submesh_t));
@@ -379,7 +488,7 @@ int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh, int flag_verb
             printf("Converting primitive %zd\n", i);
         }
 
-        if (convert_primitive(&in_mesh->primitives[i], &out_mesh->submeshes[i], flag_verbose) != 0) {
+        if (convert_primitive(&in_mesh->primitives[i], &out_mesh->submeshes[i], flag_verbose, strict) != 0) {
             fprintf(stderr, "Error: failed converting primitive %zd\n", i);
             return 1;
         }

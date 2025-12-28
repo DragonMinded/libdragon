@@ -339,8 +339,8 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
             w32(out, submesh->vertex_layout.attribute_count);
             w32_placeholderf(out, "vtx_attributes%d_%d", i, j);
 
-            w32(out, submesh->input_assembly_parms.primitive_topology);
-            w8(out, submesh->input_assembly_parms.primitive_restart_enabled);
+            w32(out, submesh->primitive_topology);
+            w8(out, submesh->primitive_restart_enabled);
 
             walign(out, sizeof(submesh->vertices_count));
             w32(out, submesh->vertices_count);
@@ -348,6 +348,11 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
             w32_placeholderf(out, "vertices%d_%d", i, j);
             if (submesh->indices != NULL) {
                 w32_placeholderf(out, "indices%d_%d", i, j);
+            } else {
+                w32(out, 0);
+            }
+            if (submesh->mtx_indices != NULL) {
+                w32_placeholderf(out, "mtx_indices%d_%d", i, j);
             } else {
                 w32(out, 0);
             }
@@ -377,6 +382,11 @@ void model64_write_meshes(model64_data_t *model, FILE *out)
                 {
                     w16(out, submesh->indices[j]);
                 }
+            }
+
+            if (submesh->mtx_indices != NULL) {
+                placeholder_set(out, "mtx_indices%d_%d", i, j);
+                fwrite(submesh->mtx_indices, submesh->vertices_count, 1, out);
             }
         }
     }
@@ -459,61 +469,6 @@ void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
     model64_write_materials(model, out);
     placeholder_clear();
 }
-
-/*
-int is_rigid_skinned(attribute_t *weight_attr, uint32_t num_vertices)
-{
-    if(!weight_attr->pointer || weight_attr->size == 0)
-    {
-        return 1;
-    }
-    float *data = weight_attr->pointer;
-    for(uint32_t i=0; i<num_vertices; i++)
-    {
-        float *buffer = &data[i*weight_attr->size];
-        uint32_t num_used_weights = 0;
-        for(uint32_t j=0; j<weight_attr->size; j++)
-        {
-            if(buffer[j] > 0.1f)
-            {
-                num_used_weights++;
-            }
-        }
-        if(num_used_weights > 1)
-        {
-            return 0;
-        }
-    }
-    return 1;
-}
-
-void simplify_mtx_index_buffer(attribute_t *mtx_index_attr, attribute_t *weight_attr, uint32_t num_vertices)
-{
-    if(!mtx_index_attr->pointer || mtx_index_attr->size == 0)
-    {
-        return;
-    }
-    uint8_t *new_buffer = calloc(num_vertices, 1);
-    uint8_t *old_buffer = mtx_index_attr->pointer;
-    float *weight_buffer = weight_attr->pointer;
-    for(uint32_t i=0; i<num_vertices; i++)
-    {
-        uint32_t max_weight_idx = 0;
-        float *weights = &weight_buffer[i*weight_attr->size];
-        for(uint32_t i=0; i<weight_attr->size; i++)
-        {
-            if(weights[i] > weights[max_weight_idx])
-            {
-                max_weight_idx = i;
-            }
-        }
-        new_buffer[i] = old_buffer[(i*mtx_index_attr->size)+max_weight_idx];
-    }
-    free(mtx_index_attr->pointer);
-    mtx_index_attr->pointer = new_buffer;
-    mtx_index_attr->size = 1;
-}
-*/
 
 void make_node_idx_list(cgltf_data *data, cgltf_node **node_list, cgltf_size num_nodes, uint32_t **idx_list)
 {
@@ -1362,7 +1317,8 @@ int convert(const char *infn, const char *outfn)
             }
         }
 
-        if (convert_mesh(&data->meshes[i], &model->meshes[i], flag_verbose) != 0) {
+        // TODO: add CLI flag for strict mode
+        if (convert_mesh(&data->meshes[i], &model->meshes[i], flag_verbose, false) != 0) {
             if (data->meshes[i].name != NULL) {
                 fprintf(stderr, "Error: failed converting mesh %s\n", data->meshes[i].name);
             } else {

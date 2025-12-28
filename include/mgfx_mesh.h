@@ -16,10 +16,17 @@ extern "C" {
 
 inline void mgfx_submesh_draw(const mgfx_submesh_t *submesh)
 {
+    mg_input_assembly_parms_t assembly_parms = {
+        .primitive_topology = submesh->primitive_topology,
+        .primitive_restart_enabled = submesh->primitive_restart_enabled
+    };
+
+    // TODO: Matrix indices?
+
     if (submesh->indices != NULL) {
-        mg_draw_indexed(&submesh->input_assembly_parms, submesh->indices, submesh->indices_count, 0);
+        mg_draw_indexed(&assembly_parms, submesh->indices, submesh->indices_count, 0);
     } else  {
-        mg_draw(&submesh->input_assembly_parms, submesh->vertices_count, 0);
+        mg_draw(&assembly_parms, submesh->vertices_count, 0);
     }
 }
 

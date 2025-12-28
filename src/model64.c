@@ -57,6 +57,14 @@ static void init_submesh(submesh_state_t *submesh_state, const mgfx_submesh_t *s
         }
     }
 
+    if (submesh->mtx_indices != NULL) {
+        glGenBuffersARB(1, &submesh_state->mtx_indices_vbo);
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, submesh_state->mtx_indices_vbo);
+        glBufferDataARB(GL_ARRAY_BUFFER_ARB, submesh->vertices_count, submesh->mtx_indices, GL_STATIC_DRAW_ARB);
+        glEnableClientState(GL_MATRIX_INDEX_ARRAY_ARB);
+        glMatrixIndexPointerARB(1, GL_UNSIGNED_BYTE, 0, NULL);
+    }
+
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
     if (submesh->indices_count > 0)
@@ -70,7 +78,7 @@ static void init_submesh(submesh_state_t *submesh_state, const mgfx_submesh_t *s
 
     glBindVertexArray(0);
 
-    switch (submesh->input_assembly_parms.primitive_topology)
+    switch (submesh->primitive_topology)
     {
     case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
         submesh_state->prim_mode = GL_TRIANGLES;
@@ -109,6 +117,7 @@ static void cleanup_submesh(submesh_state_t *submesh_state)
     glDeleteVertexArrays(1, &submesh_state->vao);
     glDeleteBuffersARB(1, &submesh_state->vertex_vbo);
     glDeleteBuffersARB(1, &submesh_state->index_vbo);
+    glDeleteBuffersARB(1, &submesh_state->mtx_indices_vbo);
 }
 
 static void cleanup_mesh(mesh_state_t *mesh_state, mgfx_mesh_t *mesh)
@@ -178,6 +187,7 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
             submesh->vertex_layout.attributes = PTR_DECODE(model, submesh->vertex_layout.attributes);
             submesh->vertices = PTR_DECODE(model, submesh->vertices);
             submesh->indices = PTR_DECODE(model, submesh->indices);
+            submesh->mtx_indices = PTR_DECODE(model, submesh->mtx_indices);
         }
     }
     for (uint32_t i = 0; i < model->num_anims; i++)
@@ -396,6 +406,7 @@ static void unload_model_data(model64_data_t *model)
             submesh->vertex_layout.attributes = PTR_ENCODE(model, submesh->vertex_layout.attributes);
             submesh->vertices = PTR_ENCODE(model, submesh->vertices);
             submesh->indices = PTR_ENCODE(model, submesh->indices);
+            submesh->mtx_indices = PTR_ENCODE(model, submesh->mtx_indices);
         }
         mesh->submeshes = PTR_ENCODE(model, mesh->submeshes);
     }
