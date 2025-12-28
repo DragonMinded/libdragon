@@ -1,5 +1,5 @@
 /**
- * @file mpeg2.h
+ * @file mpeg1.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RSP-accelerated MPEG video player
  * 

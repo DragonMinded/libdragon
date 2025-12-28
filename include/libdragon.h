@@ -70,7 +70,7 @@
 #include "yuv.h"
 #include "fmv.h"
 #include "video.h"
-#include "mpeg2.h"
+#include "mpeg1.h"
 #include "h264.h"
 #include "mixer.h"
 #include "samplebuffer.h"

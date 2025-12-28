@@ -1,5 +1,5 @@
 /**
- * @file mpeg2.c
+ * @file mpeg1.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
 #include "mpeg2.h"
