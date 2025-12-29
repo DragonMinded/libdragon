@@ -107,6 +107,7 @@ libdragon.a: $(LIBDRAGON_OBJS)
 
 %.a:
 	@echo "    [AR] $@"
+	rm -f $@
 	$(N64_AR) -rcs -o $@ $^
 
 examples:
