@@ -452,21 +452,34 @@ bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *
         
         if (is_func) last_func_addr = sym_addr;
         
+        if (sym_addr < addr && is_func) {
+            last_func_addr = sym_addr;
+            entry->func_sidx = cur_func;
+            entry->file_sidx = cur_file;
+            entry->line = 0;
+            entry->func_off = addr - last_func_addr;
+            found = true;
+        }
+
+        // Exact match: this is the symbol we were looking for
+        if (sym_addr == addr) {
+            entry->func_sidx = cur_func;
+            entry->file_sidx = cur_file;
+            entry->line = cur_line;
+            if (last_func_addr) {
+                entry->func_off = addr - last_func_addr;
+            } else {
+                entry->func_off = 0;
+            }
+            return true;
+        }
+
+        // If we are past the address, we return the last found function symbol
         if (sym_addr > addr) {
             break; 
         }
         
-        // This symbol is <= addr. It's a candidate.
-        entry->func_sidx = cur_func;
-        entry->file_sidx = cur_file;
-        entry->line = cur_line;
-        // Calculate func_off. 
-        if (last_func_addr)
-            entry->func_off = addr - last_func_addr;
-        else
-            entry->func_off = 0;
-            
-        found = true;
+        // Keep address for next iteration
         cur_addr = sym_addr;
     }
     
