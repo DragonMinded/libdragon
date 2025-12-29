@@ -530,9 +530,11 @@ static void gl_rsp_array_element(uint32_t index)
         offsetof(native_vertex_t, texcoord),
         offsetof(native_vertex_t, mtx_index),
     };
-    array_convert(state->array_object, out_offsets, &state->current_attribs, index, 1, sizeof(native_vertex_t), ATTRIB_VERTEX, ATTRIB_MTX_INDEX);
+    array_convert(state->array_object, out_offsets, &state->current_attribs, index, 1, sizeof(native_vertex_t), ATTRIB_VERTEX, ATTRIB_COUNT);
 
-    // TODO: Matrix indices
+    if (state->array_object->arrays[ATTRIB_MTX_INDEX].enabled) {
+        gl_rsp_mtx_index(state->current_attribs.mtx_index);
+    }
 
     if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
         begin_end_advance();
