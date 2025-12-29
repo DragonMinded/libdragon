@@ -105,7 +105,7 @@ void profile_set_target_fps(float fps);
 
 inline void profile_record(int slot, int32_t len) {
 	extern uint64_t *__profile_counters;
-	__profile_counters[slot] += ((int64_t)len << 32) + 1;
+	if (__profile_counters) __profile_counters[slot] += ((int64_t)len << 32) + 1;
 }
 
 #if LIBDRAGON_PROFILE
