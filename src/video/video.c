@@ -14,6 +14,10 @@ static video_codec_t *registered_codecs = NULL;
 
 void video_register_codec(video_codec_t *codec)
 {
+    if (codec->next_codec != NULL) {
+        debugf("video_register_codec: codec for %s already registered\n", codec->extension);
+        return;
+    }
     codec->next_codec = registered_codecs;
     registered_codecs = codec;
 }

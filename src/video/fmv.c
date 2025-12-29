@@ -30,6 +30,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         .overscan_margin = parms->crt_margin ? VI_CRT_MARGIN : 0,
     }, DEPTH_32_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 
+    yuv_init();
     yuv_blitter_t yuv = yuv_blitter_new_fmv(
         info.width, info.height,
         display_get_width(), display_get_height(),
@@ -143,6 +144,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     }
 
     yuv_blitter_free(&yuv);
+    yuv_close();
     video_close(video);
     display_close();
 }
