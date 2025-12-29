@@ -20,10 +20,10 @@
 #include "../common/binout.h"
 
 #define DR_WAV_IMPLEMENTATION
-#include "dr_wav.h"
+#include "../common/dr_wav.h"
 
 #define DR_MP3_IMPLEMENTATION
-#include "dr_mp3.h"
+#include "../common/dr_mp3.h"
 
 #include "libvadpcm.h"
 #include "libsamplerate.h"
