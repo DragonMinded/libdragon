@@ -187,7 +187,9 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
             submesh->vertex_layout.attributes = PTR_DECODE(model, submesh->vertex_layout.attributes);
             submesh->vertices = PTR_DECODE(model, submesh->vertices);
             submesh->indices = PTR_DECODE(model, submesh->indices);
-            submesh->mtx_indices = PTR_DECODE(model, submesh->mtx_indices);
+            if (submesh->mtx_indices) {
+                submesh->mtx_indices = PTR_DECODE(model, submesh->mtx_indices);
+            }
         }
     }
     for (uint32_t i = 0; i < model->num_anims; i++)
@@ -407,7 +409,9 @@ static void unload_model_data(model64_data_t *model)
             submesh->vertex_layout.attributes = PTR_ENCODE(model, submesh->vertex_layout.attributes);
             submesh->vertices = PTR_ENCODE(model, submesh->vertices);
             submesh->indices = PTR_ENCODE(model, submesh->indices);
-            submesh->mtx_indices = PTR_ENCODE(model, submesh->mtx_indices);
+            if (submesh->mtx_indices) {
+                submesh->mtx_indices = PTR_ENCODE(model, submesh->mtx_indices);
+            }
         }
         mesh->submeshes = PTR_ENCODE(model, mesh->submeshes);
     }

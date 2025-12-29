@@ -580,6 +580,8 @@ static void get_input_assembly_parms(mg_input_assembly_parms_t *parms, gl_array_
         parms->matrices = state->matrix_palette;
         parms->matrices_stride = sizeof(state->matrix_palette[0]);
         parms->matrix_uniform = *state->matrices_uniform;
+    } else {
+        parms->mtx_indices = NULL;
     }
 }
 
