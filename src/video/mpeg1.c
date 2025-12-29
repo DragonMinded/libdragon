@@ -2,7 +2,7 @@
  * @file mpeg1.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
-#include "mpeg2.h"
+#include "mpeg1.h"
 #include "n64sys.h"
 #include "rspq.h"
 #include "rdpq.h"
