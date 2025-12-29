@@ -174,7 +174,9 @@
  * | 3 | `Is Inline` | If 1, this symbol is an inlined function instance. |
  * | 2-0 | `Addr Delta` | Addr inc. <br> `0`: 0. <br> `1..6`: (`V*4`). <br> `7`: VarInt, Delta = (`V+7`)*4. |
  *
- * The opcode value `0x00` is used to signal the end of the chunk.
+ * The opcode value `0x18` (EOM) is used to signal the end of the chunk. This is
+ * guaranteed never to appear as a valid opcode for a symbol, because a function
+ * start address can never be an inlined symbol.
  *
  * ## Data Types
  *
@@ -385,7 +387,7 @@ symtable_header_t symt_open(void *addr) {
     return symt_header;
 }
 
-bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *entry)
+int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *entry, int max_entries)
 {
     // Binary search in the chunk index
     int min = 0;
@@ -425,11 +427,11 @@ bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *
     int cur_line = 0;
     
     uint32_t last_func_addr = chunk_func_off ? (chunk_start_addr - chunk_func_off) : 0;
-    bool found = false;
+    int found = 0;
     
     while (1) {
         uint8_t op = *ptr++;
-        if (op == 0) break; // End of chunk marker
+        if (op == 0x18) break; // End of chunk marker
         
         // Decode deltas
         int delta_file = (op & 0x80) ? read_signed_varint(&ptr) : 0;
@@ -449,29 +451,40 @@ bool symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *
         cur_line += delta_line;
         uint32_t sym_addr = cur_addr + delta_addr;
         bool is_func = (op & 0x10);
+        bool is_inline = (op & 0x08);
         
         if (is_func) last_func_addr = sym_addr;
         
+        // If this is the function start, record it. In case the exact symbol
+        // is not found, ee will return this approximation (funciontion start + offset)
         if (sym_addr < addr && is_func) {
             last_func_addr = sym_addr;
-            entry->func_sidx = cur_func;
-            entry->file_sidx = cur_file;
-            entry->line = 0;
-            entry->func_off = addr - last_func_addr;
-            found = true;
+            entry[0].func_sidx = cur_func;
+            entry[0].file_sidx = cur_file;
+            entry[0].line = 0;
+            entry[0].func_off = addr - last_func_addr;
+            entry[0].is_inline = 0;
+            found = 1;
         }
 
         // Exact match: this is the symbol we were looking for
         if (sym_addr == addr) {
-            entry->func_sidx = cur_func;
-            entry->file_sidx = cur_file;
-            entry->line = cur_line;
-            if (last_func_addr) {
-                entry->func_off = addr - last_func_addr;
-            } else {
-                entry->func_off = 0;
+            if (entry[0].line == 0) found = 0; // Overwrite function-only entry
+            if (found < max_entries) {
+                entry[found].func_sidx = cur_func;
+                entry[found].file_sidx = cur_file;
+                entry[found].line = cur_line;
+                entry[found].is_inline = is_inline;
+                if (last_func_addr) {
+                    entry[found].func_off = addr - last_func_addr;
+                } else {
+                    entry[found].func_off = 0;
+                }
             }
-            return true;
+            found++;
+            // If this is an inline symbol, keep searching for the parent function
+            if (!is_inline)
+                break;
         }
 
         // If we are past the address, we return the last found function symbol
