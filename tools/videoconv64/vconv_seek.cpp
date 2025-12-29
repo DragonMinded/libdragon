@@ -149,15 +149,8 @@ static void write_seek_file(const std::string& seek_path, const std::vector<seek
 	wa(f, "VSK", 3);
 	w8(f, 2);   // version
 	w32(f, (uint32_t)pts.size()); // count
-
-    // We encode offsets and frame numbers as delta from the means of the deltas.
-    // This is a very simple encoding for monotonic increasing data that can be
-    // efficiently compressed with LZ-based algorithms (like assetcomp), and can
-    // later be resolved at load-time in place with minimal overhead.
-    uint32_t base_off = pts.empty() ? 0 : pts[0].offset;
-	uint32_t base_fr  = pts.empty() ? 0 : pts[0].frame;
-	w32(f, base_off);
-	w32(f, base_fr);
+	w32_placeholderf(f, "offsets");
+	w32_placeholderf(f, "frames");
 
     // Compute the mean of the deltas.
 	int32_t mean_do_s32 = 0;
@@ -185,12 +178,22 @@ static void write_seek_file(const std::string& seek_path, const std::vector<seek
 	w32(f, mean_do_s32);
 	w32(f, mean_df_s32);
 
+	// We encode offsets and frame numbers as delta from the means of the deltas.
+    // This is a very simple encoding for monotonic increasing data that can be
+    // efficiently compressed with LZ-based algorithms (like assetcomp), and can
+    // later be resolved at load-time in place with minimal overhead.
+	placeholder_set(f, "offsets");
+	w32(f, pts[0].offset);
 	// Emit residual arrays: difference from the mean of the deltas.
 	for (size_t i = 1; i < pts.size(); i++) {
 		int32_t delta = pts[i].offset - pts[i-1].offset;
 		int32_t resid = delta - mean_do_s32;
 		w32(f, resid);
 	}
+
+	placeholder_set(f, "frames");
+	w32(f, pts[0].frame);
+	// Emit residual arrays: difference from the mean of the deltas.
 	for (size_t i = 1; i < pts.size(); i++) {
 		int32_t delta = pts[i].frame - pts[i-1].frame;
 		int32_t resid = delta - mean_df_s32;
@@ -237,10 +240,12 @@ void vconv_generate_seek(const CodecInfo &ci, const std::string &video_path) {
 	}
 
     // Write the seek file and compress it with default asset compression
-	std::string seek_path = replace_ext(video_path, ".seek");
-	write_seek_file(seek_path, pts);
-	if (!asset_compress(seek_path.c_str(), seek_path.c_str(), DEFAULT_COMPRESSION, 256*1024)) {
-		fatal("seek: compression failed for %s", seek_path.c_str());
+	if (pts.size() > 0) {
+		std::string seek_path = replace_ext(video_path, ".seek");
+		write_seek_file(seek_path, pts);
+		if (!asset_compress(seek_path.c_str(), seek_path.c_str(), DEFAULT_COMPRESSION, 256*1024)) {
+			fatal("seek: compression failed for %s", seek_path.c_str());
+		}
+		verbose(1, "Seek: wrote %s (%d points)", seek_path.c_str(), (int)pts.size());
 	}
-	verbose(1, "Seek: wrote %s (%d points)", seek_path.c_str(), (int)pts.size());
 }

@@ -70,14 +70,32 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     void ctrl_stop(fmv_control_t *ctrl) {
         abort = true;
     }
-    int ctrl_seek_frame(fmv_control_t *ctrl, int idx) {
-        frame_idx = video_seek_frame(video, idx);
+    int ctrl_seek_frame(fmv_control_t *ctrl, int idx, bool exact) {
+        frame_idx = video_seek(video, idx);
+        if (frame_idx < 0) return -1;  // seeking not supported
+        if (exact) {
+            // Decode frames until we reach the exact frame
+            while (frame_idx < idx) {
+                if (!video_next_frame(video)) break;
+                frame_idx++;
+            }
+        }
+        // Sync also audio
+        // FIXME: this is disabled for now as we can't easily seek compressed audio
+        #if 0
+        if (audio) {
+            float time_sec = (float)frame_idx / info.framerate;
+            mixer_ch_set_pos(parms->audio_mixer_channel,
+                time_sec * audio->wave.frequency);
+        }
+        #endif
         return frame_idx;
     }
-    float ctrl_seek_time(fmv_control_t *ctrl, float time_sec) {
-        float actual_time = video_seek_time(video, time_sec);
-        frame_idx = (int)(actual_time * info.framerate);
-        return actual_time;
+    float ctrl_seek_time(fmv_control_t *ctrl, float time_sec, bool exact) {
+        int frame_idx = (int)(time_sec * info.framerate);
+        frame_idx = ctrl_seek_frame(ctrl, frame_idx, exact);
+        if (frame_idx < 0) return -1;   // seeking not supported
+        return (float)frame_idx / info.framerate;
     }
 
     // Prepare control structure for OSD callback

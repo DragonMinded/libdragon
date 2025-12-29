@@ -36,9 +36,9 @@ typedef struct fmv_control_s {
     /** Stop playback */
     void (*stop)(struct fmv_control_s *ctrl);
     /** Seek to a specific frame */
-    int (*seek_frame)(struct fmv_control_s *ctrl, int frame_idx);
+    int (*seek_frame)(struct fmv_control_s *ctrl, int frame_idx, bool exact);
     /** Seek to a specific time (in seconds) */
-    float (*seek_time)(struct fmv_control_s *ctrl, float time_sec);
+    float (*seek_time)(struct fmv_control_s *ctrl, float time_sec, bool exact);
 } fmv_control_t; 
 
 /** @brief FMV playback parameters */
