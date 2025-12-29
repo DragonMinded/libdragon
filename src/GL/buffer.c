@@ -171,7 +171,7 @@ void buffer_set_data_dirty(gl_buffer_object_t *obj)
     // Inform all array objects that are bound to this buffer
     gl_array_object_ref_t *array_ref = obj->array_obj_ref;
     while (array_ref != NULL) {
-        array_ref->array_object->is_data_dirty = true;
+        array_object_set_buffer_dirty(array_ref->array_object, obj);
         array_ref = array_ref->next;
     }
 }

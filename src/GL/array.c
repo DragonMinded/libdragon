@@ -145,14 +145,27 @@ static void array_object_init(gl_array_object_t *obj)
         gl_update_array(&obj->arrays[i], i);
     }
 
-    obj->is_layout_dirty = true;
+    obj->vertex_data_cache.is_layout_dirty = true;
+    obj->vertex_data_cache.first_array = ATTRIB_VERTEX;
+    obj->vertex_data_cache.until_array = ATTRIB_MTX_INDEX;
+    
+    obj->mtx_indices_cache.is_layout_dirty = true;
+    obj->mtx_indices_cache.first_array = ATTRIB_MTX_INDEX;
+    obj->mtx_indices_cache.until_array = ATTRIB_COUNT;
+    obj->mtx_indices_cache.cached_stride = sizeof(uint8_t);
+}
+
+static void vertex_data_cache_free(gl_vertex_data_cache_t *cache)
+{
+    if (cache->data != NULL) {
+        rspq_call_deferred(free_uncached, cache->data);
+    }
 }
 
 static void array_object_free(gl_array_object_t *obj)
 {
-    if (obj->buffer != NULL) {
-        rspq_call_deferred(free_uncached, obj->buffer);
-    }
+    vertex_data_cache_free(&obj->vertex_data_cache);
+    vertex_data_cache_free(&obj->mtx_indices_cache);
 
     buffer_object_set_binding(NULL, &obj->element_array_buffer);
 
@@ -174,6 +187,22 @@ void gl_array_close()
     array_object_free(&state->default_array_object);
 }
 
+static gl_vertex_data_cache_t *get_data_cache(gl_array_object_t *obj, gl_array_type_t array_type)
+{
+    switch (array_type)
+    {
+        case ATTRIB_VERTEX:
+        case ATTRIB_NORMAL:
+        case ATTRIB_COLOR:
+        case ATTRIB_TEXCOORD:
+            return &obj->vertex_data_cache;
+        case ATTRIB_MTX_INDEX:
+            return &obj->mtx_indices_cache;
+        default:
+            assertf(0, "invalid array type");
+    }
+}
+
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer)
 {
     gl_array_t *array = &obj->arrays[array_type];
@@ -187,7 +216,18 @@ void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t arr
         gl_buffer_add_array_ref(buffer, state->array_object);
     }
     array->binding = buffer;
-    obj->are_bindings_dirty = true;
+
+    get_data_cache(obj, array_type)->are_bindings_dirty = true;
+}
+
+void array_object_set_buffer_dirty(gl_array_object_t *obj, gl_buffer_object_t *buffer)
+{
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        if (obj->arrays[i].binding == buffer) {
+            get_data_cache(obj, i)->is_data_dirty = true;
+        }
+    }
 }
 
 void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -218,8 +258,7 @@ void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei s
     array_object_set_buffer_binding(state->array_object, array_type, state->array_buffer);
 
     gl_update_array(array, array_type);
-
-    state->array_object->is_layout_dirty = true;
+    get_data_cache(state->array_object, array_type)->is_layout_dirty = true;
 }
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -359,7 +398,7 @@ void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
     gl_array_t *array = &state->array_object->arrays[array_type];
     if (array->enabled != enabled) {
         array->enabled = enabled;
-        state->array_object->is_layout_dirty = true;
+        get_data_cache(state->array_object, array_type)->is_layout_dirty = true;
     }
 }
 
@@ -542,12 +581,14 @@ static void array_object_update_layout(gl_array_object_t *array_object)
         array_object->out_offsets[ATTRIB_TEXCOORD] = vl->vertex_layout.stride;
         vertex_layout_append(vl, MGFX_ATTRIBUTE_TEXCOORD, sizeof(int16_t) * 2);
     }
+
+    array_object->vertex_data_cache.cached_stride = vl->vertex_layout.stride;
 }
 
-static void array_object_update_is_all_vbos(gl_array_object_t *array_object)
+static void vertex_data_cache_update_is_all_vbos(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache)
 {
     bool is_all_vbos = true;
-    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
+    for (gl_array_type_t i = cache->first_array; i < cache->until_array; i++)
     {
         if (array_object->arrays[i].enabled && array_object->arrays[i].binding == NULL) {
             is_all_vbos = false;
@@ -555,15 +596,15 @@ static void array_object_update_is_all_vbos(gl_array_object_t *array_object)
         }
     }
     
-    array_object->is_all_vbos = is_all_vbos;
+    cache->is_all_vbos = is_all_vbos;
 }
 
-void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride)
+void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride, gl_array_type_t first_array, gl_array_type_t until_array)
 {
     gl_array_t *arrays[ATTRIB_COUNT];
     uint32_t offsets[ATTRIB_COUNT];
     uint32_t array_count = 0;
-    for (size_t i = 0; i < ATTRIB_MTX_INDEX; i++)
+    for (size_t i = first_array; i < until_array; i++)
     {
         if (!obj->arrays[i].enabled) continue;
         offsets[array_count] = out_offsets[i];
@@ -581,51 +622,60 @@ void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COU
     }
 }
 
-void array_object_convert_into(gl_array_object_t *array_object, uint32_t first, uint32_t count, void* buffer)
+void array_object_convert_into(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache, uint32_t first, uint32_t count, void* buffer)
 {
-    array_convert(array_object, array_object->out_offsets, buffer, first, count, array_object->layout.vertex_layout.stride);
+    array_convert(array_object, array_object->out_offsets, buffer, first, count, cache->cached_stride, cache->first_array, cache->until_array);
 }
 
-static void array_object_convert_data(gl_array_object_t *array_object, uint32_t first, uint32_t count)
+static void array_object_convert_data(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache, uint32_t first, uint32_t count)
 {
     // TODO: allocate from a pool?
-    if (array_object->buffer != NULL) {
-        rspq_call_deferred(free_uncached, array_object->buffer);
+    if (cache->data != NULL) {
+        rspq_call_deferred(free_uncached, cache->data);
     }
-    array_object->buffer = malloc_uncached(array_object->layout.vertex_layout.stride * count);
+    cache->data = malloc_uncached(cache->cached_stride * count);
 
-    array_object_convert_into(array_object, first, count, array_object->buffer);
+    array_object_convert_into(array_object, cache, first, count, cache->data);
+}
+
+static void data_cache_update(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache)
+{
+    if (cache->is_layout_dirty) {
+        cache->is_layout_dirty = false;
+        cache->is_data_dirty = true;
+    }
+
+    if (cache->are_bindings_dirty) {
+        vertex_data_cache_update_is_all_vbos(array_object, cache);
+        cache->are_bindings_dirty = false;
+        cache->is_data_dirty = true;
+    }
 }
 
 void array_object_update(gl_array_object_t *array_object)
 {
     // TODO: throw INVALID OPERATION if any VBOs are currently mapped
 
-    if (array_object->is_layout_dirty) {
+    if (array_object->vertex_data_cache.is_layout_dirty) {
         array_object_update_layout(array_object);
-        array_object->is_layout_dirty = false;
-        array_object->is_data_dirty = true;
     }
 
-    if (array_object->are_bindings_dirty) {
-        array_object_update_is_all_vbos(array_object);
-        array_object->are_bindings_dirty = false;
-        array_object->is_data_dirty = true;
-    }
+    data_cache_update(array_object, &array_object->vertex_data_cache);
+    data_cache_update(array_object, &array_object->mtx_indices_cache);
 }
 
-void array_object_fill_cache(gl_array_object_t *array_object, uint32_t first, uint32_t count)
+void data_cache_fill(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache, uint32_t first, uint32_t count)
 {
     uint32_t end = first + count;
-    uint32_t cached_end = array_object->cached_first + array_object->cached_count;
+    uint32_t cached_end = cache->cached_first + cache->cached_count;
 
     // If one or more arrays are not bound to VBOs, we cannot track when vertex data has actually changed.
     // Therefore, we must always assume the data has changed and re-convert.
-    if (array_object->is_data_dirty || !array_object->is_all_vbos || first < array_object->cached_first || end > cached_end) {
-        array_object_convert_data(array_object, first, count);
-        array_object->cached_first = first;
-        array_object->cached_count = count;
-        array_object->is_data_dirty = false;
+    if (cache->is_data_dirty || !cache->is_all_vbos || first < cache->cached_first || end > cached_end) {
+        array_object_convert_data(array_object, cache, first, count);
+        cache->cached_first = first;
+        cache->cached_count = count;
+        cache->is_data_dirty = false;
     }
 }
 

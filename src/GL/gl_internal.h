@@ -269,7 +269,7 @@ typedef struct {
 typedef struct {
     uint32_t offset;
     uint32_t count;
-    mg_input_assembly_parms_t parms;
+    GLenum mode;
     rspq_block_t *block;
     uint16_t min_index;
     uint16_t max_index;
@@ -313,18 +313,26 @@ typedef struct {
     rsp_read_attrib_func rsp_read_func;
 } gl_array_t;
 
+typedef struct gl_vertex_data_cache_s {
+    gl_array_type_t first_array;
+    gl_array_type_t until_array;
+    void *data;
+    uint32_t cached_first;
+    uint32_t cached_count;
+    uint32_t cached_stride;
+    bool is_layout_dirty;
+    bool is_data_dirty;
+    bool is_all_vbos;
+    bool are_bindings_dirty;
+} gl_vertex_data_cache_t;
+
 typedef struct gl_array_object_s {
     gl_array_t arrays[ATTRIB_COUNT];
     uint32_t out_offsets[ATTRIB_COUNT];
     gl_buffer_object_t *element_array_buffer;
     vertex_layout layout;
-    void *buffer;
-    uint32_t cached_first;
-    uint32_t cached_count;
-    bool is_layout_dirty;
-    bool is_data_dirty;
-    bool is_all_vbos;
-    bool are_bindings_dirty;
+    gl_vertex_data_cache_t vertex_data_cache;
+    gl_vertex_data_cache_t mtx_indices_cache;
 } gl_array_object_t;
 
 typedef uint32_t (*read_index_func)(const void*,uint32_t);
@@ -639,10 +647,11 @@ void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *arra
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
 void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
+void array_object_set_buffer_dirty(gl_array_object_t *obj, gl_buffer_object_t *buffer);
 void array_object_update(gl_array_object_t *array_object);
-void array_object_fill_cache(gl_array_object_t *array_object, uint32_t first, uint32_t count);
-void array_object_convert_into(gl_array_object_t *array_object, uint32_t first, uint32_t count, void* buffer);
-void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride);
+void data_cache_fill(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache, uint32_t first, uint32_t count);
+void array_object_convert_into(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache, uint32_t first, uint32_t count, void* buffer);
+void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride, gl_array_type_t first_array, gl_array_type_t until_array);
 
 void set_can_use_rsp_dirty();
 
