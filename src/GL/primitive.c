@@ -145,11 +145,30 @@ static void prepare_drawing(GLenum mode)
     gl_update_array_pointers(state->array_object);
 }
 
+static bool validate_mode(GLenum mode)
+{
+    switch (mode) {
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    case GL_POLYGON:
+        return true;
+    default:
+        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
+        return false;
+    }
+}
+
 void glBegin(GLenum mode)
 {
     if (!gl_ensure_no_begin_end()) return;
-
-    // TODO: error if invalid mode
+    if (!validate_mode(mode)) return;
 
     prepare_drawing(mode);
     state->begin_end_active = true;
@@ -218,23 +237,7 @@ void gl_fill_all_attrib_defaults(const gl_array_t *arrays)
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
     if (!gl_ensure_no_begin_end()) return;
-
-    switch (mode) {
-    case GL_POINTS:
-    case GL_LINES:
-    case GL_LINE_LOOP:
-    case GL_LINE_STRIP:
-    case GL_TRIANGLES:
-    case GL_TRIANGLE_STRIP:
-    case GL_TRIANGLE_FAN:
-    case GL_QUADS:
-    case GL_QUAD_STRIP:
-    case GL_POLYGON:
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
-        return;
-    }
+    if (!validate_mode(mode)) return;
 
     if (count == 0) {
         return;
@@ -249,23 +252,7 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
 {
     if (!gl_ensure_no_begin_end()) return;
-
-    switch (mode) {
-    case GL_POINTS:
-    case GL_LINES:
-    case GL_LINE_LOOP:
-    case GL_LINE_STRIP:
-    case GL_TRIANGLES:
-    case GL_TRIANGLE_STRIP:
-    case GL_TRIANGLE_FAN:
-    case GL_QUADS:
-    case GL_QUAD_STRIP:
-    case GL_POLYGON:
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
-        return;
-    }
+    if (!validate_mode(mode)) return;
     
     if (count == 0) {
         return;
