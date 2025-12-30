@@ -720,14 +720,6 @@ int wav_convert(const char *infn, const char *outfn) {
 		int newcnt = (int64_t)wav.cnt * wavResampleTo / wav.sampleRate + 16;
 		float *fsamples_out = (float*)malloc(newcnt * wav.channels * sizeof(float));
 
-		// Do the conversion
-		SRC_DATA data{};
-		data.data_in = fsamples_in;
-		data.data_out = fsamples_out;
-		data.input_frames = wav.cnt;
-		data.output_frames = newcnt;
-		data.src_ratio = (double)wavResampleTo / wav.sampleRate;
-
 		// Don't use best quality for files longer than 15 seconds. It is
 		// extremely slow and it's not worth the time.
 		int converter = SRC_SINC_BEST_QUALITY;
