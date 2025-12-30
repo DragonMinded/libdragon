@@ -51,6 +51,13 @@ void buffer_object_refcount_decr(gl_buffer_object_t *obj)
     }
 }
 
+void buffer_object_validate_not_mapped(gl_buffer_object_t *obj)
+{
+    if (obj->mapped) {
+        gl_set_error(GL_INVALID_OPERATION, "Accessing buffer object for drawing while it is mapped: %p", obj);
+    }
+}
+
 void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding)
 {
     if (obj == *binding) return;

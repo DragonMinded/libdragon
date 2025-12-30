@@ -616,8 +616,6 @@ static void find_index_bounds(const uint16_t *indices, uint32_t count, uint16_t 
 
 static void update_element_array_cache(gl_array_object_t *array_object, GLenum mode, uint32_t count, uint32_t offset, uint16_t *min_index, uint16_t *max_index)
 {
-    // TODO: throw INVALID OPERATION if buffer is currently mapped
-
     gl_buffer_object_t *element_buffer = array_object->element_array_buffer;
 
     if (element_buffer->element_cache == NULL) {

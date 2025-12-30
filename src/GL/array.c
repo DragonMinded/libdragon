@@ -652,10 +652,23 @@ static void data_cache_update(gl_array_object_t *array_object, gl_vertex_data_ca
     }
 }
 
+void array_object_validate_drawing(gl_array_object_t *array_object, bool indexed)
+{
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        gl_array_t *array = &array_object->arrays[i];
+        if (array->enabled && array->binding != NULL) {
+            buffer_object_validate_not_mapped(array_object->arrays[i].binding);
+        }
+    }
+
+    if (indexed && array_object->element_array_buffer != NULL) {
+        buffer_object_validate_not_mapped(array_object->element_array_buffer);
+    }
+}
+
 void array_object_update(gl_array_object_t *array_object)
 {
-    // TODO: throw INVALID OPERATION if any VBOs are currently mapped
-
     if (array_object->vertex_data_cache.is_layout_dirty) {
         array_object_update_layout(array_object);
     }

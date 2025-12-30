@@ -149,7 +149,7 @@ void glBegin(GLenum mode)
 {
     if (!gl_ensure_no_begin_end()) return;
 
-     // TODO: error if invalid mode
+    // TODO: error if invalid mode
 
     prepare_drawing(mode);
     state->begin_end_active = true;
@@ -240,6 +240,8 @@ void glDrawArrays(GLenum mode, GLint first, GLsizei count)
         return;
     }
 
+    array_object_validate_drawing(state->array_object, false);
+
     prepare_drawing(mode);
     state->current_pipeline->draw_arrays(mode, first, count);
 }
@@ -269,6 +271,8 @@ void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indic
         return;
     }
 
+    array_object_validate_drawing(state->array_object, true);
+
     prepare_drawing(mode);
     state->current_pipeline->draw_elements(mode, count, indices, type);
 }
@@ -284,6 +288,8 @@ void glArrayElement(GLint i)
         gl_set_error(GL_INVALID_VALUE, "Index must not be negative");
         return;
     }
+
+    array_object_validate_drawing(state->array_object, false);
 
     state->current_pipeline->array_element(i);
 }
