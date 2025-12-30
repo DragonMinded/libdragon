@@ -292,8 +292,10 @@ int main(int argc, char **argv) {
 	check_tool_available(cfg.ffprobe_path, "ffprobe");
 
 	// Start audio conversion early (runs in background while we analyze/encode video).
+	// We can't do that if seek file generation is requested, as we need to wait for
+	// video encoding to complete first to know the seek offsets.
 	std::thread audio_thread;
-	if (cfg.audio) {
+	if (cfg.audio && !cfg.seek) {
 		audio_thread = std::thread([&]() {
 			(void)vconv_audio_bridge();
 		});
@@ -309,18 +311,27 @@ int main(int argc, char **argv) {
 	verbose(1, "Mode: %s", cfg.quick ? "quick" : "quality (2-pass)");
 
 	// Encoding
+	EncodeResult er;
 	if (cfg.codec == "mpeg1") {
-		EncodeResult er = vconv_encode_mpeg1(*ci, ar);
-		verbose(1, "Output video: %s", er.video_path.c_str());
-		if (cfg.seek) vconv_generate_seek(*ci, er.video_path);
+		er = vconv_encode_mpeg1(*ci, ar);
 	} else if (cfg.codec == "h264") {
-		EncodeResult er = vconv_encode_h264(*ci, ar);
-		verbose(1, "Output video: %s", er.video_path.c_str());
-		if (cfg.seek) vconv_generate_seek(*ci, er.video_path);
+		er = vconv_encode_h264(*ci, ar);
 	} else {
 		fatal("Codec not implemented yet: %s", cfg.codec.c_str());
 	}
+	verbose(1, "Output video: %s", er.video_path.c_str());
 
+	if (cfg.seek) {
+		std::vector<seek_point_t> pts = vconv_generate_seek(*ci, er.video_path);
+		if (cfg.audio) {
+			// If audio conversion was deferred due to seek generation, do it now.
+			double fps = ar.out_fps;
+			audio_thread = std::thread([pts = std::move(pts), fps]() mutable {
+				(void)vconv_audio_bridge(std::move(pts), fps);
+			});
+		}
+	}
+	
 	// Sync audio thread (errors will abort via fatal()).
 	if (audio_thread.joinable()) audio_thread.join();
 	return 0;

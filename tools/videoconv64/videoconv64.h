@@ -144,6 +144,11 @@ struct EncodeResult {
 	std::string vf_used;     // exact -vf used for encoding (for metrics/debug)
 };
 
+struct seek_point_t {
+	uint32_t offset;
+	uint32_t frame;
+};
+
 // Build an ffmpeg -vf chain for decoding/processing/encoding.
 // out_matrix: "bt601" or "bt709"
 // out_range:  "tv" (limited) or "pc" (full)
@@ -155,7 +160,7 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar);
 EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar);
 
 // Optional post-processing: generate a .seek sidecar file for the produced elementary stream.
-void vconv_generate_seek(const CodecInfo &ci, const std::string &video_path);
+std::vector<seek_point_t> vconv_generate_seek(const CodecInfo &ci, const std::string &video_path);
 
 // Audio bridge
 struct AudioResult {
@@ -163,6 +168,6 @@ struct AudioResult {
 	std::string wav64_path;
 };
 
-AudioResult vconv_audio_bridge(void);
+AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points = {}, double video_fps = 0.0);
 
 

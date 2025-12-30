@@ -23,11 +23,6 @@
 
 using json = nlohmann::json;
 
-struct seek_point_t {
-	uint32_t offset;
-	uint32_t frame;
-};
-
 static std::string replace_ext(const std::string& path, const char *new_ext) {
 	size_t slash = path.find_last_of("/\\");
 	size_t dot = path.find_last_of('.');
@@ -203,7 +198,7 @@ static void write_seek_file(const std::string& seek_path, const std::vector<seek
 	fclose(f);
 }
 
-void vconv_generate_seek(const CodecInfo &ci, const std::string &video_path) {
+std::vector<seek_point_t> vconv_generate_seek(const CodecInfo &ci, const std::string &video_path) {
 	(void)ci;
 	verbose(1, "Seek: analyzing %s", video_path.c_str());
 
@@ -248,4 +243,6 @@ void vconv_generate_seek(const CodecInfo &ci, const std::string &video_path) {
 		}
 		verbose(1, "Seek: wrote %s (%d points)", seek_path.c_str(), (int)pts.size());
 	}
+
+	return pts;
 }
