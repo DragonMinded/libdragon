@@ -190,7 +190,7 @@ static void inject_seekpoints_cue_into_wav(const std::string& wav_path, const st
 	verbose(1, "Injected %d audio seek points into WAV CUE (fps=%.3f, sr=%u)", (int)sp.size(), video_fps, (unsigned)fmt.sampleRate);
 }
 
-AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double video_fps) {
+AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double video_fps, bool show_progress) {
 	AudioResult ar;
 	if (!cfg.audio) return ar;
 
@@ -263,8 +263,33 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 			cmd.push_back("--wav-mono");
 		}
 		cmd.push_back(tmpwav);
+
+		// If we want determinate audio progress, run audioconv64 in verbose mode and parse its
+		// "Resampling: <bytes> (xx.x%)" lines.
+		const bool want_prog = show_progress && cfg.progress && cfg.verbose == 0;
+		if (want_prog) cmd.insert(cmd.begin() + 1, "-v");
+
+		double last_pct = -1.0;
 		std::string out;
-		int rc = run_process(cmd, out);
+		int rc = run_process_pipe(cmd, &out, [&](const std::string& line) {
+			if (!want_prog) return;
+			const char *prefix = "Resampling:";
+			if (line.rfind(prefix, 0) != 0) return;
+			// Parse "... (XX.X%)"
+			size_t lp = line.find('(');
+			size_t pp = line.find('%');
+			if (lp == std::string::npos || pp == std::string::npos || pp <= lp + 1) return;
+			std::string pct_s = line.substr(lp + 1, pp - (lp + 1));
+			double pct = atof(pct_s.c_str());
+			if (!(pct >= 0.0 && pct <= 100.0)) return;
+			if (pct - last_pct >= 0.2 || pct == 100.0) {
+				last_pct = pct;
+				progressbar_update(pct, -1.0);
+			}
+		});
+
+		if (want_prog) { progressbar_clear(); fprintf(stderr, "\n"); }
+
 		remove(tmpwav.c_str());
 		// audioconv64 currently returns 0 even on some errors; verify output exists.
 		if (rc != 0 || !file_exists(produced_wav64)) {

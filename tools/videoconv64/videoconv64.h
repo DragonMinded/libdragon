@@ -75,6 +75,18 @@ std::string strip_ext(const std::string& name);
 std::string format_cmdline_for_log(const std::vector<std::string>& argv);
 void sleep_ms(int ms);
 
+// Shared progress helpers (implemented in vconv_utils.cpp).
+void progressbar_clear(void);
+void progressbar_infinite_update(int sec);
+void progressbar_update(double overall_pct, double eta_sec);
+typedef enum {
+	PROGRESS_MODE_VIDEO = 0,
+	PROGRESS_MODE_AUDIO = 1,
+	PROGRESS_MODE_VIDEO_AUDIO = 2,
+} progress_mode_t;
+void progressbar_set_mode(progress_mode_t mode);
+const char* progressbar_get_mode_label(void);
+
 // Streaming process runner:
 // - runs argv with combined stdout/stderr
 // - optionally appends raw output to out
@@ -153,7 +165,6 @@ struct seek_point_t {
 // out_matrix: "bt601" or "bt709"
 // out_range:  "tv" (limited) or "pc" (full)
 std::string build_filterchain(const AnalysisResult &ar, const char *out_matrix, const char *out_range);
-void progressbar_clear(void);
 int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double duration_sec, int pass_idx, progress_state_t &ps);
 
 EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar);
@@ -168,6 +179,6 @@ struct AudioResult {
 	std::string wav64_path;
 };
 
-AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points = {}, double video_fps = 0.0);
+AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points = {}, double video_fps = 0.0, bool show_progress = false);
 
 

@@ -296,9 +296,15 @@ int main(int argc, char **argv) {
 	// video encoding to complete first to know the seek offsets.
 	std::thread audio_thread;
 	if (cfg.audio && !cfg.seek) {
+		// Audio is running in parallel with video encoding; the visible progress is video-based,
+		// but let the user know both are active.
+		progressbar_set_mode(PROGRESS_MODE_VIDEO_AUDIO);
 		audio_thread = std::thread([&]() {
-			(void)vconv_audio_bridge();
+			(void)vconv_audio_bridge({}, 0.0, false);
 		});
+	} else {
+		// Video-only phase (either no audio or audio deferred).
+		progressbar_set_mode(PROGRESS_MODE_VIDEO);
 	}
 
 	// Step 2: analysis (ffprobe/idet/signalstats) lives in vconv_analyze.cpp
@@ -326,8 +332,10 @@ int main(int argc, char **argv) {
 		if (cfg.audio) {
 			// If audio conversion was deferred due to seek generation, do it now.
 			double fps = ar.out_fps;
+			// Audio runs after video; show progress labeled as Audio.
+			progressbar_set_mode(PROGRESS_MODE_AUDIO);
 			audio_thread = std::thread([pts = std::move(pts), fps]() mutable {
-				(void)vconv_audio_bridge(std::move(pts), fps);
+				(void)vconv_audio_bridge(std::move(pts), fps, true);
 			});
 		}
 	}
