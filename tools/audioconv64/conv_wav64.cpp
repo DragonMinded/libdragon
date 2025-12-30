@@ -222,7 +222,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	}
 
 	fwrite("WV64", 1, 4, out);
-	w8(out, 4); 				 			// version
+	w8(out, 5); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
 	w8(out, wav->bitsPerSample);			// bits
@@ -369,10 +369,12 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		struct vadpcm_vector state = {0};
 		w8(out, kPREDICTORS);
 		w8(out, kVADPCMEncodeOrder);
-		w8(out, flags);
-		w8(out, skip_points.size());
+		w16(out, flags);
+		w16(out, skip_points.size());
+		w16(out, 0); // padding
 		w32(out, 0); // huff_tbl_ptr
 		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 : 0); // skip_points_ptr
+		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 + skip_points.size()*8 : 0); // skip_states_ptr
 		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);					 // Huffman context
 		w32(out, 0); // padding
 		for (int i=0; i<CODEBOOK_SIZE; i++)    // codebook
@@ -380,11 +382,14 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				w16(out, codebook[i].v[j]);
 		// Write the skip points
 		for (int i=0; i<skip_points.size(); i++) {
-			for (int k=0;k<2;k++) // always serialize two channels
+			w32(out, skip_points[i]);
+			w32(out, skip_bitpos[i]);
+		}
+		for (int i=0; i<skip_points.size(); i++) {
+			for (int k=0;k<wav->channels;k++) {
 				for (int j=0; j<8; j++)
 					w16(out, skip_state[i][k].v[j]);
-			w32(out, skip_bitpos[i]);
-			w32(out, skip_points[i]);
+			}
 		}
 
 		// Start of samples data

@@ -220,15 +220,24 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
             vstate->bitpos = 0;
 		} else {
+            // Skip points are stored sorted by sample offset (enforced by audioconv64).
+            // Use binary search for O(log N) lookup instead of scanning the whole table.
             bool found = false;
-            for (int i=0; i<vhead->num_skippoints; i++) {
-                if (wpos == vhead->skip_points[i].offset) {
-                    vstate->bitpos = vhead->skip_points[i].bitpos;
-                    rsp_vadpcm_copystate(vstate->state, vhead->skip_points[i].state);
+            int lo = 0, hi = vhead->num_skippoints - 1;
+            while (lo <= hi) {
+                int mid = (lo + hi) >> 1;
+                int off = vhead->skip_points[mid].offset;
+                if (wpos == off) {
+                    vstate->bitpos = vhead->skip_points[mid].bitpos;
+                    rsp_vadpcm_copystate(vstate->state, vhead->skip_states + mid*wav->wave.channels);
                     if ((vhead->flags & VADPCM_FLAG_HUFFMAN) == 0)
                         lseek(wav->st->current_fd, wav->st->base_offset + (wpos / 16) * 9 * wav->wave.channels, SEEK_SET);
                     found = true;
                     break;
+                } else if (wpos < off) {
+                    hi = mid - 1;
+                } else {
+                    lo = mid + 1;
                 }
             }
             if (!found) {
@@ -397,8 +406,11 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
     // and the exact byte offset is stored in the pointer itself to simplify initialization.
     if (vhead->num_skippoints > 0) {
         int tbl_off = (int)vhead->skip_points;
+        int state_off = (int)vhead->skip_states;
         vhead->skip_points = (void*)vhead->codebook + tbl_off;
+        vhead->skip_states = (void*)vhead->codebook + state_off;
         data_cache_hit_writeback(vhead->skip_points, sizeof(wav64_vadpcm_skippoint_t) * vhead->num_skippoints);
+        data_cache_hit_writeback(vhead->skip_states, sizeof(wav64_vadpcm_vector_t) * vhead->num_skippoints * wav->wave.channels);
     }
 }
 
