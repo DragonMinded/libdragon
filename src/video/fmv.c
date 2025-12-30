@@ -81,14 +81,11 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
             }
         }
         // Sync also audio
-        // FIXME: this is disabled for now as we can't easily seek compressed audio
-        #if 0
         if (audio) {
             float time_sec = (float)frame_idx / info.framerate;
             mixer_ch_set_pos(parms->audio_mixer_channel,
                 time_sec * audio->wave.frequency);
         }
-        #endif
         return frame_idx;
     }
     float ctrl_seek_time(fmv_control_t *ctrl, float time_sec, bool exact) {
