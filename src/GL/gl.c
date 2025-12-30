@@ -145,6 +145,7 @@ void gl_init()
     
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
     gl2_overlay_id = rspq_overlay_register(&rsp_gl2);
+    rspq_overlay_share_state(&rsp_gl2, &rsp_gl);
     gl_rsp_state = PhysicalAddr(gl_overlay_state);
     magma_rsp_state = PhysicalAddr(mg_get_rsp_state());
 
@@ -546,8 +547,6 @@ void glTexSizeN64(GLushort width, GLushort height)
 void gl_pre_init_pipe(GLenum primitive_mode)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEMS);
-        
-    gl2_write(GL_CMD_COPY_STATE, gl_rsp_state);
     
     // PreInitPipeTex will run a block with nesting level 1 for texture upload.
     // The command itself does not emit RDP commands (the block does that, so

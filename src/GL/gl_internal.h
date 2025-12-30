@@ -113,11 +113,10 @@ typedef enum {
 } gl_command_t;
 
 typedef enum {
-    GL_CMD_COPY_STATE       = 0x0,
-    GL_CMD_PRE_INIT_PIPE    = 0x1,
-    GL_CMD_PRE_INIT_PIPE_TEX= 0x2,
-    GL_CMD_SET_PIPELINE     = 0x3,
-    GL_CMD_PRE_INIT_MAGMA   = 0x4,
+    GL_CMD_PRE_INIT_PIPE    = 0x0,
+    GL_CMD_PRE_INIT_PIPE_TEX= 0x1,
+    GL_CMD_SET_PIPELINE     = 0x2,
+    GL_CMD_PRE_INIT_MAGMA   = 0x3,
 } gl2_command_t;
 
 typedef enum {

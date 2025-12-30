@@ -8,11 +8,10 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand GLCmd_CopyState,     4   # 0x0
-        RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0x1
-        RSPQ_DefineCommand GLCmd_PreInitPipeTex,4   # 0x2
-        RSPQ_DefineCommand GLCmd_SetPipeline,   8   # 0x3
-        RSPQ_DefineCommand GLCmd_PreInitMagma,  4   # 0x4
+        RSPQ_DefineCommand GLCmd_PreInitPipe,   4   # 0x0
+        RSPQ_DefineCommand GLCmd_PreInitPipeTex,4   # 0x1
+        RSPQ_DefineCommand GLCmd_SetPipeline,   8   # 0x2
+        RSPQ_DefineCommand GLCmd_PreInitMagma,  4   # 0x3
     RSPQ_EndOverlayHeader
 
     RSPQ_BeginSavedState
@@ -69,14 +68,6 @@ MG_STATE_STAGING:
 MG_STATE_STAGING_END:
 
     .text
-
-    .func GLCmd_CopyState
-GLCmd_CopyState:
-    move s0, a0
-    li s4, %lo(GL_STATE)
-    j DMAIn
-    li t0, DMA_SIZE(GL_STATE_SIZE, 1)
-    .endfunc
 
     .func GLCmd_PreInitPipe
 GLCmd_PreInitPipe:
