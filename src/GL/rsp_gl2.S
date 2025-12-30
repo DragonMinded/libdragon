@@ -136,45 +136,6 @@ GLCmd_PreInitPipe:
 
     #undef tri_cmd
 
-    # Check if eye space transformation is needed in T&L
-    and t1, state_flags, FLAG_LIGHTING | FLAG_FOG | FLAG_TEXTURE_ACTIVE
-    sltu t1, zero, t1
-    sll t1, NEED_EYE_SPACE_SHIFT
-    and t2, state_flags, ~FLAG_NEED_EYE_SPACE
-    or state_flags, t2, t1
-
-    #define vmodes  $v01
-    #define vsphere $v02
-    #define v___    $v29
-
-    # Check which tex gen modes are active
-    srl t0, state_flags, TEX_GEN_S_SHIFT
-    andi t0, 0xF
-    ctc2 t0, COP2_CTRL_VCC
-    li s1, %lo(GL_TEX_GEN)
-    lqv vmodes, TEX_GEN_MODE_OFFSET, s1
-    vmrg vmodes, vzero
-    vand vsphere, vmodes, K2
-    veq  v___, vsphere, vzero
-    vmrg vmodes, vzero
-    vor vsphere, vsphere.q1
-    vor vsphere, vsphere.e2
-    vor vmodes, vmodes.q1
-    vor vmodes, vmodes.e2
-    mfc2 t0, vsphere.e0
-    mfc2 t1, vmodes.e0
-    sltu t0, zero, t0
-    sltu t1, zero, t1
-    sll t0, TEX_GEN_SPHERICAL_FLAG_SHIFT
-    sll t1, TEX_GEN_LINEAR_FLAG_SHIFT
-    or t0, t1
-    and t2, state_flags, ~(FLAG_TEX_GEN_LINEAR | FLAG_TEX_GEN_SPHERICAL)
-    or state_flags, t2, t0
-
-    #undef vmodes
-    #undef vsphere
-    #undef v___
-
     # Multisampling
     and t0, state_flags2, FLAG2_REDUCED_ALIASING
     or modes0, t0, (SOM_TF0_RGB | SOM_TF1_RGB) >> 32

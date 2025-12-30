@@ -71,6 +71,7 @@
 
 #define ATTRIB_TYPE_COUNT     10
 
+// TODO: reorganize these flags (note implicit usages in rsp_gl2.rspl)
 #define FLAG_DITHER             (1 << 0)
 #define FLAG_BLEND              (1 << 1)
 #define FLAG_ALPHA_TEST         (1 << 2)
@@ -79,14 +80,10 @@
 #define FLAG_TEXTURE_1D         (1 << 5)
 #define FLAG_TEXTURE_2D         (1 << 6)
 #define FLAG_CULL_FACE          (1 << 7)
-#define FLAG_TEX_GEN_LINEAR     (1 << 8)
-#define FLAG_TEX_GEN_SPHERICAL  (1 << 9)
 #define FLAG_LIGHTING           (1 << 10)
 #define FLAG_COLOR_MATERIAL     (1 << 11)
 #define FLAG_NORMALIZE          (1 << 12)
-#define FLAG_NEED_EYE_SPACE     (1 << 13)
 #define FLAG_MATRIX_PALETTE     (1 << 14)
-#define FLAG_TEX_MATRIX         (1 << 15)
 #define FLAG_DEPTH_TEST         (1 << 16)
 #define FLAG_TEXTURE_ACTIVE     (1 << 17)
 #define FLAG_DEPTH_MASK         (1 << 18)
