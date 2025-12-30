@@ -16,6 +16,7 @@
 #include <vector>
 #include <array>
 #include <algorithm>
+#include <time.h>
 #include "../../src/audio/wav64_internal.h"
 #include "../common/binout.h"
 
@@ -147,6 +148,25 @@ static size_t read_mp3(const char *infn, wav_data_t *out)
 	out->sampleRate = mp3.sampleRate;
 	drmp3_uninit(&mp3);
 	return true;
+}
+
+static int64_t now_ms(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static void resample_progress_print(int64_t bytes_done, int64_t bytes_total, int64_t *last_print_ms, double *last_pct) {
+	if (!flag_verbose) return;
+	int64_t now = now_ms();
+	// Print at most once every 2 seconds, but always print the final 100%.
+	const bool is_done = (bytes_total > 0 && bytes_done >= bytes_total);
+	if (!is_done && *last_print_ms && (now - *last_print_ms) < 1000) return;
+	double pct = (bytes_total > 0) ? (double)bytes_done * 100.0 / (double)bytes_total : 0.0;
+	if (pct > 100.0) pct = 100.0;
+	*last_print_ms = now;
+	*last_pct = pct;
+	fprintf(stderr, "Resampling: %lld bytes (%.1f%%)\n", (long long)bytes_done, pct);
 }
 
 /**
@@ -717,7 +737,64 @@ int wav_convert(const char *infn, const char *outfn) {
 			converter = SRC_SINC_MEDIUM_QUALITY;
 		}
 
-		int err = src_simple(&data, converter, wav.channels);
+		// Do the conversion in chunks so we can report progress.
+		int err = 0;
+		SRC_STATE *st = src_new(converter, wav.channels, &err);
+		if (!st || err != 0) {
+			fprintf(stderr, "ERROR: %s: resampling init failed: %s\n", infn, src_strerror(err));
+			free(fsamples_in);
+			free(fsamples_out);
+			free(wav.samples);
+			return 1;
+		}
+
+		const int64_t total_in_frames = wav.cnt;
+		const int64_t total_in_bytes = (int64_t)wav.cnt * wav.channels * sizeof(int16_t);
+		int64_t in_pos = 0;
+		int64_t out_pos = 0;
+		int64_t last_print_ms = 0;
+		double last_pct = -1.0;
+
+		while (in_pos < total_in_frames) {
+			const int64_t remaining_in = total_in_frames - in_pos;
+			const int64_t chunk_in = remaining_in > 4096 ? 4096 : remaining_in;
+
+			SRC_DATA d{};
+			d.data_in = fsamples_in + in_pos * wav.channels;
+			d.input_frames = (long)chunk_in;
+			d.data_out = fsamples_out + out_pos * wav.channels;
+			d.output_frames = (long)(newcnt - out_pos);
+			d.src_ratio = (double)wavResampleTo / (double)wav.sampleRate;
+			d.end_of_input = (in_pos + chunk_in == total_in_frames) ? 1 : 0;
+
+			err = src_process(st, &d);
+			if (err != 0) break;
+
+			in_pos += d.input_frames_used;
+			out_pos += d.output_frames_gen;
+
+			resample_progress_print(in_pos * wav.channels * (int64_t)sizeof(int16_t), total_in_bytes, &last_print_ms, &last_pct);
+			if (d.input_frames_used == 0 && d.output_frames_gen == 0) break;
+		}
+
+		// Flush.
+		for (;;) {
+			SRC_DATA d{};
+			d.data_in = NULL;
+			d.input_frames = 0;
+			d.data_out = fsamples_out + out_pos * wav.channels;
+			d.output_frames = (long)(newcnt - out_pos);
+			d.src_ratio = (double)wavResampleTo / (double)wav.sampleRate;
+			d.end_of_input = 1;
+			err = src_process(st, &d);
+			if (err != 0) break;
+			out_pos += d.output_frames_gen;
+			if (d.output_frames_gen == 0) break;
+		}
+
+		src_delete(st);
+		if (err == 0) resample_progress_print(total_in_bytes, total_in_bytes, &last_print_ms, &last_pct);
+
 		if (err != 0) {
 			fprintf(stderr, "ERROR: %s: resampling failed: %s\n", infn, src_strerror(err));
 			free(fsamples_in);
@@ -727,7 +804,7 @@ int wav_convert(const char *infn, const char *outfn) {
 		}
 
 		// Extract the number of samples generated, and convert back to 16-bit
-		wav.cnt = data.output_frames_gen;
+		wav.cnt = (int)out_pos;
 		wav.samples = (int16_t*)realloc(wav.samples, wav.cnt * wav.channels * sizeof(int16_t));
 		src_float_to_short_array(fsamples_out, wav.samples, wav.cnt * wav.channels);
 
