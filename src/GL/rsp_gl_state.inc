@@ -14,7 +14,7 @@ GL_STATE:
     GL_MAT_DIFFUSE:         .half   0,0,0,0
     GL_MAT_SPECULAR:        .half   0,0,0,0
     GL_MAT_EMISSIVE:        .half   0,0,0,0
-    GL_MAT_COLOR_TARGET:    .half   0,0,0
+    GL_MAT_COLOR_TARGET:    .half   0
     GL_MAT_SHININESS:       .half   0
     GL_CURRENT_ATTRIBUTES:
         GL_CUR_COLOR:       .half   0,0,0,0

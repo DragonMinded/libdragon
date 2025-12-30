@@ -129,8 +129,7 @@ void gl_init()
     server_state->mat_diffuse[3] = 0x7FFF;  // 1.0
     server_state->mat_specular[3] = 0x7FFF; // 1.0
     server_state->mat_emissive[3] = 0x7FFF; // 1.0
-    server_state->mat_color_target[0] = 1;
-    server_state->mat_color_target[1] = 1;
+    server_state->mat_color_target = GL_AMBIENT_AND_DIFFUSE;
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {

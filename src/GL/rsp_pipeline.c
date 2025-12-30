@@ -288,18 +288,35 @@ static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout)
     return key;
 }
 
-static mg_pipeline_t **create_pipelines(const mg_vertex_layout_t *layout)
+static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
 {
     mg_pipeline_t **pipelines = calloc(PIPELINE_COUNT, sizeof(mg_pipeline_t*));
+
+    vertex_layout tmp_vl;
 
     for (size_t i = 0; i < PIPELINE_COUNT; i++)
     {
         // This will iterate over all possible combinations of features
-        mgfx_features_t features = i;
+        mgfx_features_t features = i & PIPELINE_FEATURES_MASK;
 
+        const vertex_layout *actual_layout = layout;
+
+        if (i & PIPELINE_PSEUDO_FEATURE_FLAG) {
+            // For every combination of features, add an extra variant of the pipeline that "hides" the color attribute from the vertex
+            // shader by copying the vertex layout and omitting the color attribute. This is for the special case where the color vertex 
+            // array is enabled, but the current material configuration ignores it (instead using the material color). 
+            // To avoid having to re-configure the vertex array (which would involve re-converting data), We do this instead.
+            // All other attributes will keep their original offsets, so we can use the existing data as-is.
+            vertex_layout_init(&tmp_vl);
+            vertex_layout_copy_without(&tmp_vl, layout, MGFX_ATTRIBUTE_COLOR);
+            actual_layout = &tmp_vl;
+        }
+
+        // TODO: Currently, pipelines may get duplicated due to the above modification to the vertex layout.
+        //       To fix this, cache individual pipelines as well.
         pipelines[i] = mg_pipeline_create(&(mg_pipeline_parms_t) {
             .vertex_shader_ucode = mgfx_get_shader_ucode(features),
-            .vertex_layout = *layout
+            .vertex_layout = actual_layout->vertex_layout
         });
     }
 
@@ -308,25 +325,11 @@ static mg_pipeline_t **create_pipelines(const mg_vertex_layout_t *layout)
 
 static void update_pipeline(const vertex_layout *layout)
 {
-    /*
-    vertex_layout vl;
-    if (state->lighting && !gl_is_diffuse_tracking_color())
-    {
-        // Special case: The vertex array has color as input, but the current material configuration ignores it (instead using the material color).
-        // To avoid having to re-configure the vertex array (which would involve re-converting data), instead we "hide" the color attribute
-        // from the vertex shader by copying the vertex layout and omitting the color attribute.
-        // All other attributes will keep their original offsets, so we can use the existing data as-is.
-        vertex_layout_init(&vl);
-        vertex_layout_copy_without(&vl, layout, MGFX_ATTRIBUTE_COLOR);
-        layout = &vl;
-    }
-    */
-
     uint32_t key = get_pipeline_key(&layout->vertex_layout);
 
     mg_pipeline_t **pipelines = hashtable_lookup(&state->pipeline_cache, key);
     if (pipelines == NULL) {
-        pipelines = create_pipelines(&layout->vertex_layout);
+        pipelines = create_pipelines(layout);
         hashtable_insert(&state->pipeline_cache, key, pipelines);
     }
 

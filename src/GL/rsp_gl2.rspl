@@ -15,6 +15,7 @@ state {
     extern u16 GL_VIEWPORT_SCALE[4];
     extern u8 GL_PIPELINES;
     extern s16 GL_STATE_LIGHT_AMBIENT[4];
+    extern u16 GL_MAT_COLOR_TARGET;
     extern u32 GL_STATE_FLAGS;
     extern u16 GL_STATE_FOG_PARAMS[4];
     extern s16 GL_STATE_TEX_SIZE[2];
@@ -61,6 +62,20 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
 {
     u32<$k0> flags = load(GL_STATE_FLAGS, 0);
 
+    u32<$k1> diffuse_tracking_color = 0;
+    {
+        u32 tmp = flags & 0x800; // FLAG_COLOR_MATERIAL
+        if (tmp != 0) {
+            u16 color_material = load(GL_MAT_COLOR_TARGET);
+            if (color_material == GL_DIFFUSE) {
+                diffuse_tracking_color = 1;
+            }
+            if (color_material == GL_AMBIENT_AND_DIFFUSE) {
+                diffuse_tracking_color = 1;
+            }
+        }
+    }
+
     // Pipeline
     {
         u32 features = 0;
@@ -78,6 +93,14 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
                 {
                     features |= 1;
                 }
+            }
+        }
+
+        tmp = flags & 0x400; // FLAG_LIGHTING
+        if (tmp != 0)
+        {
+            if (diffuse_tracking_color == 0) {
+                features |= 2;
             }
         }
 
