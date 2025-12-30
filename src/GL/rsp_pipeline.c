@@ -348,8 +348,12 @@ static void prepare_drawing_with_magma()
 {
     const vertex_layout *layout = get_current_layout();
     update_pipeline(layout);
+
+    uint32_t client_flags = 0;
+    if (state->begin_end_active) client_flags |= CLIENT_FLAG_BEGIN_END;
+    if (state->array_object->arrays[ATTRIB_COLOR].enabled) client_flags |= CLIENT_FLAG_COLOR_ARRAY;
     
-    gl2_write(GL_CMD_PRE_INIT_MAGMA, magma_rsp_state);
+    gl2_write(GL_CMD_PRE_INIT_MAGMA, magma_rsp_state, client_flags);
     
     mg_set_vertex_stride(layout->vertex_layout.stride);
 }

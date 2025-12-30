@@ -15,11 +15,13 @@ state {
     extern u16 GL_VIEWPORT_SCALE[4];
     extern u8 GL_PIPELINES;
     extern s16 GL_STATE_LIGHT_AMBIENT[4];
+    extern s16 GL_MAT_DIFFUSE[4];
     extern u16 GL_MAT_COLOR_TARGET;
     extern u32 GL_STATE_FLAGS;
     extern u16 GL_STATE_FOG_PARAMS[4];
     extern s16 GL_STATE_TEX_SIZE[2];
     extern s16 GL_STATE_TEX_OFFSET[2];
+    extern s16 GL_CUR_COLOR[4];
     extern u8 GL_CUR_MTX_INDEX;
     extern u16 GL_TRI_CMD;
     extern u8 GL_TRI_CULL;
@@ -58,7 +60,7 @@ temp_state {
 function DmaMagmaState();
 function GL_MtxMult();
 
-command<4> GLCmd_PreInitMagma(u32 statePtr)
+command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
 {
     u32<$k0> flags = load(GL_STATE_FLAGS, 0);
 
@@ -297,6 +299,11 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
 
     // Lighting
     {
+        u32 color_constant = 0;
+        if (client_flags == 0) {
+            color_constant = 1;
+        }
+
         vec16 ambient;
         u8 light_count = 0;
         u8 point_count = 0;
@@ -304,7 +311,19 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
         u32 enabled = flags & 0x400; // FLAG_LIGHTING
         if (enabled != 0)
         {
+            vec16 color;
+            if (diffuse_tracking_color == 0) {
+                color_constant = 1;
+                color = load(GL_MAT_DIFFUSE).xyzw;
+            } else {
+                color = load(GL_CUR_COLOR).xyzw;
+            }
+
             ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
+            if (color_constant != 0) {
+                ambient = ambient:sfract * color:sfract;
+            }
+
             u32 light_flag = 0x100000; // FLAG_LIGHT0
             u16 light_ptr = GL_LIGHTS;
             u16 light_end = GL_TEX_GEN;
@@ -313,9 +332,16 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
             {
                 u32 light_enabled = flags & light_flag;
                 if (light_enabled != 0) {
-                    vec16 light = load(light_ptr, 0);
-                    store(light.xyzw, out_ptr, 0);
-                    store(light.XYZW, out_ptr, 8);
+                    vec16 light_position = load(light_ptr, 0).xyzw;
+                    vec16 light_color = load(light_ptr, 8).xyzw;
+
+                    if (color_constant != 0) {
+                        light_color = light_color:sfract * color:sfract;
+                        light_color.w = load(light_ptr, 6).x;
+                    }
+
+                    store(light_position.xyzw, out_ptr, 0);
+                    store(light_color.xyzw, out_ptr, 8);
 
                     s16 w = load(light_ptr, MGFX_LIGHT_POSITIONW);
                     if (w != 0) {
@@ -328,9 +354,11 @@ command<4> GLCmd_PreInitMagma(u32 statePtr)
                 light_ptr += MGFX_LIGHT_SIZE;
                 light_flag = light_flag << 1;
             }
-        } else {
+        } else if (color_constant == 0) {
             ambient.x = 0x7FFF;
             ambient = ambient.x;
+        } else {
+            ambient = load(GL_CUR_COLOR).xyzw;
         }
 
         @Barrier("store_lighting") store(ambient.xyzw, LIGHTING_AMBIENT, 0);

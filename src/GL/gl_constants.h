@@ -110,6 +110,9 @@
 #define FLAG2_MULTISAMPLE        (1 << 3)
 #define FLAG2_TEX_FLIP_T         (1 << 4)
 
+#define CLIENT_FLAG_BEGIN_END   (1 << 0)
+#define CLIENT_FLAG_COLOR_ARRAY (1 << 1)
+
 #define TEX_FLAG_COMPLETE       (1 << 0)
 #define TEX_FLAG_UPLOAD_DIRTY   (1 << 1)
 #define TEX_FLAG_FORCE_COMPLETE (1 << 2)
