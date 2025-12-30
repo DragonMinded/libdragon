@@ -15,6 +15,7 @@
 #include <time.h>
 #include <thread>
 #include <mutex>
+#include <deque>
 
 Config cfg;
 
@@ -169,22 +170,22 @@ int run_process(const std::vector<std::string>& argv, std::string &out) {
 		verbose(2, "[exec] %s", format_cmdline_for_log(argv).c_str());
 	}
 
-	std::vector<std::string> tail_lines;
+	std::deque<std::string> tail_lines;
 	const char *tag = argv.empty() ? "proc" : argv[0].c_str();
 	std::string prefix = std::string("[") + tag + "] ";
 
 	int rc = run_process_pipe(argv, &out, [&](const std::string& line) {
 		if (cfg.verbose >= 3) verbose(3, "%s%s", prefix.c_str(), line.c_str());
 		const size_t MAX_TAIL_LINES = 80;
-		if (tail_lines.size() >= MAX_TAIL_LINES) tail_lines.erase(tail_lines.begin());
+		if (tail_lines.size() >= MAX_TAIL_LINES) tail_lines.pop_front();
 		tail_lines.push_back(line);
 	});
 
 	if (rc != 0 && cfg.verbose >= 1) {
 		verbose(1, "[exec] %s", format_cmdline_for_log(argv).c_str());
 		verbose(1, "[exit] rc=%d", rc);
-		for (size_t i = 0; i < tail_lines.size(); i++)
-			verbose(1, "%s%s", prefix.c_str(), tail_lines[i].c_str());
+		for (const auto& l : tail_lines)
+			verbose(1, "%s%s", prefix.c_str(), l.c_str());
 	} else {
 		if (cfg.verbose >= 2) verbose(2, "[exit] rc=%d", rc);
 	}

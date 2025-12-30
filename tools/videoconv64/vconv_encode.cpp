@@ -13,6 +13,7 @@
 #include <string.h>
 
 #include <map>
+#include <deque>
 
 static double quality_strength(double q) {
 	// strength in [0..1], where 0 => minimal processing (high quality),
@@ -309,7 +310,7 @@ struct ffmpeg_progress_ctx_t {
 	progress_state_t *ps;
 
 	std::map<std::string,std::string> kv;
-	std::vector<std::string> tail_lines;
+	std::deque<std::string> tail_lines;
 	double last_overall_pct;
 };
 
@@ -329,7 +330,7 @@ int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double durati
 
 		// Always keep a tail of lines (used on error).
 		const size_t MAX_TAIL_LINES = 80;
-		if (ctx.tail_lines.size() >= MAX_TAIL_LINES) ctx.tail_lines.erase(ctx.tail_lines.begin());
+		if (ctx.tail_lines.size() >= MAX_TAIL_LINES) ctx.tail_lines.pop_front();
 		ctx.tail_lines.push_back(line);
 
 		parse_progress_kv_line(line, ctx.kv);
@@ -389,8 +390,8 @@ int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double durati
 	if (rc != 0 && cfg.verbose >= 1) {
 		verbose(1, "[exec] %s", cmdline.c_str());
 		verbose(1, "[exit] rc=%d", rc);
-		for (size_t i = 0; i < ctx.tail_lines.size(); i++)
-			verbose(1, "[ffmpeg] %s", ctx.tail_lines[i].c_str());
+		for (const auto& l : ctx.tail_lines)
+			verbose(1, "[ffmpeg] %s", l.c_str());
 	} else {
 		if (cfg.verbose >= 2) verbose(2, "[exit] rc=%d", rc);
 	}
