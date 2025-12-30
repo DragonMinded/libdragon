@@ -729,11 +729,17 @@ int wav_convert(const char *infn, const char *outfn) {
 		free(fsamples_in);
 		free(fsamples_out);
 
+		// Update loop/seek points to the new sample rate
+		wav.loopOffset = (int)((int64_t)wav.loopOffset * wavResampleTo / wav.sampleRate);
+		for (size_t i = 0; i < wav.skipPoints.size(); i++) {
+			int sp = wav.skipPoints[i];
+			if (sp > 0)
+				wav.skipPoints[i] = (int)((int64_t)sp * wavResampleTo / wav.sampleRate);
+		}
+
 		// Update wav.sampleRate as it will be used later
 		wav.sampleRate = wavResampleTo;
 
-		// Update also the loop offset to the new sample rate
-		wav.loopOffset = wav.loopOffset * wavResampleTo / wav.sampleRate;
 	}
 
 	// Apply additional seek offsets specified on the command line.
