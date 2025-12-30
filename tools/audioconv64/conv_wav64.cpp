@@ -108,6 +108,18 @@ static bool read_wav(const char *infn, wav_data_t *out)
 				}
 			}
 		}
+
+		// If we find cue points, interpret them as "seek points" (skip points) used during compression.
+		// This is more semantically correct than abusing SMPL loops for markers.
+		if (wav.pMetadata[i].type == drwav_metadata_type_cue) {
+			drwav_cue *cue = &wav.pMetadata[i].data.cue;
+			if (cue->cuePointCount > 0 && cue->pCuePoints) {
+				for (drwav_uint32 j = 0; j < cue->cuePointCount; j++) {
+					drwav_uint32 off = cue->pCuePoints[j].sampleOffset;
+					if (off > 0) out->skipPoints.push_back((int)off);
+				}
+			}
+		}
 	}
 
 	drwav_uninit(&wav);
