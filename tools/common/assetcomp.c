@@ -112,6 +112,8 @@ void asset_compress_mem_raw(int compression, const uint8_t *data, int sz, uint8_
 
 /**
  * @brief Compress or recompress a file in the libdragon asset format.
+ *
+ * NOTE: infn and outfn can be the same file, this is explicitly allowed.
  * 
  * @param infn          Input file to (re-)compress
  * @param outfn         Output file
