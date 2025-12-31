@@ -78,7 +78,8 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-bufsize", std::to_string(bufsize_kbps) + "k",
 		"-bf", "0",
 		"-preset", cfg.quick ? "veryfast" : "slower",
-		"-x264-params", "no-deblock=1:no-info=1",
+		// Force 4 slices per frame for easier background decoding
+		"-x264-params", "no-deblock=1:no-info=1:slices=4",
 		"-f", "h264",
 		"-progress", "pipe:1",
 		"-v", "error",
