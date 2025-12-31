@@ -99,6 +99,13 @@ int run_process_pipe(
 	std::string *out,
 	const std::function<void(const std::string&)> &cb
 ) {
+	if (cfg.verbose >= 2) {
+		verbose(2, "[exec] %s", format_cmdline_for_log(argv).c_str());
+	}
+
+	const char *tag = argv.empty() ? "proc" : argv[0].c_str();
+	std::string prefix = std::string("[") + tag + "] ";
+
 	std::vector<const char*> cargv;
 	cargv.reserve(argv.size() + 1);
 	for (size_t i = 0; i < argv.size(); i++)
@@ -116,6 +123,7 @@ int run_process_pipe(
 	char buf[2048];
 
 	auto flush_line = [&](const std::string& line) {
+		if (cfg.verbose >= 3) verbose(3, "%s%s", prefix.c_str(), line.c_str());
 		if (cb) cb(line);
 	};
 
@@ -166,16 +174,11 @@ int run_process_pipe(
 }
 
 int run_process(const std::vector<std::string>& argv, std::string &out) {
-	if (cfg.verbose >= 2) {
-		verbose(2, "[exec] %s", format_cmdline_for_log(argv).c_str());
-	}
-
 	std::deque<std::string> tail_lines;
 	const char *tag = argv.empty() ? "proc" : argv[0].c_str();
 	std::string prefix = std::string("[") + tag + "] ";
 
 	int rc = run_process_pipe(argv, &out, [&](const std::string& line) {
-		if (cfg.verbose >= 3) verbose(3, "%s%s", prefix.c_str(), line.c_str());
 		const size_t MAX_TAIL_LINES = 80;
 		if (tail_lines.size() >= MAX_TAIL_LINES) tail_lines.pop_front();
 		tail_lines.push_back(line);

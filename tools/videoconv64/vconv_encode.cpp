@@ -251,7 +251,6 @@ struct ffmpeg_progress_ctx_t {
 
 int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double duration_sec, int pass_idx, progress_state_t &ps) {
 	std::string cmdline = format_cmdline_for_log(argv);
-	if (cfg.verbose >= 2) verbose(2, "[exec] %s", cmdline.c_str());
 
 	ffmpeg_progress_ctx_t ctx;
 	ctx.duration_sec = duration_sec;
@@ -260,9 +259,6 @@ int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double durati
 	ctx.last_overall_pct = -1.0;
 
 	int rc = run_process_pipe(argv, NULL, [&](const std::string& line) {
-		// Forward raw output when very verbose (helps debugging filter errors).
-		if (cfg.verbose >= 3) verbose(3, "[ffmpeg] %s", line.c_str());
-
 		// Always keep a tail of lines (used on error).
 		const size_t MAX_TAIL_LINES = 80;
 		if (ctx.tail_lines.size() >= MAX_TAIL_LINES) ctx.tail_lines.pop_front();
