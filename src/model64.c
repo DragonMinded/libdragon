@@ -571,7 +571,7 @@ static void model64_draw_mesh(model64_t *model, uint32_t mesh_index, uint32_t *m
     for (size_t i = 0; i < mesh->submesh_count; i++)
     {
         if (material_indices[i] != INDEX_MISSING) {
-            //rdpq_mat_draw_begin(model->data->materials[material_indices[i]].rdpq_mat);
+            rdpq_mat_draw_begin(model->data->materials[material_indices[i]].rdpq_mat);
         }
 
         mgfx_submesh_t *submesh = &mesh->submeshes[i];
@@ -584,7 +584,7 @@ static void model64_draw_mesh(model64_t *model, uint32_t mesh_index, uint32_t *m
         }
 
         if (material_indices[i] != INDEX_MISSING) {
-            //rdpq_mat_draw_end(model->data->materials[material_indices[i]].rdpq_mat);
+            rdpq_mat_draw_end(model->data->materials[material_indices[i]].rdpq_mat);
         }
     }
 }
@@ -598,8 +598,8 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
         return;
     }
 
-    //glEnable(GL_RDPQ_MATERIAL_N64);
-    //glEnable(GL_RDPQ_TEXTURING_N64);
+    glEnable(GL_RDPQ_MATERIAL_N64);
+    glEnable(GL_RDPQ_TEXTURING_N64);
 
     if(node->skin)
     {
@@ -626,8 +626,8 @@ void model64_draw_node(model64_t *model, model64_node_t *node)
     }
 
     // TODO: check if it was enabled before
-    //glDisable(GL_RDPQ_MATERIAL_N64);
-    //glDisable(GL_RDPQ_TEXTURING_N64);
+    glDisable(GL_RDPQ_MATERIAL_N64);
+    glDisable(GL_RDPQ_TEXTURING_N64);
 }
 
 /** @brief Draws all nodes in a model */
