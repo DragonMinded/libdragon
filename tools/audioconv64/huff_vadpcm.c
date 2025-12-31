@@ -113,11 +113,13 @@ void calculate_frequencies(uint8_t *input_data, int data_len, HuffFreq *freq) {
         for (int j = 0; j < HUFF_TABLE_SIZE; j++) {
             sum += freq->freq[i][j];
         }
+        assert(sum > 0);
         if (sum == 0) {
             continue;
         }
         for (int j = 0; j < HUFF_TABLE_SIZE; j++) {
-            int nfreq = (freq->freq[i][j] * 255 + sum - 1) / sum;
+            int nfreq = ((int64_t)freq->freq[i][j] * 255 + sum - 1) / sum;
+            assert(nfreq >= 0);
             if (nfreq == 0) assert(freq->freq[i][j] == 0);
             freq->freq[i][j] = nfreq;
         }

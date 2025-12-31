@@ -657,7 +657,7 @@ int wav_convert(const char *infn, const char *outfn) {
 	int uncompressedSize;
 	if (flag_verbose)
 		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
-	uncompressedSize = wav.cnt * wav.channels * wav.bitsPerSample / 8;
+	uncompressedSize = (int64_t)wav.cnt * wav.channels * wav.bitsPerSample / 8;
 
 	// Apply command line flags if not provided by WAV itself
 	if (flag_wav_looping_offset > 0 && wav.loopOffset == 0)
