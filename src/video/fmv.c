@@ -13,6 +13,7 @@
 #include "mixer.h"
 #include "rdpq.h"
 #include "rdpq_attach.h"
+#include <math.h>
 
 void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 {
@@ -82,9 +83,8 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         }
         // Sync also audio
         if (audio) {
-            float time_sec = (float)frame_idx / info.framerate;
-            mixer_ch_set_pos(parms->audio_mixer_channel,
-                time_sec * audio->wave.frequency);
+            double time_sec = (double)frame_idx / (double)info.framerate;
+            wav64_seek(audio, parms->audio_mixer_channel, time_sec);
         }
         return frame_idx;
     }
