@@ -16,6 +16,8 @@
 #include <thread>
 #include <mutex>
 #include <deque>
+#include <algorithm>
+#include <climits>
 
 Config cfg;
 
