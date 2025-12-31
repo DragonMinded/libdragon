@@ -42,6 +42,9 @@ struct Config {
 	bool par_auto = true;
 	bool audio = true;
 	bool seek = false;               // generate .seek file with IDR/I-frame offsets (opt-in)
+	double seek_interval_sec = 0.0;  // if >0, request keyframes every N seconds (converted to -g)
+	std::string seek_frames_file;    // if set, text file with frame indices that must be keyframes
+	std::vector<int> seek_frames;    // parsed contents of seek_frames_file (sorted, unique)
 	std::string audio_compress;       // passed to audioconv64 --wav-compress (no validation)
 	int audio_rate = 32000;           // passed to audioconv64 --wav-resample
 	int audio_channels = 1;           // 1 => --wav-mono, 2 => no flag
@@ -74,6 +77,16 @@ std::string base_name(const std::string& path);
 std::string strip_ext(const std::string& name);
 std::string format_cmdline_for_log(const std::vector<std::string>& argv);
 void sleep_ms(int ms);
+
+// Build ffmpeg -force_key_frames argument from a list of frame indices.
+// Each index is converted to a timestamp via t = frame / fps.
+std::string ffmpeg_force_keyframes_from_frames(const std::vector<int>& frames, double fps);
+
+// Build ffmpeg args to control keyframe placement based on cfg.seek_interval_sec / cfg.seek_frames.
+// Emits:
+// - "-g <N>" only if cfg.seek_interval_sec > 0 (N = round(cfg.seek_interval_sec * fps))
+// - "-force_key_frames <t0,t1,...>" if cfg.seek_frames is set
+std::vector<std::string> ffmpeg_keyframe_args(double fps);
 
 // Shared progress helpers (implemented in vconv_utils.cpp).
 void progressbar_clear(void);

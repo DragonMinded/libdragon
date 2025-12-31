@@ -69,7 +69,9 @@ static void usage(void) {
 	printf("   -r, --fps <N>               Force a specific framerate (default: auto)\n");
 	printf("   -q, --quality <0..100>      Synthetic quality scale (default: 80)\n");
 	printf("   -Q, --quick                 Quick encoding (speed up processing as much as possible)\n");
-	printf("       --seek                  Generate <output>.seek index for fast seeking\n");
+	printf("       --seek <SEC|FILE>       Enable seeking support:\n");
+	printf("                               - if SEC is a float, request a keyframe every SEC seconds\n");
+	printf("                               - if FILE, read a list of frame indices that must be keyframes\n");
 	printf("\n");
 	printf("Audio options:\n");
 	printf("       --audio-compress <N>    Pass through to audioconv64: --wav-compress <N>\n");
@@ -205,6 +207,60 @@ void check_tool_available(const std::string& tool_path, const char *tool_name) {
 	verbose(2, "%s OK: %s", tool_name, tool_path.c_str());
 }
 
+static bool parse_double_strict(const char *s, double *out)
+{
+	if (!s || !*s) return false;
+	char *end = NULL;
+	double v = strtod(s, &end);
+	if (end == s) return false;
+	while (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r') end++;
+	if (*end != 0) return false;
+	*out = v;
+	return true;
+}
+
+static std::vector<int> load_seek_frames_file(const std::string& path)
+{
+	FILE *f = fopen(path.c_str(), "rb");
+	if (!f) fatal("seek: cannot open frames file: %s", path.c_str());
+
+	std::vector<int> frames;
+	char line[256];
+	int lineno = 0;
+	while (fgets(line, sizeof(line), f)) {
+		lineno++;
+		char *p = line;
+		while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+		if (*p == 0) continue;
+		if (*p == '#') continue;
+
+		char *end = NULL;
+		long v = strtol(p, &end, 10);
+		if (end == p) {
+			fclose(f);
+			fatal("seek: invalid frame index at %s:%d", path.c_str(), lineno);
+		}
+		while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n') end++;
+		if (*end != 0 && *end != '#') {
+			fclose(f);
+			fatal("seek: trailing garbage at %s:%d", path.c_str(), lineno);
+		}
+		if (v < 0 || v > INT32_MAX) {
+			fclose(f);
+			fatal("seek: out of range frame index at %s:%d", path.c_str(), lineno);
+		}
+		frames.push_back((int)v);
+	}
+	fclose(f);
+
+	if (frames.empty())
+		fatal("seek: frames file is empty: %s", path.c_str());
+
+	std::sort(frames.begin(), frames.end());
+	frames.erase(std::unique(frames.begin(), frames.end()), frames.end());
+	return frames;
+}
+
 int main(int argc, char **argv) {
 	if (argc < 2) {
 		usage();
@@ -242,7 +298,16 @@ int main(int argc, char **argv) {
 		} else if (arg == "-Q" || arg == "--quick") {
 			cfg.quick = true;
 		} else if (arg == "--seek") {
+			if (++i >= argc) fatal("Missing argument for %s (expected seconds or file path)", arg.c_str());
+			const char *param = argv[i];
 			cfg.seek = true;
+			double sec = 0.0;
+			if (parse_double_strict(param, &sec) && sec > 0.0) {
+				cfg.seek_interval_sec = sec;
+			} else {
+				cfg.seek_frames_file = param;
+				cfg.seek_frames = load_seek_frames_file(cfg.seek_frames_file);
+			}
 		} else if (arg == "--no-progress") {
 			cfg.progress = false;
 		} else if (arg == "-q" || arg == "--quality") {
@@ -293,6 +358,12 @@ int main(int argc, char **argv) {
 	// Ensure tools exist and can run before proceeding any further.
 	check_tool_available(cfg.ffmpeg_path, "ffmpeg");
 	check_tool_available(cfg.ffprobe_path, "ffprobe");
+
+	// If the user requested exact keyframes by frame index, disallow manual fps override,
+	// as the mapping cannot be preserved accurately when changing framerate.
+	if (cfg.seek && !cfg.seek_frames_file.empty() && cfg.fps > 0.0) {
+		fatal("Cannot use -r/--fps together with --seek <frame_list_file>");
+	}
 
 	// Start audio conversion early (runs in background while we analyze/encode video).
 	// We can't do that if seek file generation is requested, as we need to wait for

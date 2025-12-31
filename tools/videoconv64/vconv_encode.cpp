@@ -11,9 +11,11 @@
 #include "videoconv64.h"
 
 #include <string.h>
+#include <math.h>
 
 #include <map>
 #include <deque>
+#include <algorithm>
 
 static double quality_strength(double q) {
 	// strength in [0..1], where 0 => minimal processing (high quality),
@@ -172,6 +174,54 @@ std::string build_filterchain(const AnalysisResult &ar, const char *out_matrix, 
 		vf += filters[i];
 	}
 	return vf;
+}
+
+std::string ffmpeg_force_keyframes_from_frames(const std::vector<int>& frames, double fps)
+{
+	if (frames.empty() || fps <= 0.0) return std::string();
+
+	// Ensure monotonic unique list (callers generally already do this).
+	std::vector<int> f = frames;
+	std::sort(f.begin(), f.end());
+	f.erase(std::unique(f.begin(), f.end()), f.end());
+
+	std::string out;
+	out.reserve(f.size() * 8);
+	for (size_t i = 0; i < f.size(); i++) {
+		if (f[i] < 0) continue;
+		double t = (double)f[i] / fps;
+		char buf[64];
+		// Use fixed decimal seconds; ffmpeg accepts this as timestamp.
+		snprintf(buf, sizeof(buf), "%.6f", t);
+		if (!out.empty()) out.push_back(',');
+		out += buf;
+	}
+	return out;
+}
+
+std::vector<std::string> ffmpeg_keyframe_args(double fps)
+{
+	std::vector<std::string> args;
+
+	// GOP size: if user provided --seek <seconds>, convert it to a GOP in frames
+	// and emit it as -g <frames>. If no seek interval is provided, do not emit -g.
+	if (cfg.seek_interval_sec > 0.0) {
+		int gop = (int)floor(cfg.seek_interval_sec * fps + 0.5);
+		if (gop < 1) gop = 1;
+		args.push_back("-g");
+		args.push_back(std::to_string(gop));
+	}
+
+	// Forced keyframes: list of required I/IDR frames provided by the user.
+	if (!cfg.seek_frames.empty()) {
+		std::string fkf = ffmpeg_force_keyframes_from_frames(cfg.seek_frames, fps);
+		if (!fkf.empty()) {
+			args.push_back("-force_key_frames");
+			args.push_back(fkf);
+		}
+	}
+
+	return args;
 }
 
 static void parse_progress_kv_line(const std::string& line, std::map<std::string,std::string> &kv) {

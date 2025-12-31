@@ -132,7 +132,6 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-maxrate", std::to_string(bitrate_kbps) + "k",
 		"-bufsize", std::to_string(buf_kbps) + "k",
 		"-bf", "2",
-		"-g", std::to_string((int)(ar.out_fps + 0.5)),
 		// Expensive encoder knobs: disable in quick mode.
 		"-trellis", trellis,
 	};
@@ -155,6 +154,12 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 			"40,40,48,56,64,80,96,128,"
 			"48,48,56,64,80,128,128,150"
 		);
+	}
+
+	// Keyframe placement options (GOP size / forced keyframes).
+	{
+		std::vector<std::string> kf = ffmpeg_keyframe_args(ar.out_fps);
+		base.insert(base.end(), kf.begin(), kf.end());
 	}
 
 	// Progress: use -progress pipe:1 so output is key=value lines.

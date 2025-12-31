@@ -77,7 +77,6 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-maxrate", std::to_string(maxrate_kbps) + "k",
 		"-bufsize", std::to_string(bufsize_kbps) + "k",
 		"-bf", "0",
-		"-g", std::to_string((int)(ar.out_fps + 0.5)),
 		"-preset", cfg.quick ? "veryfast" : "slower",
 		"-x264-params", "no-deblock=1:no-info=1",
 		"-f", "h264",
@@ -91,6 +90,12 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
         cmd.push_back("-sar");
         cmd.push_back(sar);
 		verbose(1, "H.264: signaling SAR %s", sar.c_str());
+	}
+
+	// Keyframe placement options (GOP size / forced keyframes).
+	{
+		std::vector<std::string> kf = ffmpeg_keyframe_args(ar.out_fps);
+		cmd.insert(cmd.end(), kf.begin(), kf.end());
 	}
 
     cmd.push_back(er.video_path);
