@@ -11,6 +11,9 @@
 #include <stdio.h>
 #include <assert.h>
 #include <stdint.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 
 #define HUFF_TABLE_SIZE     16
 #define HUFF_CONTEXTS       3
@@ -332,6 +335,10 @@ void huffv_decompress_init(const uint8_t *ctx_data, int ctx_len, HuffLookup look
 //   - output: pointer to the buffer where decompressed data is written
 //   - output_len: expected size (in bytes) of the decompressed data; must be a multiple of 9,
 //                 as each original block consists of 9 bytes (18 4-bit symbols)
+//   - bitpos_stats: if not NULL, it must point to an array of (output_len/9 + 1) ints.
+//       The function will write the current bit position (bits consumed) at each block boundary:
+//         bitpos_stats[0] = 0
+//         bitpos_stats[k] = bitpos after decoding k blocks (k in 1..output_len/9)
 // Returns:
 //   The number of bits used/consumed from the compressed input buffer.
 //   This value may be less than compressed_len * 8 if the output buffer is too short
@@ -340,7 +347,8 @@ void huffv_decompress_init(const uint8_t *ctx_data, int ctx_len, HuffLookup look
 //=====================================================================
 int huffv_decompress(uint8_t *compressed, int compressed_len,
                      const HuffLookup lookup[HUFF_CONTEXTS],
-                     uint8_t *output, int output_len)
+                     uint8_t *output, int output_len,
+                     int *bitpos_stats)
 {
     // The output length must be a multiple of 9 bytes (each block decodes into 9 bytes).
     assert(output_len % 9 == 0);
@@ -351,6 +359,11 @@ int huffv_decompress(uint8_t *compressed, int compressed_len,
     uint32_t bit_buffer = 0;
     int bit_count = 0;
     int comp_index = 0;  // Current index in the compressed input buffer
+
+    if (bitpos_stats) {
+        // At 0 decoded blocks, 0 bits have been consumed.
+        bitpos_stats[0] = 0;
+    }
 
     // Process each block.
     for (int b = 0; b < num_blocks; b++) {
@@ -388,6 +401,11 @@ int huffv_decompress(uint8_t *compressed, int compressed_len,
         for (int i = 0; i < 9; i++) {
             uint8_t byte = (nibbles[2 * i] << 4) | (nibbles[2 * i + 1] & 0x0F);
             output[out_index++] = byte;
+        }
+
+        if (bitpos_stats) {
+            // bits consumed so far = bits read from input - bits still in the internal buffer
+            bitpos_stats[b + 1] = comp_index * 8 - bit_count;
         }
     }
     // Calculate the total number of bits consumed.

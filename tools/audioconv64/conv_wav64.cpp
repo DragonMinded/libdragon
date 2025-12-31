@@ -333,13 +333,24 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				schan[j] = wav->samples[i + j*wav->channels];
 			vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
 			if (!skip_points.empty()) {
-				for (int j=0; j<skip_points.size(); j++) {
-					// Decode the whole buffer until the loop point to get the state
-					// at the beginning of the loop.
-					// FIXME: optimize by avoiding to redecode the whole buffer from scratch for each skip point
-					vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
-						codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
-						&skip_state[j][i], skip_points[j] / kVADPCMFrameSampleCount, schan, destchan);
+				// Compute decoder states at all skip points in a single forward pass.
+				// We need the state at the *beginning* of the target VADPCM frame N,
+				// which corresponds to the state after decoding frames [0..N).
+				struct vadpcm_vector st = {0};
+				int cur_frame = 0;
+				for (int j=0; j<(int)skip_points.size(); j++) {
+					const int target_frame = skip_points[j] / kVADPCMFrameSampleCount;
+					const int run_frames = target_frame - cur_frame;
+					if (run_frames > 0) {
+						vadpcm_error err = vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
+							codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
+							&st, (size_t)run_frames, schan,
+							destchan + (size_t)cur_frame * kVADPCMFrameByteSize);
+						assert(err == kVADPCMErrNone);
+					}
+
+					skip_state[j][i] = st;
+					cur_frame = target_frame;
 				}
 			}
 
@@ -371,14 +382,21 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			std::vector<uint8_t> scratch(dest_size);
 			HuffLookup tbl[HUFF_CONTEXTS];
 			huffv_decompress_init(ctxbuf, HUFF_CONTEXT_LEN, tbl);
-			int bitpos = huffv_decompress(compbuf, compbuflen, tbl, &scratch[0], dest_size);
+			std::vector<int> bitpos_stats;
+			if (!skip_points.empty())
+				bitpos_stats.resize(dest_size / kVADPCMFrameByteSize + 1);
+
+			int bitpos = huffv_decompress(compbuf, compbuflen, tbl, &scratch[0], dest_size,
+				bitpos_stats.empty() ? NULL : bitpos_stats.data());
 			assert((bitpos+7)/8 == compbuflen);
 			assert(memcmp(&scratch[0], dest, dest_size) == 0);
 
-			// Compute bit offset for each skip point
+			// Compute bit offset for each skip point (O(1) lookup from full decode stats)
 			for (int i=0; i<skip_points.size(); i++) {
-				skip_bitpos[i] = huffv_decompress(compbuf, compbuflen, tbl,
-					&scratch[0], skip_points[i] / 16 * 9 * wav->channels);
+				int blocks = (skip_points[i] / kVADPCMFrameSampleCount) * wav->channels;
+				assert(blocks >= 0);
+				assert(blocks < (int)bitpos_stats.size());
+				skip_bitpos[i] = bitpos_stats[blocks];
 			}
 		}
 
