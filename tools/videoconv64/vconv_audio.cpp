@@ -288,7 +288,9 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 			}
 		});
 
-		if (want_prog) { progressbar_clear(); fprintf(stderr, "\n"); }
+		// Do not print a newline here: video/audio phases share the same terminal line.
+		// main() will print a single final newline at the end of the whole process.
+		if (want_prog) { progressbar_clear(); }
 
 		remove(tmpwav.c_str());
 		// audioconv64 currently returns 0 even on some errors; verify output exists.
@@ -296,6 +298,7 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 			if (cfg.verbose >= 1) {
 				verbose(1, "[audioconv64] %s", out.c_str());
 			}
+			if (want_prog) fprintf(stderr, "\n");
 			fatal("audioconv64 did not produce output: %s", produced_wav64.c_str());
 		}
 	}

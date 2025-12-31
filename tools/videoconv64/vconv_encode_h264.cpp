@@ -97,7 +97,9 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 
 	progress_state_t ps = { .pass_count = 1, .start_ms = now_ms(), .last_draw_ms = 0 };
 	int rc = run_ffmpeg_with_progress(cmd, ar.meta.duration, 0, ps);
-	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); fprintf(stderr, "\n"); }
+	// Do not print a newline here: next phases (eg: Audio) should reuse the same line.
+	// A single final newline is printed by main() when the whole pipeline is done.
+	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); }
 	if (rc != 0) fatal("ffmpeg failed (rc=%d)", rc);
 	return er;
 }

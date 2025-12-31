@@ -169,7 +169,9 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 		cmd.push_back(er.video_path);
 		int rc = run_ffmpeg_with_progress(cmd, duration_sec, 0, ps);
 		if (rc != 0) fatal("ffmpeg failed (rc=%d)", rc);
-		if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); fprintf(stderr, "\n"); }
+		// Do not print a newline here: next phases (eg: Audio) should reuse the same line.
+		// A single final newline is printed by main() when the whole pipeline is done.
+		if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); }
 
 		// Insert user_data with SAR if needed.
 		if (!mpeg1_prepend_userdata_sar(er.video_path, ar.sar_num, ar.sar_den)) {
@@ -213,7 +215,7 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 	}
 
 	cleanup_passlog(passlog);
-	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); fprintf(stderr, "\n"); }
+	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); }
 
 	// Insert user_data with SAR if needed.
 	if (!mpeg1_prepend_userdata_sar(er.video_path, ar.sar_num, ar.sar_den)) {

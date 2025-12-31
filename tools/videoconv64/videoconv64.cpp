@@ -345,5 +345,12 @@ int main(int argc, char **argv) {
 	
 	// Sync audio thread (errors will abort via fatal()).
 	if (audio_thread.joinable()) audio_thread.join();
+
+	// If we used the interactive progress bar (stderr single-line updates),
+	// end with a single newline so the shell prompt/logs start on a fresh line.
+	if (cfg.verbose == 0 && cfg.progress) {
+		progressbar_clear();
+		fprintf(stderr, "\n");
+	}
 	return 0;
 }
