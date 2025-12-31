@@ -143,6 +143,49 @@ static inline void rsp_vadpcm_copystate(wav64_vadpcm_vector_t *dst, wav64_vadpcm
 
 #endif /* VADPCM_REFERENCE_DECODER */
 
+/**
+ * @brief Find a VADPCM skip point index by sample offset.
+ *
+ * Skip points are stored sorted by sample offset (enforced by audioconv64).
+ *
+ * @param vhead     VADPCM header (contains skip_points)
+ * @param wpos      Requested sample offset
+ * @param nearest   If false, require an exact match (returns -1 if not found).
+ *                  If true, return the index of the closest skip point.
+ * @return int      Index in vhead->skip_points, or -1 if no skip points / not found.
+ */
+ static int wav64_vadpcm_find_skippoint(wav64_header_vadpcm_t *vhead, int wpos, bool nearest)
+ {
+     if (vhead->num_skippoints <= 0 || !vhead->skip_points)
+         return -1;
+ 
+     // Find first index with offset >= wpos (lower_bound).
+     int lo = 0, hi = vhead->num_skippoints; // [lo, hi)
+     while (lo < hi) {
+         int mid = (lo + hi) >> 1;
+         int off = vhead->skip_points[mid].offset;
+         if (off < wpos) lo = mid + 1;
+         else hi = mid;
+     }
+ 
+     if (!nearest) {
+         // Exact match required.
+         if (lo < vhead->num_skippoints && vhead->skip_points[lo].offset == wpos)
+             return lo;
+         return -1;
+     }
+ 
+     // Nearest match (compare neighbors around insertion point).
+     if (lo == 0) return 0;
+     if (lo >= vhead->num_skippoints) return vhead->num_skippoints - 1;
+ 
+     int off_hi = vhead->skip_points[lo].offset;
+     int off_lo = vhead->skip_points[lo - 1].offset;
+     int d_lo = wpos - off_lo;
+     int d_hi = off_hi - wpos;
+     return (d_hi < d_lo) ? lo : (lo - 1);
+}
+
 static void huffv_decompress(int nframe, wav64_t *wav, wav64_state_vadpcm_t *vstate, uint8_t *dst, int len, uint8_t *scratch, int slen) {
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 
@@ -220,27 +263,12 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
 			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
             vstate->bitpos = 0;
 		} else {
-            // Skip points are stored sorted by sample offset (enforced by audioconv64).
-            // Use binary search for O(log N) lookup instead of scanning the whole table.
-            bool found = false;
-            int lo = 0, hi = vhead->num_skippoints - 1;
-            while (lo <= hi) {
-                int mid = (lo + hi) >> 1;
-                int off = vhead->skip_points[mid].offset;
-                if (wpos == off) {
-                    vstate->bitpos = vhead->skip_points[mid].bitpos;
-                    rsp_vadpcm_copystate(vstate->state, vhead->skip_states + mid*wav->wave.channels);
-                    if ((vhead->flags & VADPCM_FLAG_HUFFMAN) == 0)
-                        lseek(wav->st->current_fd, wav->st->base_offset + (wpos / 16) * 9 * wav->wave.channels, SEEK_SET);
-                    found = true;
-                    break;
-                } else if (wpos < off) {
-                    hi = mid - 1;
-                } else {
-                    lo = mid + 1;
-                }
-            }
-            assertf(found, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, wpos);
+			int idx = wav64_vadpcm_find_skippoint(vhead, wpos, false);
+            assertf(idx >= 0, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, wpos);
+            vstate->bitpos = vhead->skip_points[idx].bitpos;
+            rsp_vadpcm_copystate(vstate->state, vhead->skip_states + idx*wav->wave.channels);
+            if ((vhead->flags & VADPCM_FLAG_HUFFMAN) == 0)
+                lseek(wav->st->current_fd, wav->st->base_offset + (wpos / 16) * 9 * wav->wave.channels, SEEK_SET);
 		}
         rspq_highpri_end();
 	} else {
@@ -426,33 +454,10 @@ int wav64_vadpcm_get_bitrate(wav64_t *wav)
 int wav64_vadpcm_adjust_seek(wav64_t *wav, int wpos)
 {
     wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
+	int idx = wav64_vadpcm_find_skippoint(vhead, wpos, true);
 
     // If no skip points are available, VADPCM seeking is only supported to 0.
-    if (vhead->num_skippoints <= 0 || !vhead->skip_points)
-        return 0;
+	if (idx < 0) return 0;
 
-    // Skip points are stored sorted by sample offset (enforced by audioconv64).
-    // Find the closest skip point to the requested sample position.
-    // We do a lower_bound search (first offset >= wpos) and then compare neighbors.
-    int lo = 0, hi = vhead->num_skippoints; // [lo, hi)
-    while (lo < hi) {
-        int mid = (lo + hi) >> 1;
-        int off = vhead->skip_points[mid].offset;
-        if (off < wpos)
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-
-    // lo is first index with offset >= wpos (or num_skippoints if none).
-    if (lo == 0)
-        return vhead->skip_points[0].offset;
-    if (lo >= vhead->num_skippoints)
-        return vhead->skip_points[vhead->num_skippoints - 1].offset;
-
-    int off_hi = vhead->skip_points[lo].offset;
-    int off_lo = vhead->skip_points[lo - 1].offset;
-    int d_lo = wpos - off_lo;
-    int d_hi = off_hi - wpos;
-    return (d_hi < d_lo) ? off_hi : off_lo;
+	return vhead->skip_points[idx].offset;
 }
