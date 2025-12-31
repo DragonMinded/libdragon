@@ -240,12 +240,7 @@ static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int 
                     lo = mid + 1;
                 }
             }
-            if (!found) {
-                for (int i=0; i<vhead->num_skippoints; i++) {
-                    debugf("skip point %d: %d\n", i, vhead->skip_points[i].offset);
-                }
-                assertf(found, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, wpos);
-            }
+            assertf(found, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, wpos);
 		}
         rspq_highpri_end();
 	} else {
@@ -428,4 +423,36 @@ int wav64_vadpcm_get_bitrate(wav64_t *wav)
     return wav->wave.frequency * wav->wave.channels * 72 / 16;
 }
 
+int wav64_vadpcm_adjust_seek(wav64_t *wav, int wpos)
+{
+    wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 
+    // If no skip points are available, VADPCM seeking is only supported to 0.
+    if (vhead->num_skippoints <= 0 || !vhead->skip_points)
+        return 0;
+
+    // Skip points are stored sorted by sample offset (enforced by audioconv64).
+    // Find the closest skip point to the requested sample position.
+    // We do a lower_bound search (first offset >= wpos) and then compare neighbors.
+    int lo = 0, hi = vhead->num_skippoints; // [lo, hi)
+    while (lo < hi) {
+        int mid = (lo + hi) >> 1;
+        int off = vhead->skip_points[mid].offset;
+        if (off < wpos)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+
+    // lo is first index with offset >= wpos (or num_skippoints if none).
+    if (lo == 0)
+        return vhead->skip_points[0].offset;
+    if (lo >= vhead->num_skippoints)
+        return vhead->skip_points[vhead->num_skippoints - 1].offset;
+
+    int off_hi = vhead->skip_points[lo].offset;
+    int off_lo = vhead->skip_points[lo - 1].offset;
+    int d_lo = wpos - off_lo;
+    int d_hi = off_hi - wpos;
+    return (d_hi < d_lo) ? off_hi : off_lo;
+}

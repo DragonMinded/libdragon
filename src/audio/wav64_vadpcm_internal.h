@@ -70,4 +70,7 @@ void wav64_vadpcm_close(wav64_t *wav);
 /** @brief Get the bitrate of the VADPCM stream */
 int wav64_vadpcm_get_bitrate(wav64_t *wav);
 
+/** @brief Adjust a requested seek position (samples) to a valid VADPCM skip point (samples). */
+int wav64_vadpcm_adjust_seek(wav64_t *wav, int wpos);
+
 #endif

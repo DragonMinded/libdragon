@@ -54,6 +54,7 @@ static wav64_compression_t algos[4] = {
 		.init = wav64_vadpcm_init,
 		.close = wav64_vadpcm_close,
 		.get_bitrate = wav64_vadpcm_get_bitrate,
+		.adjust_seek = wav64_vadpcm_adjust_seek,
 	},
 };
 
@@ -244,6 +245,22 @@ wav64_t* wav64_loadfd(int fd, const char *debug_file_name, wav64_loadparms_t *pa
 void wav64_play(wav64_t *wav, int ch)
 {
 	mixer_ch_play(ch, &wav->wave);
+}
+
+double wav64_seek(wav64_t *wav, int ch, double time_sec)
+{
+	// Compute a target sample position (rounded to nearest integer sample)
+	int spos = (int)(time_sec * wav->wave.frequency + 0.5);
+	spos = CLAMP(spos, 0, wav->wave.len);
+
+	// Apply codec-specific seek constraints (if any).
+	if (algos[wav->st->format].adjust_seek)
+		spos = algos[wav->st->format].adjust_seek(wav, spos);
+
+	mixer_ch_set_pos(ch, spos);
+
+	// Return the adjusted time in seconds
+	return (double)spos / wav->wave.frequency;
 }
 
 void wav64_set_loop(wav64_t *wav, bool loop) {
