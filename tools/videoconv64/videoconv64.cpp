@@ -11,6 +11,8 @@
 #include "videoconv64.h"
 
 #include "../common/subprocess.h"
+#include "../common/json.hpp"
+#include "../common/polyfill.h"
 
 #include <time.h>
 #include <thread>
@@ -18,6 +20,9 @@
 #include <deque>
 #include <algorithm>
 #include <climits>
+#include <strings.h>
+
+using json = nlohmann::json;
 
 Config cfg;
 
@@ -56,7 +61,7 @@ static void usage(void) {
 	printf("videoconv64 -- Video conversion tool for libdragon\n");
 	printf("\n");
 	printf("Usage:\n");
-	printf("   videoconv64 [flags] <input_file>\n");
+	printf("   videoconv64 [flags] <input_file> [audio_or_subtitle_file ...]\n");
 	printf("\n");
 	printf("Options:\n");
 	printf("   -o, --output <dir>          Specify output directory (default: same as input)\n");
@@ -90,6 +95,50 @@ static void usage(void) {
 	printf("       --ffmpeg-path <path>     Path to ffmpeg executable (default: ffmpeg)\n");
 	printf("       --ffprobe-path <path>    Path to ffprobe executable (default: ffprobe)\n");
 	printf("\n");
+}
+
+typedef enum {
+	EXTRA_KIND_AUDIO = 1,
+	EXTRA_KIND_SUBTITLE = 2,
+} extra_kind_t;
+
+static extra_kind_t classify_extra_file_with_ffprobe(const std::string &path) {
+	// Files after the first positional must be standalone audio or subtitle files.
+	// Reject any file that contains video, or that looks like a container (eg: mkv/webm).
+	std::vector<std::string> cmd = {
+		cfg.ffprobe_path,
+		"-v", "error",
+		"-show_entries", "format=format_name:stream=codec_type",
+		"-of", "json",
+		path,
+	};
+	std::string out;
+	int rc = run_process(cmd, out);
+	if (rc != 0) fatal("ffprobe failed for extra file: %s", path.c_str());
+
+	json j;
+	try {
+		j = json::parse(out);
+	} catch (const std::exception &e) {
+		fatal("ffprobe JSON parse error for %s: %s", path.c_str(), e.what());
+	}
+
+	const json streams = j.value("streams", json::array());
+	if (!streams.is_array() || streams.empty()) {
+		fatal("Extra file not recognized by ffprobe (no streams): %s", path.c_str());
+	}
+	if (streams.size() != 1) {
+		fatal("Extra file must have exactly 1 stream (not a container): %s", path.c_str());
+	}
+
+	const std::string ct = streams[0].value("codec_type", std::string());
+	if (ct == "video") {
+		fatal("Extra file must not be a video: %s", path.c_str());
+	}
+	if (ct == "audio") return EXTRA_KIND_AUDIO;
+	if (ct == "subtitle") return EXTRA_KIND_SUBTITLE;
+
+	fatal("Extra file has unsupported stream type '%s': %s", ct.c_str(), path.c_str());
 }
 
 static const CodecInfo *codec_info_from_name(const std::string& name) {
@@ -347,8 +396,12 @@ int main(int argc, char **argv) {
 		} else if (!arg.empty() && arg[0] == '-') {
 			fatal("Unknown option: %s", arg.c_str());
 		} else {
-			if (!cfg.input_file.empty()) fatal("Multiple input files specified: %s", arg.c_str());
-			cfg.input_file = arg;
+			if (cfg.input_file.empty()) {
+				cfg.input_file = arg;
+			} else {
+				// Defer classification (audio vs subtitles) until after we validated ffprobe exists.
+				cfg.extra_files.push_back(arg);
+			}
 		}
 	}
 
@@ -360,6 +413,14 @@ int main(int argc, char **argv) {
 	// Ensure tools exist and can run before proceeding any further.
 	check_tool_available(cfg.ffmpeg_path, "ffmpeg");
 	check_tool_available(cfg.ffprobe_path, "ffprobe");
+
+	// Classify extra positional files via ffprobe.
+	for (const auto &p : cfg.extra_files) {
+		extra_kind_t k = classify_extra_file_with_ffprobe(p);
+		if (k == EXTRA_KIND_AUDIO) cfg.audio_files.push_back(p);
+		else if (k == EXTRA_KIND_SUBTITLE) cfg.subtitle_files.push_back(p);
+	}
+	cfg.extra_files.clear();
 
 	// If the user requested exact keyframes by frame index, disallow manual fps override,
 	// as the mapping cannot be preserved accurately when changing framerate.
@@ -385,6 +446,12 @@ int main(int argc, char **argv) {
 
 	// Step 2: analysis (ffprobe/idet/signalstats) lives in vconv_analyze.cpp
 	AnalysisResult ar = vconv_analyze(*ci);
+
+	// Subtitles conversion can run in parallel with video encoding (and audio).
+	// Start it after analysis so we already know output geometry/FPS for the SUB64 header.
+	std::thread subtitles_thread([ar]() {
+		vconv_process_subtitles(ar);
+	});
 
 	verbose(1, "Input: %s", cfg.input_file.c_str());
 	verbose(1, "Output dir: %s", cfg.output_dir.empty() ? "(same as input)" : cfg.output_dir.c_str());
@@ -416,6 +483,9 @@ int main(int argc, char **argv) {
 		}
 	}
 	
+	// Sync subtitles thread (errors will abort via fatal()).
+	if (subtitles_thread.joinable()) subtitles_thread.join();
+
 	// Sync audio thread (errors will abort via fatal()).
 	if (audio_thread.joinable()) audio_thread.join();
 

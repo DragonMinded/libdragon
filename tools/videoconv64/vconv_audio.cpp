@@ -55,27 +55,79 @@ static bool file_exists(const std::string& p) {
 	return true;
 }
 
-static bool has_audio_stream(void) {
+struct AudioStreamInfo {
+	int stream_index = -1;
+	std::string language;
+};
+
+static std::vector<AudioStreamInfo> ffprobe_list_audio_streams(void) {
 	std::vector<std::string> cmd = {
 		cfg.ffprobe_path,
 		"-v", "error",
-		"-select_streams", "a:0",
-		"-show_entries", "stream=codec_type",
+		"-select_streams", "a",
+		"-show_entries", "stream=index:stream_tags=language",
 		"-of", "json",
 		cfg.input_file,
 	};
 
 	std::string out;
 	int rc = run_process(cmd, out);
-	if (rc != 0) return false;
+	if (rc != 0) return {};
 
+	std::vector<AudioStreamInfo> res;
 	try {
 		json j = json::parse(out);
-		if (!j.contains("streams") || j["streams"].empty()) return false;
-		return true;
+		if (!j.contains("streams") || !j["streams"].is_array()) return res;
+		for (const auto &s : j["streams"]) {
+			AudioStreamInfo ai;
+			ai.stream_index = s.value("index", -1);
+			if (s.contains("tags") && s["tags"].is_object()) {
+				ai.language = s["tags"].value("language", std::string());
+			}
+			res.push_back(std::move(ai));
+		}
 	} catch (...) {
-		return false;
+		return {};
 	}
+	return res;
+}
+
+static std::string output_wav64_path(int out_idx, int total) {
+	std::string base = strip_ext(base_name(cfg.input_file));
+	std::string name;
+	if (total <= 1) name = base + ".wav64";
+	else name = base + "." + std::to_string(out_idx) + ".wav64";
+	return join_path(effective_output_dir(), name);
+}
+
+static std::string extract_audio_to_tmpwav(const std::string &tmpwav, bool from_container, int stream_index, const std::string &audio_file) {
+	std::vector<std::string> cmd = {
+		cfg.ffmpeg_path,
+		"-hide_banner",
+		"-nostats",
+		"-y",
+		"-v", "error",
+		"-i", from_container ? cfg.input_file : audio_file,
+		"-vn",
+	};
+	if (from_container && stream_index >= 0) {
+		cmd.push_back("-map");
+		cmd.push_back("0:" + std::to_string(stream_index));
+	}
+	cmd.insert(cmd.end(), {
+		"-c:a", "pcm_s16le",
+		"-ar", std::to_string(VCONV_AUDIO_EXTRACT_RATE),
+		"-ac", std::to_string(VCONV_AUDIO_EXTRACT_CHANNELS),
+		"-f", "wav",
+		tmpwav,
+	});
+	std::string out;
+	int rc = run_process(cmd, out);
+	if (rc != 0) {
+		remove(tmpwav.c_str());
+		fatal("ffmpeg audio extraction failed (rc=%d)", rc);
+	}
+	return tmpwav;
 }
 
 static void inject_seekpoints_cue_into_wav(const std::string& wav_path, const std::vector<seek_point_t>& seek_points, double video_fps) {
@@ -194,8 +246,10 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 	AudioResult ar;
 	if (!cfg.audio) return ar;
 
-	if (!has_audio_stream()) {
-		verbose(1, "No audio stream found; skipping audio conversion");
+	std::vector<AudioStreamInfo> container_streams = ffprobe_list_audio_streams();
+	const int total_sources = (int)container_streams.size() + (int)cfg.audio_files.size();
+	if (total_sources == 0) {
+		verbose(1, "No audio sources found; skipping audio conversion");
 		return ar;
 	}
 
@@ -207,114 +261,91 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 		if (rc != 0) fatal("audioconv64 not found or not executable: %s", ac64.c_str());
 	}
 
-	// Extract audio to a temporary WAV file.
-	std::string stem = strip_ext(base_name(cfg.input_file));
-	// Use a unique basename so we can deterministically rename the final .wav64
-	// to match the original input basename.
-	std::string tmpwav = join_path(temp_dir(), "videoconv64_" + stem + "_" + std::to_string((long long)now_ms()) + ".wav");
+	int out_idx = 0;
 
-	verbose(1, "Extracting audio...");
-	{
-		std::vector<std::string> cmd = {
-			cfg.ffmpeg_path,
-			"-hide_banner",
-			"-nostats",
-			"-y",
-			"-v", "error",
-			"-i", cfg.input_file,
-			"-vn",
-			"-c:a", "pcm_s16le",
-			// Make the extracted WAV match audioconv64's target params so seek points are stable.
-			"-ar", std::to_string(VCONV_AUDIO_EXTRACT_RATE),
-			"-ac", std::to_string(VCONV_AUDIO_EXTRACT_CHANNELS),
-			"-f", "wav",
-			tmpwav,
-		};
-		std::string out;
-		int rc = run_process(cmd, out);
-		if (rc != 0) {
+	auto convert_one = [&](bool from_container, int stream_index, const std::string &src_path) {
+		std::string stem = strip_ext(base_name(cfg.input_file));
+		std::string tmpwav = join_path(temp_dir(), "videoconv64_" + stem + "_" + std::to_string((long long)now_ms()) + "_" + std::to_string(out_idx) + ".wav");
+
+		verbose(1, "Extracting audio...");
+		extract_audio_to_tmpwav(tmpwav, from_container, stream_index, src_path);
+
+		// Seekpoints only make sense if the audio is aligned to the video timeline.
+		if (!seek_points.empty() && from_container) {
+			inject_seekpoints_cue_into_wav(tmpwav, seek_points, video_fps);
+		}
+
+		verbose(1, "Converting audio with audioconv64...");
+		std::string out_wav64 = output_wav64_path(out_idx, total_sources);
+		std::string produced_wav64 = join_path(effective_output_dir(), strip_ext(base_name(tmpwav)) + ".wav64");
+		{
+			std::vector<std::string> cmd = {
+				ac64,
+				"-o", effective_output_dir(),
+			};
+			if (!cfg.audio_compress.empty()) {
+				cmd.push_back("--wav-compress");
+				cmd.push_back(cfg.audio_compress);
+			}
+			cmd.push_back("--wav-resample");
+			cmd.push_back(std::to_string(cfg.audio_rate));
+			if (cfg.audio_channels == 1) cmd.push_back("--wav-mono");
+			cmd.push_back(tmpwav);
+
+			const bool want_prog = show_progress && cfg.progress && cfg.verbose == 0 && total_sources == 1;
+			if (want_prog) cmd.insert(cmd.begin() + 1, "-v");
+
+			double last_pct = -1.0;
+			std::string out;
+			int rc = run_process_pipe(cmd, &out, [&](const std::string& line) {
+				if (!want_prog) return;
+				const char *prefix = "Resampling:";
+				if (line.rfind(prefix, 0) != 0) return;
+				size_t lp = line.find('(');
+				size_t pp = line.find('%');
+				if (lp == std::string::npos || pp == std::string::npos || pp <= lp + 1) return;
+				std::string pct_s = line.substr(lp + 1, pp - (lp + 1));
+				double pct = atof(pct_s.c_str());
+				if (!(pct >= 0.0 && pct <= 100.0)) return;
+				if (pct - last_pct >= 0.2 || pct == 100.0) {
+					last_pct = pct;
+					progressbar_update(pct, -1.0);
+				}
+			});
+			if (want_prog) { progressbar_clear(); }
+
 			remove(tmpwav.c_str());
-			fatal("ffmpeg audio extraction failed (rc=%d)", rc);
-		}
-	}
-
-	// If we have seek points, inject them into the WAV as SMPL metadata before running audioconv64.
-	if (!seek_points.empty()) {
-		inject_seekpoints_cue_into_wav(tmpwav, seek_points, video_fps);
-	}
-
-	// Convert to wav64 using audioconv64. Output next to the video.
-	verbose(1, "Converting audio with audioconv64...");
-	std::string out_wav64 = join_path(effective_output_dir(), strip_ext(base_name(cfg.input_file)) + ".wav64");
-	std::string produced_wav64 = join_path(effective_output_dir(), strip_ext(base_name(tmpwav)) + ".wav64");
-	{
-		std::vector<std::string> cmd = {
-			ac64,
-			"-o", effective_output_dir(),
-		};
-		if (!cfg.audio_compress.empty()) {
-			cmd.push_back("--wav-compress");
-			cmd.push_back(cfg.audio_compress);
-		}
-		// Always pass these through; audioconv64 will validate ranges.
-		cmd.push_back("--wav-resample");
-		cmd.push_back(std::to_string(cfg.audio_rate));
-		if (cfg.audio_channels == 1) {
-			cmd.push_back("--wav-mono");
-		}
-		cmd.push_back(tmpwav);
-
-		// If we want determinate audio progress, run audioconv64 in verbose mode and parse its
-		// "Resampling: <bytes> (xx.x%)" lines.
-		const bool want_prog = show_progress && cfg.progress && cfg.verbose == 0;
-		if (want_prog) cmd.insert(cmd.begin() + 1, "-v");
-
-		double last_pct = -1.0;
-		std::string out;
-		int rc = run_process_pipe(cmd, &out, [&](const std::string& line) {
-			if (!want_prog) return;
-			const char *prefix = "Resampling:";
-			if (line.rfind(prefix, 0) != 0) return;
-			// Parse "... (XX.X%)"
-			size_t lp = line.find('(');
-			size_t pp = line.find('%');
-			if (lp == std::string::npos || pp == std::string::npos || pp <= lp + 1) return;
-			std::string pct_s = line.substr(lp + 1, pp - (lp + 1));
-			double pct = atof(pct_s.c_str());
-			if (!(pct >= 0.0 && pct <= 100.0)) return;
-			if (pct - last_pct >= 0.2 || pct == 100.0) {
-				last_pct = pct;
-				progressbar_update(pct, -1.0);
+			if (rc != 0 || !file_exists(produced_wav64)) {
+				if (cfg.verbose >= 1) verbose(1, "[audioconv64] %s", out.c_str());
+				if (want_prog) fprintf(stderr, "\n");
+				fatal("audioconv64 did not produce output: %s", produced_wav64.c_str());
 			}
-		});
-
-		// Do not print a newline here: video/audio phases share the same terminal line.
-		// main() will print a single final newline at the end of the whole process.
-		if (want_prog) { progressbar_clear(); }
-
-		remove(tmpwav.c_str());
-		// audioconv64 currently returns 0 even on some errors; verify output exists.
-		if (rc != 0 || !file_exists(produced_wav64)) {
-			if (cfg.verbose >= 1) {
-				verbose(1, "[audioconv64] %s", out.c_str());
-			}
-			if (want_prog) fprintf(stderr, "\n");
-			fatal("audioconv64 did not produce output: %s", produced_wav64.c_str());
 		}
+
+		remove(out_wav64.c_str());
+		if (rename(produced_wav64.c_str(), out_wav64.c_str()) != 0) {
+			fatal("Failed to rename audio output: %s -> %s (%s)",
+				produced_wav64.c_str(), out_wav64.c_str(), strerror(errno));
+		}
+
+		verbose(1, "Output audio: %s", out_wav64.c_str());
+		ar.produced = true;
+		ar.wav64_path = out_wav64;
+		out_idx++;
+	};
+
+	// Container audio streams
+	for (const auto &as : container_streams) {
+		if (as.stream_index < 0) continue;
+		verbose(1, "Audio track: stream=%d", as.stream_index);
+		convert_one(true, as.stream_index, std::string());
 	}
 
-	// Rename final output to match input basename.
-	remove(out_wav64.c_str()); // best-effort overwrite
-	if (rename(produced_wav64.c_str(), out_wav64.c_str()) != 0) {
-		fatal("Failed to rename audio output: %s -> %s (%s)",
-			produced_wav64.c_str(),
-			out_wav64.c_str(),
-			strerror(errno));
+	// Extra CLI audio files
+	for (const auto &af : cfg.audio_files) {
+		verbose(1, "Audio file: %s", af.c_str());
+		convert_one(false, -1, af);
 	}
-
-	ar.produced = true;
-	ar.wav64_path = out_wav64;
-	verbose(1, "Output audio: %s", ar.wav64_path.c_str());
 
 	return ar;
 }

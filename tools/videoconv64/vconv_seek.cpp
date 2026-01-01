@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "../common/binout.c"
+#include "../common/binout.h"
 #include "../common/assetcomp.h"
 #include "../common/json.hpp"
 

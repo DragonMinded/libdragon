@@ -28,6 +28,9 @@ struct Config {
 	std::string input_file;
 	std::string output_dir;          // directory only
 	int verbose = 0;                 // repeatable -v, -vv, ...
+	std::vector<std::string> extra_files;    // extra positional files after input_file (classified via ffprobe)
+	std::vector<std::string> subtitle_files; // extra subtitle files (after classification)
+	std::vector<std::string> audio_files;    // extra audio files (after classification)
 
 	std::string codec = "mpeg1";
 	int width = 320;
@@ -185,6 +188,11 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar);
 
 // Optional post-processing: generate a .seek sidecar file for the produced elementary stream.
 std::vector<seek_point_t> vconv_generate_seek(const CodecInfo &ci, const std::string &video_path);
+
+// Subtitles (SUB64)
+// Convert subtitles (from container tracks and/or extra CLI subtitle files) to .sub64 sidecars.
+// Best-effort: if no subtitles are found, does nothing.
+void vconv_process_subtitles(const AnalysisResult &ar);
 
 // Audio bridge
 struct AudioResult {
