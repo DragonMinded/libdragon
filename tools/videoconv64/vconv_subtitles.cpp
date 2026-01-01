@@ -510,7 +510,7 @@ void vconv_process_subtitles(const AnalysisResult &ar) {
 		if (!asset_compress(outp.c_str(), outp.c_str(), DEFAULT_COMPRESSION, 256*1024)) {
 			fatal("subtitles: compression failed for %s", outp.c_str());
 		}
-		verbose(1, "Output subtitle: %s (cues=%zu, overflow=%d, max_overlap=%d)", outp.c_str(), cues.size(), m.overflow_count, m.max_overlap);
+		verbose(1, "Output subtitle: %s (cues=%d, overflow=%d, max_overlap=%d)", outp.c_str(), (int)cues.size(), m.overflow_count, m.max_overlap);
 		produced++;
 	};
 
