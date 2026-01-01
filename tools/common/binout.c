@@ -8,6 +8,9 @@
 
     For more information, please refer to <http://unlicense.org/>
 */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
