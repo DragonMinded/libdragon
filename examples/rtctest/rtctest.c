@@ -154,12 +154,12 @@ int main(void)
             if( pad_pressed.d_left )
             {
                 edit_mode = edit_mode << 1;
-                if( edit_mode > EDIT_YEAR ) edit_mode = EDIT_SEC;
+                if( edit_mode > EDIT_YEAR ) { edit_mode = EDIT_SEC; }
             }
             else if( pad_pressed.d_right )
             {
                 edit_mode = edit_mode >> 1;
-                if( edit_mode < EDIT_SEC ) edit_mode = EDIT_YEAR;
+                if( edit_mode < EDIT_SEC ) { edit_mode = EDIT_YEAR; }
             }
 
             /* Adjust date/time */
@@ -181,8 +181,8 @@ int main(void)
 
 static void set_edit_color( uint16_t edit_mode_mask )
 {
-    if( edit_mode & edit_mode_mask ) graphics_set_color( BLACK, WHITE );
-    else graphics_set_color( WHITE, BLACK );
+    if( edit_mode & edit_mode_mask ) { graphics_set_color( BLACK, WHITE ); }
+    else { graphics_set_color( WHITE, BLACK ); }
 }
 
 static void adjust_rtc_time( struct tm * t, int incr )
@@ -266,22 +266,28 @@ static void update_joystick_directions( void )
     /* Treat the X direction as a d-pad single button press */
     if( (pad_inputs.stick_x < -JOYSTICK_DEAD_ZONE) )
     {
-        if( joystick_x_direction == 0 ) pad_pressed.d_left = true;
-        joystick_x_direction = -1;
+        if( joystick_x_direction == 0 )
+        {
+            pad_pressed.d_left = true;
+            joystick_x_direction = -1;
+        }
     }
-    else if ( pad_inputs.stick_x > +JOYSTICK_DEAD_ZONE )
+    else if( pad_inputs.stick_x > +JOYSTICK_DEAD_ZONE )
     {
-        if( joystick_x_direction == 0 ) pad_pressed.d_right = true;
-        joystick_x_direction = +1;
+        if( joystick_x_direction == 0 )
+        {
+            pad_pressed.d_right = true;
+            joystick_x_direction = +1;
+        }
     }
-    else joystick_x_direction = 0;
+    else { joystick_x_direction = 0; }
 
     /* Treat the Y direction as a d-pad button hold */
     if( pad_inputs.stick_y > +JOYSTICK_DEAD_ZONE )
     {
         pad_inputs.btn.d_up = true;
     }
-    else if ( pad_inputs.stick_y < -JOYSTICK_DEAD_ZONE )
+    else if( pad_inputs.stick_y < -JOYSTICK_DEAD_ZONE )
     {
         pad_inputs.btn.d_down = true;
     }
