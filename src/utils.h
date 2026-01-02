@@ -58,7 +58,30 @@
 /** @brief Hint for the compiler that the condition is unlikely to happen */
 #define UNLIKELY(cond)  __builtin_expect(!!(cond), 0)
 
-/** @brief UTF-8 decoding */
+/** 
+ * @brief Decode the next UTF-8 codepoint from a string
+ * 
+ * @param str 	Pointer to the UTF-8 string pointer. The pointer will be
+ * 		      	advanced to the next character.
+ * @return uint32_t The decoded Unicode codepoint
+ */
 uint32_t __utf8_decode(const char **str);
+
+/**
+ * @brief Read a variable-length unsigned integer in LEB128 format
+ * 
+ * @param ptr  	Pointer to the buffer pointer. The pointer will be 
+ *              advanced past the read integer.
+ */
+uint64_t __read_varint_u64(const uint8_t **ptr);
+
+/**
+ * @brief Read a variable-length signed integer in LEB128 format
+ * 
+ * @param ptr  	Pointer to the buffer pointer. The pointer will be
+ * 		   		advanced past the read integer.
+ */
+int64_t __read_varint_s64(const uint8_t **ptr);
+
 
 #endif

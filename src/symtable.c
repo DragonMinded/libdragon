@@ -315,27 +315,6 @@ typedef struct {
     int bits_in_cache;          ///< Number of bits in the cache
 } bit_reader_t;
 
-/** @brief Read a variable-length integer from the buffer */
-static uint32_t read_varint(uint8_t **ptr)
-{
-    uint32_t val = 0;
-    int shift = 0;
-    while (1) {
-        uint8_t byte = *(*ptr)++;
-        val |= (byte & 0x7F) << shift;
-        if (!(byte & 0x80)) break;
-        shift += 7;
-    }
-    return val;
-}
-
-/** @brief Read a signed variable-length integer from the buffer (zigzag encoded) */
-static int32_t read_signed_varint(uint8_t **ptr)
-{
-    uint32_t val = read_varint(ptr);
-    return (val >> 1) ^ -(val & 1);
-}
-
 /** @brief Check if addr is inside main executable text section */
 static bool is_main_exe_text_address(uint32_t addr)
 {
@@ -416,9 +395,9 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
     data_cache_hit_writeback_invalidate(chunk_buf, MAX_BUFFER_SIZE);
     dma_read(chunk_buf, stream_addr, MAX_BUFFER_SIZE);
     
-    uint8_t *ptr = chunk_buf;
+    const uint8_t *ptr = chunk_buf;
     // First field: function offset of the first symbol in chunk (VarInt)
-    uint32_t chunk_func_off = read_varint(&ptr);
+    uint32_t chunk_func_off = __read_varint_u64(&ptr);
     
     // Iterate through symbols in the chunk
     uint32_t cur_addr = chunk_start_addr;
@@ -434,14 +413,14 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
         if (op == 0x18) break; // End of chunk marker
         
         // Decode deltas
-        int delta_file = (op & 0x80) ? read_signed_varint(&ptr) : 0;
-        int delta_func = (op & 0x40) ? read_signed_varint(&ptr) : 0;
-        int delta_line = (op & 0x20) ? read_signed_varint(&ptr) : 0;
+        int delta_file = (op & 0x80) ? __read_varint_s64(&ptr) : 0;
+        int delta_func = (op & 0x40) ? __read_varint_s64(&ptr) : 0;
+        int delta_line = (op & 0x20) ? __read_varint_s64(&ptr) : 0;
         
         // Decode address delta
         uint32_t delta_addr = 0;
         if ((op & 0x07) == 7) {
-            delta_addr = (read_varint(&ptr) + 7) * 4;
+            delta_addr = (__read_varint_u64(&ptr) + 7) * 4;
         } else {
             delta_addr = (op & 0x07) * 4;
         }
