@@ -12,17 +12,20 @@
 #include <stdio.h>
 
 #define ASSET_MAGIC                 "DCA"   ///< Magic compressed asset header
-#define ASSET_FLAG_WINSIZE_MASK     0x0007  ///< Mask to isolate the window size in the flags
-#define ASSET_FLAG_WINSIZE_16K      0x0000  ///< 16 KiB window size
-#define ASSET_FLAG_WINSIZE_8K       0x0001  ///< 8 KiB window size
-#define ASSET_FLAG_WINSIZE_4K       0x0002  ///< 4 KiB window size
-#define ASSET_FLAG_WINSIZE_2K       0x0003  ///< 2 KiB window size
-#define ASSET_FLAG_WINSIZE_32K      0x0004  ///< 32 KiB window size
-#define ASSET_FLAG_WINSIZE_64K      0x0005  ///< 64 KiB window size
-#define ASSET_FLAG_WINSIZE_128K     0x0006  ///< 128 KiB window size
-#define ASSET_FLAG_WINSIZE_256K     0x0007  ///< 256 KiB window size
-#define ASSET_FLAG_INPLACE          0x0100  ///< Decompress in-place
+#define ASSET_FLAG_WINSIZE_MASK     0x07    ///< Mask to isolate the window size in the flags
+#define ASSET_FLAG_WINSIZE_16K      0x00    ///< 16 KiB window size
+#define ASSET_FLAG_WINSIZE_8K       0x01    ///< 8 KiB window size
+#define ASSET_FLAG_WINSIZE_4K       0x02    ///< 4 KiB window size
+#define ASSET_FLAG_WINSIZE_2K       0x03    ///< 2 KiB window size
+#define ASSET_FLAG_WINSIZE_32K      0x04    ///< 32 KiB window size
+#define ASSET_FLAG_WINSIZE_64K      0x05    ///< 64 KiB window size
+#define ASSET_FLAG_WINSIZE_128K     0x06    ///< 128 KiB window size
+#define ASSET_FLAG_WINSIZE_256K     0x07    ///< 256 KiB window size
+#define ASSET_FLAG_INPLACE          0x08    ///< Decompress in-place
+#define ASSET_FLAG_ALGO_SHIFT       4       ///< Shift to isolate the compression algorithm
 #define ASSET_ALIGNMENT             32      ///< Aligned to instruction cacheline
+
+#define ASSET_FLAG_ALGO(flag)       (((flag) >> ASSET_FLAG_ALGO_SHIFT) & 3)     ///< Get compression algorithm from flags
 
 __attribute__((used))
 static inline int asset_buf_size(int size, int cmp_size, int margin, int *cmp_offset_dst)
@@ -74,14 +77,17 @@ static int asset_winsize_to_flags(int winsize) {
 typedef struct {
     char magic[3];          ///< Magic header
     uint8_t version;        ///< Version of the asset header
-    uint16_t algo;          ///< Compression algorithm
-    uint16_t flags;         ///< Flags
-    uint32_t cmp_size;      ///< Compressed size in bytes
-    uint32_t orig_size;     ///< Original size in bytes
-    uint32_t inplace_margin; ///< Margin for in-place decompression
+    uint8_t flags;          ///< Compression algorithm
+    uint8_t varints[12];    ///< Varint-encoded header fields
 } asset_header_t;
 
-_Static_assert(sizeof(asset_header_t) == 20, "invalid sizeof(asset_header_t)");
+/** Asset header, with parsed fields */
+typedef struct {
+    asset_header_t base;        ///< Base header data
+    uint32_t cmp_size;          ///< Compressed size (decoded varint)
+    uint32_t orig_size;         ///< Original size (decoded varint)
+    uint32_t inplace_margin;    ///< In-place decompression margin (decoded varint)
+} asset_parsed_header_t;
 
 /** @brief A decompression algorithm used by the asset library */
 typedef struct {

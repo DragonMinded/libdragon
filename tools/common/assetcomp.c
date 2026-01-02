@@ -22,6 +22,7 @@
 #undef MIN
 #undef MAX
 #include "../../src/asset.c"
+#include "../../src/utils.c"
 #include "../../src/compress/aplib_dec.c"
 #include "../../src/compress/shrinkler_dec.c"
 #include "../../src/compress/lz4_dec.c"
@@ -178,12 +179,12 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         // verify using 4 byte reads. Just clamp to zero.
         inplace_margin = inplace_margin > 0 ? inplace_margin : 0;
 
-        fwrite("DCA3", 1, 4, out);
-        w16(out, 3); // algo
-        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
-        w32(out, cmp_size); // cmp_size
-        w32(out, sz); // dec_size
-        w32(out, inplace_margin); // inplace margin
+        fwrite("DCA4", 1, 4, out);
+        w8(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE | (3 << ASSET_FLAG_ALGO_SHIFT)); // flags
+        wleb128u(out, cmp_size); // cmp_size
+        wleb128u(out, sz); // dec_size
+        wleb128u(out, inplace_margin); // inplace margin
+        walign(out, 2);
         fwrite(output, 1, cmp_size, out);
         free(output);
         if (margin) *margin = inplace_margin;
@@ -207,12 +208,12 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
             &stats);
 
         int inplace_margin = stats.safe_dist + cmp_size - sz;
-        fwrite("DCA3", 1, 4, out);
-        w16(out, 2); // algo
-        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
-        w32(out, cmp_size); // cmp_size
-        w32(out, sz); // dec_size
-        w32(out, inplace_margin); // inplace margin
+        fwrite("DCA4", 1, 4, out);
+        w8(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE | (2 << ASSET_FLAG_ALGO_SHIFT)); // flags
+        wleb128u(out, cmp_size); // cmp_size
+        wleb128u(out, sz); // dec_size
+        wleb128u(out, inplace_margin); // inplace margin
+        walign(out, 2);
         fwrite(output, 1, cmp_size, out);
         free(output);
         if (margin) *margin = inplace_margin;
@@ -247,12 +248,12 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         assert(cmp_size <= cmp_max_size);
 
         int inplace_margin = LZ4_DECOMPRESS_INPLACE_MARGIN(cmp_size);
-        fwrite("DCA3", 1, 4, out);
-        w16(out, 1); // algo
-        w16(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE); // flags
-        w32(out, cmp_size); // cmp_size
-        w32(out, sz); // dec_size
-        w32(out, inplace_margin); // inplace margin
+        fwrite("DCA4", 1, 4, out);
+        w8(out, asset_winsize_to_flags(winsize) | ASSET_FLAG_INPLACE | (1 << ASSET_FLAG_ALGO_SHIFT)); // flags
+        wleb128u(out, cmp_size); // cmp_size
+        wleb128u(out, sz); // dec_size
+        wleb128u(out, inplace_margin); // inplace margin
+        walign(out, 2);
         fwrite(output, 1, cmp_size, out);
         free(output);
         if (margin) *margin = inplace_margin;

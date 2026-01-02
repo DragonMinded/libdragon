@@ -1,13 +1,13 @@
 /**
  * @file asset.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @author Liam Coleman <gamemasterplc@gmail.com>
  */
 #include "asset.h"
 #include "asset_internal.h"
 #include "compress/aplib_dec_internal.h"
 #include "compress/lz4_dec_internal.h"
 #include "compress/shrinkler_dec_internal.h"
+#include "utils.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -161,46 +161,57 @@ static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
     return true;
 }
 
-static int asset_read_header(int fd, asset_header_t *header, int *sz)
+static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
 {
-    read(fd, header, sizeof(asset_header_t));
+    read(fd, &header->base, sizeof(asset_header_t));
     
-    if (!memcmp(header->magic, ASSET_MAGIC, 3)) {
-        if (header->version != '3') {
-            assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header->version);
+    if (memcmp(header->base.magic, ASSET_MAGIC, 3) == 0) {
+        if (header->base.version != '4') {
+            assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header->base.version);
         }
 
-        #ifndef N64
-        header->algo = __builtin_bswap16(header->algo);
-        header->flags = __builtin_bswap16(header->flags);
-        header->cmp_size = __builtin_bswap32(header->cmp_size);
-        header->orig_size = __builtin_bswap32(header->orig_size);
-        header->inplace_margin = __builtin_bswap32(header->inplace_margin);
-        #endif
+        const uint8_t *ptr = header->base.varints;
+        header->cmp_size = __read_varint_u64(&ptr);
+        header->orig_size = __read_varint_u64(&ptr);
+        header->inplace_margin = __read_varint_u64(&ptr);
+        int header_size = (void*)ptr - (void*)header;
+        if (header_size & 1) header_size++;
+
+        // Seek back to the actual end of the header
+        lseek(fd, header_size - sizeof(asset_header_t), SEEK_CUR);
         
-        int compressed_size = header->cmp_size+sizeof(asset_header_t);
+        int compressed_size = header->cmp_size + header_size;
         assertf(compressed_size == *sz, "Wrong compressed size (%d/%d)", *sz, compressed_size);
 
-        assertf(header->algo >= 1 || header->algo <= 3,
-            "unsupported compression algorithm: %d", header->algo);
-        assertf(algos[header->algo-1].decompress_full || algos[header->algo-1].decompress_full_inplace, 
-            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header->algo, header->algo);
+        int algo = ASSET_FLAG_ALGO(header->base.flags);
+        assertf(algo >= 1 || algo <= 3,
+            "unsupported compression algorithm: %d", algo);
+        assertf(algos[algo-1].decompress_full || algos[algo-1].decompress_full_inplace, 
+            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
         return asset_buf_size(header->orig_size, header->cmp_size, header->inplace_margin, NULL);
     } else {
+        // Seek back before the header. If the file is smaller than the header, we would
+        // seek to a negative position. Normally all our FS implementations simply
+        // clamp to 0, but this code is also compiled on PC, where the function
+        // can just fail returning -1 by the spec. In that case, we just seek
+        // to the beginning of the file.
+        if (lseek(fd, -((off_t)sizeof(asset_header_t)), SEEK_CUR) == -1 && errno == EINVAL)
+            lseek(fd, 0, SEEK_SET);
         assertf(*sz >= 0, "Invalid uncompressed size");
         return *sz;
     }
 }
 
-static bool asset_read(int fd, asset_header_t *header, int *sz, void *buf, int *buf_size)
+static bool asset_read(int fd, asset_parsed_header_t *header, int *sz, void *buf, int *buf_size)
 {
-    if(!memcmp(header->magic, ASSET_MAGIC, 3)) {
+    if(memcmp(header->base.magic, ASSET_MAGIC, 3) == 0) {
         bool ret;
+        int algo = ASSET_FLAG_ALGO(header->base.flags);
 
-        if ((header->flags & ASSET_FLAG_INPLACE) && algos[header->algo-1].decompress_full_inplace)
-            ret = decompress_inplace(&algos[header->algo-1], fd, header->cmp_size, header->orig_size, header->inplace_margin, buf, buf_size);
+        if ((header->base.flags & ASSET_FLAG_INPLACE) && algos[algo-1].decompress_full_inplace)
+            ret = decompress_inplace(&algos[algo-1], fd, header->cmp_size, header->orig_size, header->inplace_margin, buf, buf_size);
         else
-            ret = algos[header->algo-1].decompress_full(fd, header->cmp_size, header->orig_size, buf, buf_size);
+            ret = algos[algo-1].decompress_full(fd, header->cmp_size, header->orig_size, buf, buf_size);
         if(ret) {
             *sz = header->orig_size;
         }
@@ -214,13 +225,6 @@ static bool asset_read(int fd, asset_header_t *header, int *sz, void *buf, int *
             assertf(((uintptr_t)(buf) & (ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
             #endif
         }
-        // Seek back before the header. If the file is smaller than the header, we would
-        // seek to a negative position. Normally all our FS implementations simply
-        // clamp to 0, but this code is also compiled on PC, where the function
-        // can just fail returning -1 by the spec. In that case, we just seek
-        // to the beginning of the file.
-        if (lseek(fd, -((off_t)sizeof(asset_header_t)), SEEK_CUR) == -1 && errno == EINVAL)
-            lseek(fd, 0, SEEK_SET);
         read(fd, buf, *sz);
         return true;
     }
@@ -228,7 +232,7 @@ static bool asset_read(int fd, asset_header_t *header, int *sz, void *buf, int *
 
 bool asset_loadfd_into(int fd, int *sz, void *buf, int *buf_size)
 {
-    asset_header_t header;
+    asset_parsed_header_t header;
     asset_read_header(fd, &header, sz);
     return asset_read(fd, &header, sz, buf, buf_size);
 }
@@ -244,7 +248,7 @@ bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size)
 void *asset_loadfd(int fd, int *sz)
 {
     void *buf = NULL; int buf_size = 0;
-    asset_header_t header;
+    asset_parsed_header_t header;
     buf_size = asset_read_header(fd, &header, sz);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
     assertf(buf, "Out of memory");
@@ -268,7 +272,7 @@ void *asset_load(const char *fn, int *sz)
     struct stat stat;
     fstat(fd, &stat);
     size = stat.st_size;
-    asset_header_t header;
+    asset_parsed_header_t header;
     buf_size = asset_read_header(fd, &header, &size);
     buf = memalign(ASSET_ALIGNMENT, buf_size);
     assertf(buf, "Out of memory");
@@ -376,38 +380,40 @@ FILE *asset_fopen(const char *fn, int *sz)
 FILE *asset_fdopen(int fd, int *sz)
 {
     // Check if file is compressed
-    asset_header_t header;
-    read(fd, &header, sizeof(asset_header_t));
-    if (!memcmp(header.magic, ASSET_MAGIC, 3)) {
-        if (header.version != '3') {
-            assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.version);
+    asset_parsed_header_t header;
+    read(fd, &header.base, sizeof(asset_header_t));
+    if (memcmp(header.base.magic, ASSET_MAGIC, 3) == 0) {
+        if (header.base.version != '4') {
+            assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.base.version);
             return NULL;
         }
 
-        if (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) {  // for mkasset running on PC
-            header.algo = __builtin_bswap16(header.algo);
-            header.flags = __builtin_bswap16(header.flags);
-            header.cmp_size = __builtin_bswap32(header.cmp_size);
-            header.orig_size = __builtin_bswap32(header.orig_size);
-            header.inplace_margin = __builtin_bswap32(header.inplace_margin);
-        }
+        const uint8_t *ptr = header.base.varints;
+        header.cmp_size = __read_varint_u64(&ptr);
+        header.orig_size = __read_varint_u64(&ptr);
+        header.inplace_margin = __read_varint_u64(&ptr);
+        int header_size = (void*)ptr - (void*)&header;
+        if (header_size & 1) header_size++;
+        
+        // Seek back to the actual end of the header
+        lseek(fd, header_size - sizeof(asset_header_t), SEEK_CUR);
 
         cookie_cmp_t *cookie;
 
-        assertf(header.algo >= 1 || header.algo <= 2,
-            "unsupported compression algorithm: %d", header.algo);
-        assertf(algos[header.algo-1].decompress_full || algos[header.algo-1].decompress_full_inplace, 
-            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", header.algo, header.algo);
-        assertf(algos[header.algo-1].decompress_init, 
-            "asset: compression level %d does not currently support asset_fopen()", header.algo);
+        int algo = ASSET_FLAG_ALGO(header.base.flags);
+        assertf(algo >= 1 || algo <= 2,
+            "unsupported compression algorithm: %d", algo);
+        assertf(algos[algo-1].decompress_full || algos[algo-1].decompress_full_inplace, 
+            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
+        assertf(algos[algo-1].decompress_init, 
+            "asset: compression level %d does not currently support asset_fopen()", algo);
 
-        int winsize = asset_winsize_from_flags(header.flags);
-        cookie = malloc(sizeof(cookie_cmp_t) + algos[header.algo-1].state_size + winsize);
+        int winsize = asset_winsize_from_flags(header.base.flags);
+        cookie = malloc(sizeof(cookie_cmp_t) + algos[algo-1].state_size + winsize);
         assertf(cookie, "Out of memory");
-        cookie->read = algos[header.algo-1].decompress_read;
-        cookie->reset = algos[header.algo-1].decompress_reset;
-        algos[header.algo-1].decompress_init(cookie->state, fd, winsize);
-
+        cookie->read = algos[algo-1].decompress_read;
+        cookie->reset = algos[algo-1].decompress_reset;
+        algos[algo-1].decompress_init(cookie->state, fd, winsize);
         cookie->fd = fd;
         cookie->pos = 0;
         cookie->seeked = false;
