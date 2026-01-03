@@ -61,6 +61,18 @@ const vi_timing_preset_t VI_TIMING_MPAL = {
     },
 };
 
+const vi_timing_preset_t VI_TIMING_PAL60 = {
+    .vi_h_total = VI_H_TOTAL_SET(0b00000, 789),
+    .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(789, 789),
+    .vi_v_total = VI_V_TOTAL_SET(526),
+    .vi_burst = VI_BURST_SET(62, 5, 34, 57),
+    .vi_v_burst = VI_V_BURST_SET(14, 516),
+    .display = {
+        .x0 = 115, .y0 = 35,
+        .width = 640, .height = 480,
+    },
+};
+
 static const vi_timing_preset_t *default_presets[3] = {
     [TV_NTSC] = &VI_TIMING_NTSC,
     [TV_PAL]  = &VI_TIMING_PAL,
