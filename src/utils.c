@@ -55,3 +55,13 @@ int64_t __read_varint_s64(const uint8_t **ptr)
     uint64_t val = __read_varint_u64(ptr);
     return (val >> 1) ^ -(val & 1);
 }
+
+uint64_t __peek_varint_u64(const uint8_t *ptr)
+{
+    return __read_varint_u64(&ptr);
+}
+
+int64_t __peek_varint_s64(const uint8_t *ptr)
+{
+    return __read_varint_s64(&ptr);
+}

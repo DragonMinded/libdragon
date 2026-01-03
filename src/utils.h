@@ -83,5 +83,11 @@ uint64_t __read_varint_u64(const uint8_t **ptr);
  */
 int64_t __read_varint_s64(const uint8_t **ptr);
 
+/** @brief Like __read_varint_u64 but does not advance the pointer */
+uint64_t __peek_varint_u64(const uint8_t *ptr);
+
+/** @brief Like __read_varint_s64 but does not advance the pointer */
+int64_t __peek_varint_s64(const uint8_t *ptr);
+
 
 #endif
