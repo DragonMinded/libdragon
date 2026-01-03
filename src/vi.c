@@ -20,7 +20,6 @@
 
 /** @brief Preset of settings for a certain TV type */
 typedef struct vi_preset_s {
-    int clock;                  ///< Pixel clock in Hz
     uint32_t vi_h_total;        ///< Total horizontal length (in 1/4th pixels)
     uint32_t vi_h_total_leap;   ///< Leap setting (alternate scanline lengths)
     uint32_t vi_v_total;        ///< Total vertical length (in scanlines)
@@ -34,12 +33,18 @@ typedef struct vi_preset_s {
     } display;                  ///< Default active area
 } vi_preset_t;
 
+/** @brief Hardware clock values (in Hz) */
+static const int vi_clocks[3] = {
+    [TV_NTSC] = 48681818,
+    [TV_PAL]  = 49656530,
+    [TV_MPAL] = 48628322,
+};
+
 /**
  * @brief Presets to begin with when setting a particular TV type
  */
 static const vi_preset_t vi_presets[3] = {
     [TV_NTSC] = {
-        .clock = 48681818,
         .vi_h_total = VI_H_TOTAL_SET(0b00000, 773.5),
         .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(773.5, 773.5),
         .vi_v_total = VI_V_TOTAL_SET(526),
@@ -51,7 +56,6 @@ static const vi_preset_t vi_presets[3] = {
         },
     },
     [TV_PAL] = {
-        .clock = 49656530,
         .vi_h_total = VI_H_TOTAL_SET(0b10101, 794.5),
         .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(796.0, 795.75),
         .vi_v_total = VI_V_TOTAL_SET(626),
@@ -63,7 +67,6 @@ static const vi_preset_t vi_presets[3] = {
         },
     },
     [TV_MPAL] = {
-        .clock = 48628322,
         .vi_h_total = VI_H_TOTAL_SET(0b00000, 772.25),
         .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(775.25, 775.25),
         .vi_v_total = VI_V_TOTAL_SET(526),
@@ -472,7 +475,7 @@ void vi_set_gamma(vi_gamma_t gamma)
 
 float vi_get_refresh_rate(void)
 {
-    int clock = preset->clock;
+    int clock = vi_clocks[get_tv_type()];
     uint32_t HTOTAL = vi_read(VI_H_TOTAL);
     uint32_t VTOTAL = vi_read(VI_V_TOTAL);
     uint32_t HTOTAL_LEAP = vi_read(VI_H_TOTAL_LEAP);
