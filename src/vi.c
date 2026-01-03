@@ -783,6 +783,8 @@ void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg)
 
 void vi_set_timing_preset(const vi_timing_preset_t *p)
 {
+    vi_write_begin();
+
     preset = p;
     
     // Configure the timing registers from the preset. These will not change
@@ -797,6 +799,8 @@ void vi_set_timing_preset(const vi_timing_preset_t *p)
     __set_output(preset->display.x0, preset->display.y0,
                  preset->display.x0 + preset->display.width,
                  preset->display.y0 + preset->display.height);
+
+    vi_write_end();
 }
 
 void vi_reset(void)
