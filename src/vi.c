@@ -18,21 +18,6 @@
 #include <stdbool.h>
 #include <assert.h>
 
-/** @brief Preset of settings for a certain TV type */
-typedef struct vi_preset_s {
-    uint32_t vi_h_total;        ///< Total horizontal length (in 1/4th pixels)
-    uint32_t vi_h_total_leap;   ///< Leap setting (alternate scanline lengths)
-    uint32_t vi_v_total;        ///< Total vertical length (in scanlines)
-    uint32_t vi_burst;          ///< Horizontal Burst settings
-    uint32_t vi_v_burst;        ///< Vertical burst settings
-    struct {
-        int x0;                 ///< Default active area x0
-        int y0;                 ///< Default active area y0
-        int width;              ///< Default active area width
-        int height;             ///< Default active area height (in half-lines)
-    } display;                  ///< Default active area
-} vi_preset_t;
-
 /** @brief Hardware clock values (in Hz) */
 static const int vi_clocks[3] = {
     [TV_NTSC] = 48681818,
@@ -40,43 +25,46 @@ static const int vi_clocks[3] = {
     [TV_MPAL] = 48628322,
 };
 
-/**
- * @brief Presets to begin with when setting a particular TV type
- */
-static const vi_preset_t vi_presets[3] = {
-    [TV_NTSC] = {
-        .vi_h_total = VI_H_TOTAL_SET(0b00000, 773.5),
-        .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(773.5, 773.5),
-        .vi_v_total = VI_V_TOTAL_SET(526),
-        .vi_burst = VI_BURST_SET(62, 5, 34, 57),
-        .vi_v_burst = VI_V_BURST_SET(14, 516),
-        .display = {
-            .x0 = 108, .y0 = 35,
-            .width = 640, .height = 480,
-        },
+const vi_timing_preset_t VI_TIMING_NTSC = {
+    .vi_h_total = VI_H_TOTAL_SET(0b00000, 773.5),
+    .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(773.5, 773.5),
+    .vi_v_total = VI_V_TOTAL_SET(526),
+    .vi_burst = VI_BURST_SET(62, 5, 34, 57),
+    .vi_v_burst = VI_V_BURST_SET(14, 516),
+    .display = {
+        .x0 = 108, .y0 = 35,
+        .width = 640, .height = 480,
     },
-    [TV_PAL] = {
-        .vi_h_total = VI_H_TOTAL_SET(0b10101, 794.5),
-        .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(796.0, 795.75),
-        .vi_v_total = VI_V_TOTAL_SET(626),
-        .vi_burst = VI_BURST_SET(64, 4, 35, 58),
-        .vi_v_burst = VI_V_BURST_SET(9, 619),
-        .display = {
-            .x0 = 128, .y0 = 45,
-            .width = 640, .height = 576,
-        },
+};
+    
+const vi_timing_preset_t VI_TIMING_PAL = {
+    .vi_h_total = VI_H_TOTAL_SET(0b10101, 794.5),
+    .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(796.0, 795.75),
+    .vi_v_total = VI_V_TOTAL_SET(626),
+    .vi_burst = VI_BURST_SET(64, 4, 35, 58),
+    .vi_v_burst = VI_V_BURST_SET(9, 619),
+    .display = {
+        .x0 = 128, .y0 = 45,
+        .width = 640, .height = 576,
     },
-    [TV_MPAL] = {
-        .vi_h_total = VI_H_TOTAL_SET(0b00000, 772.25),
-        .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(775.25, 775.25),
-        .vi_v_total = VI_V_TOTAL_SET(526),
-        .vi_burst = VI_BURST_SET(70, 5, 30, 57),
-        .vi_v_burst = VI_V_BURST_SET(14, 516),
-        .display = {
-            .x0 = 108, .y0 = 35,
-            .width = 640, .height = 480,
-        },
+};
+
+const vi_timing_preset_t VI_TIMING_MPAL = {
+    .vi_h_total = VI_H_TOTAL_SET(0b00000, 772.25),
+    .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(775.25, 775.25),
+    .vi_v_total = VI_V_TOTAL_SET(526),
+    .vi_burst = VI_BURST_SET(70, 5, 30, 57),
+    .vi_v_burst = VI_V_BURST_SET(14, 516),
+    .display = {
+        .x0 = 108, .y0 = 35,
+        .width = 640, .height = 480,
     },
+};
+
+static const vi_timing_preset_t *default_presets[3] = {
+    [TV_NTSC] = &VI_TIMING_NTSC,
+    [TV_PAL]  = &VI_TIMING_PAL,
+    [TV_MPAL] = &VI_TIMING_MPAL,
 };
 
 /** @brief Line interrupt callbacks */
@@ -93,7 +81,7 @@ static line_irqs_t new_line_irqs[MAX_LINE_IRQS] = {0};      ///< New line interr
 
 static int8_t vi_initialized = 0;      ///< True if the VI subsystem has been initialized
 uint32_t __vi_cfg[VI_REGISTERS_COUNT]; ///< Current VI configuration
-static const vi_preset_t *preset;      ///< Active TV preset
+static const vi_timing_preset_t *preset; ///< Active TV preset
 static uint16_t cfg_pending;           ///< Pending register changes (1 bit per each VI register)
 static uint16_t cfg_raster;            ///< Raster register changes (1 bit per each VI register)
 static uint16_t cfg_to_validate;       ///< Config settings that must be validated
@@ -793,14 +781,10 @@ void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg)
     enable_interrupts();
 }
 
-void vi_reset(void)
+void vi_set_timing_preset(const vi_timing_preset_t *p)
 {
-    vi_write_begin();
-
-    // Set the pending mask to all registers, so that the whole
-    // VI will be programmed at next vblank.
-    cfg_pending = (1 << VI_REGISTERS_COUNT) - 1;
-
+    preset = p;
+    
     // Configure the timing registers from the preset. These will not change
     // at runtime as they are fixed by the TV standard.
     vi_write(VI_H_TOTAL,      preset->vi_h_total);
@@ -813,6 +797,18 @@ void vi_reset(void)
     __set_output(preset->display.x0, preset->display.y0,
                  preset->display.x0 + preset->display.width,
                  preset->display.y0 + preset->display.height);
+}
+
+void vi_reset(void)
+{
+    vi_write_begin();
+
+    // Set the pending mask to all registers, so that the whole
+    // VI will be programmed at next vblank.
+    cfg_pending = (1 << VI_REGISTERS_COUNT) - 1;
+
+    // Set the timing preset according to the current TV type
+    vi_set_timing_preset(default_presets[get_tv_type()]);
 
     // Turn on blank mode (disable framebuffer sampling)
     vi_write(VI_ORIGIN,       0);
@@ -837,7 +833,6 @@ void vi_init(void)
     cfg_refcount = 0;
     blank_mode = false;
     cur_line_irq = line_irqs;
-    preset = &vi_presets[get_tv_type()];
 
     memset(line_irqs, 0, sizeof(line_irqs));
     line_irqs[0].line = VI_V_CURRENT_VBLANK;
