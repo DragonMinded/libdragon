@@ -261,7 +261,10 @@ static void __vblank_interrupt(void*)
         // It is probably a bug in old revisions of the VI chip,
         // since the problem doesn't exist on newer boards.
         if (UNLIKELY(get_tv_type() == TV_MPAL)) {
-            *VI_V_BURST ^= VI_V_BURST_SET(11, 514) ^ VI_V_BURST_SET(14, 516);
+            static const uint32_t v_burst_mpal_values[2] = {
+                VI_V_BURST_SET(11, 514), VI_V_BURST_SET(14, 516),
+            };
+            *VI_V_BURST = v_burst_mpal_values[field];
         }
     }
 }
