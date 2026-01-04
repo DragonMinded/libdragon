@@ -15,23 +15,37 @@
 #include <cmath>
 #include <cstring>
 #include <fstream>
+#include <map>
 #include <set>
 
 using json = nlohmann::json;
 
+enum Sub64Region : uint8_t {
+	SUB64_REGION_BOTTOM = 0,
+	SUB64_REGION_TOP    = 1,
+	SUB64_REGION_CENTER = 2,
+};
+
 enum Sub64OpCode : uint8_t {
-    SUB64_OP_SHOW = 0x01,
-    SUB64_OP_HIDE0 = 0x20,
-    SUB64_OP_HIDE1 = 0x21,
-    SUB64_OP_HIDE2 = 0x22,
-    SUB64_OP_HIDE3 = 0x23,
+    // SHOW opcodes select one of 3 fixed regions on N64: bottom/top/center.
+    SUB64_OP_SHOW        = 0x00,
+    SUB64_OP_SHOW_BOTTOM = SUB64_OP_SHOW + SUB64_REGION_BOTTOM,
+    SUB64_OP_SHOW_TOP    = SUB64_OP_SHOW + SUB64_REGION_TOP,
+    SUB64_OP_SHOW_CENTER = SUB64_OP_SHOW + SUB64_REGION_CENTER,
+    // HIDE opcodes hide the current cue in a specific region.
+    SUB64_OP_HIDE        = 0x10,
+    SUB64_OP_HIDE_BOTTOM = SUB64_OP_HIDE + SUB64_REGION_BOTTOM,
+    SUB64_OP_HIDE_TOP    = SUB64_OP_HIDE + SUB64_REGION_TOP,
+    SUB64_OP_HIDE_CENTER = SUB64_OP_HIDE + SUB64_REGION_CENTER,
     SUB64_OP_CLEAR = 0x04,
 };
+
 
 struct VttCue {
 	int64_t start_ms = 0;
 	int64_t end_ms = 0;
 	std::string text;
+	Sub64Region region = SUB64_REGION_BOTTOM;
 };
 
 static std::string trim(const std::string &s) {
@@ -114,6 +128,50 @@ static std::vector<VttCue> parse_webvtt(const std::string &path) {
 		lines.push_back(line);
 	}
 
+	// REGION id -> region placement (best-effort).
+	std::map<std::string, Sub64Region> regions;
+
+	auto region_from_y_percent = [&](double y) -> Sub64Region {
+		// Rough bucketing: top/center/bottom
+		if (y <= 33.0) return SUB64_REGION_TOP;
+		if (y >= 66.0) return SUB64_REGION_BOTTOM;
+		return SUB64_REGION_CENTER;
+	};
+
+	auto parse_anchor_y = [&](const std::string &s, double *out_y) -> bool {
+		// Expect something like "50%,90%" or "50% , 90%" (we only care about Y).
+		double x = 0.0, y = 0.0;
+		if (sscanf(s.c_str(), "%lf%%,%lf%%", &x, &y) == 2) { *out_y = y; return true; }
+		if (sscanf(s.c_str(), "%lf%% ,%lf%%", &x, &y) == 2) { *out_y = y; return true; }
+		if (sscanf(s.c_str(), "%lf%%, %lf%%", &x, &y) == 2) { *out_y = y; return true; }
+		if (sscanf(s.c_str(), "%lf%% , %lf%%", &x, &y) == 2) { *out_y = y; return true; }
+		return false;
+	};
+
+	auto parse_region_block = [&](size_t &i) {
+		// Current line is "REGION" (or starts with it). Consume until blank line.
+		std::string id;
+		double y = -1.0;
+		i++;
+		while (i < lines.size() && !trim(lines[i]).empty()) {
+			std::string r = trim(lines[i]);
+			if (starts_with(r, "id:")) {
+				id = trim(r.substr(3));
+			} else if (starts_with(r, "viewportanchor:")) {
+				double yy = 0.0;
+				if (parse_anchor_y(trim(r.substr(strlen("viewportanchor:"))), &yy)) y = yy;
+			} else if (starts_with(r, "regionanchor:")) {
+				// Fallback if viewportanchor missing.
+				if (y < 0.0) {
+					double yy = 0.0;
+					if (parse_anchor_y(trim(r.substr(strlen("regionanchor:"))), &yy)) y = yy;
+				}
+			}
+			i++;
+		}
+		if (!id.empty() && y >= 0.0) regions[id] = region_from_y_percent(y);
+	};
+
 	std::vector<VttCue> cues;
 	size_t i = 0;
 
@@ -125,7 +183,11 @@ static std::vector<VttCue> parse_webvtt(const std::string &path) {
 		if (i >= lines.size()) break;
 
 		std::string l = trim(lines[i]);
-		if (starts_with(l, "NOTE") || starts_with(l, "STYLE") || starts_with(l, "REGION")) {
+		if (starts_with(l, "REGION")) {
+			parse_region_block(i);
+			continue;
+		}
+		if (starts_with(l, "NOTE") || starts_with(l, "STYLE")) {
 			i++;
 			while (i < lines.size() && !trim(lines[i]).empty()) i++;
 			continue;
@@ -142,9 +204,14 @@ static std::vector<VttCue> parse_webvtt(const std::string &path) {
 		if (arrow == std::string::npos) { i = timing_line + 1; continue; }
 
 		std::string a = trim(timing.substr(0, arrow));
-		std::string b = trim(timing.substr(arrow + 3));
-		size_t sp = b.find(' ');
-		if (sp != std::string::npos) b = b.substr(0, sp);
+		std::string b_and_settings = trim(timing.substr(arrow + 3));
+		std::string b = b_and_settings;
+		std::string settings;
+		size_t sp = b_and_settings.find(' ');
+		if (sp != std::string::npos) {
+			b = trim(b_and_settings.substr(0, sp));
+			settings = trim(b_and_settings.substr(sp + 1));
+		}
 
 		int64_t st = 0, en = 0;
 		if (!parse_vtt_timestamp_ms(a, &st) || !parse_vtt_timestamp_ms(b, &en) || en <= st) {
@@ -164,6 +231,48 @@ static std::vector<VttCue> parse_webvtt(const std::string &path) {
 		c.start_ms = st;
 		c.end_ms = en;
 		c.text = vtt_to_rdpq_text(payload);
+		// Minimal region selection:
+		// - if cue has "line:" (percentage), use that
+		// - else if cue has "region:<id>", use REGION block info
+		// - else default bottom
+		if (!settings.empty()) {
+			Sub64Region reg = SUB64_REGION_BOTTOM;
+			bool have_line = false;
+			bool have_region = false;
+			std::string region_id;
+			// split by whitespace
+			size_t p = 0;
+			while (p < settings.size()) {
+				while (p < settings.size() && isspace((unsigned char)settings[p])) p++;
+				if (p >= settings.size()) break;
+				size_t q = p;
+				while (q < settings.size() && !isspace((unsigned char)settings[q])) q++;
+				std::string tok = settings.substr(p, q - p);
+				p = q;
+				if (starts_with(tok, "region:")) {
+					region_id = tok.substr(strlen("region:"));
+					have_region = true;
+				} else if (starts_with(tok, "line:")) {
+					std::string v = tok.substr(strlen("line:"));
+					have_line = true;
+					// percentage line
+					if (!v.empty() && v.back() == '%') {
+						double yy = atof(v.substr(0, v.size() - 1).c_str());
+						reg = region_from_y_percent(yy);
+					} else if (!v.empty() && v[0] == '-') {
+						reg = SUB64_REGION_BOTTOM;
+					} else {
+						int li = atoi(v.c_str());
+						reg = (li <= 1) ? SUB64_REGION_TOP : SUB64_REGION_BOTTOM;
+					}
+				}
+			}
+			if (!have_line && have_region && !region_id.empty()) {
+				auto it = regions.find(region_id);
+				if (it != regions.end()) reg = it->second;
+			}
+			c.region = reg;
+		}
 		cues.push_back(std::move(c));
 	}
 	return cues;
@@ -239,16 +348,43 @@ static std::vector<SubStreamInfo> ffprobe_list_subtitle_streams(void) {
 	return res;
 }
 
-static std::string ensure_webvtt_container_track(int stream_index, const std::string &tmp_dir, int idx) {
+static std::string ffprobe_subtitle_codec(const std::string &path) {
+	std::vector<std::string> cmd = {
+		cfg.ffprobe_path, "-v", "error",
+		"-select_streams", "s:0",
+		"-show_entries", "stream=codec_name",
+		"-of", "json",
+		path,
+	};
+	std::string out;
+	if (run_process(cmd, out) != 0) return {};
+	try {
+		json j = json::parse(out);
+		if (j.contains("streams") && j["streams"].is_array() && !j["streams"].empty())
+			return j["streams"][0].value("codec_name", std::string());
+	} catch (const std::exception &e) {
+		fatal("ffprobe JSON parse error for %s: %s", path.c_str(), e.what());
+	}
+	return {};
+}
+
+static std::string ensure_webvtt_container_track(int stream_index, const std::string &codec_name, const std::string &tmp_dir, int idx) {
 	std::string tmp = join_path(tmp_dir, "subtrack_" + std::to_string(idx) + ".vtt");
 	std::vector<std::string> cmd = {
 		cfg.ffmpeg_path,
 		"-hide_banner", "-nostats", "-y", "-v", "error",
 		"-i", cfg.input_file,
 		"-map", "0:" + std::to_string(stream_index),
-		"-f", "webvtt",
-		tmp,
 	};
+	// If already WebVTT, use -c copy to preserve positioning metadata which is
+	// otherwise always lost with ffmpeg
+	if (codec_name == "webvtt") {
+		cmd.push_back("-c");
+		cmd.push_back("copy");
+	}
+	cmd.push_back("-f");
+	cmd.push_back("webvtt");
+	cmd.push_back(tmp);
 	std::string out;
 	int rc = run_process(cmd, out);
 	if (rc != 0) {
@@ -258,7 +394,11 @@ static std::string ensure_webvtt_container_track(int stream_index, const std::st
 	return tmp;
 }
 
-static std::string ensure_webvtt_file(const std::string &in_path, const std::string &tmp_dir, int idx) {
+static std::string ensure_webvtt_file(const std::string &in_path, const std::string &codec_name, const std::string &tmp_dir, int idx) {
+	// If already WebVTT, use directly to preserve positioning metadata,
+	// as ffmpeg always loses it when re-muxing.
+	if (codec_name == "webvtt") return in_path;
+
 	std::string tmp = join_path(tmp_dir, "subfile_" + std::to_string(idx) + ".vtt");
 	std::vector<std::string> cmd = {
 		cfg.ffmpeg_path,
@@ -297,8 +437,6 @@ static void write_sub64(
 	const std::string &out_path,
 	const std::vector<VttCue> &cues,
 	float fps,
-	uint32_t canvas_w,
-	uint32_t canvas_h,
 	uint32_t sync_interval_frames,
 	Sub64Metrics *m
 ) {
@@ -331,10 +469,17 @@ static void write_sub64(
 		std::string text; // SHOW only
 	};
 	std::vector<Action> actions;
-	std::vector<int> stack; // cue ids, most recent first
 	int maxov = 0;  // max simultaneous visible subtitles
-	int overflow = 0; // number of overflows (>4 subtitles visible)
+	int overflow = 0; // number of same-region overlaps (replacements)
 	std::vector<int64_t> gaps; // Gaps: [gap0_start, gap0_end, gap1_start, gap1_end, ...]
+
+	// Current cue per region. -1 means none visible in that region.
+	int cur[3] = { -1, -1, -1 };
+	auto active_count = [&]() -> int {
+		int c = 0;
+		for (int r = 0; r < 3; r++) if (cur[r] >= 0) c++;
+		return c;
+	};
 
 	// If subtitles start after frame 0, add an initial gap start so the first SHOW closes it.
 	if (!tl.empty() && tl.front().kind == 1 && tl.front().frame > 0) {
@@ -342,30 +487,26 @@ static void write_sub64(
 	}
 
 	for (const auto &e : tl) {
+        Sub64Region reg = cues[e.id].region;
 		if (e.kind == TL_START) {
+			// Closing a gap: first subtitle becomes visible at this frame.
 			if (gaps.size() % 2 == 1)
                 gaps.push_back(e.frame); // gap end
-			int would_be = (int)stack.size() + 1;
-			maxov = std::max(maxov, would_be);
-			if ((int)stack.size() >= 4) {
-                // Detected overflows (too many subtitles visible at the same time).
-                // Hide the oldest subtitle (index 3) by emitting an HIDE3 opcode.
-				overflow++;
-				verbose(1, "warning: subtitle overlap overflow at frame=%lld; hiding oldest", (long long)e.frame);
-				actions.push_back({ e.frame, SUB64_OP_HIDE3, {} });
-				stack.pop_back();
+
+            maxov = std::max(maxov, active_count());
+            if (cur[reg] >= 0) overflow++; // replace existing cue in same region
+            cur[reg] = e.id;
+
+ 			actions.push_back({ e.frame, (Sub64OpCode)(SUB64_OP_SHOW + reg), cues[e.id].text });
+         } else {
+			// End of cue: hide only if this cue is still the active one in its region.
+			if (cur[reg] == e.id) {
+				cur[reg] = -1;
+				actions.push_back({ e.frame, (Sub64OpCode)(SUB64_OP_HIDE + reg), {} });
+				// Opening a gap: no subtitle visible in any region.
+				if (active_count() == 0 && gaps.size() % 2 == 0)
+					gaps.push_back(e.frame); // gap start
 			}
-			actions.push_back({ e.frame, SUB64_OP_SHOW, cues[e.id].text });
-			stack.insert(stack.begin(), e.id);
-		} else {
-            // Emit an HIDE opcode for the stack position matching the cue id.
-			auto it = std::find(stack.begin(), stack.end(), e.id);
-			if (it == stack.end()) continue;
-			int idx = (int)(it - stack.begin());
-			actions.push_back({ e.frame, (Sub64OpCode)(SUB64_OP_HIDE0 + idx), {} });
-			stack.erase(it);
-            if (gaps.size() % 2 == 0 && stack.empty())
-                gaps.push_back(e.frame); // gap start
 		}
 	}
 
@@ -380,7 +521,7 @@ static void write_sub64(
 	uint32_t txt_total = 0;
 	for (size_t i = 0; i < actions.size(); i++) {
 		txt_off_by_event[i] = txt_total;
-		if (actions[i].opcode == SUB64_OP_SHOW) {
+		if (actions[i].opcode == SUB64_OP_SHOW_BOTTOM || actions[i].opcode == SUB64_OP_SHOW_TOP || actions[i].opcode == SUB64_OP_SHOW_CENTER) {
 			txt_total += (uint32_t)actions[i].text.size() + 1;
 		}
 	}
@@ -392,12 +533,19 @@ static void write_sub64(
     // sync_interval_frames intervals.
 	std::vector<int64_t> sync_frames;
     sync_frames.push_back(0); // Frame 0 is always a syncpoint.
-    for (int64_t t = 0; t <= max_frame; t += (int64_t)sync_interval_frames) {
-        int gapidx = std::upper_bound(gaps.begin(), gaps.end(), t) - gaps.begin();
-        if (gapidx % 2 == 1) gapidx--;
-        int sf = gaps[gapidx];
-        if (sf == sync_frames.back()) continue;
-        sync_frames.push_back(sf);
+	if (gaps.size() >= 2) {
+		for (int64_t t = 0; t <= max_frame; t += (int64_t)sync_interval_frames) {
+			int gapidx = (int)(std::upper_bound(gaps.begin(), gaps.end(), t) - gaps.begin());
+			// Snap to a gap start (even index).
+			if (gapidx % 2 == 1) gapidx--;
+			// Clamp within range; also handle upper_bound()==end().
+			if (gapidx < 0) gapidx = 0;
+			if (gapidx >= (int)gaps.size()) gapidx = (int)gaps.size() - 2;
+			if (gapidx + 1 >= (int)gaps.size()) continue;
+			int64_t sf = gaps[gapidx];
+			if (sf == sync_frames.back()) continue; // dedup (eg: long gaps)
+			sync_frames.push_back(sf);
+		}
 	}
 
 	FILE *f = fopen(out_path.c_str(), "wb");
@@ -410,10 +558,9 @@ static void write_sub64(
     w8(f, 1);    // version
 	w16(f, 0);   // flags
 	wf32(f, (float)fps);
-	w32(f, canvas_w);
-	w32(f, canvas_h);
-	w32(f, (uint32_t)sync_frames.size()); // idx0_count
-	w16(f, 0);   // reserved
+    w32(f, max_frame+1); // number of frames
+	w32(f, (uint32_t)sync_frames.size()); // num_syncs
+	wpad(f, 44+44+4); // runtime state
 
 	// IDX0 section
 	for (int i = 0; i < (int)sync_frames.size(); i++) {
@@ -467,7 +614,7 @@ static void write_sub64(
 			placeholder_set(f, "idx%d_txt", sync_txt_i);
 			sync_txt_i++;
 		}
-		if (actions[ev].opcode != 0x01) continue;
+		if (!(actions[ev].opcode == SUB64_OP_SHOW_BOTTOM || actions[ev].opcode == SUB64_OP_SHOW_TOP || actions[ev].opcode == SUB64_OP_SHOW_CENTER)) continue;
 		wa(f, actions[ev].text.data(), actions[ev].text.size());
 		w8(f, 0);
 	}
@@ -506,7 +653,7 @@ void vconv_process_subtitles(const AnalysisResult &ar) {
 		std::vector<VttCue> cues = parse_webvtt(vtt);
 		Sub64Metrics m;
 		std::string outp = output_sub64_path(lang, produced, total_out);
-		write_sub64(outp, cues, fps, (uint32_t)ar.out_width, (uint32_t)ar.out_height, sync_interval_frames, &m);
+		write_sub64(outp, cues, fps, sync_interval_frames, &m);
 		if (!asset_compress(outp.c_str(), outp.c_str(), DEFAULT_COMPRESSION, 256*1024)) {
 			fatal("subtitles: compression failed for %s", outp.c_str());
 		}
@@ -524,15 +671,16 @@ void vconv_process_subtitles(const AnalysisResult &ar) {
 		}
 		std::string msg = "Subtitle track: stream=" + std::to_string(t.stream_index) + " lang=" + (t.language.empty() ? "(none)" : t.language);
 		process_one(msg.c_str(), t.language, [&]() {
-			return ensure_webvtt_container_track(t.stream_index, tmpd, produced);
+			return ensure_webvtt_container_track(t.stream_index, t.codec_name, tmpd, produced);
 		});
 	}
 
 	// CLI subtitle files
 	for (const auto &sf : cfg.subtitle_files) {
+		std::string codec = ffprobe_subtitle_codec(sf);
 		std::string msg = "Subtitle file: " + sf;
 		process_one(msg.c_str(), std::string(), [&]() {
-			return ensure_webvtt_file(sf, tmpd, produced);
+			return ensure_webvtt_file(sf, codec, tmpd, produced);
 		});
 	}
 }
