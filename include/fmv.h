@@ -23,6 +23,7 @@ extern "C" {
 ///@cond
 typedef struct video_s video_t;
 typedef struct wav64_s wav64_t;
+typedef struct subtitles_s subtitles_t;
 ///@endcond
 
 /** @brief Structure to control FMV playback */
@@ -31,6 +32,8 @@ typedef struct fmv_control_s {
     video_t *video;
     /** Audio track */
     wav64_t *audio;
+    /** Subtitle track */
+    subtitles_t *subs;
     /** Pause/unpause playback */
     void (*pause)(struct fmv_control_s *ctrl, bool pause);
     /** Stop playback */
@@ -45,6 +48,8 @@ typedef struct fmv_control_s {
 typedef struct fmv_parms_s {
     /** @brief Disable audio playback (even though an audio file is present) */
     bool disable_audio;
+    /** @brief Disable subtitle rendering (even though a subtitle file is present) */
+    bool disable_subtitles;
 
     /** 
      * @brief Filename of the audio track to play alongside the video. 
@@ -53,6 +58,14 @@ typedef struct fmv_parms_s {
      * with the same name as the video file, but with a .wav64 extension.
      */
     const char *audio_fn;
+
+    /**
+     * @brief Subtitle track filename to play alongside the video.
+     * 
+     * If not specified, the video player will try to find a subtitle track
+     * with the same name as the video file, but with a .sub64 extension.
+     */
+    const char *subtitles_fn;
 
     /** The mixer channel to use for audio playback (default: 0) */
     int audio_mixer_channel;

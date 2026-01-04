@@ -11,6 +11,8 @@
 #include "wav64.h"
 #include "display.h"
 #include "mixer.h"
+#include "subtitles.h"
+#include "graphics.h"
 #include "rdpq.h"
 #include "rdpq_attach.h"
 #include <math.h>
@@ -61,6 +63,29 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         audio = wav64_load(audio_fn, NULL);
     }
 
+    subtitles_t* subs = NULL;
+    subrenderer_t* subrenderer = NULL;
+    if (!parms->disable_subtitles) {
+        // Open subtitles
+        const char *subs_fn = parms->subtitles_fn;
+        if (!subs_fn) {
+            // Try to find subtitle file with same name but .sub64 extension
+            const char *ext = strrchr(video_fn, '.');
+            assertf(ext, "Subtitle filename not specified for video playback");
+
+            // Create subtitle filename
+            subs_fn = alloca(strlen(video_fn) + 7);
+            size_t base_len = ext - video_fn;
+            strncpy((char*)subs_fn, video_fn, base_len);
+            strcpy((char*)subs_fn + base_len, ".sub64");
+        }
+
+        // Load subtitles
+        subs = subtitles_load(subs_fn);
+        subrenderer = subrenderer_rdpq_create(
+            display_get_width(), display_get_height(), NULL);
+    }
+
     int frame_idx = 0;
     bool paused = false;
     bool abort = false;
@@ -86,6 +111,9 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
             double time_sec = (double)frame_idx / (double)info.framerate;
             wav64_seek(audio, parms->audio_mixer_channel, time_sec);
         }
+        if (subs) {
+            subtitles_seek(subs, frame_idx);
+        }
         return frame_idx;
     }
     float ctrl_seek_time(fmv_control_t *ctrl, float time_sec, bool exact) {
@@ -99,6 +127,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     fmv_control_t ctrl = {
         .video = video,
         .audio = audio,
+        .subs = subs,
         .pause = ctrl_pause,
         .stop = ctrl_stop,
         .seek_frame = ctrl_seek_frame,
@@ -115,12 +144,15 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
             if (!video_next_frame(video)) {
                 if (parms->loop) {
                     video_rewind(video);
+                    if (audio) wav64_seek(audio, parms->audio_mixer_channel, 0.0);
+                    if (subs) subtitles_seek(subs, 0);
                     frame_idx = 0;
                     continue;
                 } else {
                     break;
                 }
             }
+            if (subs) subtitles_next_frame(subs);
         }
 
         mixer_try_play();
@@ -139,6 +171,13 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         // Get the next video frame and feed it into our previously set up blitter.
         yuv_frame_t frame = video_get_frame(video);
         yuv_blitter_run(&yuv, &frame);
+
+        // Draw subtitles
+        if (subs) {
+            subtitle_cue_t cues[3];
+            int num_cues = subtitles_get_current_cues(subs, cues, 3);
+            subrenderer_render(subrenderer, cues, num_cues);
+        }
 
         // Call OSD callback if provided
         if (parms->osd_callback) {
