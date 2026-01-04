@@ -84,9 +84,9 @@ typedef struct fmv_parms_s {
      * be used to customise how subtitles are rendered on screen. There are
      * two built-in renderers:
      * 
-     * * RDPQ rendered (#subrenderer_rdpq_create) that draws the subtitles over
+     * * RDPQ rendered (#subrenderer_create_rdpq) that draws the subtitles over
      *   the video using rdpq for high-quality text rendering.
-     * * EIA-608 renderer (#subrenderer_eia608_create) that encodes subtitles
+     * * EIA-608 renderer (#subrenderer_create_eia608) that encodes subtitles
      *   using the EIA-608 standard for closed captions (on NTSC TVs).
      * 
      * If this parameter is NULL, a default RDPQ renderer will be created

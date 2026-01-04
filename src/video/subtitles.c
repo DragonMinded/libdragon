@@ -89,6 +89,7 @@
 #include "subtitles.h"
 #include "../asset.h"
 #include "../utils.h"
+#include "display.h"
 #include "rspq.h"
 #include "rdpq.h"
 #include "rdpq_rect.h"
@@ -315,14 +316,16 @@ typedef struct {
 static void subrenderer_rdpq_render(subrenderer_t* base, subtitle_cue_t *cues, int num_cues)
 {
     subrenderer_rdpq_t *sr = (subrenderer_rdpq_t*)base;
+    int canvas_width = sr->base.canvas_width ? sr->base.canvas_width : display_get_width();
+    int canvas_height = sr->base.canvas_height ? sr->base.canvas_height : display_get_height();
 
     const int WIDTH_MARGIN = 10;
 
     int x0 = WIDTH_MARGIN;
     int y0s[3] = {
-        sr->base.canvas_height - 60,               // bottom
+        canvas_height - 60,               // bottom
         10,                                   // top
-        sr->base.canvas_height / 2 - 40            // center
+        canvas_height / 2 - 40            // center
     };
     rdpq_valign_t valigns[3] = {
         VALIGN_BOTTOM,
@@ -331,8 +334,8 @@ static void subrenderer_rdpq_render(subrenderer_t* base, subtitle_cue_t *cues, i
     };
 
     rdpq_textparms_t textparms = {
-        .width = sr->base.canvas_width - 2 * WIDTH_MARGIN,
-        .height = sr->base.canvas_height / 4,
+        .width = canvas_width - 2 * WIDTH_MARGIN,
+        .height = canvas_height / 4,
         .align = ALIGN_CENTER,
         .wrap = WRAP_WORD,
         .char_spacing = 1,
@@ -413,7 +416,7 @@ static void subrenderer_rdpq_free(subrenderer_t* base) {
     }
 }
 
-subrenderer_t* subrenderer_rdpq_create(subrenderer_rdpq_parms_t *parms)
+subrenderer_t* subrenderer_create_rdpq(subrenderer_rdpq_parms_t *parms)
 {
     subrenderer_rdpq_t *renderer = malloc(sizeof(subrenderer_rdpq_t));
     assertf(renderer, "Out of memory");

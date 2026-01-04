@@ -85,13 +85,11 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 
         // Create a default subtitle renderer if none provided
         if (!subrenderer)
-            subrenderer = subrenderer_rdpq_create(
+            subrenderer = subrenderer_create_rdpq(
                 &(subrenderer_rdpq_parms_t){
                     .bkg_color = RGBA32(0,0,0,128)
                 }
             );
-
-        subrenderer_set_frame_size(subrenderer, display_get_width(), display_get_height());
     }
 
     int frame_idx = 0;

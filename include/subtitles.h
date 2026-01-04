@@ -16,7 +16,7 @@
  * This library provides a simple API to load and parse SUB64 files. It also
  * offers 3 different backends to visualize subtitles on the screen:
  *
- * - Via #rdpq_text API to perform hardware-accelerated text rendering. This is
+ * - Via rdpq_text.h API to perform hardware-accelerated text rendering. This is
  *   the most efficient way to render subtitles on top of videos. You can provide
  *   your own font files in font64 format. Coloring can be adjusted at runtime,
  *   including foreground and background color and opacity.
@@ -126,7 +126,6 @@ int subtitles_get_current_cues(subtitles_t *sub, subtitle_cue_t *cues, int max_c
  *
  * @param sub                 Handle to the subtitles
  * @param frame_idx           Frame index to seek to
- * @return int                0 if the seek was successful, -1 otherwise.
  */
 void subtitles_seek(subtitles_t *sub, int frame_idx);
 
@@ -181,12 +180,43 @@ typedef struct {
  * @param parms              Parameters for the RDPQ renderer (fonts, background color, etc.)
  * @return subrenderer_t*    Handle to the created subtitle renderer
  */
-subrenderer_t* subrenderer_rdpq_create(subrenderer_rdpq_parms_t *parms);
+subrenderer_t* subrenderer_create_rdpq(subrenderer_rdpq_parms_t *parms);
 
+/**
+ * @brief Create an EIA-608 subtitle renderer.
+ * 
+ * @return subrenderer_t* 
+ */
+subrenderer_t* subrenderer_create_eia608(void);
+
+/**
+ * @brief Set a custom frame size for the subtitle renderer.
+ * 
+ * By default, the subtitle renderer assumes a frame size equal to the
+ * display size. If the video being played has a different size, this function
+ * can be used to set the correct frame size, so that subtitles are rendered
+ * in the correct position.
+ * 
+ * @param base        Subtitle renderer handle
+ * @param width       Frame width
+ * @param height      Frame height
+ */
 void subrenderer_set_frame_size(subrenderer_t *base, int width, int height);
 
+/**
+ * @brief Render the subtitles for the current frame.
+ * 
+ * @param renderer      Subtitle renderer handle
+ * @param cues          Array of cues to render
+ * @param num_cues      Number of cues in the array
+ */
 void subrenderer_render(subrenderer_t *renderer, subtitle_cue_t *cues, int num_cues);
 
+/**
+ * @brief Free the subtitle renderer.
+ * 
+ * @param renderer      Subtitle renderer handle
+ */
 void subrenderer_free(subrenderer_t *renderer);
 
 /** @} */
