@@ -336,22 +336,6 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         memset( surfaces[i].buffer, 0, __width * __height * __bitdepth );
     }
 
-#if 0
-    if( get_tv_type() == TV_PAL && res.pal60 )
-    {
-        /* 60Hz PAL is a regular PAL video mode with NTSC-like V_SYNC and V_VIDEO */
-
-        /* NOTE: Ideally V_SYNC would be 524/525, matching NTSC, however in practice this appears
-                to cause too-slow retrace intervals. Instead we use 518/519 half-lines which is
-                only a 1.14% deviation, the expectation is that this is within the tolerance ranges
-                of almost all devices.
-                Alternatively we could have elected to shorten H_SYNC, however H_SYNC is expected
-                to be less tolerant than V_SYNC so we opt to leave it alone at the nominal value. */
-        vi_write_safe(VI_V_TOTAL, VI_V_TOTAL_SET(526 - 6 - serrate));
-        vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
-    }
-#endif
-
     /* Set the first buffer as the displaying buffer */
     now_showing = 0;
     drawing_mask = 0;
