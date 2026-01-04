@@ -64,7 +64,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     }
 
     subtitles_t* subs = NULL;
-    subrenderer_t* subrenderer = NULL;
+    subrenderer_t* subrenderer = parms->sub_renderer;
     if (!parms->disable_subtitles) {
         // Open subtitles
         const char *subs_fn = parms->subtitles_fn;
@@ -82,8 +82,16 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 
         // Load subtitles
         subs = subtitles_load(subs_fn);
-        subrenderer = subrenderer_rdpq_create(
-            display_get_width(), display_get_height(), NULL);
+
+        // Create a default subtitle renderer if none provided
+        if (!subrenderer)
+            subrenderer = subrenderer_rdpq_create(
+                &(subrenderer_rdpq_parms_t){
+                    .bkg_color = RGBA32(0,0,0,128)
+                }
+            );
+
+        subrenderer_set_frame_size(subrenderer, display_get_width(), display_get_height());
     }
 
     int frame_idx = 0;

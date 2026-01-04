@@ -26,16 +26,13 @@
  * - `f32 fps` (IEEE754, big-endian)
  * - `u32 num_frames` (number of frames in the subtitle stream)
  * - `u32 num_syncs` (number of syncpoints)
- * - `u32 idx_off` (absolute byte offset to the IDX0 section)
- * - `u32 delt_off` (absolute byte offset to the DELT section)
- * - `u32 opc_off` (absolute byte offset to the OPC0 section)
- * - `u32 txt_off` (absolute byte offset to the TXT0 section)
+ * - `u8[44+44+4] runtime_state` (reserved for runtime state; empty in the file)
  *
  * @subsection sub64_idx0 IDX0 (seek index)
  *
  * `IDX0` is an array of `idx0_count` fixed-size entries (16 bytes each):
  *
- * - `u32 sync_frame`
+ * - `u32 sync_frame` frame index of the syncpoint
  * - `u32 delt_off` absolute byte offset to a position inside `DELT`
  * - `u32 opc_off`  absolute byte offset to a position inside `OPC0`
  * - `u32 txt_off`  absolute byte offset to a position inside `TXT0`
@@ -92,7 +89,12 @@
 #include "subtitles.h"
 #include "../asset.h"
 #include "../utils.h"
+#include "rspq.h"
+#include "rdpq.h"
+#include "rdpq_rect.h"
+#include "rdpq_mode.h"
 #include "rdpq_text.h"
+#include "rdpq_paragraph.h"
 #include "rdpq_font.h"
 #include "debug.h"
 #include <stddef.h>
@@ -294,6 +296,8 @@ void subtitles_seek(subtitles_t *sub, int frame_idx)
 typedef struct subrenderer_s subrenderer_t;
 
 typedef struct subrenderer_s {
+    int canvas_width;
+    int canvas_height;
     void (*render)(subrenderer_t *renderer, subtitle_cue_t *cues, int num_cues);
     void (*free)(subrenderer_t *renderer);
 } subrenderer_t;
@@ -301,8 +305,8 @@ typedef struct subrenderer_s {
 
 typedef struct {
     subrenderer_t base;
-    int canvas_width;
-    int canvas_height;
+    const char *par_cue[3];
+    rspq_block_t *pars[3];
     subrenderer_rdpq_parms_t parms;
     rdpq_font_t *fonts[3]; // 0=normal, 1=bold, 2=italic
 } subrenderer_rdpq_t;
@@ -315,10 +319,10 @@ static void subrenderer_rdpq_render(subrenderer_t* base, subtitle_cue_t *cues, i
     const int WIDTH_MARGIN = 10;
 
     int x0 = WIDTH_MARGIN;
-    int y0[3] = {
-        sr->canvas_height - 60,               // bottom
+    int y0s[3] = {
+        sr->base.canvas_height - 60,               // bottom
         10,                                   // top
-        sr->canvas_height / 2 - 40            // center
+        sr->base.canvas_height / 2 - 40            // center
     };
     rdpq_valign_t valigns[3] = {
         VALIGN_BOTTOM,
@@ -327,10 +331,11 @@ static void subrenderer_rdpq_render(subrenderer_t* base, subtitle_cue_t *cues, i
     };
 
     rdpq_textparms_t textparms = {
-        .width = sr->canvas_width - 2 * WIDTH_MARGIN,
-        .height = sr->canvas_height / 4,
+        .width = sr->base.canvas_width - 2 * WIDTH_MARGIN,
+        .height = sr->base.canvas_height / 4,
         .align = ALIGN_CENTER,
         .wrap = WRAP_WORD,
+        .char_spacing = 1,
         .disable_aa_fix = true,
     };
 
@@ -338,7 +343,63 @@ static void subrenderer_rdpq_render(subrenderer_t* base, subtitle_cue_t *cues, i
         subtitle_cue_t *cue = &cues[i];
         if (!cue->visible) continue;
         textparms.valign = valigns[cue->region_hint];
-        rdpq_text_print(&textparms, i+1, x0, y0[cue->region_hint], cue->text);
+        int y0 = y0s[cue->region_hint];
+
+        if (sr->par_cue[cue->region_hint] != cue->text) {
+            sr->par_cue[cue->region_hint] = cue->text;
+            if (sr->pars[cue->region_hint]) {
+                rdpq_call_deferred((void(*)(void*))rspq_block_free, sr->pars[cue->region_hint]);
+                sr->pars[cue->region_hint] = NULL;
+            }
+
+            rspq_block_begin();
+
+            int nbytes = strlen(cue->text);
+            rdpq_paragraph_t *par = rdpq_paragraph_build(
+                &textparms, 1, cue->text, &nbytes);
+
+            if (sr->parms.bkg_color.a > 0) {
+                // Draw background box
+                if (sr->parms.bkg_color.a == 255) {
+                    rdpq_set_fill_color(sr->parms.bkg_color);
+                } else {
+                    rdpq_set_mode_standard();
+                    rdpq_set_prim_color(sr->parms.bkg_color);
+                    rdpq_mode_combiner(RDPQ_COMBINER_FLAT);
+                    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+                }
+
+                debugf("Bounding box for subtitle region %d: "
+                    "x0=%f, y0=%f, x1=%f, y1=%f\n",
+                    cue->region_hint,
+                    par->bbox.x0,
+                    par->bbox.y0,
+                    par->bbox.x1,
+                    par->bbox.y1
+                );
+                debugf("Drawing subtitle background box at region %d: "
+                    "x0=%d, y0=%d, x1=%d, y1=%d\n",
+                    cue->region_hint,
+                    (int)(x0 - 5 + par->bbox.x0),
+                    (int)(y0 - 5 + par->bbox.y0),
+                    (int)(x0 + 5 + par->bbox.x1),
+                    (int)(y0 + 5 + par->bbox.y1)
+                );
+
+                rdpq_fill_rectangle(
+                    x0 - 5 + par->bbox.x0,
+                    y0 - 5 + par->bbox.y0,
+                    x0 + 5 + par->bbox.x1,
+                    y0 + 5 + par->bbox.y1
+                );
+            }
+
+            rdpq_paragraph_render(par, x0, y0);
+            rdpq_paragraph_free(par);
+            sr->pars[cue->region_hint] = rspq_block_end();
+        }
+
+        rspq_block_run(sr->pars[cue->region_hint]);
     }
 }
 
@@ -352,7 +413,7 @@ static void subrenderer_rdpq_free(subrenderer_t* base) {
     }
 }
 
-subrenderer_t* subrenderer_rdpq_create(int width, int height, subrenderer_rdpq_parms_t *parms)
+subrenderer_t* subrenderer_rdpq_create(subrenderer_rdpq_parms_t *parms)
 {
     subrenderer_rdpq_t *renderer = malloc(sizeof(subrenderer_rdpq_t));
     assertf(renderer, "Out of memory");
@@ -361,8 +422,6 @@ subrenderer_t* subrenderer_rdpq_create(int width, int height, subrenderer_rdpq_p
 
     renderer->base.render = subrenderer_rdpq_render;
     renderer->base.free = subrenderer_rdpq_free;
-    renderer->canvas_width = width;
-    renderer->canvas_height = height;
 
     for (int i = 0; i < 3; i++) {
         if (renderer->parms.fonts[i]) {
@@ -381,6 +440,11 @@ subrenderer_t* subrenderer_rdpq_create(int width, int height, subrenderer_rdpq_p
     }
 
     return &renderer->base;
+}
+
+void subrenderer_set_frame_size(subrenderer_t *base, int width, int height) {
+    base->canvas_width = width;
+    base->canvas_height = height;
 }
 
 void subrenderer_render(subrenderer_t *renderer, subtitle_cue_t *cues, int num_cues) {

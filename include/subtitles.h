@@ -178,12 +178,12 @@ typedef struct {
  * This renderer uses the rdpq_text API to render subtitles on the screen.
  * It is the most efficient way to render subtitles on top of videos.
  * 
- * @param width              Width of the rendering canvas
- * @param height             Height of the rendering canvas
  * @param parms              Parameters for the RDPQ renderer (fonts, background color, etc.)
  * @return subrenderer_t*    Handle to the created subtitle renderer
  */
-subrenderer_t* subrenderer_rdpq_create(int width, int height, subrenderer_rdpq_parms_t *parms);
+subrenderer_t* subrenderer_rdpq_create(subrenderer_rdpq_parms_t *parms);
+
+void subrenderer_set_frame_size(subrenderer_t *base, int width, int height);
 
 void subrenderer_render(subrenderer_t *renderer, subtitle_cue_t *cues, int num_cues);
 
