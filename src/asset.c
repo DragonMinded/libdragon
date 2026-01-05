@@ -43,43 +43,53 @@
  * Only level 1 (LZ4) is always initialized. The other algorithm (LZH5)
  * must be initialized manually via #asset_init_compression.
  */
-static asset_compression_t algos[3] = {
-    {
+__attribute__((used))
+static asset_compression_full_t algos_full[3] = {
+{
+        #ifdef N64
+        .decompress_full = decompress_lz4_full_inplace,
+        #endif
+    },
+};
+
+static asset_compression_stream_t algos_stream[3] = {
+{
         .state_size = DECOMPRESS_LZ4_STATE_SIZE,
         .decompress_init = decompress_lz4_init,
         .decompress_read = decompress_lz4_read,
         .decompress_reset = decompress_lz4_reset,
-        #ifdef N64
-        .decompress_full = decompress_lz4_full_inplace,
-        #endif /* N64 */
-    }
+    },
 };
 
 /** @brief Initialize compression level 2 (APLIB) */
 void __asset_init_compression_lvl2(void)
 {
-    algos[1] = (asset_compression_t){
+    #ifdef N64
+    algos_full[1] = (asset_compression_full_t){
+        .decompress_full = decompress_aplib_full_inplace,
+    };
+    #endif
+    algos_stream[1] = (asset_compression_stream_t){
         .state_size = DECOMPRESS_APLIB_STATE_SIZE,
         .decompress_init = decompress_aplib_init,
         .decompress_read = decompress_aplib_read,
         .decompress_reset = decompress_aplib_reset,
-        #ifdef N64
-        .decompress_full = decompress_aplib_full_inplace,
-        #endif /* N64 */
     };
 }
 
 /** @brief Initialize compression level 3 (SHRINKLER) */
 void __asset_init_compression_lvl3(void)
 {
-    algos[2] = (asset_compression_t){
+    #ifdef N64
+    algos_full[2] = (asset_compression_full_t){
+        .decompress_full = decompress_shrinkler_full_inplace,
+    };
+    #endif
+    algos_stream[2] = (asset_compression_stream_t){
         .state_size = DECOMPRESS_SHRINKLER_STATE_SIZE,
         .decompress_init = decompress_shrinkler_init,
         .decompress_read = decompress_shrinkler_read,
         .decompress_reset = decompress_shrinkler_reset,
-        #ifdef N64
-        .decompress_full = decompress_shrinkler_full_inplace,
-        #endif /* N64 */
     };
 }
 
@@ -114,7 +124,8 @@ FILE *must_fopen(const char *fn)
     return fdopen(must_open(fn), "rb");
 }
 
-static bool decompress_full_stream(asset_compression_t *algo, int fd, uint16_t flags, size_t size, void *buf, int *buf_size)
+__attribute__((used))
+static bool decompress_full_stream(asset_compression_stream_t *algo, int fd, uint16_t flags, size_t size, void *buf, int *buf_size)
 {
     if (buf == NULL || *buf_size < (int)size) {
         *buf_size = (int)size;
@@ -137,7 +148,8 @@ static bool decompress_full_stream(asset_compression_t *algo, int fd, uint16_t f
     return true;
 }
 
-static bool decompress_full(asset_compression_t *algo, int fd, size_t cmp_size, size_t size, int margin, void *buf, int *buf_size)
+__attribute__((used))
+static bool decompress_full(asset_compression_full_t *algo, int fd, size_t cmp_size, size_t size, int margin, void *buf, int *buf_size)
 {
     // Consistency check on input data
     assert(margin >= 0);
@@ -212,8 +224,13 @@ static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
         int algo = ASSET_FLAG_ALGO(header->base.flags);
         assertf(algo >= 1 && algo <= 3,
             "unsupported compression algorithm: %d", algo);
-        assertf(algos[algo-1].decompress_full || (algos[algo-1].decompress_init && algos[algo-1].decompress_read),
+        #ifdef N64
+        assertf(algos_full[algo-1].decompress_full,
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
+        #else
+        assertf(algos_stream[algo-1].decompress_init && algos_stream[algo-1].decompress_read,
+            "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
+        #endif
         return asset_buf_size(header->orig_size, header->cmp_size, header->inplace_margin, NULL);
     } else {
         // Seek back before the header.
@@ -229,10 +246,12 @@ static bool asset_read(int fd, asset_parsed_header_t *header, int *sz, void *buf
         bool ret;
         int algo = ASSET_FLAG_ALGO(header->base.flags);
 
-        if (algos[algo-1].decompress_full)
-            ret = decompress_full(&algos[algo-1], fd, header->cmp_size, header->orig_size, header->inplace_margin, buf, buf_size);
-        else
-            ret = decompress_full_stream(&algos[algo-1], fd, header->base.flags, header->orig_size, buf, buf_size);
+        #ifdef N64
+        ret = decompress_full(&algos_full[algo-1], fd, header->cmp_size, header->orig_size, header->inplace_margin, buf, buf_size);
+        #else
+        // On PC, full decompression is implemented by consuming the streaming decoder.
+        ret = decompress_full_stream(&algos_stream[algo-1], fd, header->base.flags, header->orig_size, buf, buf_size);
+        #endif
         if(ret) {
             *sz = header->orig_size;
         }
@@ -425,17 +444,15 @@ FILE *asset_fdopen(int fd, int *sz)
         int algo = ASSET_FLAG_ALGO(header.base.flags);
         assertf(algo >= 1 && algo <= 3,
             "unsupported compression algorithm: %d", algo);
-        assertf(algos[algo-1].decompress_full || (algos[algo-1].decompress_init && algos[algo-1].decompress_read),
+        assertf(algos_stream[algo-1].decompress_init,
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
-        assertf(algos[algo-1].decompress_init, 
-            "asset: compression level %d does not currently support asset_fopen()", algo);
 
         int winsize = asset_winsize_from_flags(header.base.flags);
-        cookie = malloc(sizeof(cookie_cmp_t) + algos[algo-1].state_size + winsize);
+        cookie = malloc(sizeof(cookie_cmp_t) + algos_stream[algo-1].state_size + winsize);
         assertf(cookie, "Out of memory");
-        cookie->read = algos[algo-1].decompress_read;
-        cookie->reset = algos[algo-1].decompress_reset;
-        algos[algo-1].decompress_init(cookie->state, fd, winsize);
+        cookie->read = algos_stream[algo-1].decompress_read;
+        cookie->reset = algos_stream[algo-1].decompress_reset;
+        algos_stream[algo-1].decompress_init(cookie->state, fd, winsize);
         cookie->fd = fd;
         cookie->pos = 0;
         cookie->seeked = false;

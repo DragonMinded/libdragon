@@ -90,6 +90,20 @@ typedef struct {
 
 /** @brief A decompression algorithm used by the asset library */
 typedef struct {
+    /**
+     * @brief Decompress a full file already available in memory (possibly racing with DMA on N64)
+     *
+     * Optional fast-path, typically implemented in assembly on N64.
+     * When unavailable, callers can always fall back to the streaming API
+     * (decompress_init/decompress_read) to load the full file.
+     *
+     * @return number of bytes written, or <0 on error
+     */
+    int (*decompress_full)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);
+} asset_compression_full_t;
+
+/** @brief A streaming decompression algorithm used by the asset library */
+typedef struct {
     int state_size;     ///< Basic size of the decompression state (without ringbuffer)
 
     /** @brief Initialize the decompression state */
@@ -100,18 +114,7 @@ typedef struct {
 
     /** @brief Reset decompression state after rewind */
     void (*decompress_reset)(void *state);
-
-    /**
-     * @brief Decompress a full file already available in memory (possibly racing with DMA on N64)
-     *
-     * This is an optional fast-path, typically implemented in assembly on N64.
-     * When unavailable, callers can always fall back to the streaming API
-     * (decompress_init/decompress_read) to load the full file.
-     *
-     * @return number of bytes written, or <0 on error
-     */
-    int (*decompress_full)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);
-} asset_compression_t;
+} asset_compression_stream_t;
 
 /** @brief Open a file as FILE* and assert on error */
 FILE *must_fopen(const char *fn);
