@@ -99,9 +99,13 @@ void asset_compress_mem_raw(int compression, const uint8_t *data, int sz, uint8_
         *margin = stats.safe_dist + *cmp_size - sz;
     }   break;
     case 3: { // shrinkler
-        *winsize = 256*1024; // FIXME
+        if (*winsize == 0) {
+            *winsize = 256*1024;
+            while (sz < *winsize && *winsize > 2*1024)
+                *winsize /= 2;
+        }
         int inplace_margin;
-        *output = shrinkler_compress(data, sz, 3, cmp_size, &inplace_margin);
+        *output = shrinkler_compress(data, sz, 3, *winsize, cmp_size, &inplace_margin);
         // Shrinkler seems to return negative margin values because we asked to
         // verify using 4 byte reads. Just clamp to zero.
         *margin = inplace_margin > 0 ? inplace_margin : 0;
@@ -172,9 +176,13 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         return sz;
     }   break;
     case 3: { // shrinkler
-        winsize = 256*1024; // FIXME
+        if (winsize == 0) {
+            winsize = 256*1024;
+            while (sz < winsize && winsize > 2*1024)
+                winsize /= 2;
+        }
         int cmp_size; int inplace_margin;
-        uint8_t *output = shrinkler_compress(data, sz, 3, &cmp_size, &inplace_margin);
+        uint8_t *output = shrinkler_compress(data, sz, 3, winsize, &cmp_size, &inplace_margin);
         // Shrinkler seems to return negative margin values because we asked to
         // verify using 4 byte reads. Just clamp to zero.
         inplace_margin = inplace_margin > 0 ? inplace_margin : 0;
