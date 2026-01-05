@@ -49,7 +49,7 @@ static asset_compression_t algos[3] = {
         .decompress_init = decompress_lz4_init,
         .decompress_read = decompress_lz4_read,
         .decompress_reset = decompress_lz4_reset,
-        .decompress_full_inplace = decompress_lz4_full_inplace,
+        .decompress_full = decompress_lz4_full_inplace,
     }
 };
 
@@ -61,11 +61,9 @@ void __asset_init_compression_lvl2(void)
         .decompress_init = decompress_aplib_init,
         .decompress_read = decompress_aplib_read,
         .decompress_reset = decompress_aplib_reset,
-        #if DECOMPRESS_APLIB_FULL_USE_ASM
-        .decompress_full_inplace = decompress_aplib_full_inplace,
-        #else
-        .decompress_full = decompress_aplib_full,
-        #endif
+        #ifdef N64
+        .decompress_full = decompress_aplib_full_inplace,
+        #endif /* N64 */
     };
 }
 
@@ -77,11 +75,9 @@ void __asset_init_compression_lvl3(void)
         .decompress_init = decompress_shrinkler_init,
         .decompress_read = decompress_shrinkler_read,
         .decompress_reset = decompress_shrinkler_reset,
-        #if DECOMPRESS_SHRINKLER_FULL_USE_ASM
-        .decompress_full_inplace = decompress_shrinkler_full_inplace,
-        #else
-        .decompress_full = decompress_shrinkler_full,
-        #endif
+        #ifdef N64
+        .decompress_full = decompress_shrinkler_full_inplace,
+        #endif /* N64 */
     };
 }
 
@@ -116,7 +112,30 @@ FILE *must_fopen(const char *fn)
     return fdopen(must_open(fn), "rb");
 }
 
-static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_size, size_t size, int margin, void *buf, int *buf_size)
+static bool decompress_full_stream(asset_compression_t *algo, int fd, uint16_t flags, size_t size, void *buf, int *buf_size)
+{
+    if (buf == NULL || *buf_size < (int)size) {
+        *buf_size = (int)size;
+        return false;
+    }
+    #ifdef N64
+    assertf(((uintptr_t)(buf) & (ASSET_ALIGNMENT_MIN-1)) == 0, "Asset buffer incorrectly aligned.");
+    #endif
+
+    assertf(algo->decompress_init && algo->decompress_read,
+        "asset: compression level does not support streaming decompression");
+
+    int winsize = asset_winsize_from_flags(flags);
+    uint8_t *state = malloc(algo->state_size + winsize);
+    assertf(state, "Out of memory");
+    algo->decompress_init(state, fd, winsize);
+    int n = algo->decompress_read(state, buf, size);
+    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, size);
+    free(state);
+    return true;
+}
+
+static bool decompress_full(asset_compression_t *algo, int fd, size_t cmp_size, size_t size, int margin, void *buf, int *buf_size)
 {
     // Consistency check on input data
     assert(margin >= 0);
@@ -150,7 +169,7 @@ static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
         dma_read_async(s+cmp_offset, addr, cmp_size);
 
         // Run the decompression racing with the DMA.
-        n = algo->decompress_full_inplace(s+cmp_offset, cmp_size, s, size); (void)n;
+        n = algo->decompress_full(s+cmp_offset, cmp_size, s, size); (void)n;
     #else
     if (false) {
     #endif
@@ -159,7 +178,7 @@ static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
         read(fd, s+cmp_offset, cmp_size);
 
         // Run the decompression.
-        n = algo->decompress_full_inplace(s+cmp_offset, cmp_size, s, size); (void)n;
+        n = algo->decompress_full(s+cmp_offset, cmp_size, s, size); (void)n;
     }
     assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, size);
     return true;
@@ -170,7 +189,7 @@ static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
     int rdhead = read(fd, &header->base, sizeof(asset_header_t));
     
     if (memcmp(header->base.magic, ASSET_MAGIC, 3) == 0) {
-        if (header->base.version != '4') {
+        if (header->base.version != '5') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header->base.version);
         }
 
@@ -190,7 +209,7 @@ static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
         int algo = ASSET_FLAG_ALGO(header->base.flags);
         assertf(algo >= 1 && algo <= 3,
             "unsupported compression algorithm: %d", algo);
-        assertf(algos[algo-1].decompress_full || algos[algo-1].decompress_full_inplace, 
+        assertf(algos[algo-1].decompress_full || (algos[algo-1].decompress_init && algos[algo-1].decompress_read),
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
         return asset_buf_size(header->orig_size, header->cmp_size, header->inplace_margin, NULL);
     } else {
@@ -207,10 +226,10 @@ static bool asset_read(int fd, asset_parsed_header_t *header, int *sz, void *buf
         bool ret;
         int algo = ASSET_FLAG_ALGO(header->base.flags);
 
-        if ((header->base.flags & ASSET_FLAG_INPLACE) && algos[algo-1].decompress_full_inplace)
-            ret = decompress_inplace(&algos[algo-1], fd, header->cmp_size, header->orig_size, header->inplace_margin, buf, buf_size);
+        if (algos[algo-1].decompress_full)
+            ret = decompress_full(&algos[algo-1], fd, header->cmp_size, header->orig_size, header->inplace_margin, buf, buf_size);
         else
-            ret = algos[algo-1].decompress_full(fd, header->cmp_size, header->orig_size, buf, buf_size);
+            ret = decompress_full_stream(&algos[algo-1], fd, header->base.flags, header->orig_size, buf, buf_size);
         if(ret) {
             *sz = header->orig_size;
         }
@@ -382,7 +401,7 @@ FILE *asset_fdopen(int fd, int *sz)
     asset_parsed_header_t header;
     int rdhead = read(fd, &header.base, sizeof(asset_header_t));
     if (memcmp(header.base.magic, ASSET_MAGIC, 3) == 0) {
-        if (header.base.version != '4') {
+        if (header.base.version != '5') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.base.version);
             return NULL;
         }
@@ -391,8 +410,7 @@ FILE *asset_fdopen(int fd, int *sz)
         header.cmp_size = __read_varint_u64(&ptr);
         header.orig_size = __read_varint_u64(&ptr);
         header.inplace_margin = __read_varint_u64(&ptr);
-        // NOTE: avoid void* pointer arithmetic here (non-standard / compiler-dependent).
-        int header_size = (int)((uintptr_t)ptr - (uintptr_t)&header.base);
+        int header_size = (void*)ptr - (void*)&header;
         if (header_size & 1) header_size++;
         
         // Seek back to the actual end of the header
@@ -403,7 +421,7 @@ FILE *asset_fdopen(int fd, int *sz)
         int algo = ASSET_FLAG_ALGO(header.base.flags);
         assertf(algo >= 1 && algo <= 3,
             "unsupported compression algorithm: %d", algo);
-        assertf(algos[algo-1].decompress_full || algos[algo-1].decompress_full_inplace, 
+        assertf(algos[algo-1].decompress_full || (algos[algo-1].decompress_init && algos[algo-1].decompress_read),
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
         assertf(algos[algo-1].decompress_init, 
             "asset: compression level %d does not currently support asset_fopen()", algo);

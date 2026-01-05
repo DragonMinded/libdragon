@@ -21,7 +21,6 @@
 #define ASSET_FLAG_WINSIZE_64K      0x05    ///< 64 KiB window size
 #define ASSET_FLAG_WINSIZE_128K     0x06    ///< 128 KiB window size
 #define ASSET_FLAG_WINSIZE_256K     0x07    ///< 256 KiB window size
-#define ASSET_FLAG_INPLACE          0x08    ///< Decompress in-place
 #define ASSET_FLAG_ALGO_SHIFT       4       ///< Shift to isolate the compression algorithm
 #define ASSET_ALIGNMENT             32      ///< Aligned to instruction cacheline
 
@@ -102,11 +101,16 @@ typedef struct {
     /** @brief Reset decompression state after rewind */
     void (*decompress_reset)(void *state);
 
-    /** @brief Decompress a full file in one go */
-    bool (*decompress_full)(int fd, size_t cmp_size, size_t len, void *buf, int *buf_size);
-
-    /** @brief Decompress a full file in-place */
-    int (*decompress_full_inplace)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);
+    /**
+     * @brief Decompress a full file already available in memory (possibly racing with DMA on N64)
+     *
+     * This is an optional fast-path, typically implemented in assembly on N64.
+     * When unavailable, callers can always fall back to the streaming API
+     * (decompress_init/decompress_read) to load the full file.
+     *
+     * @return number of bytes written, or <0 on error
+     */
+    int (*decompress_full)(const uint8_t *in, size_t cmp_size, uint8_t *out, size_t len);
 } asset_compression_t;
 
 /** @brief Open a file as FILE* and assert on error */
