@@ -229,13 +229,14 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
             .func = func,
             .file = file,
             .line = line,
-            .is_func = is_func,
+            .is_func = false,
             .is_inline = true,
         }));
         at_least_one = true;
     }
     assert(at_least_one);
     symtable[stbds_arrlen(symtable)-1].is_inline = false;
+    symtable[stbds_arrlen(symtable)-1].is_func = is_func;
 
     // Read and skip the two remaining lines (function and file position)
     // that refers to the dummy 0x0 address
@@ -469,17 +470,7 @@ int compress_symbols(
 
     for (int i=0; i<nsyms; i++) {
         struct symtable_s *sym = &symtable[i];
-        struct symtable_s *prev_sym = i > 0 ? &symtable[i-1] : NULL;
 
-        // If a function contains a jal as first opcode, we will find two symbols here:
-        // one for the function start, and one for the callsite. We need to skip the second one.
-        if (prev_sym && prev_sym->is_func && !sym->is_func && prev_sym->addr == sym->addr)
-            continue;
-
-        // Sometimes we get spurious inlines; skip those as well
-        if (prev_sym && prev_sym->is_inline && !sym->is_inline && prev_sym->addr == sym->addr)
-            continue;
-        
         int file_idx = stbds_shget(file_map, sym->file);
         int func_idx = stbds_shget(func_map, sym->func);
         
@@ -491,8 +482,8 @@ int compress_symbols(
         bool flush = (stbds_arrlen(chunk_buf) > MAX_BUFFER_SIZE - 32);
         
         if (flush) {
-            // End of chunk marker
-            stbds_arrput(chunk_buf, 0x00);
+            // End of chunk marker (EOM)
+            stbds_arrput(chunk_buf, 0x18);
 
             // Pad chunk to 2 bytes alignment for DMA
             if (stbds_arrlen(chunk_buf) % 2 != 0)
@@ -546,7 +537,7 @@ int compress_symbols(
             has_addr_param = true;
         }
         
-        assert(op != 0x00 && "Opcode should never be 0 (EOM) within the stream");
+        assert(op != 0x18 && "Opcode should never be 0x18 (EOM) within the stream");
         stbds_arrput(chunk_buf, op);
         if (delta_file != 0) w_signed_varint(&chunk_buf, delta_file);
         if (delta_func != 0) w_signed_varint(&chunk_buf, delta_func);
@@ -568,7 +559,7 @@ int compress_symbols(
     if (stbds_arrlen(chunk_buf) > 0) {
         stbds_arrput(*chunk_index, chunk_start_addr);
         stbds_arrput(*chunk_index, stbds_arrlen(*stream));
-        stbds_arrput(chunk_buf, 0x00); // EOM
+        stbds_arrput(chunk_buf, 0x18); // EOM
         // Pad chunk to 2 bytes alignment for DMA
         if (stbds_arrlen(chunk_buf) % 2 != 0)
             stbds_arrput(chunk_buf, 0x00);

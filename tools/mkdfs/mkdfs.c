@@ -260,14 +260,7 @@ uint32_t add_directory(const char * const base_path, const char * const path)
         }
         else if(S_ISDIR(stats.st_mode))
         {
-            const char *bname = mybasename(file);
-            uint32_t new_entry = new_blob(sizeof(directory_entry_t) + strlen(bname) + 1);
-
-            tmp_entry = sector_to_memory(new_entry);
-            tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
-            tmp_entry->next_entry = 0;
-            strcpy(tmp_entry->path, bname);
-
+            /* First check if the subdirectory has any content before allocating an entry */
             uint32_t new_directory = add_directory(base_path, file);
 
             if(!new_directory)
@@ -277,7 +270,14 @@ uint32_t add_directory(const char * const base_path, const char * const path)
                 continue;
             }
 
+            /* Subdirectory is not empty, now allocate the entry */
+            const char *bname = mybasename(file);
+            uint32_t new_entry = new_blob(sizeof(directory_entry_t) + strlen(bname) + 1);
+
             tmp_entry = sector_to_memory(new_entry);
+            tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
+            tmp_entry->next_entry = 0;
+            strcpy(tmp_entry->path, bname);
             tmp_entry->file_pointer = SWAPLONG(new_directory);
 
             if(cur_entry)

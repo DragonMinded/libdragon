@@ -77,9 +77,9 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-maxrate", std::to_string(maxrate_kbps) + "k",
 		"-bufsize", std::to_string(bufsize_kbps) + "k",
 		"-bf", "0",
-		"-g", std::to_string((int)(ar.out_fps + 0.5)),
 		"-preset", cfg.quick ? "veryfast" : "slower",
-		"-x264-params", "no-deblock=1:no-info=1",
+		// Force 4 slices per frame for easier background decoding
+		"-x264-params", "no-deblock=1:no-info=1:slices=4",
 		"-f", "h264",
 		"-progress", "pipe:1",
 		"-v", "error",
@@ -93,11 +93,19 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		verbose(1, "H.264: signaling SAR %s", sar.c_str());
 	}
 
+	// Keyframe placement options (GOP size / forced keyframes).
+	{
+		std::vector<std::string> kf = ffmpeg_keyframe_args(ar.out_fps);
+		cmd.insert(cmd.end(), kf.begin(), kf.end());
+	}
+
     cmd.push_back(er.video_path);
 
 	progress_state_t ps = { .pass_count = 1, .start_ms = now_ms(), .last_draw_ms = 0 };
 	int rc = run_ffmpeg_with_progress(cmd, ar.meta.duration, 0, ps);
-	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); fprintf(stderr, "\n"); }
+	// Do not print a newline here: next phases (eg: Audio) should reuse the same line.
+	// A single final newline is printed by main() when the whole pipeline is done.
+	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); }
 	if (rc != 0) fatal("ffmpeg failed (rc=%d)", rc);
 	return er;
 }

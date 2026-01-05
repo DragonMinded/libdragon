@@ -57,7 +57,7 @@ int main(void)
 
 	bool show_fps = false;
 	rdpq_font_t *fnt = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO);
-	rdpq_text_register_font(1, fnt);
+	rdpq_text_register_font(10, fnt);
 
 	void osd_callback(void *ctx, int frame_idx, float time_sec, fmv_control_t *ctrl)
 	{
@@ -73,11 +73,14 @@ int main(void)
 		joypad_poll();
 		joypad_buttons_t btn = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 		if (btn.z) show_fps = !show_fps;
+		if (btn.d_right) ctrl->seek_time(ctrl, time_sec + 10.0f, false);
+		if (btn.d_left)  ctrl->seek_time(ctrl, time_sec - 10.0f, false);
 		
 		// Draw FPS
-		if (show_fps)
-			rdpq_text_printf(NULL, FONT_BUILTIN_DEBUG_MONO, display_get_width() - 70, 15,
-				"FPS: %.02f", display_get_fps());
+		if (show_fps) {
+			rdpq_text_printf(NULL, 10, display_get_width() - 80, 15,
+				"FPS: %.02f\nTime: %02d:%02d", display_get_fps(), (int)(time_sec / 60), (int)time_sec % 60);
+		}
 
 		profile_next_frame();
 	}

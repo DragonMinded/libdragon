@@ -68,6 +68,7 @@
 #include "exception.h"
 #include "dir.h"
 #include "yuv.h"
+#include "subtitles.h"
 #include "fmv.h"
 #include "video.h"
 #include "mpeg1.h"

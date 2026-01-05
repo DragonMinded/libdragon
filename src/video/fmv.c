@@ -11,8 +11,11 @@
 #include "wav64.h"
 #include "display.h"
 #include "mixer.h"
+#include "subtitles.h"
+#include "graphics.h"
 #include "rdpq.h"
 #include "rdpq_attach.h"
+#include <math.h>
 
 void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 {
@@ -30,6 +33,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         .overscan_margin = parms->crt_margin ? VI_CRT_MARGIN : 0,
     }, DEPTH_32_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 
+    yuv_init();
     yuv_blitter_t yuv = yuv_blitter_new_fmv(
         info.width, info.height,
         display_get_width(), display_get_height(),
@@ -59,6 +63,35 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         audio = wav64_load(audio_fn, NULL);
     }
 
+    subtitles_t* subs = NULL;
+    subrenderer_t* subrenderer = parms->sub_renderer;
+    if (!parms->disable_subtitles) {
+        // Open subtitles
+        const char *subs_fn = parms->subtitles_fn;
+        if (!subs_fn) {
+            // Try to find subtitle file with same name but .sub64 extension
+            const char *ext = strrchr(video_fn, '.');
+            assertf(ext, "Subtitle filename not specified for video playback");
+
+            // Create subtitle filename
+            subs_fn = alloca(strlen(video_fn) + 7);
+            size_t base_len = ext - video_fn;
+            strncpy((char*)subs_fn, video_fn, base_len);
+            strcpy((char*)subs_fn + base_len, ".sub64");
+        }
+
+        // Load subtitles
+        subs = subtitles_load(subs_fn);
+
+        // Create a default subtitle renderer if none provided
+        if (!subrenderer)
+            subrenderer = subrenderer_create_rdpq(
+                &(subrenderer_rdpq_parms_t){
+                    .bkg_color = RGBA32(0,0,0,128)
+                }
+            );
+    }
+
     int frame_idx = 0;
     bool paused = false;
     bool abort = false;
@@ -69,20 +102,38 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     void ctrl_stop(fmv_control_t *ctrl) {
         abort = true;
     }
-    int ctrl_seek_frame(fmv_control_t *ctrl, int idx) {
-        frame_idx = video_seek_frame(video, idx);
+    int ctrl_seek_frame(fmv_control_t *ctrl, int idx, bool exact) {
+        frame_idx = video_seek(video, idx);
+        if (frame_idx < 0) return -1;  // seeking not supported
+        if (exact) {
+            // Decode frames until we reach the exact frame
+            while (frame_idx < idx) {
+                if (!video_next_frame(video)) break;
+                frame_idx++;
+            }
+        }
+        // Sync also audio
+        if (audio) {
+            double time_sec = (double)frame_idx / (double)info.framerate;
+            wav64_seek(audio, parms->audio_mixer_channel, time_sec);
+        }
+        if (subs) {
+            subtitles_seek(subs, frame_idx);
+        }
         return frame_idx;
     }
-    float ctrl_seek_time(fmv_control_t *ctrl, float time_sec) {
-        float actual_time = video_seek_time(video, time_sec);
-        frame_idx = (int)(actual_time * info.framerate);
-        return actual_time;
+    float ctrl_seek_time(fmv_control_t *ctrl, float time_sec, bool exact) {
+        int frame_idx = (int)(time_sec * info.framerate);
+        frame_idx = ctrl_seek_frame(ctrl, frame_idx, exact);
+        if (frame_idx < 0) return -1;   // seeking not supported
+        return (float)frame_idx / info.framerate;
     }
 
     // Prepare control structure for OSD callback
     fmv_control_t ctrl = {
         .video = video,
         .audio = audio,
+        .subs = subs,
         .pause = ctrl_pause,
         .stop = ctrl_stop,
         .seek_frame = ctrl_seek_frame,
@@ -99,12 +150,15 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
             if (!video_next_frame(video)) {
                 if (parms->loop) {
                     video_rewind(video);
+                    if (audio) wav64_seek(audio, parms->audio_mixer_channel, 0.0);
+                    if (subs) subtitles_seek(subs, 0);
                     frame_idx = 0;
                     continue;
                 } else {
                     break;
                 }
             }
+            if (subs) subtitles_next_frame(subs);
         }
 
         mixer_try_play();
@@ -123,6 +177,13 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         // Get the next video frame and feed it into our previously set up blitter.
         yuv_frame_t frame = video_get_frame(video);
         yuv_blitter_run(&yuv, &frame);
+
+        // Draw subtitles
+        if (subs) {
+            subtitle_cue_t cues[3];
+            int num_cues = subtitles_get_current_cues(subs, cues, 3);
+            subrenderer_render(subrenderer, cues, num_cues);
+        }
 
         // Call OSD callback if provided
         if (parms->osd_callback) {
@@ -143,6 +204,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     }
 
     yuv_blitter_free(&yuv);
+    yuv_close();
     video_close(video);
     display_close();
 }

@@ -33,44 +33,6 @@
 #endif
 /// @endcond
 
-/** @brief Decode multi-byte length. */
-#define LZ4ULTRA_DECOMPRESSOR_BUILD_LEN(__len) { \
-   unsigned int byte; \
-   do { \
-      if (unlikely(pInBlock >= pInBlockEnd)) return -1; \
-      if (dma_race) wait_dma(pInBlock+1); \
-      byte = (unsigned int)*pInBlock++; \
-      __len += byte; \
-   } while (unlikely(byte == 255)); \
-}
-
-#ifdef N64
-#include "dma.h"
-#endif
-
-__attribute__((used))
-static void wait_dma(const void *pIn) {
-   #ifdef N64
-   static void *ptr; static bool finished = false;
-   if (pIn == NULL) {
-      finished = false;
-      ptr = NULL;
-      return;
-   }
-   if (finished) return;
-   while (ptr < pIn) {
-      // Check if DMA is finished
-      if (!(*PI_STATUS & 1)) {
-         finished = true;
-         return;
-      }
-      // Read current DMA position. Ignore partial cachelines as they
-      // would create coherency problems if accessed by the CPU.
-      ptr = (void*)((*PI_DRAM_ADDR & ~0xF) | 0x80000000);
-   }
-   #endif
-}
-
 /**
  * Decompress one data block
  *
@@ -81,96 +43,12 @@ static void wait_dma(const void *pIn) {
  *
  * @return size of decompressed data in bytes, or -1 for error
  */
-int decompress_lz4_full_inplace(const unsigned char *pInBlock, size_t nBlockSize, unsigned char *pOutData, size_t nBlockMaxSize) {
 #ifdef N64
+ int decompress_lz4_full_inplace(const unsigned char *pInBlock, size_t nBlockSize, unsigned char *pOutData, size_t nBlockMaxSize) {
    extern int decompress_lz4_full_fast(const void *inbuf, int insize, void *outbuf);
    return decompress_lz4_full_fast(pInBlock, nBlockSize, pOutData);
-#else
-   const unsigned char *pInBlockEnd = pInBlock + nBlockSize;
-   unsigned char *pCurOutData = pOutData;
-   const unsigned char *pOutDataEnd = pCurOutData + nBlockMaxSize;
-   const unsigned char *pOutDataFastEnd = pOutDataEnd - 18;
-   const bool dma_race = true;
-
-   if (dma_race) wait_dma(NULL);
-   while (likely(pInBlock < pInBlockEnd)) {
-      if (dma_race) wait_dma(pInBlock+1);
-      const unsigned int token = (unsigned int)*pInBlock++;
-      unsigned int nLiterals = ((token & 0xf0) >> 4);
-
-      if (nLiterals != LITERALS_RUN_LEN && pCurOutData <= pOutDataFastEnd && (pInBlock + 16) <= pInBlockEnd) {
-         if (dma_race) wait_dma(pInBlock+16);
-         memcpy(pCurOutData, pInBlock, 16);
-      }
-      else {
-         if (likely(nLiterals == LITERALS_RUN_LEN))
-            LZ4ULTRA_DECOMPRESSOR_BUILD_LEN(nLiterals);
-
-         if (unlikely((pInBlock + nLiterals) > pInBlockEnd)) return -1;
-         if (unlikely((pCurOutData + nLiterals) > pOutDataEnd)) return -2;
-
-         if (dma_race) wait_dma(pInBlock+nLiterals);
-         memcpy(pCurOutData, pInBlock, nLiterals);
-      }
-
-      pInBlock += nLiterals;
-      pCurOutData += nLiterals;
-
-      if (likely((pInBlock + 2) <= pInBlockEnd)) {
-         unsigned int nMatchOffset;
-
-         if (dma_race) wait_dma(pInBlock+2);
-         nMatchOffset = (unsigned int)*pInBlock++;
-         nMatchOffset |= ((unsigned int)*pInBlock++) << 8;
-
-         unsigned int nMatchLen = (token & 0x0f);
-
-         nMatchLen += MIN_MATCH_SIZE;
-         if (nMatchLen != (MATCH_RUN_LEN + MIN_MATCH_SIZE) && nMatchOffset >= 8 && pCurOutData <= pOutDataFastEnd) {
-            const unsigned char *pSrc = pCurOutData - nMatchOffset;
-
-            if (unlikely(pSrc < pOutData)) return -3;
-
-            memcpy(pCurOutData, pSrc, 8);
-            memcpy(pCurOutData + 8, pSrc + 8, 8);
-            memcpy(pCurOutData + 16, pSrc + 16, 2);
-
-            pCurOutData += nMatchLen;
-         }
-         else {
-            if (likely(nMatchLen == (MATCH_RUN_LEN + MIN_MATCH_SIZE)))
-               LZ4ULTRA_DECOMPRESSOR_BUILD_LEN(nMatchLen);
-
-            if (unlikely((pCurOutData + nMatchLen) > pOutDataEnd)) return -4;
-
-            const unsigned char *pSrc = pCurOutData - nMatchOffset;
-            if (unlikely(pSrc < pOutData)) return -1;
-
-            if (nMatchOffset >= 16 && (pCurOutData + nMatchLen) <= pOutDataFastEnd) {
-               const unsigned char *pCopySrc = pSrc;
-               unsigned char *pCopyDst = pCurOutData;
-               const unsigned char *pCopyEndDst = pCurOutData + nMatchLen;
-
-               do {
-                  memcpy(pCopyDst, pCopySrc, 16);
-                  pCopySrc += 16;
-                  pCopyDst += 16;
-               } while (pCopyDst < pCopyEndDst);
-
-               pCurOutData += nMatchLen;
-            }
-            else {
-               while (nMatchLen--) {
-                  *pCurOutData++ = *pSrc++;
-               }
-            }
-         }
-      }
-   }
-
-   return (int)(pCurOutData - pOutData);
-#endif
 }
+#endif
 
 /**
  * @brief Fast-access state of the LZ4 algorithm (streaming version).

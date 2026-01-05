@@ -11,6 +11,24 @@
 #include "videoconv64.h"
 
 #include <time.h>
+#include <stdio.h>
+#include <string.h>
+#include <atomic>
+
+static std::atomic<int> g_progress_mode{ (int)PROGRESS_MODE_VIDEO };
+
+void progressbar_set_mode(progress_mode_t mode) {
+	g_progress_mode.store((int)mode, std::memory_order_relaxed);
+}
+
+const char* progressbar_get_mode_label(void) {
+	switch ((progress_mode_t)g_progress_mode.load(std::memory_order_relaxed)) {
+		case PROGRESS_MODE_VIDEO: return "Video";
+		case PROGRESS_MODE_AUDIO: return "Audio";
+		case PROGRESS_MODE_VIDEO_AUDIO: return "Video/Audio";
+		default: return "Video";
+	}
+}
 
 int64_t now_ms(void) {
 	struct timespec ts;
@@ -23,6 +41,85 @@ void sleep_ms(int ms) {
 	ts.tv_sec = ms / 1000;
 	ts.tv_nsec = (ms % 1000) * 1000000;
 	nanosleep(&ts, NULL);
+}
+
+void progressbar_clear(void) {
+	if (!cfg.progress) return;
+	// Clear current line (best-effort, no ANSI). Print spaces and carriage return.
+	fprintf(stderr, "\r%*s\r", 80, "");
+	fflush(stderr);
+}
+
+static void format_mmss(char out[16], int sec) {
+	if (sec < 0 || sec > 99 * 60 + 59) {
+		strcpy(out, "--:--");
+		return;
+	}
+	int mm = sec / 60;
+	int ss = sec % 60;
+	snprintf(out, 16, "%02d:%02d", mm, ss);
+}
+
+void progressbar_infinite_update(int sec) {
+	// When duration is unknown, show an "infinite" progress bar animation + time (MM:SS).
+	if (!cfg.progress) return;
+
+	const int width = 40;
+	const int block = 8;
+	int64_t now = now_ms();
+
+	// Move the block at ~5 chars/sec (200ms per step).
+	int step = (int)((now / 200) % (width + block));
+	int start = step - block;
+	int end = step;
+
+	char bar[width + 1];
+	for (int i = 0; i < width; i++) {
+		bar[i] = (i >= start && i < end) ? '#' : '-';
+	}
+	bar[width] = '\0';
+
+	char mmss[16];
+	format_mmss(mmss, sec);
+	fprintf(stderr, "\r%s [%s]  %s", progressbar_get_mode_label(), bar, mmss);
+	fflush(stderr);
+}
+
+static void format_eta_mmss(char out[16], double eta_sec) {
+	if (!(eta_sec > 0.0) || eta_sec > 99 * 60 + 59) {
+		strcpy(out, "--:--");
+		return;
+	}
+	int sec = (int)(eta_sec + 0.5);
+	int mm = sec / 60;
+	int ss = sec % 60;
+	snprintf(out, 16, "%02d:%02d", mm, ss);
+}
+
+void progressbar_update(double overall_pct, double eta_sec) {
+	// Draw an ASCII progress bar on a single terminal line (stderr).
+	// Called only when cfg.verbose == 0.
+	if (!cfg.progress) return;
+	if (overall_pct < 0.0) overall_pct = 0.0;
+	if (overall_pct > 100.0) overall_pct = 100.0;
+	const int width = 40;
+	int filled = (int)((overall_pct / 100.0) * width + 0.5);
+	if (filled < 0) filled = 0;
+	if (filled > width) filled = width;
+
+	char bar[width + 1];
+	for (int i = 0; i < width; i++) bar[i] = (i < filled) ? '#' : '-';
+	bar[width] = '\0';
+
+	char eta[16];
+	format_eta_mmss(eta, eta_sec);
+
+	if (eta_sec >= 0.0) {
+		fprintf(stderr, "\r%s [%s] %6.1f%% ETA %s", progressbar_get_mode_label(), bar, overall_pct, eta);
+	} else {
+		fprintf(stderr, "\r%s [%s] %6.1f%%", progressbar_get_mode_label(), bar, overall_pct);
+	}
+	fflush(stderr);
 }
 
 std::string temp_dir(void) {

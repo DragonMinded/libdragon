@@ -1,0 +1,688 @@
+/*
+    videoconv64 subtitles module (SUB64)
+    C++17 implementation (linter may not understand the project flags).
+*/
+
+#include "videoconv64.h"
+
+// Use binout placeholders to avoid building the whole file in RAM.
+#include "../common/binout.h"
+#include "../common/assetcomp.h"
+#include "../common/json.hpp"
+
+#include <algorithm>
+#include <cctype>
+#include <cmath>
+#include <cstring>
+#include <fstream>
+#include <map>
+#include <set>
+
+using json = nlohmann::json;
+
+enum Sub64Region : uint8_t {
+	SUB64_REGION_BOTTOM = 0,
+	SUB64_REGION_TOP    = 1,
+	SUB64_REGION_CENTER = 2,
+};
+
+enum Sub64OpCode : uint8_t {
+    // SHOW opcodes select one of 3 fixed regions on N64: bottom/top/center.
+    SUB64_OP_SHOW        = 0x00,
+    SUB64_OP_SHOW_BOTTOM = SUB64_OP_SHOW + SUB64_REGION_BOTTOM,
+    SUB64_OP_SHOW_TOP    = SUB64_OP_SHOW + SUB64_REGION_TOP,
+    SUB64_OP_SHOW_CENTER = SUB64_OP_SHOW + SUB64_REGION_CENTER,
+    // HIDE opcodes hide the current cue in a specific region.
+    SUB64_OP_HIDE        = 0x10,
+    SUB64_OP_HIDE_BOTTOM = SUB64_OP_HIDE + SUB64_REGION_BOTTOM,
+    SUB64_OP_HIDE_TOP    = SUB64_OP_HIDE + SUB64_REGION_TOP,
+    SUB64_OP_HIDE_CENTER = SUB64_OP_HIDE + SUB64_REGION_CENTER,
+    SUB64_OP_CLEAR = 0x04,
+};
+
+
+struct VttCue {
+	int64_t start_ms = 0;
+	int64_t end_ms = 0;
+	std::string text;
+	Sub64Region region = SUB64_REGION_BOTTOM;
+};
+
+static std::string trim(const std::string &s) {
+	size_t a = 0;
+	while (a < s.size() && (s[a] == ' ' || s[a] == '\t' || s[a] == '\r')) a++;
+	size_t b = s.size();
+	while (b > a && (s[b-1] == ' ' || s[b-1] == '\t' || s[b-1] == '\r')) b--;
+	return s.substr(a, b - a);
+}
+
+static bool starts_with(const std::string &s, const char *pfx) {
+	size_t n = strlen(pfx);
+	return s.size() >= n && memcmp(s.data(), pfx, n) == 0;
+}
+
+static bool parse_vtt_timestamp_ms(const std::string &ts, int64_t *out_ms) {
+	std::string t = trim(ts);
+	int hh = 0, mm = 0, ss = 0, ms = 0;
+	int ncol = 0;
+	for (char c: t) if (c == ':') ncol++;
+	if (ncol == 1) {
+		if (sscanf(t.c_str(), "%d:%d.%d", &mm, &ss, &ms) != 3) return false;
+	} else if (ncol == 2) {
+		if (sscanf(t.c_str(), "%d:%d:%d.%d", &hh, &mm, &ss, &ms) != 4) return false;
+	} else {
+		return false;
+	}
+	if (mm < 0 || ss < 0 || ms < 0) return false;
+	*out_ms = ((int64_t)hh * 3600 + (int64_t)mm * 60 + (int64_t)ss) * 1000 + (int64_t)ms;
+	return true;
+}
+
+static std::string vtt_to_rdpq_text(const std::string &text) {
+	// - <i>/<b>/<u> -> $02/$03/$04
+	// - closing tags -> $01
+	// - <br> -> '\n'
+	// Escape '$' and '^' for rdpq_text.
+	std::string out;
+	out.reserve(text.size());
+
+	for (size_t i = 0; i < text.size(); ) {
+		char c = text[i];
+		if (c == '<') {
+			size_t j = text.find('>', i + 1);
+			if (j == std::string::npos) {
+				out.push_back('<');
+				i++;
+				continue;
+			}
+			std::string tag = trim(text.substr(i + 1, j - (i + 1)));
+			for (char &x : tag) x = (char)tolower((unsigned char)x);
+			if (tag == "i") out += "$02";
+			else if (tag == "/i") out += "$01";
+			else if (tag == "b") out += "$03";
+			else if (tag == "/b") out += "$01";
+			else if (tag == "u") out += "$04";
+			else if (tag == "/u") out += "$01";
+			else if (tag == "br" || tag == "br/" || tag == "br /") out.push_back('\n');
+			// else strip unknown tags
+			i = j + 1;
+			continue;
+		}
+
+		if (c == '$') out += "$$";
+		else if (c == '^') out += "^^";
+		else out.push_back(c);
+		i++;
+	}
+	return out;
+}
+
+static std::vector<VttCue> parse_webvtt(const std::string &path) {
+	std::ifstream f(path);
+	if (!f) fatal("Failed to open VTT: %s", path.c_str());
+
+	std::vector<std::string> lines;
+	std::string line;
+	while (std::getline(f, line)) {
+		if (!line.empty() && line.back() == '\r') line.pop_back();
+		lines.push_back(line);
+	}
+
+	// REGION id -> region placement (best-effort).
+	std::map<std::string, Sub64Region> regions;
+
+	auto region_from_y_percent = [&](double y) -> Sub64Region {
+		// Rough bucketing: top/center/bottom
+		if (y <= 33.0) return SUB64_REGION_TOP;
+		if (y >= 66.0) return SUB64_REGION_BOTTOM;
+		return SUB64_REGION_CENTER;
+	};
+
+	auto parse_anchor_y = [&](const std::string &s, double *out_y) -> bool {
+		// Expect something like "50%,90%" or "50% , 90%" (we only care about Y).
+		double x = 0.0, y = 0.0;
+		if (sscanf(s.c_str(), "%lf%%,%lf%%", &x, &y) == 2) { *out_y = y; return true; }
+		if (sscanf(s.c_str(), "%lf%% ,%lf%%", &x, &y) == 2) { *out_y = y; return true; }
+		if (sscanf(s.c_str(), "%lf%%, %lf%%", &x, &y) == 2) { *out_y = y; return true; }
+		if (sscanf(s.c_str(), "%lf%% , %lf%%", &x, &y) == 2) { *out_y = y; return true; }
+		return false;
+	};
+
+	auto parse_region_block = [&](size_t &i) {
+		// Current line is "REGION" (or starts with it). Consume until blank line.
+		std::string id;
+		double y = -1.0;
+		i++;
+		while (i < lines.size() && !trim(lines[i]).empty()) {
+			std::string r = trim(lines[i]);
+			if (starts_with(r, "id:")) {
+				id = trim(r.substr(3));
+			} else if (starts_with(r, "viewportanchor:")) {
+				double yy = 0.0;
+				if (parse_anchor_y(trim(r.substr(strlen("viewportanchor:"))), &yy)) y = yy;
+			} else if (starts_with(r, "regionanchor:")) {
+				// Fallback if viewportanchor missing.
+				if (y < 0.0) {
+					double yy = 0.0;
+					if (parse_anchor_y(trim(r.substr(strlen("regionanchor:"))), &yy)) y = yy;
+				}
+			}
+			i++;
+		}
+		if (!id.empty() && y >= 0.0) regions[id] = region_from_y_percent(y);
+	};
+
+	std::vector<VttCue> cues;
+	size_t i = 0;
+
+	while (i < lines.size() && trim(lines[i]).empty()) i++;
+	if (i < lines.size() && starts_with(trim(lines[i]), "WEBVTT")) i++;
+
+	while (i < lines.size()) {
+		while (i < lines.size() && trim(lines[i]).empty()) i++;
+		if (i >= lines.size()) break;
+
+		std::string l = trim(lines[i]);
+		if (starts_with(l, "REGION")) {
+			parse_region_block(i);
+			continue;
+		}
+		if (starts_with(l, "NOTE") || starts_with(l, "STYLE")) {
+			i++;
+			while (i < lines.size() && !trim(lines[i]).empty()) i++;
+			continue;
+		}
+
+		size_t timing_line = i;
+		if (lines[i].find("-->") == std::string::npos && (i + 1) < lines.size() && lines[i+1].find("-->") != std::string::npos) {
+			timing_line = i + 1;
+		}
+		if (timing_line >= lines.size()) break;
+
+		std::string timing = trim(lines[timing_line]);
+		size_t arrow = timing.find("-->");
+		if (arrow == std::string::npos) { i = timing_line + 1; continue; }
+
+		std::string a = trim(timing.substr(0, arrow));
+		std::string b_and_settings = trim(timing.substr(arrow + 3));
+		std::string b = b_and_settings;
+		std::string settings;
+		size_t sp = b_and_settings.find(' ');
+		if (sp != std::string::npos) {
+			b = trim(b_and_settings.substr(0, sp));
+			settings = trim(b_and_settings.substr(sp + 1));
+		}
+
+		int64_t st = 0, en = 0;
+		if (!parse_vtt_timestamp_ms(a, &st) || !parse_vtt_timestamp_ms(b, &en) || en <= st) {
+			i = timing_line + 1;
+			continue;
+		}
+
+		i = timing_line + 1;
+		std::string payload;
+		while (i < lines.size() && !trim(lines[i]).empty()) {
+			if (!payload.empty()) payload.push_back('\n');
+			payload += lines[i];
+			i++;
+		}
+
+		VttCue c;
+		c.start_ms = st;
+		c.end_ms = en;
+		c.text = vtt_to_rdpq_text(payload);
+		// Minimal region selection:
+		// - if cue has "line:" (percentage), use that
+		// - else if cue has "region:<id>", use REGION block info
+		// - else default bottom
+		if (!settings.empty()) {
+			Sub64Region reg = SUB64_REGION_BOTTOM;
+			bool have_line = false;
+			bool have_region = false;
+			std::string region_id;
+			// split by whitespace
+			size_t p = 0;
+			while (p < settings.size()) {
+				while (p < settings.size() && isspace((unsigned char)settings[p])) p++;
+				if (p >= settings.size()) break;
+				size_t q = p;
+				while (q < settings.size() && !isspace((unsigned char)settings[q])) q++;
+				std::string tok = settings.substr(p, q - p);
+				p = q;
+				if (starts_with(tok, "region:")) {
+					region_id = tok.substr(strlen("region:"));
+					have_region = true;
+				} else if (starts_with(tok, "line:")) {
+					std::string v = tok.substr(strlen("line:"));
+					have_line = true;
+					// percentage line
+					if (!v.empty() && v.back() == '%') {
+						double yy = atof(v.substr(0, v.size() - 1).c_str());
+						reg = region_from_y_percent(yy);
+					} else if (!v.empty() && v[0] == '-') {
+						reg = SUB64_REGION_BOTTOM;
+					} else {
+						int li = atoi(v.c_str());
+						reg = (li <= 1) ? SUB64_REGION_TOP : SUB64_REGION_BOTTOM;
+					}
+				}
+			}
+			if (!have_line && have_region && !region_id.empty()) {
+				auto it = regions.find(region_id);
+				if (it != regions.end()) reg = it->second;
+			}
+			c.region = reg;
+		}
+		cues.push_back(std::move(c));
+	}
+	return cues;
+}
+
+static int64_t ms_to_frame(int64_t ms, float fps) {
+	return (int64_t)floor((double)ms * (double)fps / 1000.0 + 0.5);
+}
+
+static void wvaru(FILE *f, uint32_t v) {
+	// VarUInt LEB128
+	while (v >= 0x80) { w8(f, (v & 0x7F) | 0x80); v >>= 7; }
+	w8(f, v & 0x7F);
+}
+
+static std::string sanitize_lang(const std::string &lang) {
+	std::string out;
+	for (char c : lang) {
+		if (isalnum((unsigned char)c) || c == '_' || c == '-') out.push_back((char)tolower((unsigned char)c));
+	}
+	return out;
+}
+
+struct SubStreamInfo {
+	int stream_index = -1;
+	std::string language;
+	std::string codec_name;
+};
+
+static bool subtitle_codec_is_text(const std::string &codec) {
+	// ffmpeg can convert only text-based subtitle codecs to WebVTT.
+	// Bitmap subtitles (eg: PGS/DVD/DVB) must be skipped.
+	if (codec.empty()) return true; // best-effort: assume text
+	const std::string c = codec;
+	// Common bitmap subtitle codecs
+	if (c == "hdmv_pgs_subtitle") return false;
+	if (c == "dvd_subtitle") return false;
+	if (c == "dvb_subtitle") return false;
+	if (c == "xsub") return false;
+	// Most other subtitle codecs in common containers are text.
+	return true;
+}
+
+static std::vector<SubStreamInfo> ffprobe_list_subtitle_streams(void) {
+	std::vector<std::string> cmd = {
+		cfg.ffprobe_path,
+		"-v", "error",
+		"-select_streams", "s",
+		"-show_entries", "stream=index,codec_name:stream_tags=language",
+		"-of", "json",
+		cfg.input_file,
+	};
+	std::string out;
+	int rc = run_process(cmd, out);
+	if (rc != 0) return {};
+
+	std::vector<SubStreamInfo> res;
+	try {
+		json j = json::parse(out);
+		if (!j.contains("streams") || !j["streams"].is_array()) return res;
+		for (const auto &s : j["streams"]) {
+			SubStreamInfo si;
+			si.stream_index = s.value("index", -1);
+			si.codec_name = s.value("codec_name", std::string());
+			if (s.contains("tags") && s["tags"].is_object()) {
+				si.language = s["tags"].value("language", std::string());
+			}
+			res.push_back(std::move(si));
+		}
+	} catch (...) {
+		return {};
+	}
+	return res;
+}
+
+static std::string ffprobe_subtitle_codec(const std::string &path) {
+	std::vector<std::string> cmd = {
+		cfg.ffprobe_path, "-v", "error",
+		"-select_streams", "s:0",
+		"-show_entries", "stream=codec_name",
+		"-of", "json",
+		path,
+	};
+	std::string out;
+	if (run_process(cmd, out) != 0) return {};
+	try {
+		json j = json::parse(out);
+		if (j.contains("streams") && j["streams"].is_array() && !j["streams"].empty())
+			return j["streams"][0].value("codec_name", std::string());
+	} catch (const std::exception &e) {
+		fatal("ffprobe JSON parse error for %s: %s", path.c_str(), e.what());
+	}
+	return {};
+}
+
+static std::string ensure_webvtt_container_track(int stream_index, const std::string &codec_name, const std::string &tmp_dir, int idx) {
+	std::string tmp = join_path(tmp_dir, "subtrack_" + std::to_string(idx) + ".vtt");
+	std::vector<std::string> cmd = {
+		cfg.ffmpeg_path,
+		"-hide_banner", "-nostats", "-y", "-v", "error",
+		"-i", cfg.input_file,
+		"-map", "0:" + std::to_string(stream_index),
+	};
+	// If already WebVTT, use -c copy to preserve positioning metadata which is
+	// otherwise always lost with ffmpeg
+	if (codec_name == "webvtt") {
+		cmd.push_back("-c");
+		cmd.push_back("copy");
+	}
+	cmd.push_back("-f");
+	cmd.push_back("webvtt");
+	cmd.push_back(tmp);
+	std::string out;
+	int rc = run_process(cmd, out);
+	if (rc != 0) {
+		// Most common failure here is bitmap subtitles (PGS/DVD/DVB). Caller may decide to skip.
+		fatal("ffmpeg failed converting container subtitles to VTT (%d)", rc);
+	}
+	return tmp;
+}
+
+static std::string ensure_webvtt_file(const std::string &in_path, const std::string &codec_name, const std::string &tmp_dir, int idx) {
+	// If already WebVTT, use directly to preserve positioning metadata,
+	// as ffmpeg always loses it when re-muxing.
+	if (codec_name == "webvtt") return in_path;
+
+	std::string tmp = join_path(tmp_dir, "subfile_" + std::to_string(idx) + ".vtt");
+	std::vector<std::string> cmd = {
+		cfg.ffmpeg_path,
+		"-hide_banner", "-nostats", "-y", "-v", "error",
+		"-i", in_path,
+		"-f", "webvtt",
+		tmp,
+	};
+	std::string out;
+	int rc = run_process(cmd, out);
+	if (rc != 0) fatal("ffmpeg failed converting subtitle file to VTT (%d)", rc);
+	return tmp;
+}
+
+static std::string output_sub64_path(const std::string &lang, int out_idx, int total) {
+	std::string base = strip_ext(base_name(cfg.input_file));
+	std::string name;
+	if (total <= 1) {
+		// Backward compatible naming for a single subtitle.
+		std::string sl = sanitize_lang(lang);
+		name = sl.empty() ? (base + ".sub64") : (base + "." + sl + ".sub64");
+	} else {
+		// Multiple subtitles: numeric pattern basename.N.sub64
+		name = base + "." + std::to_string(out_idx) + ".sub64";
+	}
+	if (cfg.output_dir.empty()) return name;
+	return join_path(cfg.output_dir, name);
+}
+
+struct Sub64Metrics {
+	int overflow_count = 0;
+	int max_overlap = 0;
+};
+
+static void write_sub64(
+	const std::string &out_path,
+	const std::vector<VttCue> &cues,
+	float fps,
+	uint32_t sync_interval_frames,
+	Sub64Metrics *m
+) {
+    // Don't emit an empty subtitle file.
+    assert(!cues.empty());
+
+    // Create a timeline of cue boundary events (either start or end of a cue),
+    // in frame timestamp (so already quantized).
+    // Sort it by frame and kind (end before start), so that for each frame with
+    // multiple events, we will first process all ends before any starts.
+    const int TL_START = 1, TL_END = 0;
+    struct TL { int64_t frame; int kind; int id; }; // kind 0=end,1=start
+	std::vector<TL> tl;
+	tl.reserve(cues.size() * 2);
+	for (int i = 0; i < (int)cues.size(); i++) {
+		int64_t s = ms_to_frame(cues[i].start_ms, fps);
+		int64_t e = ms_to_frame(cues[i].end_ms, fps);
+		if (e <= s) continue;
+		tl.push_back({ e, TL_END,   i });
+		tl.push_back({ s, TL_START, i });
+	}
+	std::sort(tl.begin(), tl.end(), [](const TL &a, const TL &b) {
+		if (a.frame != b.frame) return a.frame < b.frame;
+		return a.kind < b.kind; // end before start
+	});
+
+	struct Action {
+		int64_t frame;
+		Sub64OpCode opcode;
+		std::string text; // SHOW only
+	};
+	std::vector<Action> actions;
+	int maxov = 0;  // max simultaneous visible subtitles
+	int overflow = 0; // number of same-region overlaps (replacements)
+	std::vector<int64_t> gaps; // Gaps: [gap0_start, gap0_end, gap1_start, gap1_end, ...]
+
+	// Current cue per region. -1 means none visible in that region.
+	int cur[3] = { -1, -1, -1 };
+	auto active_count = [&]() -> int {
+		int c = 0;
+		for (int r = 0; r < 3; r++) if (cur[r] >= 0) c++;
+		return c;
+	};
+
+	// If subtitles start after frame 0, add an initial gap start so the first SHOW closes it.
+	if (!tl.empty() && tl.front().kind == 1 && tl.front().frame > 0) {
+		gaps.push_back(0);
+	}
+
+	for (const auto &e : tl) {
+        Sub64Region reg = cues[e.id].region;
+		if (e.kind == TL_START) {
+			// Closing a gap: first subtitle becomes visible at this frame.
+			if (gaps.size() % 2 == 1)
+                gaps.push_back(e.frame); // gap end
+
+            maxov = std::max(maxov, active_count());
+            if (cur[reg] >= 0) overflow++; // replace existing cue in same region
+            cur[reg] = e.id;
+
+ 			actions.push_back({ e.frame, (Sub64OpCode)(SUB64_OP_SHOW + reg), cues[e.id].text });
+         } else {
+			// End of cue: hide only if this cue is still the active one in its region.
+			if (cur[reg] == e.id) {
+				cur[reg] = -1;
+				actions.push_back({ e.frame, (Sub64OpCode)(SUB64_OP_HIDE + reg), {} });
+				// Opening a gap: no subtitle visible in any region.
+				if (active_count() == 0 && gaps.size() % 2 == 0)
+					gaps.push_back(e.frame); // gap start
+			}
+		}
+	}
+
+	// Drop trailing open gap (start without end). We don't emit syncpoints after last subtitle event anyway.
+	if (gaps.size() % 2 == 1) gaps.pop_back();
+
+    // Save metrics
+	if (m) { m->overflow_count = overflow; m->max_overlap = maxov; }
+
+	// Precompute TXT0 offsets per each subtitle text (relative to TXT0 start).
+	std::vector<uint32_t> txt_off_by_event(actions.size(), 0);
+	uint32_t txt_total = 0;
+	for (size_t i = 0; i < actions.size(); i++) {
+		txt_off_by_event[i] = txt_total;
+		if (actions[i].opcode == SUB64_OP_SHOW_BOTTOM || actions[i].opcode == SUB64_OP_SHOW_TOP || actions[i].opcode == SUB64_OP_SHOW_CENTER) {
+			txt_total += (uint32_t)actions[i].text.size() + 1;
+		}
+	}
+
+	int64_t max_frame = actions.empty() ? 0 : actions.back().frame;
+
+	// Decide sync_frames. These are the frames that will be directly seekable
+    // without decoding the subtitle stream. We pick a gap frame at approximately
+    // sync_interval_frames intervals.
+	std::vector<int64_t> sync_frames;
+    sync_frames.push_back(0); // Frame 0 is always a syncpoint.
+	if (gaps.size() >= 2) {
+		for (int64_t t = 0; t <= max_frame; t += (int64_t)sync_interval_frames) {
+			int gapidx = (int)(std::upper_bound(gaps.begin(), gaps.end(), t) - gaps.begin());
+			// Snap to a gap start (even index).
+			if (gapidx % 2 == 1) gapidx--;
+			// Clamp within range; also handle upper_bound()==end().
+			if (gapidx < 0) gapidx = 0;
+			if (gapidx >= (int)gaps.size()) gapidx = (int)gaps.size() - 2;
+			if (gapidx + 1 >= (int)gaps.size()) continue;
+			int64_t sf = gaps[gapidx];
+			if (sf == sync_frames.back()) continue; // dedup (eg: long gaps)
+			sync_frames.push_back(sf);
+		}
+	}
+
+	FILE *f = fopen(out_path.c_str(), "wb");
+	if (!f) fatal("Failed to write: %s", out_path.c_str());
+
+	// Header (v0.6). Sections are laid out sequentially:
+	//   [header][IDX0][DELT][OPC0][TXT0]
+	// IDX0 count is stored in the header; all offsets in IDX0 are absolute (from file start).
+	wa(f, "SUB64", 5);
+    w8(f, 1);    // version
+	w16(f, 0);   // flags
+	wf32(f, (float)fps);
+    w32(f, max_frame+1); // number of frames
+	w32(f, (uint32_t)sync_frames.size()); // num_syncs
+	wpad(f, 44+44+4); // runtime state
+
+	// IDX0 section
+	for (int i = 0; i < (int)sync_frames.size(); i++) {
+		w32(f, (uint32_t)sync_frames[i]);
+		// Absolute byte offsets from start of SUB64 payload.
+		w32_placeholderf(f, "idx%d_delt", i);
+		w32_placeholderf(f, "idx%d_opc", i);
+		w32_placeholderf(f, "idx%d_txt", i);
+	}
+
+	// DELT section: write VarUInt(delta_frames) and patch IDX0 placeholders on the fly.
+	int64_t last_fr = 0;
+	int sync_i = 0;
+
+	for (size_t ev = 0; ev < actions.size(); ev++) {
+		// Patch any syncpoints that fall at/before this event (first event at/after sync_frame).
+		while (sync_i < (int)sync_frames.size() && sync_frames[sync_i] <= actions[ev].frame) {
+			// DELT absolute offset is known now (we are in the DELT section).
+			// We want the absolute offset of the current DELT cursor, which is ftell(f).
+			placeholder_set(f, "idx%d_delt", sync_i);
+			sync_i++;
+		}
+
+		uint32_t delta = (actions[ev].frame >= last_fr) ? (uint32_t)(actions[ev].frame - last_fr) : 0;
+		last_fr = actions[ev].frame;
+
+		wvaru(f, delta);
+	}
+	// Same rationale as OPC0/TXT0: no EOF syncpoints.
+	assert(sync_i == (int)sync_frames.size());
+
+	// OPC section
+	int sync_opc_i = 0;
+	for (size_t ev = 0; ev < actions.size(); ev++) {
+		// Patch opcode offsets at the first event at/after sync_frame.
+		while (sync_opc_i < (int)sync_frames.size() && sync_frames[sync_opc_i] <= actions[ev].frame) {
+			placeholder_set(f, "idx%d_opc", sync_opc_i);
+			sync_opc_i++;
+		}
+		w8(f, actions[ev].opcode);
+	}
+	// By construction we don't emit syncpoints after the last event.
+	// Therefore every IDX0 entry must have been patched within the loop above.
+	assert(sync_opc_i == (int)sync_frames.size());
+
+	// TXT section
+	int sync_txt_i = 0;
+	for (size_t ev = 0; ev < actions.size(); ev++) {
+		// Patch text offsets at the first event at/after sync_frame (current TXT0 cursor).
+		while (sync_txt_i < (int)sync_frames.size() && sync_frames[sync_txt_i] <= actions[ev].frame) {
+			placeholder_set(f, "idx%d_txt", sync_txt_i);
+			sync_txt_i++;
+		}
+		if (!(actions[ev].opcode == SUB64_OP_SHOW_BOTTOM || actions[ev].opcode == SUB64_OP_SHOW_TOP || actions[ev].opcode == SUB64_OP_SHOW_CENTER)) continue;
+		wa(f, actions[ev].text.data(), actions[ev].text.size());
+		w8(f, 0);
+	}
+	// Same rationale as OPC0: no EOF syncpoints.
+	assert(sync_txt_i == (int)sync_frames.size());
+
+	fclose(f);
+
+	// Clear placeholders (we can generate multiple subtitle files in one run).
+	placeholder_clear();
+}
+
+void vconv_process_subtitles(const AnalysisResult &ar) {
+	std::vector<SubStreamInfo> tracks = ffprobe_list_subtitle_streams();
+	if (tracks.empty() && cfg.subtitle_files.empty()) return;
+
+	float fps = (float)ar.out_fps;
+	if (!(fps > 0.0f)) fatal("Subtitles: invalid output fps");
+	uint32_t sync_interval_frames = (uint32_t)floor((double)fps * 300.0 + 0.5);
+
+	std::string tmpd = temp_dir();
+	int produced = 0;
+
+	// Count how many subtitles we will actually process (container text tracks + CLI files).
+	int total_out = 0;
+	for (const auto &t : tracks) {
+		if (t.stream_index < 0) continue;
+		if (!subtitle_codec_is_text(t.codec_name)) continue;
+		total_out++;
+	}
+	total_out += (int)cfg.subtitle_files.size();
+
+	auto process_one = [&](const char *log_prefix, const std::string &lang, auto &&make_vtt_path) {
+		if (cfg.verbose >= 1) verbose(1, "%s", log_prefix);
+		std::string vtt = make_vtt_path();
+		std::vector<VttCue> cues = parse_webvtt(vtt);
+		Sub64Metrics m;
+		std::string outp = output_sub64_path(lang, produced, total_out);
+		write_sub64(outp, cues, fps, sync_interval_frames, &m);
+		if (!asset_compress(outp.c_str(), outp.c_str(), DEFAULT_COMPRESSION, 256*1024)) {
+			fatal("subtitles: compression failed for %s", outp.c_str());
+		}
+		verbose(1, "Output subtitle: %s (cues=%d, overflow=%d, max_overlap=%d)", outp.c_str(), (int)cues.size(), m.overflow_count, m.max_overlap);
+		produced++;
+	};
+
+	// Container tracks
+	for (const auto &t : tracks) {
+		if (t.stream_index < 0) continue;
+		if (!subtitle_codec_is_text(t.codec_name)) {
+			verbose(1, "Subtitle track: stream=%d codec=%s -> skipping (bitmap subtitles not supported)",
+				t.stream_index, t.codec_name.empty() ? "(unknown)" : t.codec_name.c_str());
+			continue;
+		}
+		std::string msg = "Subtitle track: stream=" + std::to_string(t.stream_index) + " lang=" + (t.language.empty() ? "(none)" : t.language);
+		process_one(msg.c_str(), t.language, [&]() {
+			return ensure_webvtt_container_track(t.stream_index, t.codec_name, tmpd, produced);
+		});
+	}
+
+	// CLI subtitle files
+	for (const auto &sf : cfg.subtitle_files) {
+		std::string codec = ffprobe_subtitle_codec(sf);
+		std::string msg = "Subtitle file: " + sf;
+		process_one(msg.c_str(), std::string(), [&]() {
+			return ensure_webvtt_file(sf, codec, tmpd, produced);
+		});
+	}
+}
+
+

@@ -299,6 +299,7 @@ int main2(int argc, const char *argv[]) {
 	params.skip_length = skip_length.value;
 	params.match_patience = effort.value;
 	params.max_same_length = same_length.value;
+	params.max_offset = 0; // unlimited (default tool behavior)
 
 	string *decrunch_text_ptr = NULL;
 	string decrunch_text;

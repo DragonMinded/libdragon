@@ -132,7 +132,6 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-maxrate", std::to_string(bitrate_kbps) + "k",
 		"-bufsize", std::to_string(buf_kbps) + "k",
 		"-bf", "2",
-		"-g", std::to_string((int)(ar.out_fps + 0.5)),
 		// Expensive encoder knobs: disable in quick mode.
 		"-trellis", trellis,
 	};
@@ -157,6 +156,12 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 		);
 	}
 
+	// Keyframe placement options (GOP size / forced keyframes).
+	{
+		std::vector<std::string> kf = ffmpeg_keyframe_args(ar.out_fps);
+		base.insert(base.end(), kf.begin(), kf.end());
+	}
+
 	// Progress: use -progress pipe:1 so output is key=value lines.
 	// duration_sec comes from ffprobe (may be 0).
 	const double duration_sec = ar.meta.duration;
@@ -169,7 +174,9 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 		cmd.push_back(er.video_path);
 		int rc = run_ffmpeg_with_progress(cmd, duration_sec, 0, ps);
 		if (rc != 0) fatal("ffmpeg failed (rc=%d)", rc);
-		if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); fprintf(stderr, "\n"); }
+		// Do not print a newline here: next phases (eg: Audio) should reuse the same line.
+		// A single final newline is printed by main() when the whole pipeline is done.
+		if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); }
 
 		// Insert user_data with SAR if needed.
 		if (!mpeg1_prepend_userdata_sar(er.video_path, ar.sar_num, ar.sar_den)) {
@@ -213,7 +220,7 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 	}
 
 	cleanup_passlog(passlog);
-	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); fprintf(stderr, "\n"); }
+	if (cfg.verbose == 0 && cfg.progress) { progressbar_clear(); }
 
 	// Insert user_data with SAR if needed.
 	if (!mpeg1_prepend_userdata_sar(er.video_path, ar.sar_num, ar.sar_den)) {

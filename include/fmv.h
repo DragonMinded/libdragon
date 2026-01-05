@@ -23,6 +23,8 @@ extern "C" {
 ///@cond
 typedef struct video_s video_t;
 typedef struct wav64_s wav64_t;
+typedef struct subtitles_s subtitles_t;
+typedef struct subrenderer_s subrenderer_t;
 ///@endcond
 
 /** @brief Structure to control FMV playback */
@@ -31,20 +33,24 @@ typedef struct fmv_control_s {
     video_t *video;
     /** Audio track */
     wav64_t *audio;
+    /** Subtitle track */
+    subtitles_t *subs;
     /** Pause/unpause playback */
     void (*pause)(struct fmv_control_s *ctrl, bool pause);
     /** Stop playback */
     void (*stop)(struct fmv_control_s *ctrl);
     /** Seek to a specific frame */
-    int (*seek_frame)(struct fmv_control_s *ctrl, int frame_idx);
+    int (*seek_frame)(struct fmv_control_s *ctrl, int frame_idx, bool exact);
     /** Seek to a specific time (in seconds) */
-    float (*seek_time)(struct fmv_control_s *ctrl, float time_sec);
+    float (*seek_time)(struct fmv_control_s *ctrl, float time_sec, bool exact);
 } fmv_control_t; 
 
 /** @brief FMV playback parameters */
 typedef struct fmv_parms_s {
     /** @brief Disable audio playback (even though an audio file is present) */
     bool disable_audio;
+    /** @brief Disable subtitle rendering (even though a subtitle file is present) */
+    bool disable_subtitles;
 
     /** 
      * @brief Filename of the audio track to play alongside the video. 
@@ -54,6 +60,14 @@ typedef struct fmv_parms_s {
      */
     const char *audio_fn;
 
+    /**
+     * @brief Subtitle track filename to play alongside the video.
+     * 
+     * If not specified, the video player will try to find a subtitle track
+     * with the same name as the video file, but with a .sub64 extension.
+     */
+    const char *subtitles_fn;
+
     /** The mixer channel to use for audio playback (default: 0) */
     int audio_mixer_channel;
 
@@ -62,6 +76,26 @@ typedef struct fmv_parms_s {
 
     /** @brief Continue playback from the start when the end of the video is reached */
     bool loop;
+
+    /**
+     * @brief Subtitle renderer to use.
+     * 
+     * This parameter allows to specify a custom subtitle renderer, that can
+     * be used to customise how subtitles are rendered on screen. There are
+     * two built-in renderers:
+     * 
+     * * RDPQ rendered (#subrenderer_create_rdpq) that draws the subtitles over
+     *   the video using rdpq for high-quality text rendering.
+     * * EIA-608 renderer (#subrenderer_create_eia608) that encodes subtitles
+     *   using the EIA-608 standard for closed captions (on NTSC TVs).
+     * 
+     * If this parameter is NULL, a default RDPQ renderer will be created
+     * and used, with a default builtin tool.
+     * 
+     * @note Ownership of the renderer is transferred to the FMV player, that
+     *       will free it at the end of playback.
+     */
+    subrenderer_t *sub_renderer;
 
     /**
      * @brief Callback function to draw OSD on top of the video

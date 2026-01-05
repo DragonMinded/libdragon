@@ -42,25 +42,26 @@ typedef struct __attribute__((aligned(16))) {
  * different point in the waveform. 
  */
 typedef struct {
-	wav64_vadpcm_vector_t state[2];		///< Decompression state at this skip point
-	int bitpos;							///< Bit position in the input buffer
 	int offset;							///< Samples offset of the skip point in the waveform
+	int bitpos;							///< Bit position in the input buffer
 } wav64_vadpcm_skippoint_t;
 
 /** @brief Extended header for a WAV64 file with VADPCM compression. */
 typedef struct __attribute__((packed, aligned(8))) {
 	int8_t npredictors;						///< Number of predictors
 	int8_t order;							///< Order of the predictors
-	uint8_t flags;							///< VADPCM flags
-	int8_t num_skippoints;					///< Number of allowed skip points
+	uint16_t flags;							///< VADPCM flags
+	int16_t num_skippoints;					///< Number of allowed skip points
+	uint16_t padding1;						///< Padding
 	wav64_vadpcm_hufftable_t *huff_tbl; 	///< Huffman tables (computed at load time)
 	wav64_vadpcm_skippoint_t *skip_points;	///< Information on the skip points (located after the codebook)
+	wav64_vadpcm_vector_t *skip_states;		///< Decompression states at the skip point
 	wav64_vadpcm_huffctx_t huff_ctx[3]; 	///< Huffman contexts
-	uint32_t padding;						///< Padding
+	uint32_t padding2;						///< Padding
 	wav64_vadpcm_vector_t codebook[];		///< Codebook of the predictors
 } wav64_header_vadpcm_t;
 
-_Static_assert(sizeof(wav64_header_vadpcm_t) == 88, "invalid wav64_header_vadpcm size");
+_Static_assert(sizeof(wav64_header_vadpcm_t) == 96, "invalid wav64_header_vadpcm size");
 
 /** @brief Initialize VADPCM decoder for a WAV64 file */
 void wav64_vadpcm_init(wav64_t *wav, int state_size);
@@ -68,5 +69,8 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size);
 void wav64_vadpcm_close(wav64_t *wav);
 /** @brief Get the bitrate of the VADPCM stream */
 int wav64_vadpcm_get_bitrate(wav64_t *wav);
+
+/** @brief Adjust a requested seek position (samples) to a valid VADPCM skip point (samples). */
+int wav64_vadpcm_adjust_seek(wav64_t *wav, int wpos);
 
 #endif

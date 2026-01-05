@@ -11,8 +11,11 @@
 #include "videoconv64.h"
 
 #include <string.h>
+#include <math.h>
 
 #include <map>
+#include <deque>
+#include <algorithm>
 
 static double quality_strength(double q) {
 	// strength in [0..1], where 0 => minimal processing (high quality),
@@ -173,6 +176,54 @@ std::string build_filterchain(const AnalysisResult &ar, const char *out_matrix, 
 	return vf;
 }
 
+std::string ffmpeg_force_keyframes_from_frames(const std::vector<int>& frames, double fps)
+{
+	if (frames.empty() || fps <= 0.0) return std::string();
+
+	// Ensure monotonic unique list (callers generally already do this).
+	std::vector<int> f = frames;
+	std::sort(f.begin(), f.end());
+	f.erase(std::unique(f.begin(), f.end()), f.end());
+
+	std::string out;
+	out.reserve(f.size() * 8);
+	for (size_t i = 0; i < f.size(); i++) {
+		if (f[i] < 0) continue;
+		double t = (double)f[i] / fps;
+		char buf[64];
+		// Use fixed decimal seconds; ffmpeg accepts this as timestamp.
+		snprintf(buf, sizeof(buf), "%.6f", t);
+		if (!out.empty()) out.push_back(',');
+		out += buf;
+	}
+	return out;
+}
+
+std::vector<std::string> ffmpeg_keyframe_args(double fps)
+{
+	std::vector<std::string> args;
+
+	// GOP size: if user provided --seek <seconds>, convert it to a GOP in frames
+	// and emit it as -g <frames>. If no seek interval is provided, do not emit -g.
+	if (cfg.seek_interval_sec > 0.0) {
+		int gop = (int)floor(cfg.seek_interval_sec * fps + 0.5);
+		if (gop < 1) gop = 1;
+		args.push_back("-g");
+		args.push_back(std::to_string(gop));
+	}
+
+	// Forced keyframes: list of required I/IDR frames provided by the user.
+	if (!cfg.seek_frames.empty()) {
+		std::string fkf = ffmpeg_force_keyframes_from_frames(cfg.seek_frames, fps);
+		if (!fkf.empty()) {
+			args.push_back("-force_key_frames");
+			args.push_back(fkf);
+		}
+	}
+
+	return args;
+}
+
 static void parse_progress_kv_line(const std::string& line, std::map<std::string,std::string> &kv) {
 	size_t eq = line.find('=');
 	if (eq == std::string::npos) return;
@@ -215,60 +266,8 @@ static void report_progress(const std::map<std::string,std::string> &kv, double 
 	}
 }
 
-static void format_eta_mmss(char out[16], double eta_sec) {
-	if (!(eta_sec > 0.0) || eta_sec > 99 * 60 + 59) {
-		strcpy(out, "--:--");
-		return;
-	}
-	int sec = (int)(eta_sec + 0.5);
-	int mm = sec / 60;
-	int ss = sec % 60;
-	snprintf(out, 16, "%02d:%02d", mm, ss);
-}
-
-static void progressbar_update(double overall_pct, double eta_sec) {
-	// Draw an ASCII progress bar on a single terminal line (stderr).
-	// Called only when cfg.verbose == 0.
-	if (!cfg.progress) return;
-	if (overall_pct < 0.0) overall_pct = 0.0;
-	if (overall_pct > 100.0) overall_pct = 100.0;
-	const int width = 40;
-	int filled = (int)((overall_pct / 100.0) * width + 0.5);
-	if (filled < 0) filled = 0;
-	if (filled > width) filled = width;
-
-	char bar[width + 1];
-	for (int i = 0; i < width; i++) bar[i] = (i < filled) ? '#' : '-';
-	bar[width] = '\0';
-
-	char eta[16];
-	format_eta_mmss(eta, eta_sec);
-
-	// Example: [####-----]  42% ETA 01:23
-	fprintf(stderr, "\r[%s] %6.1f%% ETA %s", bar, overall_pct, eta);
-	fflush(stderr);
-}
-
 static void progress_unknown_update(const std::map<std::string,std::string> &kv, const progress_state_t &ps) {
-	// When duration is unknown (eg: raw .m2v), we cannot compute a percentage.
-	// Show an "infinite" progress bar animation and encoded media time (MM:SS).
-	if (!cfg.progress) return;
-
-	const int width = 40;
-	const int block = 8;
-	int64_t now = now_ms();
-
-	// Move the block at ~5 chars/sec (200ms per step).
-	int step = (int)((now / 200) % (width + block));
-	int start = step - block;
-	int end = step;
-
-	char bar[width + 1];
-	for (int i = 0; i < width; i++) {
-		bar[i] = (i >= start && i < end) ? '#' : '-';
-	}
-	bar[width] = '\0';
-
+	// When duration is unknown, show the shared infinite progress bar animation.
 	// Prefer out_time_ms (microseconds) if present; fallback to out_time (HH:MM:SS.micro)
 	int sec = 0;
 	auto it_ms = kv.find("out_time_ms");
@@ -286,21 +285,8 @@ static void progress_unknown_update(const std::map<std::string,std::string> &kv,
 		}
 	}
 
-	char mmss[16];
-	int mm = sec / 60;
-	int ss = sec % 60;
-	snprintf(mmss, sizeof(mmss), "%02d:%02d", mm, ss);
-
 	(void)ps;
-	fprintf(stderr, "\r[%s]  %s", bar, mmss);
-	fflush(stderr);
-}
-
-void progressbar_clear(void) {
-	if (!cfg.progress) return;
-	// Clear current line (best-effort, no ANSI). Print spaces and carriage return.
-	fprintf(stderr, "\r%*s\r", 80, "");
-	fflush(stderr);
+	progressbar_infinite_update(sec);
 }
 
 struct ffmpeg_progress_ctx_t {
@@ -309,13 +295,12 @@ struct ffmpeg_progress_ctx_t {
 	progress_state_t *ps;
 
 	std::map<std::string,std::string> kv;
-	std::vector<std::string> tail_lines;
+	std::deque<std::string> tail_lines;
 	double last_overall_pct;
 };
 
 int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double duration_sec, int pass_idx, progress_state_t &ps) {
 	std::string cmdline = format_cmdline_for_log(argv);
-	if (cfg.verbose >= 2) verbose(2, "[exec] %s", cmdline.c_str());
 
 	ffmpeg_progress_ctx_t ctx;
 	ctx.duration_sec = duration_sec;
@@ -324,12 +309,9 @@ int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double durati
 	ctx.last_overall_pct = -1.0;
 
 	int rc = run_process_pipe(argv, NULL, [&](const std::string& line) {
-		// Forward raw output when very verbose (helps debugging filter errors).
-		if (cfg.verbose >= 3) verbose(3, "[ffmpeg] %s", line.c_str());
-
 		// Always keep a tail of lines (used on error).
 		const size_t MAX_TAIL_LINES = 80;
-		if (ctx.tail_lines.size() >= MAX_TAIL_LINES) ctx.tail_lines.erase(ctx.tail_lines.begin());
+		if (ctx.tail_lines.size() >= MAX_TAIL_LINES) ctx.tail_lines.pop_front();
 		ctx.tail_lines.push_back(line);
 
 		parse_progress_kv_line(line, ctx.kv);
@@ -389,8 +371,8 @@ int run_ffmpeg_with_progress(const std::vector<std::string>& argv, double durati
 	if (rc != 0 && cfg.verbose >= 1) {
 		verbose(1, "[exec] %s", cmdline.c_str());
 		verbose(1, "[exit] rc=%d", rc);
-		for (size_t i = 0; i < ctx.tail_lines.size(); i++)
-			verbose(1, "[ffmpeg] %s", ctx.tail_lines[i].c_str());
+		for (const auto& l : ctx.tail_lines)
+			verbose(1, "[ffmpeg] %s", l.c_str());
 	} else {
 		if (cfg.verbose >= 2) verbose(2, "[exit] rc=%d", rc);
 	}

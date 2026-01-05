@@ -87,7 +87,9 @@ static SourceMeta ffprobe_analyze_source(void) {
 		cfg.ffprobe_path,
 		"-v", "error",
 		"-select_streams", "v:0",
-		"-show_entries", "stream=width,height,sample_aspect_ratio,avg_frame_rate,r_frame_rate,pix_fmt,duration,bit_rate,color_space,color_range,color_primaries,color_transfer",
+		// NOTE: stream.duration is often missing/"N/A" for some containers/codecs.
+		// Always request format.duration as a fallback for progress reporting.
+		"-show_entries", "format=duration,bit_rate:stream=width,height,sample_aspect_ratio,avg_frame_rate,r_frame_rate,pix_fmt,duration,bit_rate,color_space,color_range,color_primaries,color_transfer",
 		"-of", "json",
 		cfg.input_file,
 	};
@@ -102,6 +104,7 @@ static SourceMeta ffprobe_analyze_source(void) {
 		if (!j.contains("streams") || j["streams"].empty()) fatal("ffprobe: no streams found");
 		json s = j["streams"][0];
 		int64_t bit_rate = 0;
+		double format_duration = 0.0;
 
 		m.width = s.value("width", 0);
 		m.height = s.value("height", 0);
@@ -128,11 +131,31 @@ static SourceMeta ffprobe_analyze_source(void) {
 			else if (s["duration"].is_number()) m.duration = s["duration"].get<double>();
 		}
 
-		// Extract bitrate if available (useful to estimate duration for elementary streams).
+		// Extract format duration/bitrate if available (useful fallback for containers).
+		if (j.contains("format")) {
+			json f = j["format"];
+			if (f.contains("duration")) {
+				if (f["duration"].is_string()) format_duration = atof(f["duration"].get<std::string>().c_str());
+				else if (f["duration"].is_number()) format_duration = f["duration"].get<double>();
+			}
+			if (f.contains("bit_rate")) {
+				if (f["bit_rate"].is_string()) bit_rate = atoll(f["bit_rate"].get<std::string>().c_str());
+				else if (f["bit_rate"].is_number_integer()) bit_rate = f["bit_rate"].get<int64_t>();
+				else if (f["bit_rate"].is_number()) bit_rate = (int64_t)f["bit_rate"].get<double>();
+			}
+		}
+
+		// Extract stream bitrate if available (useful to estimate duration for elementary streams).
+		// Prefer it over format bitrate when both exist.
 		if (s.contains("bit_rate")) {
 			if (s["bit_rate"].is_string()) bit_rate = atoll(s["bit_rate"].get<std::string>().c_str());
 			else if (s["bit_rate"].is_number_integer()) bit_rate = s["bit_rate"].get<int64_t>();
 			else if (s["bit_rate"].is_number()) bit_rate = (int64_t)s["bit_rate"].get<double>();
+		}
+
+		// If stream duration is missing, fallback to container duration (common for MKV).
+		if (!(m.duration > 0.0) && (format_duration > 0.0)) {
+			m.duration = format_duration;
 		}
 
 		// Best-effort duration estimation for elementary streams (.m1v/.h264) where ffprobe often can't provide it.

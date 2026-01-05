@@ -6,6 +6,8 @@
 #define LIBDRAGON_COMPRESS_RINGBUF_INTERNAL_H
 
 #include <stdint.h>
+#include <stdbool.h>
+#include "../utils.h"
 
 /**
  * @brief A ring buffer used for streaming decompression.
@@ -65,5 +67,39 @@ void __ringbuf_write(decompress_ringbuf_t *ringbuf, uint8_t *src, int count);
  * @param count                 Number of bytes to copy
  */
 void __ringbuf_copy(decompress_ringbuf_t *ringbuf, int copy_offset, uint8_t *dst, int count);
+
+/**
+ * @brief A double-buffered lookahead reader used to overlap I/O with decoding.
+ *
+ * It keeps two fixed-size buffers and, on N64 when reading from ROM (rom_base != 0),
+ * it prefetches the "next" buffer via DMA while the caller is consuming the current one.
+ */
+typedef struct {
+    uint8_t buf[2][128] __attribute__((aligned(16)));  ///< Double buffer storage
+    uint8_t cur;            ///< Current buffer index (0/1)
+    uint8_t *ptr;           ///< Read pointer in current buffer
+    uint8_t *end;           ///< End pointer in current buffer
+    int fd;                 ///< File descriptor (used when rom_base == 0)
+    uint32_t rom_base;      ///< Base ROM address (0 if not reading from ROM)
+    uint32_t rom_addr;      ///< Current ROM address (advanced as we prefetch)
+    bool eof;               ///< True if EOF reached (fd mode only)
+} __lookahead_buf_t;
+
+/** @brief Initialize a lookahead buffer */
+void __lookahead_buf_init(__lookahead_buf_t *lb, int fd);
+
+/** @brief Reset lookahead buffer (after caller rewound underlying fd/ROM pointer) */
+void __lookahead_buf_reset(__lookahead_buf_t *lb);
+
+/** @brief Refill lookahead buffer when needed */
+void __lookahead_buf_refill(__lookahead_buf_t *lb);
+
+/** @brief Read one byte from lookahead buffer, refilling when needed */
+static inline uint8_t __lookahead_buf_readbyte(__lookahead_buf_t *lb)
+{
+    if (UNLIKELY(lb->ptr >= lb->end))
+        __lookahead_buf_refill(lb);
+    return *lb->ptr++;
+}
 
 #endif

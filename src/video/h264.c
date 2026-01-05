@@ -223,6 +223,18 @@ static poll_status_t poll(h264_t *player)
     }
 }
 
+static bool poll_loop(h264_t *player)
+{
+    while (1) {
+        poll_status_t status = poll(player);
+        assertf(status != POLL_NOTHING, "Decoder stalled while decoding frame");
+        if (status == POLL_EOF)
+            return false;
+        if (status == POLL_READY)
+            return true;
+    }
+}
+
 static int h264_poll(video_t *v)
 {
     h264_t *player = (h264_t*)v;
@@ -252,21 +264,15 @@ static bool h264_next_frame(video_t *v)
 
     // If no picture was decoded yet, we need to keep decoding until
     // one picture is ready.
-    while (1) {
-        poll_status_t status = poll(player);
-        assertf(status != POLL_NOTHING, "Decoder stalled while decoding frame");
-        if (status == POLL_EOF)
-            return false;
-        if (status == POLL_READY)
-            break;
-    }
+    if (!poll_loop(player))
+        return false;
 
     bool fetched = fetch_picture(player);
     assertf(fetched, "Failed to fetch picture after decoding");
     return true;
 }
 
-yuv_frame_t h264_get_frame(video_t *v)
+static yuv_frame_t h264_get_frame(video_t *v)
 {
     h264_t *player = (h264_t*)v;
 
@@ -279,6 +285,30 @@ yuv_frame_t h264_get_frame(video_t *v)
         .v = surface_make(player->pic + w * h + w2 * h2, FMT_I8, w2, h2, w2),
     };
 }
+
+static void h264_seekfast(video_t *v, int frame_idx, uint32_t file_off)
+{
+    h264_t *player = (h264_t*)v;
+
+	// Finish decoding the current frame, if any. This is required if we're
+	// using poll() and we are in the middle of a single frame decoding
+	// (or if we've just initialized the player and we're in the middle
+	// of the first frame).
+	if (player->in_frame_decoding) {
+		poll_loop(player);
+        assert(!player->in_frame_decoding);
+    }
+
+	// Flush all pending pictures
+	do fetch_picture(player);
+	while (player->pic != NULL);
+
+    // Seek the underlying file to the specified offset, so that we're
+	// ready for next frame.
+	lseek(player->fd, file_off, SEEK_SET);
+    player->idx = 0;
+    player->buf_len = 0;
+}    
 
 void __h264_profile_init(void) {
 	profile_register(PS_H264, "H264", 0);
@@ -306,4 +336,5 @@ video_codec_t h264_codec = {
     .get_frame = h264_get_frame,
     .next_frame = h264_next_frame,
     .rewind = h264_rewind,
+    .seekfast = h264_seekfast,
 };

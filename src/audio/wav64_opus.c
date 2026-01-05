@@ -72,7 +72,7 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
 			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
 			opus_custom_decoder_ctl(dec, OPUS_RESET_STATE);
 		} else {
-			assertf(0, "seeking not support in wav64 with opus compression");
+			assertf(0, "seeking not supported in wav64 with opus compression");
 		}
 	}
 

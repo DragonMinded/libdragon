@@ -212,8 +212,8 @@ void video_rewind(video_t *v);
 /**
  * @brief Seek the video to a specific frame index
  * 
- * The videoplayer only allows seeking to keyframes. If the specified frame
- * index is not a keyframe, the videoplayer will seek to the closest
+ * In general, video codecs only allow fast seeking to keyframes. If the
+ * specified frame index is not a keyframe, the videoplayer will seek to the closest
  * previous keyframe. In that case, the client will need to call #video_next_frame
  * repeatedly until the desired frame index is reached.
  * 
@@ -221,36 +221,14 @@ void video_rewind(video_t *v);
  * time (using videoconv64 --seek). The seek index is stored in a file with
  * the same name as the video, but with .seek extension. If no seek index file
  * is found, seeking will be performed by linearly scanning the video, and
- * will thus be much slower.
+ * will thus be slower.
  * 
  * @param v             Handle to the video
  * @param frame_idx     Index of the frame to seek to
- * @return int          Actual frame index seeked to
- * 
- * @see #video_seek_time
+ * @return int          Actual frame index seeked to, or -1 if the codec does not
+ *                      support seeking (with or without the seektable).
  */
-int video_seek_frame(video_t *v, int frame_idx);
-
-/**
- * @brief Seek the video to a specific time (in seconds)
- * 
- * This function is similar to #video_seek_frame, but allows seeking
- * to a specific time in seconds rather than a frame index. This is more
- * convenient for implementing standard playback controls.
- * 
- * Just like #video_seek_frame, seeking is only accurate to keyframes, so
- * the actual time seeked to might be slightly before the requested time.
- * 
- * Moreover, if no seek index file is found, seeking will be performed
- * by linearly scanning the video, and will thus be much slower.
- * 
- * @param v             Handle to the video
- * @param time_sec      Time in seconds to seek to
- * @return float        Actual time seeked to (in seconds)
- * 
- * @see #video_seek_frame
- */
-float video_seek_time(video_t *v, float time_sec);
+int video_seek(video_t *v, int frame_idx);
 
 /**
  * @brief Close the video file

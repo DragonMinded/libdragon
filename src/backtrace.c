@@ -123,7 +123,7 @@ char* __symbolize(void *vaddr, char *buf, int size)
         uint32_t addr = (uint32_t)vaddr;
         symtable_entry_t alignas(8) entry;
         
-        if (symt_find_symbol(&symt, addr, &entry)) {
+        if (symt_find_symbol(&symt, addr, &entry, 1)) {
             char *func = symt_get_func_name(&symt, &entry, addr, buf, size-12);
             char lbuf[12];
             snprintf(lbuf, sizeof(lbuf), "+0x%lx", entry.func_off);
@@ -367,7 +367,7 @@ static void backtrace_foreach(void (*cb)(void *arg, void *ptr), void *arg, uint3
                 symtable_header_t symt = symt_open(ra);
                 if (symt.head[0]) {
                     symtable_entry_t alignas(8) entry;
-                    if (symt_find_symbol(&symt, (uint32_t)ra, &entry)) {
+                    if (symt_find_symbol(&symt, (uint32_t)ra, &entry, 1)) {
                         func_start = (uint32_t)ra - entry.func_off;
                         #if BACKTRACE_DEBUG
                         debugf("Found interrupted function start address: %08lx\n", func_start);
@@ -465,19 +465,23 @@ bool backtrace_symbols_cb(void **buffer, int size, uint32_t flags,
             continue;
         }
         
-        symtable_entry_t alignas(8) entry;
-        if (symt_find_symbol(&symt_header, needle, &entry)) {
+        symtable_entry_t alignas(8) entries[8];
+        int num_entries = symt_find_symbol(&symt_header, needle, entries, 8);
+        if (num_entries > 0) {
             char alignas(8) file_buf[512];
             char alignas(8) func_buf[512];
 
-            cb(cb_arg, &(backtrace_frame_t){
-                .addr = needle,
-                .func_offset = entry.func_off,
-                .func = symt_get_func_name(&symt_header, &entry, needle, func_buf, sizeof(func_buf)),
-                .source_file = symt_get_file_name(&symt_header, &entry, needle, file_buf, sizeof(file_buf)),
-                .source_line = entry.line,
-                .is_inline = false, // V3 stream does not fully support inline iteration yet in this implementation
-            });
+            for (int i=0; i<num_entries; i++) {
+                symtable_entry_t *entry = &entries[i];
+                cb(cb_arg, &(backtrace_frame_t){
+                    .addr = needle,
+                    .func_offset = entry->func_off,
+                    .func = symt_get_func_name(&symt_header, entry, needle, func_buf, sizeof(func_buf)),
+                    .source_file = symt_get_file_name(&symt_header, entry, needle, file_buf, sizeof(file_buf)),
+                    .source_line = entry->line,
+                    .is_inline = entry->is_inline,
+                });
+            }
         } else {
              // Not found
             cb(cb_arg, &(backtrace_frame_t){
