@@ -5,6 +5,14 @@
 #include "ringbuf_internal.h"
 #include "../utils.h"
 #include <assert.h>
+#include <string.h>
+#include <unistd.h>
+
+#ifdef N64
+#include "n64sys.h"
+#include "dma.h"
+#include "dragonfs.h"
+#endif
 
 void __ringbuf_init(decompress_ringbuf_t *ringbuf, uint8_t *buf, int size)
 {
@@ -70,4 +78,66 @@ void __ringbuf_copy(decompress_ringbuf_t *ringbuf, int copy_offset, uint8_t *dst
         ringbuf_copy_pos &= ringbuf->ringbuf_size - 1;
         ringbuf->ringbuf_pos &= ringbuf->ringbuf_size - 1;
     }
+}
+
+// ----------------------------------------------------------------------------
+// Lookahead (double-buffer) reader
+// ----------------------------------------------------------------------------
+
+__attribute__((noinline))
+void __lookahead_buf_refill(__lookahead_buf_t *lb)
+{
+    int buf_size;
+
+    lb->cur ^= 1;
+
+    #ifdef N64
+    if (lb->rom_base) {
+        data_cache_hit_invalidate(lb->buf[lb->cur ^ 1], sizeof(lb->buf[0]));
+        dma_read_raw_async(lb->buf[lb->cur ^ 1], lb->rom_addr, sizeof(lb->buf[0]));
+        lb->rom_addr += sizeof(lb->buf[0]);
+        buf_size = sizeof(lb->buf[0]);
+    } else {
+        buf_size = read(lb->fd, lb->buf[lb->cur], sizeof(lb->buf[0]));
+    }
+    #else
+    buf_size = read(lb->fd, lb->buf[lb->cur], sizeof(lb->buf[0]));
+    #endif
+
+    lb->ptr = lb->buf[lb->cur];
+    lb->end = lb->buf[lb->cur] + buf_size;
+    if (!buf_size) lb->eof = true;
+}
+
+void __lookahead_buf_init(__lookahead_buf_t *lb, int fd)
+{
+    memset(lb, 0, sizeof(*lb));
+    lb->fd = fd;
+
+    #ifdef N64
+    uint32_t rom_base = 0;
+    if (ioctl(fd, IODFS_GET_ROM_BASE, &rom_base) >= 0) {
+        lb->rom_base = rom_base;
+    }
+    #endif
+
+    __lookahead_buf_reset(lb);
+}
+
+void __lookahead_buf_reset(__lookahead_buf_t *lb)
+{
+    lb->eof = false;
+    lb->cur = 0;
+    lb->ptr = lb->end = lb->buf[0];
+    lb->rom_addr = lb->rom_base ? (lb->rom_base + (uint32_t)lseek(lb->fd, 0, SEEK_CUR)) : 0;
+
+    #ifdef N64
+    if (lb->rom_base) {
+        // Prefetch the first buffer (the logic expects the first refill() to flip
+        // cur and start prefetching the other buffer).
+        data_cache_hit_invalidate(lb->buf[lb->cur ^ 1], sizeof(lb->buf[0]));
+        dma_read_raw_async(lb->buf[lb->cur ^ 1], lb->rom_addr, sizeof(lb->buf[0]));
+        lb->rom_addr += sizeof(lb->buf[0]);
+    }
+    #endif
 }

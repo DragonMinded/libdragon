@@ -8,7 +8,7 @@
 #include <stdio.h>
 
 /** @brief Size of APLIB decompressor state */
-#define DECOMPRESS_APLIB_STATE_SIZE       348
+#define DECOMPRESS_APLIB_STATE_SIZE       352
 
 /** @brief Initialize APLIB decompressor */
 void decompress_aplib_init(void *state, int fd, int winsize);

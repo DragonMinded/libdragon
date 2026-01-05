@@ -37,15 +37,9 @@
 
 /** @brief APLib decompressor */
 typedef struct {
-    uint8_t buf[2][128] __attribute__((aligned(16)));   ///< Buffer of loaded data
-    int cur_buf;                                        ///< Current buffer being used
-    uint8_t *buf_ptr;                                   ///< Pointer to data being processed
-    uint8_t *buf_end;                                   ///< Pointer to end of current loaded data
+    __lookahead_buf_t lb;                               ///< Lookahead reader state
     uint8_t cc;                                         ///< Current byte being processed
     int shift;                                          ///< Current bit being processed
-    int fd;                                             ///< File being read from
-    uint32_t rom_addr;                                  ///< ROM address being read from (optional)
-    bool eof;                                           ///< Whether the end of the stream has been reached
     struct {
         decompress_ringbuf_t ringbuf;                   ///< Ring buffer
         bool first_literal_done;                        ///< Whether the first literal has been written
@@ -57,34 +51,9 @@ typedef struct {
 
 _Static_assert(sizeof(aplib_decompressor_t) <= DECOMPRESS_APLIB_STATE_SIZE, "APLib decompressor state too small");
 
-__attribute__((noinline))
-static void refill(aplib_decompressor_t *d)
+static inline uint8_t readbyte(aplib_decompressor_t *d)
 {
-    int buf_size;
-
-    d->cur_buf ^= 1;
-    #ifdef N64
-    if (d->rom_addr) {
-        data_cache_hit_invalidate(d->buf[d->cur_buf^1], sizeof(d->buf[0]));
-        dma_read_raw_async(d->buf[d->cur_buf^1], d->rom_addr, sizeof(d->buf[0]));
-        d->rom_addr += sizeof(d->buf[0]);
-        buf_size = sizeof(d->buf[0]);
-    } else {
-        buf_size = read(d->fd, d->buf[d->cur_buf], sizeof(d->buf[0]));
-    }
-    #else
-    buf_size = read(d->fd, d->buf[d->cur_buf], sizeof(d->buf[0]));
-    #endif
-
-    d->buf_ptr = d->buf[d->cur_buf];
-    d->buf_end = d->buf[d->cur_buf] + buf_size;
-    if (!buf_size) d->eof = true;
-}
-
-static uint8_t readbyte(aplib_decompressor_t *d)
-{
-    if (unlikely(d->buf_ptr >= d->buf_end)) refill(d);
-    return *d->buf_ptr++;
+    return __lookahead_buf_readbyte(&d->lb);
 }
 
 static int readbit(aplib_decompressor_t *d)
@@ -107,36 +76,26 @@ static inline int readgamma2(aplib_decompressor_t *d)
 static void decompress_reset(aplib_decompressor_t *d)
 {
     d->shift = -1;
-    d->eof = false;
+    __lookahead_buf_reset(&d->lb);
     d->partial.ringbuf.ringbuf_pos = 0;
     d->partial.first_literal_done = false;
     d->partial.nlit = 0;
     d->partial.match_off = 0;
     d->partial.match_len = 0;
-    d->buf_ptr = 0;
-    d->buf_end = 0;
-    
-    #ifdef N64
-	if (d->rom_addr) {
-		data_cache_hit_invalidate(d->buf[d->cur_buf^1], sizeof(d->buf[0]));
-		dma_read_raw_async(d->buf[d->cur_buf^1], d->rom_addr, sizeof(d->buf[0]));
-		d->rom_addr += sizeof(d->buf[0]);
-	}
-    #endif
 }
 
 static void decompress_init(aplib_decompressor_t *d, int fd, uint32_t rom_addr)
 {
     memset(d, 0, sizeof(*d));
-    d->fd = fd;
-    d->rom_addr = rom_addr;
+    (void)rom_addr;
+    __lookahead_buf_init(&d->lb, fd);
     decompress_reset(d);
 }
 
 __attribute__((used))
 static int decompress_aplib_partial(aplib_decompressor_t *d, uint8_t *out, int len)
 {
-    if (!len || d->eof) return 0;
+    if (!len || d->lb.eof) return 0;
     uint8_t *out_orig = out;
     uint8_t *out_end = out + len;
 
@@ -182,7 +141,7 @@ static int decompress_aplib_partial(aplib_decompressor_t *d, uint8_t *out, int l
             uint8_t cmd = readbyte(d);
             if (cmd == 0) {
                 // end of stream
-                d->eof = true;
+                d->lb.eof = true;
                 break;
             }
 
