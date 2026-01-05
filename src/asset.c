@@ -73,6 +73,10 @@ void __asset_init_compression_lvl2(void)
 void __asset_init_compression_lvl3(void)
 {
     algos[2] = (asset_compression_t){
+        .state_size = DECOMPRESS_SHRINKLER_STATE_SIZE,
+        .decompress_init = decompress_shrinkler_init,
+        .decompress_read = decompress_shrinkler_read,
+        .decompress_reset = decompress_shrinkler_reset,
         #if DECOMPRESS_SHRINKLER_FULL_USE_ASM
         .decompress_full_inplace = decompress_shrinkler_full_inplace,
         #else
@@ -163,7 +167,7 @@ static bool decompress_inplace(asset_compression_t *algo, int fd, size_t cmp_siz
 
 static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
 {
-    read(fd, &header->base, sizeof(asset_header_t));
+    int rdhead = read(fd, &header->base, sizeof(asset_header_t));
     
     if (memcmp(header->base.magic, ASSET_MAGIC, 3) == 0) {
         if (header->base.version != '4') {
@@ -178,25 +182,20 @@ static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
         if (header_size & 1) header_size++;
 
         // Seek back to the actual end of the header
-        lseek(fd, header_size - sizeof(asset_header_t), SEEK_CUR);
+        lseek(fd, header_size - rdhead, SEEK_CUR);
         
         int compressed_size = header->cmp_size + header_size;
         assertf(compressed_size == *sz, "Wrong compressed size (%d/%d)", *sz, compressed_size);
 
         int algo = ASSET_FLAG_ALGO(header->base.flags);
-        assertf(algo >= 1 || algo <= 3,
+        assertf(algo >= 1 && algo <= 3,
             "unsupported compression algorithm: %d", algo);
         assertf(algos[algo-1].decompress_full || algos[algo-1].decompress_full_inplace, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
         return asset_buf_size(header->orig_size, header->cmp_size, header->inplace_margin, NULL);
     } else {
-        // Seek back before the header. If the file is smaller than the header, we would
-        // seek to a negative position. Normally all our FS implementations simply
-        // clamp to 0, but this code is also compiled on PC, where the function
-        // can just fail returning -1 by the spec. In that case, we just seek
-        // to the beginning of the file.
-        if (lseek(fd, -((off_t)sizeof(asset_header_t)), SEEK_CUR) == -1 && errno == EINVAL)
-            lseek(fd, 0, SEEK_SET);
+        // Seek back before the header.
+        lseek(fd, -rdhead, SEEK_CUR);
         assertf(*sz >= 0, "Invalid uncompressed size");
         return *sz;
     }
@@ -381,7 +380,7 @@ FILE *asset_fdopen(int fd, int *sz)
 {
     // Check if file is compressed
     asset_parsed_header_t header;
-    read(fd, &header.base, sizeof(asset_header_t));
+    int rdhead = read(fd, &header.base, sizeof(asset_header_t));
     if (memcmp(header.base.magic, ASSET_MAGIC, 3) == 0) {
         if (header.base.version != '4') {
             assertf(0, "unsupported asset version: %c\nMake sure to rebuild libdragon tools and your assets", header.base.version);
@@ -392,16 +391,17 @@ FILE *asset_fdopen(int fd, int *sz)
         header.cmp_size = __read_varint_u64(&ptr);
         header.orig_size = __read_varint_u64(&ptr);
         header.inplace_margin = __read_varint_u64(&ptr);
-        int header_size = (void*)ptr - (void*)&header;
+        // NOTE: avoid void* pointer arithmetic here (non-standard / compiler-dependent).
+        int header_size = (int)((uintptr_t)ptr - (uintptr_t)&header.base);
         if (header_size & 1) header_size++;
         
         // Seek back to the actual end of the header
-        lseek(fd, header_size - sizeof(asset_header_t), SEEK_CUR);
+        lseek(fd, header_size - rdhead, SEEK_CUR);
 
         cookie_cmp_t *cookie;
 
         int algo = ASSET_FLAG_ALGO(header.base.flags);
-        assertf(algo >= 1 || algo <= 2,
+        assertf(algo >= 1 && algo <= 3,
             "unsupported compression algorithm: %d", algo);
         assertf(algos[algo-1].decompress_full || algos[algo-1].decompress_full_inplace, 
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
