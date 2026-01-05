@@ -49,7 +49,9 @@ static asset_compression_t algos[3] = {
         .decompress_init = decompress_lz4_init,
         .decompress_read = decompress_lz4_read,
         .decompress_reset = decompress_lz4_reset,
+        #ifdef N64
         .decompress_full = decompress_lz4_full_inplace,
+        #endif /* N64 */
     }
 };
 
@@ -201,7 +203,8 @@ static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
         if (header_size & 1) header_size++;
 
         // Seek back to the actual end of the header
-        lseek(fd, header_size - rdhead, SEEK_CUR);
+        int cur = lseek(fd, header_size - rdhead, SEEK_CUR); (void)cur;
+        assertf((cur & 1) == 0, "asset_read_header: header not 2-byte aligned (pos=%d)", cur);
         
         int compressed_size = header->cmp_size + header_size;
         assertf(compressed_size == *sz, "Wrong compressed size (%d/%d)", *sz, compressed_size);
@@ -343,6 +346,7 @@ typedef struct  {
     int fd;
     int pos;
     bool seeked;
+    int header_size;
     void (*reset)(void *state);
     ssize_t (*read)(void *state, void *buf, size_t len);
     uint8_t alignas(8) state[];
@@ -367,7 +371,7 @@ static fpos_t seekfn_cmp(void *c, fpos_t pos, int whence)
     if (whence == SEEK_SET && pos == 0 && cookie->reset) {
         cookie->seeked = false;
         cookie->pos = 0;
-        lseek(cookie->fd, sizeof(asset_header_t), SEEK_SET);
+        lseek(cookie->fd, cookie->header_size, SEEK_SET);
         cookie->reset(cookie->state);
         return 0;
     }
@@ -435,6 +439,7 @@ FILE *asset_fdopen(int fd, int *sz)
         cookie->fd = fd;
         cookie->pos = 0;
         cookie->seeked = false;
+        cookie->header_size = header_size;
         if (sz) *sz = header.orig_size;
         return funopen(cookie, readfn_cmp, NULL, seekfn_cmp, closefn_cmp);
     }
