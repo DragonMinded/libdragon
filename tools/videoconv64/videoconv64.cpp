@@ -22,6 +22,9 @@
 #include <climits>
 #include <strings.h>
 
+// Shared parsing helpers for --seek
+#include "../common/seekfile.cpp"
+
 using json = nlohmann::json;
 
 Config cfg;
@@ -256,60 +259,6 @@ void check_tool_available(const std::string& tool_path, const char *tool_name) {
 		fatal("%s not found or not executable: %s", tool_name, tool_path.c_str());
 	}
 	verbose(2, "%s OK: %s", tool_name, tool_path.c_str());
-}
-
-static bool parse_double_strict(const char *s, double *out)
-{
-	if (!s || !*s) return false;
-	char *end = NULL;
-	double v = strtod(s, &end);
-	if (end == s) return false;
-	while (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r') end++;
-	if (*end != 0) return false;
-	*out = v;
-	return true;
-}
-
-static std::vector<int> load_seek_frames_file(const std::string& path)
-{
-	FILE *f = fopen(path.c_str(), "rb");
-	if (!f) fatal("seek: cannot open frames file: %s", path.c_str());
-
-	std::vector<int> frames;
-	char line[256];
-	int lineno = 0;
-	while (fgets(line, sizeof(line), f)) {
-		lineno++;
-		char *p = line;
-		while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
-		if (*p == 0) continue;
-		if (*p == '#') continue;
-
-		char *end = NULL;
-		long v = strtol(p, &end, 10);
-		if (end == p) {
-			fclose(f);
-			fatal("seek: invalid frame index at %s:%d", path.c_str(), lineno);
-		}
-		while (*end == ' ' || *end == '\t' || *end == '\r' || *end == '\n') end++;
-		if (*end != 0 && *end != '#') {
-			fclose(f);
-			fatal("seek: trailing garbage at %s:%d", path.c_str(), lineno);
-		}
-		if (v < 0 || v > INT32_MAX) {
-			fclose(f);
-			fatal("seek: out of range frame index at %s:%d", path.c_str(), lineno);
-		}
-		frames.push_back((int)v);
-	}
-	fclose(f);
-
-	if (frames.empty())
-		fatal("seek: frames file is empty: %s", path.c_str());
-
-	std::sort(frames.begin(), frames.end());
-	frames.erase(std::unique(frames.begin(), frames.end()), frames.end());
-	return frames;
 }
 
 int main(int argc, char **argv) {

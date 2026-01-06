@@ -41,6 +41,7 @@ int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
 int flag_wav_resample = 0;
 std::vector<int> flag_wav_seek_offset;
+double flag_wav_seek_interval_sec = 0.0;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
 
@@ -880,13 +881,30 @@ int wav_convert(const char *infn, const char *outfn) {
 	}
 
 	// Apply additional seek offsets specified on the command line.
-	if (flag_wav_seek_offset.size() > 0) {
-		if (flag_wav_compress != 0 && flag_wav_compress != 1) {
-			fprintf(stderr, "ERROR: %s: seek points are only supported for VADPCM files\n", infn);
-			free(wav.samples);
-			return 1;
+	if (flag_wav_seek_offset.size() > 0 || flag_wav_seek_interval_sec > 0.0) {
+		// Merge existing seekpoints (from input metadata) with user-requested ones.
+		std::vector<int> extra;
+
+		// From explicit list (file-based --wav-seek)
+		if (flag_wav_seek_offset.size() > 0) {
+			extra.insert(extra.end(), flag_wav_seek_offset.begin(), flag_wav_seek_offset.end());
 		}
-		wav.skipPoints = flag_wav_seek_offset;
+
+		// From periodic interval (seconds)
+		if (flag_wav_seek_interval_sec > 0.0) {
+			int step = (int)llround(flag_wav_seek_interval_sec * (double)wav.sampleRate);
+			if (step <= 0) step = 1;
+			for (int sp = step; sp < wav.cnt; sp += step)
+				extra.push_back(sp);
+		}
+
+		// Append, then normalize (remove <=0 and out-of-range, sort+unique).
+		for (int sp : extra) {
+			if (sp > 0 && sp < wav.cnt)
+				wav.skipPoints.push_back(sp);
+		}
+		std::sort(wav.skipPoints.begin(), wav.skipPoints.end());
+		wav.skipPoints.erase(std::unique(wav.skipPoints.begin(), wav.skipPoints.end()), wav.skipPoints.end());
 	}
 
 	FILE *out = fopen(outfn, "wb");
