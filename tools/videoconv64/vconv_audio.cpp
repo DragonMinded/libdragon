@@ -14,9 +14,6 @@
 #include "../common/utils.h"
 #include "../common/polyfill.h"
 
-#define DR_WAV_IMPLEMENTATION
-#include "../common/dr_wav.h"
-
 #include <string>
 #include <errno.h>
 #include <string.h>
@@ -130,116 +127,42 @@ static std::string extract_audio_to_tmpwav(const std::string &tmpwav, bool from_
 	return tmpwav;
 }
 
-static void inject_seekpoints_cue_into_wav(const std::string& wav_path, const std::vector<seek_point_t>& seek_points, double video_fps) {
+
+static std::string format_timecode(double sec)
+{
+	if (sec < 0) sec = 0;
+	int64_t ms = (int64_t)floor(sec * 1000.0 + 0.5);
+	int64_t s = ms / 1000;
+	int msec = (int)(ms % 1000);
+	int hh = (int)(s / 3600);
+	int mm = (int)((s % 3600) / 60);
+	int ss = (int)(s % 60);
+
+	char buf[64];
+	if (hh > 0) {
+		snprintf(buf, sizeof(buf), "%d:%02d:%02d.%03d", hh, mm, ss, msec);
+	} else {
+		snprintf(buf, sizeof(buf), "%02d:%02d.%03d", mm, ss, msec);
+	}
+	return std::string(buf);
+}
+
+static std::string write_audio_seekfile(const std::string& wav_path, const std::vector<seek_point_t>& seek_points, double video_fps)
+{
 	assert(video_fps > 0.0);
+	std::string tmp = wav_path + ".seek.txt";
+	FILE *f = fopen(tmp.c_str(), "wb");
+	if (!f) fatal("cannot create audio seekfile: %s", tmp.c_str());
 
-	// Open input WAV and stream-copy audio samples to a new WAV with CUE markers.
-	drwav in;
-	if (!drwav_init_file(&in, wav_path.c_str(), NULL)) {
-		fatal("failed to open extracted wav: %s", wav_path.c_str());
-	}
-	if (in.translatedFormatTag != DR_WAVE_FORMAT_PCM || in.bitsPerSample != 16) {
-		drwav_uninit(&in);
-		fatal("unexpected WAV format (expected pcm_s16): %s", wav_path.c_str());
-	}
-
-	// Compute audio seek points in *samples* (PCM frames), assuming frame_idx maps to time via fps.
-	// We will store them as SMPL "loops" (loop points) so audioconv64 can reuse them.
-	std::vector<drwav_uint32> sp;
-	sp.reserve(seek_points.size());
+	// Use timestamps so the mapping remains valid even if FPS is overridden.
+	// audioconv64 --wav-seek will convert timestamps to sample offsets using the final sample rate.
 	for (const auto& p : seek_points) {
-		// Map video frame index -> seconds -> audio sample index.
 		double t = (double)p.frame / video_fps;
-		double s = t * (double)in.sampleRate;
-		int64_t si = (int64_t)floor(s + 0.5);
-		if (si < 0) si = 0;
-		if (si > (int64_t)in.totalPCMFrameCount) si = (int64_t)in.totalPCMFrameCount;
-		// Avoid pushing 0; it's implicit and usually not useful as a seekpoint.
-		if (si == 0) continue;
-		sp.push_back((drwav_uint32)si);
+		std::string tc = format_timecode(t);
+		fprintf(f, "%s\n", tc.c_str());
 	}
-	std::sort(sp.begin(), sp.end());
-	sp.erase(std::unique(sp.begin(), sp.end()), sp.end());
-	if (sp.empty()) {
-		drwav_uninit(&in);
-		return;
-	}
-
-	// Build CUE metadata, one cue point per seek point.
-	std::vector<drwav_cue_point> cue_points;
-	cue_points.resize(sp.size());
-	for (size_t i = 0; i < sp.size(); i++) {
-		drwav_cue_point &cp = cue_points[i];
-		cp.id = (drwav_uint32)(i + 1);
-		cp.playOrderPosition = 0;
-		cp.dataChunkId[0] = 'd';
-		cp.dataChunkId[1] = 'a';
-		cp.dataChunkId[2] = 't';
-		cp.dataChunkId[3] = 'a';
-		cp.chunkStart = 0;
-		cp.blockStart = 0;
-		cp.sampleOffset = sp[i];
-	}
-
-	drwav_metadata md{};
-	md.type = drwav_metadata_type_cue;
-	md.data.cue.cuePointCount = (drwav_uint32)cue_points.size();
-	md.data.cue.pCuePoints = cue_points.data();
-
-	std::string tmp = wav_path + ".cue.wav";
-	drwav_data_format fmt{};
-	fmt.container = drwav_container_riff;
-	fmt.format = DR_WAVE_FORMAT_PCM;
-	fmt.channels = in.channels;
-	fmt.sampleRate = in.sampleRate;
-	fmt.bitsPerSample = in.bitsPerSample;
-
-	// Write output.
-	FILE *outf = fopen(tmp.c_str(), "wb");
-	if (!outf) {
-		drwav_uninit(&in);
-		fatal("cannot create temp wav: %s", tmp.c_str());
-	}
-	auto onWrite = [](void* pUserData, const void* pData, size_t bytesToWrite) -> size_t {
-		return fwrite(pData, 1, bytesToWrite, (FILE*)pUserData);
-	};
-	auto onSeek = [](void* pUserData, int offset, drwav_seek_origin origin) -> drwav_bool32 {
-		int whence = (origin == DRWAV_SEEK_SET) ? SEEK_SET : SEEK_CUR;
-		return fseek((FILE*)pUserData, offset, whence) == 0;
-	};
-
-	drwav out;
-	if (!drwav_init_write_with_metadata(&out, &fmt, onWrite, onSeek, outf, NULL, &md, 1)) {
-		fclose(outf);
-		drwav_uninit(&in);
-		remove(tmp.c_str());
-		fatal("failed to init wav writer with metadata");
-	}
-
-	// Stream copy PCM frames.
-	std::vector<drwav_int16> buf;
-	buf.resize(4096 * fmt.channels);
-	drwav_uint64 frames_left = in.totalPCMFrameCount;
-	while (frames_left > 0) {
-		drwav_uint64 chunk = frames_left > 4096 ? 4096 : frames_left;
-		drwav_uint64 got = drwav_read_pcm_frames_s16(&in, chunk, buf.data());
-		if (got == 0) break;
-		drwav_write_pcm_frames(&out, got, buf.data());
-		frames_left -= got;
-	}
-
-	drwav_uninit(&out);
-	fclose(outf);
-	drwav_uninit(&in);
-
-	// Replace original wav.
-	remove(wav_path.c_str());
-	if (rename(tmp.c_str(), wav_path.c_str()) != 0) {
-		remove(tmp.c_str());
-		fatal("failed to replace wav with smpl-injected wav: %s", wav_path.c_str());
-	}
-
-	verbose(1, "Injected %d audio seek points into WAV CUE (fps=%.3f, sr=%u)", (int)sp.size(), video_fps, (unsigned)fmt.sampleRate);
+	fclose(f);
+	return tmp;
 }
 
 AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double video_fps, bool show_progress) {
@@ -270,8 +193,11 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 		verbose(1, "Extracting audio...");
 		extract_audio_to_tmpwav(tmpwav, from_container, stream_index, src_path);
 
+		// If seeking is enabled, generate a temporary seekfile and pass it to audioconv64.
+		// This is simpler and more robust than injecting CUE metadata into the WAV.
+		std::string seekfile;
 		if (!seek_points.empty()) {
-			inject_seekpoints_cue_into_wav(tmpwav, seek_points, video_fps);
+			seekfile = write_audio_seekfile(tmpwav, seek_points, video_fps);
 		}
 
 		verbose(1, "Converting audio with audioconv64...");
@@ -289,6 +215,10 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 			cmd.push_back("--wav-resample");
 			cmd.push_back(std::to_string(cfg.audio_rate));
 			if (cfg.audio_channels == 1) cmd.push_back("--wav-mono");
+			if (!seekfile.empty()) {
+				cmd.push_back("--wav-seek");
+				cmd.push_back(seekfile);
+			}
 			cmd.push_back(tmpwav);
 
 			const bool want_prog = show_progress && cfg.progress && cfg.verbose == 0 && total_sources == 1;
@@ -314,6 +244,7 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 			if (want_prog) { progressbar_clear(); }
 
 			remove(tmpwav.c_str());
+			if (!seekfile.empty()) remove(seekfile.c_str());
 			if (rc != 0 || !file_exists(produced_wav64)) {
 				if (cfg.verbose >= 1) verbose(1, "[audioconv64] %s", out.c_str());
 				if (want_prog) fprintf(stderr, "\n");

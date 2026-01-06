@@ -183,8 +183,6 @@ std::string build_filterchain(const AnalysisResult &ar, const char *out_matrix, 
 
 std::string ffmpeg_force_keyframes_from_frames(const std::vector<int>& frames, double fps)
 {
-	if (frames.empty() || fps <= 0.0) return std::string();
-
 	// Ensure monotonic unique list (callers generally already do this).
 	std::vector<int> f = frames;
 	std::sort(f.begin(), f.end());

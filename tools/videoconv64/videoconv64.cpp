@@ -372,12 +372,6 @@ int main(int argc, char **argv) {
 	}
 	cfg.extra_files.clear();
 
-	// If the user requested exact keyframes by frame index, disallow manual fps override,
-	// as the mapping cannot be preserved accurately when changing framerate.
-	if (cfg.seek && !cfg.seek_frames_file.empty() && cfg.fps > 0.0) {
-		fatal("Cannot use -r/--fps together with --seek <frame_list_file>");
-	}
-
 	// Start audio conversion early (runs in background while we analyze/encode video).
 	// We can't do that if seek file generation is requested, as we need to wait for
 	// video encoding to complete first to know the seek offsets.
@@ -399,7 +393,25 @@ int main(int argc, char **argv) {
 
 	// Parse seek frames file now that we know the effective FPS (for timestamp conversion).
 	if (cfg.seek && !cfg.seek_frames_file.empty()) {
-		cfg.seek_frames = load_seek_frames_file(cfg.seek_frames_file, ar.meta.fps);
+		// Seek file semantics:
+		// - Integers are INPUT frame indices.
+		// - Timestamps are converted to INPUT frame indices using input FPS.
+		// We then remap to OUTPUT frame indices if output FPS is overridden.
+		const double fps_in = ar.meta.fps;
+		const double fps_out = (cfg.fps > 0.0) ? cfg.fps : ar.out_fps;
+		cfg.seek_frames = load_seek_frames_file(cfg.seek_frames_file, fps_in);
+
+		// Remap input-frame indices -> output-frame indices if needed.
+		if (fps_out != fps_in) {
+			for (int &f : cfg.seek_frames) {
+				double t = (double)f / fps_in;
+				f = (int)round(t * fps_out);
+			}
+
+			// Normalize seek frames array again in case the remapping made
+			// two seekpoints identical.
+			cfg.seek_frames.erase(std::unique(cfg.seek_frames.begin(), cfg.seek_frames.end()), cfg.seek_frames.end());
+		}
 	}
 
 	// Subtitles conversion can run in parallel with video encoding (and audio).
