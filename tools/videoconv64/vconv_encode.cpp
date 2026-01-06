@@ -104,27 +104,32 @@ std::string build_filterchain(const AnalysisResult &ar, const char *out_matrix, 
 
 	// Content-dependent tweaks
 	if (ar.selected_profile == "cartoon") {
-		// Luma denoise kept small for cartoons; scale with quality.
+		// Denoise for cartoons should be mostly spatial: temporal denoise can easily create
+		// smearing/ghosting on moving line art. Keep temporal very low.
 		{
 			double l = clamp_double(0.35 + 0.70 * s, 0.2, 1.2);
 			double c = clamp_double(0.35 + 0.70 * s, 0.2, 1.2);
-			double lt = clamp_double(2.0 + 6.0 * s, 0.0, 12.0);
-			double ct = clamp_double(2.0 + 6.0 * s, 0.0, 12.0);
+			double lt = clamp_double(0.0 + 2.0 * s, 0.0, 3.0);
+			double ct = clamp_double(0.0 + 2.0 * s, 0.0, 3.0);
 			char buf[128];
 			snprintf(buf, sizeof(buf), "hqdn3d=%.2f:%.2f:%.0f:%.0f", l, c, lt, ct);
 			filters.push_back(buf);
 		}
-		// gradfun reduces banding; second parameter is radius (must be 4..32)
+		// Debanding is important for cartoons/anime (flat areas).
 		{
-			int thr = (int)(6 + 8 * s + 0.5); // 6..14
-			char buf[64];
-			snprintf(buf, sizeof(buf), "gradfun=%d:16", thr);
+			// deband thresholds are in [3e-05..0.5]. Scale gently with s.
+			double t = clamp_double(0.018 + 0.030 * s, 0.010, 0.060);
+			char buf[256];
+			snprintf(buf, sizeof(buf),
+				"deband=1thr=%.4f:2thr=%.4f:3thr=%.4f:range=16:blur=1:coupling=0",
+				t, t, t);
 			filters.push_back(buf);
 		}
 		{
-			double amt = clamp_double(0.15 + 0.35 * (1.0 - s), 0.10, 0.50);
+			// Be conservative with sharpening on line art to avoid halos/ringing.
+			double amt = clamp_double(0.10 + 0.20 * (1.0 - s), 0.08, 0.35);
 			char buf[64];
-			snprintf(buf, sizeof(buf), "unsharp=5:5:%.2f:3:3:0.0", amt);
+			snprintf(buf, sizeof(buf), "unsharp=3:3:%.2f:3:3:0.0", amt);
 			filters.push_back(buf);
 		}
 	} else if (ar.selected_profile == "noisy") {
