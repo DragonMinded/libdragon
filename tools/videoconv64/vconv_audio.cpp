@@ -270,8 +270,7 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 		verbose(1, "Extracting audio...");
 		extract_audio_to_tmpwav(tmpwav, from_container, stream_index, src_path);
 
-		// Seekpoints only make sense if the audio is aligned to the video timeline.
-		if (!seek_points.empty() && from_container) {
+		if (!seek_points.empty()) {
 			inject_seekpoints_cue_into_wav(tmpwav, seek_points, video_fps);
 		}
 
