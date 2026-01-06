@@ -85,7 +85,9 @@ void usage(void) {
 	printf("   --wav-loop-offset <N>     	Set looping offset (in samples; default: 0)\n");
 	printf("   --wav-seek <SEC|FILE>     	Enable seeking support:\n");
 	printf("                             	- if SEC is a float, add a seekpoint every SEC seconds\n");
-	printf("                             	- if FILE, read a list of integer sample offsets (one per line)\n");
+	printf("                             	- if FILE, read a list of seekpoints (one per line):\n");
+	printf("                             	  * integer sample offsets, or\n");
+	printf("                             	  * timestamps in [hh:]mm:ss[.mmm] format\n");
 	printf("\n");
 	printf("XM options:\n");
 	printf("   --xm-8bit                 	Convert all samples to 8-bit\n");
@@ -351,7 +353,8 @@ int main(int argc, char *argv[]) {
 				if (parse_double_strict(param, &sec) && sec > 0.0) {
 					flag_wav_seek_interval_sec = sec;
 				} else {
-					flag_wav_seek_offset = load_seek_frames_file(param);
+					// Defer parsing until after resampling so timestamps can be converted using the final sample rate.
+					flag_wav_seek_file = param;
 				}
 			} else if (!strcmp(argv[i], "--xm-8bit")) {
 				flag_xm_8bit = true;

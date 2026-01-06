@@ -40,8 +40,8 @@ int flag_wav_compress = 1;
 int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
 int flag_wav_resample = 0;
-std::vector<int> flag_wav_seek_offset;
 double flag_wav_seek_interval_sec = 0.0;
+const char *flag_wav_seek_file = NULL;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
 
@@ -754,6 +754,32 @@ int wav_convert(const char *infn, const char *outfn) {
 		wav.channels = 1;
 	}
 
+	// Load or generate seek points as requested. Do this now before optional
+	// resampleing, so that frame indices are interpreted using the original
+	// sample rate.
+	if (flag_wav_seek_file || flag_wav_seek_interval_sec > 0.0) {
+		std::vector<int> points;
+
+		// From explicit list (file-based --wav-seek)
+		if (flag_wav_seek_file) {
+			points = load_seek_frames_file(flag_wav_seek_file, (double)wav.sampleRate);
+		}
+
+		// From periodic interval (seconds)
+		if (flag_wav_seek_interval_sec > 0.0) {
+			int step = (int)llround(flag_wav_seek_interval_sec * (double)wav.sampleRate);
+			if (step <= 0) step = 1;
+			for (int sp = step; sp < wav.cnt; sp += step)
+				points.push_back(sp);
+		}
+
+		// Append, then normalize (remove <=0 and out-of-range, sort+unique).
+		for (int sp : points) {
+			if (sp > 0 && sp < wav.cnt)
+				wav.skipPoints.push_back(sp);
+		}
+	}
+
 	int wavResampleTo = flag_wav_resample;
 
 	// When compressing with opus, we need to resample to 32 Khz. Whatever value
@@ -870,42 +896,16 @@ int wav_convert(const char *infn, const char *outfn) {
 		// Update loop/seek points to the new sample rate
 		wav.loopOffset = (int)((int64_t)wav.loopOffset * wavResampleTo / wav.sampleRate);
 		for (size_t i = 0; i < wav.skipPoints.size(); i++) {
-			int sp = wav.skipPoints[i];
-			if (sp > 0)
-				wav.skipPoints[i] = (int)((int64_t)sp * wavResampleTo / wav.sampleRate);
+			wav.skipPoints[i] = (int)((int64_t)wav.skipPoints[i] * wavResampleTo / wav.sampleRate);
 		}
 
 		// Update wav.sampleRate as it will be used later
 		wav.sampleRate = wavResampleTo;
-
 	}
 
-	// Apply additional seek offsets specified on the command line.
-	if (flag_wav_seek_offset.size() > 0 || flag_wav_seek_interval_sec > 0.0) {
-		// Merge existing seekpoints (from input metadata) with user-requested ones.
-		std::vector<int> extra;
-
-		// From explicit list (file-based --wav-seek)
-		if (flag_wav_seek_offset.size() > 0) {
-			extra.insert(extra.end(), flag_wav_seek_offset.begin(), flag_wav_seek_offset.end());
-		}
-
-		// From periodic interval (seconds)
-		if (flag_wav_seek_interval_sec > 0.0) {
-			int step = (int)llround(flag_wav_seek_interval_sec * (double)wav.sampleRate);
-			if (step <= 0) step = 1;
-			for (int sp = step; sp < wav.cnt; sp += step)
-				extra.push_back(sp);
-		}
-
-		// Append, then normalize (remove <=0 and out-of-range, sort+unique).
-		for (int sp : extra) {
-			if (sp > 0 && sp < wav.cnt)
-				wav.skipPoints.push_back(sp);
-		}
-		std::sort(wav.skipPoints.begin(), wav.skipPoints.end());
-		wav.skipPoints.erase(std::unique(wav.skipPoints.begin(), wav.skipPoints.end()), wav.skipPoints.end());
-	}
+	// Normalize seek points array
+	std::sort(wav.skipPoints.begin(), wav.skipPoints.end());
+	wav.skipPoints.erase(std::unique(wav.skipPoints.begin(), wav.skipPoints.end()), wav.skipPoints.end());
 
 	FILE *out = fopen(outfn, "wb");
 	if (!out) {

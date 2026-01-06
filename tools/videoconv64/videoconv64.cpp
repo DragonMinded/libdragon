@@ -81,7 +81,9 @@ static void usage(void) {
 	printf("   -Q, --quick                 Quick encoding (speed up processing as much as possible)\n");
 	printf("       --seek <SEC|FILE>       Enable seeking support:\n");
 	printf("                               - if SEC is a float, request a keyframe every SEC seconds\n");
-	printf("                               - if FILE, read a list of frame indices that must be keyframes\n");
+	printf("                               - if FILE, read a list of seekpoints (one per line):\n");
+	printf("                                 * integer frame indices, or\n");
+	printf("                                 * timestamps in [hh:]mm:ss[.mmm] format\n");
 	printf("\n");
 	printf("Audio options:\n");
 	printf("       --audio-compress <N>    Pass through to audioconv64: --wav-compress <N>\n");
@@ -306,7 +308,6 @@ int main(int argc, char **argv) {
 				cfg.seek_interval_sec = sec;
 			} else {
 				cfg.seek_frames_file = param;
-				cfg.seek_frames = load_seek_frames_file(cfg.seek_frames_file);
 			}
 		} else if (arg == "--no-progress") {
 			cfg.progress = false;
@@ -395,6 +396,11 @@ int main(int argc, char **argv) {
 
 	// Step 2: analysis (ffprobe/idet/signalstats) lives in vconv_analyze.cpp
 	AnalysisResult ar = vconv_analyze(*ci);
+
+	// Parse seek frames file now that we know the effective FPS (for timestamp conversion).
+	if (cfg.seek && !cfg.seek_frames_file.empty()) {
+		cfg.seek_frames = load_seek_frames_file(cfg.seek_frames_file, ar.meta.fps);
+	}
 
 	// Subtitles conversion can run in parallel with video encoding (and audio).
 	// Start it after analysis so we already know output geometry/FPS for the SUB64 header.
