@@ -16,6 +16,7 @@
 #include "rdpq.h"
 #include "rdpq_attach.h"
 #include <math.h>
+#include <sys/stat.h>
 
 void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 {
@@ -60,7 +61,10 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         }
 
         // Load audio
-        audio = wav64_load(audio_fn, NULL);
+        struct stat st;
+        if (stat(audio_fn, &st) == 0) {
+            audio = wav64_load(audio_fn, NULL);
+        }
     }
 
     subtitles_t* subs = NULL;
@@ -80,16 +84,19 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
             strcpy((char*)subs_fn + base_len, ".sub64");
         }
 
-        // Load subtitles
-        subs = subtitles_load(subs_fn);
+        struct stat st;
+        if (stat(subs_fn, &st) == 0) {
+            // Load subtitles
+            subs = subtitles_load(subs_fn);
 
-        // Create a default subtitle renderer if none provided
-        if (!subrenderer)
-            subrenderer = subrenderer_create_rdpq(
-                &(subrenderer_rdpq_parms_t){
-                    .bkg_color = RGBA32(0,0,0,128)
-                }
-            );
+            // Create a default subtitle renderer if none provided
+            if (!subrenderer)
+                subrenderer = subrenderer_create_rdpq(
+                    &(subrenderer_rdpq_parms_t){
+                        .bkg_color = RGBA32(0,0,0,128)
+                    }
+                );
+        }
     }
 
     int frame_idx = 0;
