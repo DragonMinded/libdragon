@@ -134,7 +134,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		assertf(0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
 			file_name, head.id[0], head.id[1], head.id[2], head.id[3]);
 	}
-	assertf(head.version == 5, "wav64 %s: invalid version: %02x\n",
+	assertf(head.version == 6, "wav64 %s: invalid version: %02x\n",
 		file_name, head.version);
 	assertf(head.format < WAV64_NUM_FORMATS, "Unknown wav64 compression format %d; corrupted file?", head.format);
 	assertf(head.format < WAV64_NUM_FORMATS && algos[head.format].init != NULL,
@@ -318,5 +318,6 @@ void __wav64_init_compression_lvl3(void)
 		.init = wav64_opus_init,
 		.close = wav64_opus_close,
 		.get_bitrate = wav64_opus_get_bitrate,
+		.adjust_seek = wav64_opus_adjust_seek,
 	};
 }

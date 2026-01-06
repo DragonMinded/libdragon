@@ -17,6 +17,7 @@
 #include <array>
 #include <algorithm>
 #include <time.h>
+#include <unordered_set>
 #include "../../src/audio/wav64_internal.h"
 #include "../common/binout.h"
 
@@ -242,7 +243,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	}
 
 	fwrite("WV64", 1, 4, out);
-	w8(out, 5); 				 			// version
+	w8(out, 6); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
 	w8(out, wav->bitsPerSample);			// bits
@@ -484,6 +485,10 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	} break;
 
 	case 3: { // opus
+		// Number of preroll frames to decode/discard after seeking, to allow
+		// the decoder to warm up and start producing valid output.
+		const uint16_t PREROLL_FRAMES = 2;
+
 		// Frame size: for now this is hardcoded to frames of 20ms, which is the
 		// maximum support by celt and also the best for quality.
 		// 48 Khz => 960 samples
@@ -513,12 +518,39 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		if (flag_verbose)
 			fprintf(stderr, "  opus bitrate: %d bps\n", bitrate_bps);
 
+		// Collect seek points (cue points) from the input file. No extra CLI options.
+		std::vector<int> seek_points = wav->skipPoints;
+		if (wav->looping) seek_points.push_back(wav->loopOffset);
+		std::sort(seek_points.begin(), seek_points.end());
+
 		// Write extended header
 		w32(out, frame_size);
-		uint32_t max_cmp_size_pos = w32_placeholder(out);  // max compressed frame size
+		w32_placeholderf(out, "%s/max_cmp_frame_size", outfn);  // max compressed frame size
 		w32(out, bitrate_bps);
 		w32(out, 0);				// custom mode pointer at runtime
-		placeholder_set_offset(out, ftell(out)-basepos, "%s/samples", outfn);
+		w16(out, PREROLL_FRAMES);
+		w16(out, (uint16_t)seek_points.size());
+		w32(out, 0);                // reserved / padding
+
+		// Write seek table with placeholders for file offsets (relative to samples start)
+		std::unordered_set<int> missing_frame_offsets;
+		for (size_t si = 0; si < seek_points.size(); si++) {
+			const int sp = seek_points[si];
+			const int frame_idx = sp / frame_size;
+			const int intra_skip = sp - frame_idx * frame_size;
+			int pre_idx = frame_idx - (int)PREROLL_FRAMES;
+			if (pre_idx < 0) pre_idx = 0;
+
+			w32(out, sp);
+			w32_placeholderf(out, "%s/frame_offset/%d", outfn, pre_idx); // file_offset_preroll (patched later)
+			w16(out, intra_skip);
+			w16(out, 0); // padding
+			missing_frame_offsets.insert(pre_idx);
+		}
+
+		// Start of samples data
+		long samples_start = ftell(out);
+		placeholder_set_offset(out, samples_start-basepos, "%s/samples", outfn);
 
 		// Ask the size of the decoder state to the opus library. This is computed on x86-64
 		// so it could be larger than on the N64, but it's a good approximation.
@@ -548,7 +580,18 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		int max_nb = 0;
 		int out_max_size = bitrate_bps/8; // overestimation
 		uint8_t *out_buffer = (uint8_t*)malloc(out_max_size);
+
+		// Compress frames and write them to the output file. While doing so,
+		// we patch the file offsets of the seek points to allow seeking to
+		// the correct frame.
+		int frame_idx = 0;
 		for (int i=0; i<newcnt; i+=frame_size) {
+			if (missing_frame_offsets.find(frame_idx) != missing_frame_offsets.end()) {
+				uint32_t cur_off = (uint32_t)(ftell(out) - samples_start);
+				placeholder_set_offset(out, cur_off, "%s/frame_offset/%d", outfn, frame_idx);
+				missing_frame_offsets.erase(missing_frame_offsets.find(frame_idx));
+			}
+
 			int nb = opus_custom_encode(enc, wav->samples + i*wav->channels, frame_size, out_buffer, out_max_size);
 			if (nb < 0) {
 				fprintf(stderr, "ERROR: %s: opus encoding failed: %s\n", infn, opus_strerror(nb));
@@ -561,9 +604,11 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			if (nb > max_nb)
 				max_nb = nb;
 			walign(out, 2);	// make sure frames are 2-byte aligned
+			frame_idx++;
 		}
 
-		w32_at(out, max_cmp_size_pos, max_nb); // write maxixum compressed frame size
+		// Save the maximum compressed frame size to the placeholder.
+		placeholder_set_offset(out, max_nb, "%s/max_cmp_frame_size", outfn);
 		
 		free(out_buffer);
 		opus_custom_encoder_destroy(enc);
