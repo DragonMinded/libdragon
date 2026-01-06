@@ -102,6 +102,15 @@ void rsp_opus_memmove(celt_sig *dst, celt_sig *src, opus_int32 len) {
     rspq_flush();
 }
 
+/** @brief Do a memmove with RSP to move arbitrary bytes (dst/src must be 8-byte aligned) */
+void rsp_opus_memmove_bytes(void *dst, void *src, opus_int32 nbytes) {
+    rspq_write(RSP_OPUS_IMDCT_ID, 0x2,
+        PhysicalAddr(dst),
+        PhysicalAddr(src),
+        (uint32_t)nbytes);
+    rspq_flush();
+}
+
 /** @brief Clear output buffer with RSP. Len must be in 32-bit samples (not bytes) */
 void rsp_opus_clear(celt_sig *dst, opus_int32 len) {
     rsp_cmd_clear(dst, len);
