@@ -160,12 +160,14 @@ void profile_dump(void) {
 			name, slots[i].count / frames, avg_us, partial_avg);
 	}
 
+///@cond
 #define DUMP_SYS(cat, name) ({ \
 	uint64_t ticks = sys_total[cat] / frames; \
 	partial_sys = (float)ticks * 100.0f / (float)frame_avg_wall; \
 	if (ticks) debugf("%-35.35s %4s %6d (%5.1f%%)\n", name, "-", \
 					  TIMER_MICROS(ticks), partial_sys); \
 })
+///@endcond
 
 	DUMP_SYS(ACCT_CAT_IRQ, "[sys] IRQ time");
 	DUMP_SYS(ACCT_CAT_RSP, "[sys] RSP wait");
