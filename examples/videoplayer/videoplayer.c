@@ -1,5 +1,4 @@
 #include <libdragon.h>
-#include "../../src/video/profile.h"
 
 // Number of frame back buffers we reserve.
 // These buffers are used to render the video ahead of time.

@@ -103,6 +103,6 @@
 #include "bbfs.h"
 #include "ioctl.h"
 #include "a3d.h"
-
+#include "profile.h"
 
 #endif
