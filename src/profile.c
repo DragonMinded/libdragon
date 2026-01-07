@@ -1,6 +1,7 @@
 /**
  * @file profile.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief CPU profiler implementation.
  */
 #include "profile.h"
 #include "debug.h"
@@ -10,23 +11,28 @@
 #include <memory.h>
 #include <stdio.h>
 
+/** @brief Internal profile slot data */
 typedef struct {
-	const char *name;
-	uint32_t ticks;
-	int count;
-	int nest_level;
+	const char *name;		///< Name of the slot
+	uint32_t ticks;			///< Total number of ticks spent in the slot
+	int count;				///< Number of times the slot was hit
+	int nest_level;			///< Number of nesting levels for this slot
 } profile_slot_t;
 
+/** @brief Profile counters (actual accumulators) */
 uint64_t *__profile_counters;
+/** @brief Porfile slots descriptions */
 profile_slot_t *slots;
+/** @brief Number of profile slots */
 static int num_slots;
+
 static uint64_t total_time_wall;
 static uint64_t total_time_user;
 static uint64_t last_frame_wall;
 static uint64_t last_frame_user;
 static uint64_t target_frame_ticks;
 static uint64_t sys_total[ACCT_CAT_MAX];
-uint64_t sys_frame_last[ACCT_CAT_MAX];
+static uint64_t sys_frame_last[ACCT_CAT_MAX];
 static int frames;
 static uint64_t dump_interval;
 static uint64_t last_dump_time;

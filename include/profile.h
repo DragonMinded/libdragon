@@ -1,6 +1,7 @@
 /**
  * @file profile.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief CPU profiler API.
  */
 #ifndef PROFILE_H
 #define PROFILE_H
@@ -31,6 +32,7 @@
 extern "C" {
 #endif
 
+/** @brief Parameters for the profiler */
 typedef struct {
 	/**
 	 * @brief Number of profiling slots (default: 128)
@@ -49,15 +51,6 @@ typedef struct {
 	float dump_stderr_interval;
 } profile_parms_t;
 
-/** @brief Parameters for the profile OSD pane */
-typedef struct {
-	/** @brief Side of the screen to use (0=right (default), 1=left) */
-	int side;
-
-	/** @brief Size of the pane (default: 20% of the screen) */
-	int size;
-} profile_osdparms_t;
-
 /**
  * @brief Initialize the profiler.
  *
@@ -66,7 +59,7 @@ typedef struct {
  * 
  * @param parms 		Parameters for the profiler (NULL to use defaults)
  * 
- * @see profile_parms_t
+ * @see #profile_parms_t
  */
 void profile_init(profile_parms_t *parms);
 
@@ -84,8 +77,8 @@ void profile_close(void);
  * By default, this is called automatically at the interval specified by
  * profile_parms_t::dump_stderr_interval.
  *
- * @see profile_parms_t
- * @see profile_init
+ * @see #profile_parms_t
+ * @see #profile_init
  */
 void profile_reset(void);
 
@@ -99,8 +92,8 @@ void profile_reset(void);
  * @param name 			Name of the slot
  * @param nest_level 	Number of nesting levels for this slot
  *
- * @see profile_parms_t
- * @see profile_init
+ * @see #profile_parms_t
+ * @see #profile_init
  */
 void profile_register(int slot, const char *name, int nest_level);
 
@@ -130,15 +123,22 @@ void profile_set_target_fps(float fps);
  * you can simply use the PROFILE_* macros as you please and then call
  * profile_dump() to obtain the results.
  *
- * @see profile_parms_t
- * @see profile_dump
+ * @see #profile_parms_t
+ * @see #profile_dump
  */
 void profile_next_frame(void);
 
 /**
  * @brief Dump the profiler data to the console
  * 
- * This function will dump the profiler data to the console.
+ * This function will dump the current profiler data to the debugging channel.
+ *
+ * Notice that profile data is not reset after dumping, so it is possible to call
+ * this function multiple times and see data being accumulated over time. If you
+ * want to reset the profiler data after dumping, you can call profile_reset()
+ * after calling profile_dump().
+ *
+ * @see #profile_reset
  */
 void profile_dump(void);
 
@@ -250,9 +250,11 @@ inline void __profile_record(int slot, int32_t len) {
 				({ MEMORY_BARRIER(); }), \
 				__profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot))
 #else
+	///@cond
 	#define PROFILE_START(slot, ...)  ((void)(false), false)
 	#define PROFILE_STOP(slot, ...)   ((void)(false), false)
 	#define PROFILE_SCOPE(slot)     for (bool __prof_once_##slot = true; __prof_once_##slot; __prof_once_##slot = false)
+	///@endcond
 
 #endif /* LIBDRAGON_PROFILE */
 
