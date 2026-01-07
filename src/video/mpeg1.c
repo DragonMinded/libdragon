@@ -24,6 +24,24 @@ typedef struct mpeg1_s {
 	void *f;
 } mpeg1_t;
 
+typedef enum {
+	PS_MPEG,
+	PS_MPEG_FINDSTART,
+	PS_MPEG_HASSTART,
+	PS_MPEG_DECODESLICE,
+	PS_MPEG_MB,
+	PS_MPEG_MB_MV,
+	PS_MPEG_MB_PREDICT,
+	PS_MPEG_MB_DECODE,
+	PS_MPEG_MB_DECODE_DC,
+	PS_MPEG_MB_DECODE_AC,
+	PS_MPEG_MB_DECODE_AC_VLC,
+	PS_MPEG_MB_DECODE_AC_CODE,
+	PS_MPEG_MB_DECODE_AC_DEQUANT,
+	PS_MPEG_MB_DECODE_BLOCK,
+	PS_MPEG_MB_DECODE_BLOCK_IDCT,
+} MPEG1ProfileSlot;
+
 DEFINE_RSP_UCODE(rsp_mpeg1);
 
 static uint32_t ovl_id;
@@ -154,9 +172,9 @@ static video_t *mpeg1_open(const char *fn) {
 
 static bool mpeg1_next_frame(video_t *v) {
 	mpeg1_t *mp1 = (mpeg1_t *)v;
-	PROFILE_START(PS_MPEG, 0);
+	PROFILE_START(PS_MPEG);
 	mp1->f = plm_video_decode(mp1->v);
-	PROFILE_STOP(PS_MPEG, 0);
+	PROFILE_STOP(PS_MPEG);
 	return (mp1->f != NULL);
 }
 
@@ -178,6 +196,24 @@ static void mpeg1_close(video_t *v) {
 	mpeg1_t *mp1 = (mpeg1_t *)v;
 	plm_video_destroy(mp1->v);
 	free(mp1);
+}
+
+void __mpeg1_profile_init(void) {
+	profile_register(PS_MPEG, "MPEG", 0);
+	profile_register(PS_MPEG_FINDSTART, "FindStart", 1);
+	profile_register(PS_MPEG_HASSTART, "HasStart", 1);
+	profile_register(PS_MPEG_DECODESLICE, "DecodeSlice", 1);
+	profile_register(PS_MPEG_MB, "MacroB", 1);
+	profile_register(PS_MPEG_MB_MV, "MV", 2);
+	profile_register(PS_MPEG_MB_PREDICT, "Predict", 2);
+	profile_register(PS_MPEG_MB_DECODE, "Decode", 2);
+	profile_register(PS_MPEG_MB_DECODE_DC, "DecodeDC", 3);
+	profile_register(PS_MPEG_MB_DECODE_AC, "DecodeAC", 3);
+	profile_register(PS_MPEG_MB_DECODE_AC_VLC, "DecodeACVLC", 4);
+	profile_register(PS_MPEG_MB_DECODE_AC_CODE, "DecodeACCode", 4);
+	profile_register(PS_MPEG_MB_DECODE_AC_DEQUANT, "DecodeACDeQuant", 4);
+	profile_register(PS_MPEG_MB_DECODE_BLOCK, "DecodeBlock", 3);
+	profile_register(PS_MPEG_MB_DECODE_BLOCK_IDCT, "DecodeBlockIDCT", 4);
 }
 
 video_codec_t mpeg1_codec = {

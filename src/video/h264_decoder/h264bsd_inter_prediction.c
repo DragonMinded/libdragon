@@ -243,7 +243,7 @@ static inline void n64PredictSamples(
 u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
     dpbStorage_t *dpb, u32 mbNum, image_t *currImage)
 {
-    PROFILE_START(PS_H264_INTERPRED, 0);
+    PROFILE_START(PS_H264_INTERPRED);
 
 /* Variables */
 
@@ -294,7 +294,7 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
         case P_Skip:
         case P_L0_16x16:
             if (MvPrediction16x16(pMb, &pMbLayer->mbPred, dpb) != HANTRO_OK) {
-                PROFILE_STOP(PS_H264_INTERPRED, 0);
+                PROFILE_STOP(PS_H264_INTERPRED);
                 return(HANTRO_NOK);
             }
             refImage.data = pMb->refAddr[0];
@@ -308,7 +308,7 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
         case P_L0_L0_16x8:
             if ( MvPrediction16x8(pMb, &pMbLayer->mbPred, dpb) != HANTRO_OK){
-                PROFILE_STOP(PS_H264_INTERPRED, 0);
+                PROFILE_STOP(PS_H264_INTERPRED);
                 return(HANTRO_NOK);
             }
             refImage.data = pMb->refAddr[0];
@@ -330,7 +330,7 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
         case P_L0_L0_8x16:
             if ( MvPrediction8x16(pMb, &pMbLayer->mbPred, dpb) != HANTRO_OK) {
-                PROFILE_STOP(PS_H264_INTERPRED, 0);
+                PROFILE_STOP(PS_H264_INTERPRED);
                 return(HANTRO_NOK);              
             }
             refImage.data = pMb->refAddr[0];
@@ -351,7 +351,7 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
         default: /* P_8x8 and P_8x8ref0 */
             if ( MvPrediction8x8(pMb, &pMbLayer->subMbPred, dpb) != HANTRO_OK) {
-                PROFILE_STOP(PS_H264_INTERPRED, 0);
+                PROFILE_STOP(PS_H264_INTERPRED);
                 return(HANTRO_NOK);
             }
             for (i = 0; i < 4; i++)
@@ -432,7 +432,7 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
             }
             break;
     }
-    PROFILE_STOP(PS_H264_INTERPRED, 0);
+    PROFILE_STOP(PS_H264_INTERPRED);
 
     /* if decoded flag > 1 -> mb has already been successfully decoded and
      * written to output -> do not write again */

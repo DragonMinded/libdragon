@@ -133,7 +133,7 @@ u32 h264bsdDecodeMacroblockLayer(strmData_t *pStrmData,
     ASSERT(pStrmData);
     ASSERT(pMbLayer);
 
-    PROFILE_START(PS_H264_LAYER_CLEAR, 0);
+    PROFILE_START(PS_H264_LAYER_CLEAR);
 #ifdef H264DEC_NEON
     h264bsdClearMbLayer(pMbLayer, ((sizeof(macroblockLayer_t) + 63) & ~0x3F));
 #elif defined(H264BSD_N64)
@@ -150,7 +150,7 @@ u32 h264bsdDecodeMacroblockLayer(strmData_t *pStrmData,
     rsph264_queue_reset_total_coeff();
     #endif
 
-    PROFILE_STOP(PS_H264_LAYER_CLEAR, 0);
+    PROFILE_STOP(PS_H264_LAYER_CLEAR);
 
     tmp = h264bsdDecodeExpGolombUnsigned(pStrmData, &value);
 
@@ -189,7 +189,7 @@ u32 h264bsdDecodeMacroblockLayer(strmData_t *pStrmData,
     }
     else
     {
-        PROFILE_START(PS_H264_LAYER_PRED, 0);
+        PROFILE_START(PS_H264_LAYER_PRED);
         partMode = h264bsdMbPartPredMode(pMbLayer->mbType);
         if ( (partMode == PRED_MODE_INTER) &&
              (h264bsdNumMbPart(pMbLayer->mbType) == 4) )
@@ -203,7 +203,7 @@ u32 h264bsdDecodeMacroblockLayer(strmData_t *pStrmData,
                 pMbLayer->mbType, numRefIdxActive);
         }
         if (tmp != HANTRO_OK) {
-            PROFILE_STOP(PS_H264_LAYER_PRED, 0);
+            PROFILE_STOP(PS_H264_LAYER_PRED);
             return(tmp);
         }
 
@@ -212,7 +212,7 @@ u32 h264bsdDecodeMacroblockLayer(strmData_t *pStrmData,
             tmp = h264bsdDecodeExpGolombMapped(pStrmData, &value,
                 (u32)(partMode == PRED_MODE_INTRA4x4));
             if (tmp != HANTRO_OK) {
-                PROFILE_STOP(PS_H264_LAYER_PRED, 0);
+                PROFILE_STOP(PS_H264_LAYER_PRED);
                 return(tmp);
             }
             pMbLayer->codedBlockPattern = value;
@@ -221,7 +221,7 @@ u32 h264bsdDecodeMacroblockLayer(strmData_t *pStrmData,
         {
             pMbLayer->codedBlockPattern = CbpIntra16x16(pMbLayer->mbType);
         }
-        PROFILE_STOP(PS_H264_LAYER_PRED, 0);
+        PROFILE_STOP(PS_H264_LAYER_PRED);
 
         if ( pMbLayer->codedBlockPattern ||
              (partMode == PRED_MODE_INTRA16x16) )
@@ -231,10 +231,10 @@ u32 h264bsdDecodeMacroblockLayer(strmData_t *pStrmData,
                 return(HANTRO_NOK);
             pMbLayer->mbQpDelta = itmp;
 
-            PROFILE_START(PS_H264_LAYER_RES, 0);
+            PROFILE_START(PS_H264_LAYER_RES);
             tmp = DecodeResidual(pStrmData, &pMbLayer->residual, pMb,
                 pMbLayer->mbType, pMbLayer->codedBlockPattern);
-            PROFILE_STOP(PS_H264_LAYER_RES, 0);
+            PROFILE_STOP(PS_H264_LAYER_RES);
 
             if (tmp != HANTRO_OK)
                 return(tmp);
@@ -389,10 +389,10 @@ u32 DecodeMbPred(strmData_t *pStrmData, mbPred_t *pMbPred, mbType_e mbType,
                     pMbPred->refIdxL0[j] = value;
                 }
             } else {
-                PROFILE_START(PS_H264_LAYER_CLEAR, 0);
+                PROFILE_START(PS_H264_LAYER_CLEAR);
                 for (i=0; i<4; i++)
                     pMbPred->refIdxL0[i] = 0;
-                PROFILE_STOP(PS_H264_LAYER_CLEAR, 0);
+                PROFILE_STOP(PS_H264_LAYER_CLEAR);
             }
 
             for (i = h264bsdNumMbPart(mbType), j = 0; i--;  j++)
@@ -487,10 +487,10 @@ u32 DecodeSubMbPred(strmData_t *pStrmData, subMbPred_t *pSubMbPred,
             pSubMbPred->refIdxL0[i] = value;
         }
     } else {
-        PROFILE_START(PS_H264_LAYER_CLEAR, 0);
+        PROFILE_START(PS_H264_LAYER_CLEAR);
         for (i=0; i<4; i++)
             pSubMbPred->refIdxL0[i] = 0;
-        PROFILE_STOP(PS_H264_LAYER_CLEAR, 0);
+        PROFILE_STOP(PS_H264_LAYER_CLEAR);
     }
 
     for (i = 0; i < 4; i++)
@@ -1005,17 +1005,17 @@ u32 h264bsdDecodeMacroblock(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
             if (h264bsdMbPartPredMode(mbType) == PRED_MODE_INTER)
             {
-                PROFILE_START(PS_H264_RESIDUAL_LUMA, 0);
+                PROFILE_START(PS_H264_RESIDUAL_LUMA);
                 tmp = HIGHFUNC_ProcessLumaInterResidual(
                     &pSrc, currImage->luma, currImage->luma,
                     currImage->width*16, currImage->width*16, *qpY, pMb->totalCoeff);
                 if (tmp != HANTRO_OK) {
                     #ifdef H264BSD_N64
-                    PROFILE_STOP(PS_H264_RESIDUAL_LUMA, 0);
+                    PROFILE_STOP(PS_H264_RESIDUAL_LUMA);
                     #endif
                     return (tmp);
                 }
-                PROFILE_STOP(PS_H264_RESIDUAL_LUMA, 0);
+                PROFILE_STOP(PS_H264_RESIDUAL_LUMA);
             }
             else if (h264bsdMbPartPredMode(mbType) == PRED_MODE_INTRA4x4)
             {
@@ -1040,9 +1040,9 @@ u32 h264bsdDecodeMacroblock(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
                 }
             }
 
-            PROFILE_START(PS_H264_RESIDUAL_CHROMA, 0);
+            PROFILE_START(PS_H264_RESIDUAL_CHROMA);
             tmp = ProcessChromaResidual(pMb, &pSrc, currImage);
-            PROFILE_STOP(PS_H264_RESIDUAL_CHROMA, 0);
+            PROFILE_STOP(PS_H264_RESIDUAL_CHROMA);
 
             if (tmp != HANTRO_OK)
                 return (tmp);
@@ -1138,7 +1138,7 @@ u32 ProcessIntra16x16Residual(mbStorage_t *pMb,
        (h264bsdMbPartPredMode(pMb->mbD->mbType) == PRED_MODE_INTER))
         availableD = HANTRO_FALSE;
 
-    PROFILE_START(PS_H264_INTRAPRED_16X16, 0);
+    PROFILE_START(PS_H264_INTRAPRED_16X16);
     result = HIGHFUNC_ProcessLumaIntra16x16Residual(
         image->luma, image->luma, image->width*16, image->width*16,
         pCoeff, pMb->totalCoeff,
@@ -1153,7 +1153,7 @@ u32 ProcessIntra16x16Residual(mbStorage_t *pMb,
                 intraChromaPredMode,
                 constrainedIntraPred) != HANTRO_OK)
         return(HANTRO_NOK);
-    PROFILE_STOP(PS_H264_INTRAPRED_16X16, 0);
+    PROFILE_STOP(PS_H264_INTRAPRED_16X16);
 
     return HANTRO_OK;
 }
@@ -1173,7 +1173,7 @@ u32 ProcessIntra4x4Residual(mbStorage_t *pMb,
                             const u8 **pSrc,
                             image_t *image)
 {
-    PROFILE_START(PS_H264_INTRAPRED_4X4, 0);
+    PROFILE_START(PS_H264_INTRAPRED_4X4);
     if (h264bsdIntra4x4PredictionAndTransformAll(pMb, mbLayer,
                 constrainedIntraPred, image, pSrc) != HANTRO_OK)
         return (HANTRO_NOK);
@@ -1183,7 +1183,7 @@ u32 ProcessIntra4x4Residual(mbStorage_t *pMb,
                 mbLayer->mbPred.intraChromaPredMode,
                 constrainedIntraPred) != HANTRO_OK)
         return(HANTRO_NOK);
-    PROFILE_STOP(PS_H264_INTRAPRED_4X4, 0);
+    PROFILE_STOP(PS_H264_INTRAPRED_4X4);
 
     return HANTRO_OK;
 }

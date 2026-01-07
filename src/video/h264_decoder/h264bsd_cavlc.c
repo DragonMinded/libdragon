@@ -942,7 +942,7 @@ u32 h264bsdDecodeResidualBlockCavlc(
 
         // We want to emit packed delta buffers in the same format expected
         // by OpenMAX functions later.
-        PROFILE_START(PS_H264_LAYER_RES_ENC, 0);
+        PROFILE_START(PS_H264_LAYER_RES_ENC);
 
         u8 *buf = *posCoefBuf;
         u32 *crun = &run[totalCoeff-2];
@@ -982,7 +982,7 @@ u32 h264bsdDecodeResidualBlockCavlc(
         } while (i-- >= 0);
         *posCoefBuf = buf;
 
-        PROFILE_STOP(PS_H264_LAYER_RES_ENC, 0);
+        PROFILE_STOP(PS_H264_LAYER_RES_ENC);
 
     }
     else

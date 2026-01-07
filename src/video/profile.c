@@ -162,45 +162,6 @@ void profile_dump(void) {
 					  TIMER_MICROS(ticks), buf); \
 })
 
-#if 0
-	DUMP_SLOT(PS_H264, "H264");
-	DUMP_SLOT(PS_H264_NAL, "  - NAL");
-	DUMP_SLOT(PS_H264_MACROB, "  - MacroB");
-	DUMP_SLOT(PS_H264_LAYER, "    - Layer");
-	DUMP_SLOT(PS_H264_LAYER_CLEAR, "      - Clear");
-	DUMP_SLOT(PS_H264_LAYER_PRED, "      - Predict");
-	DUMP_SLOT(PS_H264_LAYER_RES, "      - Residual");
-	DUMP_SLOT(PS_H264_LAYER_RES_ENC, "        - Encode");
-	DUMP_SLOT(PS_H264_RESIDUAL_LUMA, "        - Residual Luma");
-	DUMP_SLOT(PS_H264_RESIDUAL_CHROMA, "        - Residual Chroma");
-	DUMP_SLOT(PS_H264_INTRAPRED_4X4, "          - IntraPred 4x4");
-	DUMP_SLOT(PS_H264_INTRAPRED_16X16, "          - IntraPred 16x16");
-	DUMP_SLOT(PS_H264_INTERPRED, "  - InterPred");
-	DUMP_SLOT(PS_H264_INTERPRED_LUMA, "    - InterPred Luma");
-	DUMP_SLOT(PS_H264_INTERPRED_CHROMA, "    - InterPred Chroma");
-	DUMP_SLOT(PS_H264_SYNC, "  - Sync");
-	DUMP_SLOT(PS_H264_SYNC_OVL, "    - Sync Overlay");
-
-	DUMP_SLOT(PS_MPEG, "MPEG1");
-	DUMP_SLOT(PS_MPEG_FINDSTART, "  - FindStart");
-	DUMP_SLOT(PS_MPEG_HASSTART, "  - HasStart");
-	DUMP_SLOT(PS_MPEG_DECODESLICE, "  - Slice");
-	DUMP_SLOT(PS_MPEG_MB, "    - MacroB");
-	DUMP_SLOT(PS_MPEG_MB_MV, "      - MV");
-	DUMP_SLOT(PS_MPEG_MB_PREDICT, "      - Predict");
-	DUMP_SLOT(PS_MPEG_MB_DECODE, "      - Decode");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_DC, "        - DC");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_AC, "        - AC");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_VLC, "          - VLC");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_CODE, "          - Code");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_DEQUANT, "          - Dequant");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_BLOCK, "        - Block");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_BLOCK_IDCT, "          - IDCT");
-	DUMP_SLOT(PS_YUV, "YUV Blit");
-	DUMP_SLOT(PS_AUDIO, "Audio");
-	DUMP_SLOT(PS_SYNC, "Sync");
-#endif
-
 	DUMP_SYS(ACCT_CAT_IRQ, "[sys] IRQ time");
 	DUMP_SYS(ACCT_CAT_RSP, "[sys] RSP wait");
 	DUMP_SYS(ACCT_CAT_DISPLAY, "[sys] Display wait");
