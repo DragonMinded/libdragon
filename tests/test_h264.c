@@ -1,10 +1,9 @@
+#define LIBDRAGON_PROFILE 0
 #include <libdragon.h>
 #include <malloc.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#define LIBDRAGON_PROFILE 0
-#include "../src/video/profile.h"
 #include "../src/video/fastcache.h"
 #include "../src/video/rsph264_internal.h"
 #include "../src/video/h264_decoder/h264bsd_util.h"
