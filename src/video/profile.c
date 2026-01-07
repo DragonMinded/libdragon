@@ -129,8 +129,8 @@ static void stats(profile_slot_t* slot, uint64_t frame_avg, uint32_t *mean, floa
 }
 
 void profile_dump(void) {
-	debugf("%-35s %4s    %-15s    %-15s\n", "Slot", "Cnt", "Avg", "Tot");
-	debugf("---------------------------------------------------------------------------\n");
+	debugf("%-35s %4s    %-15s\n", "Slot", "Cnt", "Avg");
+	debugf("------------------------------------------------------------\n");
 
 	uint64_t frame_avg_user = total_time_user / frames;
 	uint64_t frame_avg_wall = total_time_wall / frames;
@@ -138,17 +138,6 @@ void profile_dump(void) {
 
 	for (int i=0; i<num_slots; i++) {
 		if (slots[i].name == NULL) continue;
-
-		// Inclusive (cumulative) time for this slot: sum of this slot plus all the
-		// immediately following slots with a greater nesting level, until the next
-		// printed slot goes back to the same (or lower) nesting level.
-		uint64_t tot_ticks = slots[i].ticks;
-		for (int k=i+1; k<num_slots; k++) {
-			if (slots[k].name == NULL) continue;
-			if (slots[k].count == 0) continue;
-			if (slots[k].nest_level <= slots[i].nest_level) break;
-			tot_ticks += slots[k].ticks;
-		}
 
 		char name[128]; char *n = name;
 		for (int j=0;j<slots[i].nest_level;j++) {
@@ -159,22 +148,17 @@ void profile_dump(void) {
 		
 		uint32_t mean; float partial_avg;
 		stats(&slots[i], frame_avg_wall, &mean, &partial_avg);
-		uint64_t tot_mean = tot_ticks / frames;
-		float partial_tot = (float)tot_mean * 100.0f / (float)frame_avg_wall;
 
 		int avg_us = TIMER_MICROS(mean);
-		int tot_us = TIMER_MICROS(tot_mean);
-		debugf("%-35.35s %4d %6d (%5.1f%%)    %6d (%5.1f%%)\n",
-			name, slots[i].count / frames,
-			avg_us, partial_avg,
-			tot_us, partial_tot);
+		debugf("%-35.35s %4d %6d (%5.1f%%)\n",
+			name, slots[i].count / frames, avg_us, partial_avg);
 	}
 
 #define DUMP_SYS(cat, name) ({ \
 	uint64_t ticks = sys_total[cat] / frames; \
 	partial_sys = (float)ticks * 100.0f / (float)frame_avg_wall; \
-	if (ticks) debugf("%-35.35s %4s %6d (%5.1f%%)    %6d (%5.1f%%)\n", name, "-", \
-					  TIMER_MICROS(ticks), partial_sys, TIMER_MICROS(ticks), partial_sys); \
+	if (ticks) debugf("%-35.35s %4s %6d (%5.1f%%)\n", name, "-", \
+					  TIMER_MICROS(ticks), partial_sys); \
 })
 
 	DUMP_SYS(ACCT_CAT_IRQ, "[sys] IRQ time");
@@ -184,7 +168,7 @@ void profile_dump(void) {
 	DUMP_SYS(ACCT_CAT_VI, "[sys] VI wait");
 	DUMP_SYS(ACCT_CAT_JOYBUS, "[sys] Joybus wait");
 
-	debugf("---------------------------------------------------------------------------\n");
+	debugf("------------------------------------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);
 	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg_wall);
 	debugf("Target frame time:    %4d us\n", TIMER_MICROS(target_frame_ticks));
