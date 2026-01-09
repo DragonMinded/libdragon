@@ -29,6 +29,7 @@
 #include "audio.h"
 #include "entropy.h"
 #include "console.h"
+#include "emux.h"
 #include "debug.h"
 #include "fat.h"
 #include "joybus.h"
