@@ -35,15 +35,15 @@ extern "C" {
 #define EMUX_XIOCTL(code)               EMUX_OP(0x2C,    0,      0,  code)  ///< Modify emulator behavior
 /** @} */
 
-#define EMUX_FEAT_DETECT                        (1 << 0)    ///< EMUX detection support
-#define EMUX_FEAT_BREAK                         (1 << 1)    ///< Immediate breakpoint support
-#define EMUX_FEAT_BREAKPOINTS                   (1 << 2)    ///< Breakpoint configuration support
-#define EMUX_FEAT_TRACE                         (1 << 3)    ///< Tracing support
-#define EMUX_FEAT_LOG                           (1 << 5)    ///< Logging support
-#define EMUX_FEAT_LOGREGS                       (1 << 6)    ///< Register logging support
-#define EMUX_FEAT_HEXDUMP                       (1 << 7)    ///< Hexdump support
-#define EMUX_FEAT_PROFILER                      (1 << 8)    ///< Profiling support
-#define EMUX_FEAT_IOCTL                         (1 << 12)   ///< Emulator behavior support
+#define EMUX_FEAT_DETECT                        (1ull << 0x20)    ///< EMUX detection support
+#define EMUX_FEAT_BREAK                         (1ull << 0x21)    ///< Immediate breakpoint support
+#define EMUX_FEAT_BREAKPOINTS                   (1ull << 0x22)    ///< Breakpoint configuration support
+#define EMUX_FEAT_TRACE                         (1ull << 0x23)    ///< Tracing support
+#define EMUX_FEAT_LOG                           (1ull << 0x25)    ///< Logging support
+#define EMUX_FEAT_LOGREGS                       (1ull << 0x26)    ///< Register logging support
+#define EMUX_FEAT_HEXDUMP                       (1ull << 0x27)    ///< Hexdump support
+#define EMUX_FEAT_PROFILER                      (1ull << 0x28)    ///< Profiling support
+#define EMUX_FEAT_IOCTL                         (1ull << 0x2C)    ///< Emulator behavior support
 
 #define EMUX_XIOCTL_EXIT                         0x001      ///< Exit the emulator
 #define EMUX_XIOCTL_FAST                         0x002      ///< Fast mode (go uncapped)
