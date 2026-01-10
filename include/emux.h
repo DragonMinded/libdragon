@@ -30,6 +30,7 @@ extern "C" {
 #define EMUX_XDETECT(rd)                EMUX_OP(0x20,   rd,      0, 0x000)  ///< Detect EMUX presence
 #define EMUX_XBREAK()                   EMUX_OP(0x21,    0,      0, 0x000)  ///< Trigger a breakpoint
 #define EMUX_XLOG(addr, len)            EMUX_OP(0x25, addr,    len, 0x000)  ///< Log a string
+#define EMUX_XHEXDUMP(addr, len)        EMUX_OP(0x27, addr,    len, 0x000)  ///< Hexdump memory region
 #define EMUX_XPROF(slot, code)          EMUX_OP(0x28, slot,      0,  code)  ///< Control profiler
 #define EMUX_XPROF_READ(slot, metric)   EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
 #define EMUX_XIOCTL(code)               EMUX_OP(0x2C,    0,      0,  code)  ///< Modify emulator behavior
@@ -191,6 +192,27 @@ inline void emux_logn(const char *utf8_str, int len)
     __asm__ __volatile__(
         " .word %2\n"
         :: "r"(__utf8_str), "r"(__len), "i"(EMUX_XLOG(REG_T0, REG_T1)) : "memory");
+}
+
+/**
+ * @brief Do a hexdump log to the emulator
+ * 
+ * The emulator will log the provided string as a hexdump, showing the
+ * hexadecimal values of each byte in the string (and possibly also its
+ * ASCII representation).
+ * 
+ * @param utf8_str        UTF-8 encoded string to log
+ * @param len             Length of the string
+ */
+inline void emux_hexdump(const uint8_t *buffer, int len)
+{
+    const int REG_T0 = 8;
+    const int REG_T1 = 9;
+    register const uint8_t *__buffer asm("$t0") = buffer;
+    register int __len asm("$t1") = len;
+    __asm__ __volatile__(
+        " .word %2\n"
+        :: "r"(__buffer), "r"(__len), "i"(EMUX_XHEXDUMP(REG_T0, REG_T1)) : "memory");
 }
 
 /** 
