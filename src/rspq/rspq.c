@@ -358,9 +358,13 @@ static bool rspq_is_running;
 static uint64_t dummy_overlay_state[2] __attribute__((aligned(16)));
 
 /** @brief Deferred calls: head of list */
-rspq_deferred_call_t *__rspq_defcalls_head;
+static rspq_deferred_call_t *defcalls_head;
 /** @brief Deferred calls: tail of list */
-rspq_deferred_call_t *__rspq_defcalls_tail;
+static rspq_deferred_call_t *defcalls_tail;
+/** @brief Deferred calls: count */
+static uint32_t defcalls_count;
+/** @brief Deferred calls: maximum count */
+static uint32_t defcalls_run_threshold;
 
 static void rspq_flush_internal(void);
 
@@ -1357,7 +1361,9 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
  */ 
 bool __rspq_deferred_poll(void)
 {
-    rspq_deferred_call_t *prev = NULL, *cur =  __rspq_defcalls_head;
+    int init_count = defcalls_count;
+
+    rspq_deferred_call_t *prev = NULL, *cur =  defcalls_head;
     while (cur != NULL) {
         rspq_deferred_call_t *next = cur->next;
 
@@ -1385,18 +1391,24 @@ bool __rspq_deferred_poll(void)
             if (prev)
                 prev->next = next;
             else
-                __rspq_defcalls_head = next;
+                defcalls_head = next;
             if (!next)
-                __rspq_defcalls_tail = prev;
+                defcalls_tail = prev;
+            defcalls_count--;
             free(cur);
-            break;
+
+            if (defcalls_count < defcalls_run_threshold)
+                break;
+        } else {
+            prev = cur;
         }
 
-        prev = cur;
         cur = next;
     }
 
-    return __rspq_defcalls_head != NULL;
+    defcalls_run_threshold = (defcalls_run_threshold * 4 / 8) + (defcalls_count * 4 / 8);
+
+    return defcalls_head != NULL;
 }
 
 rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp)
@@ -1415,12 +1427,13 @@ rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool wait
         call->flags |= RSPQ_DCF_WAITRDP;
 
     // Add it to the list of deferred calls
-    if (__rspq_defcalls_tail) {
-        __rspq_defcalls_tail->next = call;
+    if (defcalls_tail) {
+        defcalls_tail->next = call;
     } else {
-        __rspq_defcalls_head = call;
+        defcalls_head = call;
     }
-    __rspq_defcalls_tail = call;
+    defcalls_tail = call;
+    defcalls_count++;
 
     return call->sync;
 }
