@@ -29,7 +29,7 @@ extern "C" {
  */
 #define EMUX_XDETECT(rd)                EMUX_OP(0x20,   rd,      0, 0x000)  ///< Detect EMUX presence
 #define EMUX_XBREAK()                   EMUX_OP(0x21,    0,      0, 0x000)  ///< Trigger a breakpoint
-#define EMUX_XLOG(addr, len)            EMUX_OP(0x22, addr,    len, 0x000)  ///< Log a string
+#define EMUX_XLOG(addr, len)            EMUX_OP(0x25, addr,    len, 0x000)  ///< Log a string
 #define EMUX_XPROF(slot, code)          EMUX_OP(0x28, slot,      0,  code)  ///< Control profiler
 #define EMUX_XPROF_READ(slot, metric)   EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
 #define EMUX_XIOCTL(code)               EMUX_OP(0x2C,    0,      0,  code)  ///< Modify emulator behavior
