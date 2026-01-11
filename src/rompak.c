@@ -82,7 +82,7 @@ static bool rompak_get_header(header_t *header)
     // experience to flashcart developers by avoiding random/unreadble crashes
     // (as the TOC is used to load symbols to populate crash screens).
     if (header->cookie != toc_cookie) {
-        debugf("ROMPAK: Cookie changed (expected 0x%08x, got 0x%08x)\n", toc_cookie, header->cookie);
+        debugf("ROMPAK: Cookie changed (expected 0x%08lx, got 0x%08lx)\n", toc_cookie, header->cookie);
         rompak_corrupted = true;
         return false;
     }
