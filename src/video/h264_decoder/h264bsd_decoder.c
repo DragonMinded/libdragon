@@ -199,9 +199,9 @@ u32 h264bsdDecode(storage_t *pStorage, u8 *byteStrm, u32 len, u32 picId,
     }
     else
     {
-        PROFILE_START(PS_H264_NAL, 0);
+        PROFILE_START(PS_H264_NAL);
         tmp = h264bsdExtractNalUnit(byteStrm, len, &strm, readBytes);
-        PROFILE_STOP(PS_H264_NAL, 0);
+        PROFILE_STOP(PS_H264_NAL);
         if (tmp != HANTRO_OK)
         {
             EPRINT("BYTE_STREAM");
@@ -214,9 +214,9 @@ u32 h264bsdDecode(storage_t *pStorage, u8 *byteStrm, u32 len, u32 picId,
     }
     pStorage->prevBufNotFinished = HANTRO_FALSE;
 
-    PROFILE_START(PS_H264_NAL, 0);
+    PROFILE_START(PS_H264_NAL);
     tmp = h264bsdDecodeNalUnit(&strm, &nalUnit);
-    PROFILE_STOP(PS_H264_NAL, 0);
+    PROFILE_STOP(PS_H264_NAL);
     if (tmp != HANTRO_OK)
     {
         EPRINT("NAL_UNIT");

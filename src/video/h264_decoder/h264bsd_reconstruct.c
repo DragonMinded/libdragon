@@ -142,7 +142,7 @@ void h264bsdPredictSamples(
     ASSERT(partHeight);
 
     /* luma */
-    PROFILE_START(PS_H264_INTERPRED_LUMA, 0);
+    PROFILE_START(PS_H264_INTERPRED_LUMA);
     partPitch = pic->width*16;
     partData = pic->luma + partPitch*partY + partX;
 
@@ -213,10 +213,10 @@ void h264bsdPredictSamples(
                                         (i32)xFrac, (i32)yFrac, roi);
     ASSERT(res == 0);
 #endif
-    PROFILE_STOP(PS_H264_INTERPRED_LUMA, 0);
+    PROFILE_STOP(PS_H264_INTERPRED_LUMA);
 
     /* Chroma */
-    PROFILE_START(PS_H264_INTERPRED_CHROMA, 0);
+    PROFILE_START(PS_H264_INTERPRED_CHROMA);
     width  = 8 * refPic->width;
     height = 8 * refPic->height;
 
@@ -285,7 +285,7 @@ void h264bsdPredictSamples(
     ASSERT(res == 0);
 #endif
 
-    PROFILE_STOP(PS_H264_INTERPRED_CHROMA, 0);
+    PROFILE_STOP(PS_H264_INTERPRED_CHROMA);
     (void)res;
 }
 #endif

@@ -2820,9 +2820,9 @@ plm_frame_t *plm_video_decode(plm_video_t *self) {
 	plm_frame_t *frame = NULL;
 	do {
 		if (self->start_code != PLM_START_PICTURE) {
-			PROFILE_START(PS_MPEG_FINDSTART, 0);
+			PROFILE_START(PS_MPEG_FINDSTART);
 			self->start_code = plm_buffer_find_start_code(self->buffer, PLM_START_PICTURE);
-			PROFILE_STOP(PS_MPEG_FINDSTART, 0);
+			PROFILE_STOP(PS_MPEG_FINDSTART);
 			
 			if (self->start_code == -1) {
 				// If we reached the end of the file and the previously decoded
@@ -2849,14 +2849,14 @@ plm_frame_t *plm_video_decode(plm_video_t *self) {
 		// of the next picture. Also, if we didn't find the start code for the
 		// next picture, but the source has ended, we assume that this last
 		// picture is in the buffer.
-		PROFILE_START(PS_MPEG_HASSTART, 0);
+		PROFILE_START(PS_MPEG_HASSTART);
 		if (
 			plm_buffer_has_start_code(self->buffer, PLM_START_PICTURE) == -1 &&
 			!plm_buffer_has_ended(self->buffer)
 		) {
 			return NULL;
 		}
-		PROFILE_STOP(PS_MPEG_HASSTART, 0);
+		PROFILE_STOP(PS_MPEG_HASSTART);
 		
 		plm_video_decode_picture(self);
 
@@ -3050,7 +3050,7 @@ void plm_video_decode_picture(plm_video_t *self) {
 	);
 
 	// Decode all slices
-	PROFILE_START(PS_MPEG_DECODESLICE, 0);
+	PROFILE_START(PS_MPEG_DECODESLICE);
 	while (PLM_START_IS_SLICE(self->start_code)) {
 		plm_video_decode_slice(self, self->start_code & 0x000000FF);
 		if (self->macroblock_address >= self->mb_size - 2) {
@@ -3058,7 +3058,7 @@ void plm_video_decode_picture(plm_video_t *self) {
 		}
 		self->start_code = plm_buffer_next_start_code(self->buffer);
 	}
-	PROFILE_STOP(PS_MPEG_DECODESLICE, 0);
+	PROFILE_STOP(PS_MPEG_DECODESLICE);
 
 	// If this is a reference picture rotate the prediction pointers
 	if (
@@ -3089,9 +3089,9 @@ void plm_video_decode_slice(plm_video_t *self, int slice) {
 	}
 
 	do {
-		PROFILE_START(PS_MPEG_MB, 0);
+		PROFILE_START(PS_MPEG_MB);
 		plm_video_decode_macroblock(self);
-		PROFILE_STOP(PS_MPEG_MB, 0);
+		PROFILE_STOP(PS_MPEG_MB);
 	} while (
 		self->macroblock_address < self->mb_size - 1 &&
 		plm_buffer_peek_non_zero(self->buffer, 23)
@@ -3216,7 +3216,7 @@ void plm_video_decode_macroblock(plm_video_t *self) {
 }
 
 void plm_video_decode_motion_vectors(plm_video_t *self) {
-	PROFILE_START(PS_MPEG_MB_MV, 0);
+	PROFILE_START(PS_MPEG_MB_MV);
 
 	// Forward
 	if (self->motion_forward.is_set) {
@@ -3235,7 +3235,7 @@ void plm_video_decode_motion_vectors(plm_video_t *self) {
 		self->motion_backward.h = plm_video_decode_motion_vector(self, r_size, self->motion_backward.h);
 		self->motion_backward.v = plm_video_decode_motion_vector(self, r_size, self->motion_backward.v);
 	}
-	PROFILE_STOP(PS_MPEG_MB_MV, 0);
+	PROFILE_STOP(PS_MPEG_MB_MV);
 }
 
 int plm_video_decode_motion_vector(plm_video_t *self, int r_size, int motion) {
@@ -3267,7 +3267,7 @@ int plm_video_decode_motion_vector(plm_video_t *self, int r_size, int motion) {
 }
 
 void plm_video_predict_macroblock(plm_video_t *self) {
-	PROFILE_START(PS_MPEG_MB_PREDICT, 0);
+	PROFILE_START(PS_MPEG_MB_PREDICT);
 	int fw_h = self->motion_forward.h;
 	int fw_v = self->motion_forward.v;
 
@@ -3315,7 +3315,7 @@ void plm_video_predict_macroblock(plm_video_t *self) {
 		}
 	}
 
-	PROFILE_STOP(PS_MPEG_MB_PREDICT, 0);
+	PROFILE_STOP(PS_MPEG_MB_PREDICT);
 }
 
 void plm_video_copy_macroblock_rsp(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v) {
@@ -3471,9 +3471,9 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	int n = 0;
 	uint8_t *quant_matrix;
 
-	PROFILE_START(PS_MPEG_MB_DECODE, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE);
 
-	PROFILE_START(PS_MPEG_MB_DECODE_DC, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE_DC);
 	// Decode DC coefficient of intra-coded blocks
 	if (self->macroblock_intra) {
 		int predictor;
@@ -3510,10 +3510,10 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	else {
 		quant_matrix = self->non_intra_quant_matrix;
 	}
-	PROFILE_STOP(PS_MPEG_MB_DECODE_DC, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_DC);
 
 	// Calculate block position
-	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK);
 	uint8_t *d;
 	int dw;
 	int di;
@@ -3534,7 +3534,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		dw = self->chroma_width;
 		di = ((self->mb_row * self->luma_width) << 2) + (self->mb_col << 3);
 	}
-	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK);
 
 	if (RSP_MODE > 0) {		
 		if (RSP_MODE >= 3 && !self->macroblock_intra) {
@@ -3556,7 +3556,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	}
 
 	// Decode AC coefficients (+DC for non-intra)
-	PROFILE_START(PS_MPEG_MB_DECODE_AC, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE_AC);
 	plm_buffer_has(self->buffer, 64*24);
 	while (TRUE) {
 		static const uint16_t qtable0[128] __attribute__((aligned(16))) = { 0,0,0,0,65535,65535,65535,65535,49666,49666,51457,51457,49156,49156,51201,51201,42753,42753,42753,42753,42497,42497,42497,42497,41218,41218,41218,41218,42241,42241,42241,42241,60673,57350,60417,60161,58114,57603,57349,59905,32771,32771,32771,32771,32771,32771,32771,32771,33793,33793,33793,33793,33793,33793,33793,33793,33537,33537,33537,33537,33537,33537,33537,33537,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641 };
@@ -3647,9 +3647,9 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 			rsp_mpeg1_block_coeff(n, level);
 		}
 		n++;
-		// PROFILE_STOP(PS_MPEG_MB_DECODE_AC_DEQUANT, 0);
+		// PROFILE_STOP(PS_MPEG_MB_DECODE_AC_DEQUANT);
 	}
-	PROFILE_STOP(PS_MPEG_MB_DECODE_AC, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_AC);
 
 	// Move block to its place
 	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK, 1);
@@ -3684,7 +3684,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	}
 
 	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 1);
-	PROFILE_STOP(PS_MPEG_MB_DECODE, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE);
 }
 
 void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra)
@@ -3722,7 +3722,7 @@ void plm_video_idct(int16_t *block) {
 		b1, b3, b4, b6, b7, tmp1, tmp2, m0,
 		x0, x1, x2, x3, x4, y3, y4, y5, y6, y7;
 
-	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK_IDCT, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK_IDCT);
 
 	// Transform columns
 	for (int i = 0; i < 8; ++i) {
@@ -3784,7 +3784,7 @@ void plm_video_idct(int16_t *block) {
 		block[7 + i] = (y4 - b7 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
 	}
 
-	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK_IDCT, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK_IDCT);
 }
 
 // YCbCr conversion following the BT.601 standard:

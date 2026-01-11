@@ -1,5 +1,4 @@
 #include <libdragon.h>
-#include "../../src/video/profile.h"
 
 // Number of frame back buffers we reserve.
 // These buffers are used to render the video ahead of time.
@@ -47,13 +46,16 @@ int main(void)
 	// Initialize profiling (FIXME)
 	profile_init(NULL);
 	void __h264_profile_init(void);
-	__h264_profile_init();
+	void __mpeg1_profile_init(void);
 
 	// Check if the movie is present in the filesystem, so that we can provide
 	// a specific error message.
 	FILE *f = fopen("rom:/movie.h264", "rb");
 	assertf(f, "Movie not found!\nInstall wget and ffmpeg to download and encode the sample movie\n");
 	fclose(f);
+
+	__h264_profile_init();
+	// __mpeg1_profile_init();
 
 	bool show_fps = false;
 	rdpq_font_t *fnt = rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO);

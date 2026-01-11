@@ -1,6 +1,7 @@
 /**
  * @file profile.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief CPU profiler implementation.
  */
 #include "profile.h"
 #include "debug.h"
@@ -10,23 +11,28 @@
 #include <memory.h>
 #include <stdio.h>
 
+/** @brief Internal profile slot data */
 typedef struct {
-	const char *name;
-	uint32_t ticks;
-	int count;
-	int nest_level;
+	const char *name;		///< Name of the slot
+	uint32_t ticks;			///< Total number of ticks spent in the slot
+	int count;				///< Number of times the slot was hit
+	int nest_level;			///< Number of nesting levels for this slot
 } profile_slot_t;
 
+/** @brief Profile counters (actual accumulators) */
 uint64_t *__profile_counters;
+/** @brief Porfile slots descriptions */
 profile_slot_t *slots;
+/** @brief Number of profile slots */
 static int num_slots;
+
 static uint64_t total_time_wall;
 static uint64_t total_time_user;
 static uint64_t last_frame_wall;
 static uint64_t last_frame_user;
 static uint64_t target_frame_ticks;
 static uint64_t sys_total[ACCT_CAT_MAX];
-uint64_t sys_frame_last[ACCT_CAT_MAX];
+static uint64_t sys_frame_last[ACCT_CAT_MAX];
 static int frames;
 static uint64_t dump_interval;
 static uint64_t last_dump_time;
@@ -129,16 +135,15 @@ static void stats(profile_slot_t* slot, uint64_t frame_avg, uint32_t *mean, floa
 }
 
 void profile_dump(void) {
-	debugf("%-35s %4s %6s %6s\n", "Slot", "Cnt", "Avg", "Perc");
-	debugf("---------------------------------------------------------\n");
+	debugf("%-35s %4s    %-15s\n", "Slot", "Cnt", "Avg");
+	debugf("------------------------------------------------------------\n");
 
 	uint64_t frame_avg_user = total_time_user / frames;
 	uint64_t frame_avg_wall = total_time_wall / frames;
-	char buf[64];
+	float partial_sys;
 
 	for (int i=0; i<num_slots; i++) {
 		if (slots[i].name == NULL) continue;
-		if (slots[i].count == 0) continue;
 
 		char name[128]; char *n = name;
 		for (int j=0;j<slots[i].nest_level;j++) {
@@ -147,59 +152,22 @@ void profile_dump(void) {
 		*n++ = '-'; *n++ = ' ';
 		strcpy(n, slots[i].name);
 		
-		uint32_t mean; float partial;
-		stats(&slots[i], frame_avg_wall, &mean, &partial);
-		sprintf(buf, "%2.1f", partial);
-		debugf("%-35s %4d %6d %5s%%\n",
-			name, slots[i].count / frames,
-			TIMER_MICROS(mean), buf);
+		uint32_t mean; float partial_avg;
+		stats(&slots[i], frame_avg_wall, &mean, &partial_avg);
+
+		int avg_us = TIMER_MICROS(mean);
+		debugf("%-35.35s %4d %6d (%5.1f%%)\n",
+			name, slots[i].count / frames, avg_us, partial_avg);
 	}
 
+///@cond
 #define DUMP_SYS(cat, name) ({ \
 	uint64_t ticks = sys_total[cat] / frames; \
-	sprintf(buf, "%2.1f", (float)ticks * 100.0f / (float)frame_avg_wall); \
-	if (ticks) debugf("%-35s    - %6d %5s%%\n", name, \
-					  TIMER_MICROS(ticks), buf); \
+	partial_sys = (float)ticks * 100.0f / (float)frame_avg_wall; \
+	if (ticks) debugf("%-35.35s %4s %6d (%5.1f%%)\n", name, "-", \
+					  TIMER_MICROS(ticks), partial_sys); \
 })
-
-#if 0
-	DUMP_SLOT(PS_H264, "H264");
-	DUMP_SLOT(PS_H264_NAL, "  - NAL");
-	DUMP_SLOT(PS_H264_MACROB, "  - MacroB");
-	DUMP_SLOT(PS_H264_LAYER, "    - Layer");
-	DUMP_SLOT(PS_H264_LAYER_CLEAR, "      - Clear");
-	DUMP_SLOT(PS_H264_LAYER_PRED, "      - Predict");
-	DUMP_SLOT(PS_H264_LAYER_RES, "      - Residual");
-	DUMP_SLOT(PS_H264_LAYER_RES_ENC, "        - Encode");
-	DUMP_SLOT(PS_H264_RESIDUAL_LUMA, "        - Residual Luma");
-	DUMP_SLOT(PS_H264_RESIDUAL_CHROMA, "        - Residual Chroma");
-	DUMP_SLOT(PS_H264_INTRAPRED_4X4, "          - IntraPred 4x4");
-	DUMP_SLOT(PS_H264_INTRAPRED_16X16, "          - IntraPred 16x16");
-	DUMP_SLOT(PS_H264_INTERPRED, "  - InterPred");
-	DUMP_SLOT(PS_H264_INTERPRED_LUMA, "    - InterPred Luma");
-	DUMP_SLOT(PS_H264_INTERPRED_CHROMA, "    - InterPred Chroma");
-	DUMP_SLOT(PS_H264_SYNC, "  - Sync");
-	DUMP_SLOT(PS_H264_SYNC_OVL, "    - Sync Overlay");
-
-	DUMP_SLOT(PS_MPEG, "MPEG1");
-	DUMP_SLOT(PS_MPEG_FINDSTART, "  - FindStart");
-	DUMP_SLOT(PS_MPEG_HASSTART, "  - HasStart");
-	DUMP_SLOT(PS_MPEG_DECODESLICE, "  - Slice");
-	DUMP_SLOT(PS_MPEG_MB, "    - MacroB");
-	DUMP_SLOT(PS_MPEG_MB_MV, "      - MV");
-	DUMP_SLOT(PS_MPEG_MB_PREDICT, "      - Predict");
-	DUMP_SLOT(PS_MPEG_MB_DECODE, "      - Decode");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_DC, "        - DC");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_AC, "        - AC");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_VLC, "          - VLC");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_CODE, "          - Code");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_AC_DEQUANT, "          - Dequant");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_BLOCK, "        - Block");
-	DUMP_SLOT(PS_MPEG_MB_DECODE_BLOCK_IDCT, "          - IDCT");
-	DUMP_SLOT(PS_YUV, "YUV Blit");
-	DUMP_SLOT(PS_AUDIO, "Audio");
-	DUMP_SLOT(PS_SYNC, "Sync");
-#endif
+///@endcond
 
 	DUMP_SYS(ACCT_CAT_IRQ, "[sys] IRQ time");
 	DUMP_SYS(ACCT_CAT_RSP, "[sys] RSP wait");
@@ -208,7 +176,7 @@ void profile_dump(void) {
 	DUMP_SYS(ACCT_CAT_VI, "[sys] VI wait");
 	DUMP_SYS(ACCT_CAT_JOYBUS, "[sys] Joybus wait");
 
-	debugf("---------------------------------------------------------\n");
+	debugf("------------------------------------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);
 	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg_wall);
 	debugf("Target frame time:    %4d us\n", TIMER_MICROS(target_frame_ticks));

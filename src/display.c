@@ -56,6 +56,8 @@ static volatile uint32_t ready_mask = 0;
 static float refresh_rate;
 /** @brief Actual display refresh period */
 static float refresh_period;
+/** @brief Currently set FPS limit */
+static float fps_limit;
 /** @brief Currently calculated delta time estimation */
 static volatile float delta_time;
 /** @brief Snapshot of frame rate for display purposes (avoid changing it too fast) */
@@ -156,6 +158,10 @@ static void update_fps(bool newframe)
     if (TICKS_DISTANCE(last_update, now) > TICKS_PER_SECOND / FPS_UPDATE_FREQ) {
         last_update = now;        
         frame_rate_snapshot = 1.0f / (kk_fps * min_refresh_period_rounded);
+        // Update the refresh rate in case it changed (eg: switch PAL50/PAL60)
+        refresh_rate = vi_get_refresh_rate();
+        refresh_period = 1.0f / refresh_rate;    
+        display_set_fps_limit(fps_limit);
     }
 
     last_frame_counter = 0;
@@ -564,6 +570,8 @@ void display_set_fps_limit(float fps)
     // This will be used only for display purposes, so that FPS are capped
     // to 60 Hz rather than 59.83 Hz, which would be the hw-accurate value.
     min_refresh_period_rounded = 1.0f / (fps ? MIN(fps, roundf(refresh_rate)) : roundf(refresh_rate));
+
+    fps_limit = fps;
 
     enable_interrupts();
 }

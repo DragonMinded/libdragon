@@ -34,6 +34,9 @@ bool flag_verbose = false;
 bool flag_debug = false;
 static bool had_error = false;
 
+// Shared parsing helpers for --wav-seek (same syntax as videoconv64 --seek)
+#include "../common/seekfile.cpp"
+
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...) {
 	va_list va;
@@ -80,7 +83,11 @@ void usage(void) {
 	printf("   --wav-compress <0|1|3>    	Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
 	printf("   --wav-loop <true|false>   	Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     	Set looping offset (in samples; default: 0)\n");
-	printf("   --wav-seek-offset <N>[,<N>]	Add additional seeking offsets (in samples; can specify multiple times)\n");
+	printf("   --wav-seek <SEC|FILE>     	Enable seeking support:\n");
+	printf("                             	- if SEC is a float, add a seekpoint every SEC seconds\n");
+	printf("                             	- if FILE, read a list of seekpoints (one per line):\n");
+	printf("                             	  * integer sample offsets, or\n");
+	printf("                             	  * timestamps in [hh:]mm:ss[.mmm] format\n");
 	printf("\n");
 	printf("XM options:\n");
 	printf("   --xm-8bit                 	Convert all samples to 8-bit\n");
@@ -336,25 +343,19 @@ int main(int argc, char *argv[]) {
 					fprintf(stderr, "invalid argument for --wav-resample: %s\n", argv[i]);
 					return 1;
 				}
-			} else if (!strcmp(argv[i], "--wav-seek-offset")) {
+			} else if (!strcmp(argv[i], "--wav-seek")) {
 				if (++i == argc) {
-					fprintf(stderr, "missing argument for --wav-seek-offset\n");
+					fprintf(stderr, "missing argument for --wav-seek\n");
 					return 1;
 				}
-				// Parse one or multiple seek offsets separated by commas
-				char *offsets = strdup(argv[i]);
-				char *offset = strtok(offsets, ",");
-				while (offset) {
-					int off = atoi(offset);
-					if (off < 0) {
-						fprintf(stderr, "invalid seek offset: %s\n", offset);
-						free(offsets);
-						return 1;
-					}
-					flag_wav_seek_offset.push_back(off);
-					offset = strtok(NULL, ",");
+				const char *param = argv[i];
+				double sec = 0.0;
+				if (parse_double_strict(param, &sec) && sec > 0.0) {
+					flag_wav_seek_interval_sec = sec;
+				} else {
+					// Defer parsing until after resampling so timestamps can be converted using the final sample rate.
+					flag_wav_seek_file = param;
 				}
-				free(offsets);
 			} else if (!strcmp(argv[i], "--xm-8bit")) {
 				flag_xm_8bit = true;
 			} else if (!strcmp(argv[i], "--xm-ext-samples")) {

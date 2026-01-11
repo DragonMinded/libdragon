@@ -167,7 +167,7 @@ u32 h264bsdDecodeSliceData(strmData_t *pStrmData, storage_t *pStorage,
             }
         }
 
-        PROFILE_START(PS_H264_LAYER, 0);
+        PROFILE_START(PS_H264_LAYER);
         if (skipRun)
         {
             //DEBUG(("Skipping macroblock %d\n", currMbAddr));
@@ -185,13 +185,13 @@ u32 h264bsdDecodeSliceData(strmData_t *pStrmData, storage_t *pStorage,
                 return(tmp);
             }
         }
-        PROFILE_STOP(PS_H264_LAYER, 0);
+        PROFILE_STOP(PS_H264_LAYER);
 
-        PROFILE_START(PS_H264_MACROB, 0);
+        PROFILE_START(PS_H264_MACROB);
         tmp = h264bsdDecodeMacroblock(pStorage->mb + currMbAddr, mbLayer,
             currImage, pStorage->dpb, &qpY, currMbAddr,
             pStorage->activePps->constrainedIntraPredFlag);
-        PROFILE_STOP(PS_H264_MACROB, 0);
+        PROFILE_STOP(PS_H264_MACROB);
         if (tmp != HANTRO_OK)
         {
             EPRINT("MACRO_BLOCK");

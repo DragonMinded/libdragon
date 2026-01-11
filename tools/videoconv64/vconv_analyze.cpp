@@ -430,8 +430,9 @@ AnalysisResult vconv_analyze(const CodecInfo &ci) {
 	}
 
 	// Profile selection (TODO: can be tuned later)
-	const double N_high = 4.0;
-	const double HF_low = 2.5;
+	const double NOISY_DIFF_MEAN = 4.0;      // high motion+noise energy
+	const double CARTOON_DIFF_P95 = 12.0;    // strong spikes in frame-to-frame difference
+	const double CARTOON_RATIO = 3.2;        // diff_p95 / diff_mean
 
 	r.selected_profile = cfg.profile;
 	if (r.selected_profile == "auto") {
@@ -439,9 +440,22 @@ AnalysisResult vconv_analyze(const CodecInfo &ci) {
 			// In quick mode we skip profile-specific filters anyway; default to a conservative general-purpose profile.
 			r.selected_profile = "film";
 		} else {
-			if (r.metrics.diff_mean >= N_high) r.selected_profile = "noisy";
-			else if (r.metrics.flat_mean <= HF_low) r.selected_profile = "cartoon";
-			else r.selected_profile = "film";
+			// NOTE: diff_mean is a motion+noise proxy (frame-to-frame difference). It can be high for clean cartoons too.
+			// Our earlier "flatness" proxy is not reliable across sources, so prefer a cartoon detector based on spikes:
+			// cartoons/animation often have very large diff outliers (diff_p95) compared to the mean.
+			double ratio = (r.metrics.diff_mean > 1e-9) ? (r.metrics.diff_p95 / r.metrics.diff_mean) : 0.0;
+			if (r.metrics.diff_p95 >= CARTOON_DIFF_P95 && ratio >= CARTOON_RATIO) {
+				r.selected_profile = "cartoon";
+			} else if (r.metrics.diff_mean >= NOISY_DIFF_MEAN) {
+				r.selected_profile = "noisy";
+			} else {
+				r.selected_profile = "film";
+			}
+
+			verbose(1, "Profile(auto): diff_mean=%.3f diff_p95=%.3f ratio=%.2f flat_mean=%.3f -> %s",
+				r.metrics.diff_mean, r.metrics.diff_p95, ratio, r.metrics.flat_mean, r.selected_profile.c_str());
+			verbose(2, "Profile(auto): noisy_if diff_mean>=%.2f, cartoon_if diff_p95>=%.2f && ratio>=%.2f",
+				NOISY_DIFF_MEAN, CARTOON_DIFF_P95, CARTOON_RATIO);
 		}
 	}
 

@@ -56,7 +56,9 @@ static int decode_next_slice(h264_t *player) {
 
     // Do the actual decoding
     unsigned int np;
+    PROFILE_START(PS_H264);
     int status = h264bsdDecode(&player->s, player->buf+player->idx, player->buf_len-player->idx, 0, &np);
+    PROFILE_STOP(PS_H264);
 
     player->idx += np;
     player->max_slice_size = MAX(player->max_slice_size, np*1.3f);
@@ -314,15 +316,15 @@ void __h264_profile_init(void) {
 	profile_register(PS_H264, "H264", 0);
 	profile_register(PS_H264_NAL, "NAL", 1);
 	profile_register(PS_H264_MACROB, "MacroB", 1);
-	profile_register(PS_H264_LAYER, "Layer", 2);
-	profile_register(PS_H264_LAYER_CLEAR, "Clear", 3);
-	profile_register(PS_H264_LAYER_PRED, "Predict", 3);
-	profile_register(PS_H264_LAYER_RES, "Residual", 3);
-	profile_register(PS_H264_LAYER_RES_ENC, "Encode", 4);
-	profile_register(PS_H264_RESIDUAL_LUMA, "Residual Luma", 4);
-	profile_register(PS_H264_RESIDUAL_CHROMA, "Residual Chroma", 4);
-	profile_register(PS_H264_INTRAPRED_4X4, "IntraPred 4x4", 5);
-	profile_register(PS_H264_INTRAPRED_16X16, "IntraPred 16x16", 5);
+	profile_register(PS_H264_LAYER, "Layer", 1);
+	profile_register(PS_H264_LAYER_CLEAR, "Clear", 2);
+	profile_register(PS_H264_LAYER_PRED, "Predict", 2);
+	profile_register(PS_H264_LAYER_RES, "Residual", 2);
+	profile_register(PS_H264_LAYER_RES_ENC, "Encode", 3);
+	profile_register(PS_H264_RESIDUAL_LUMA, "Residual Luma", 3);
+	profile_register(PS_H264_RESIDUAL_CHROMA, "Residual Chroma", 3);
+	profile_register(PS_H264_INTRAPRED_4X4, "IntraPred 4x4", 4);
+	profile_register(PS_H264_INTRAPRED_16X16, "IntraPred 16x16", 4);
 	profile_register(PS_H264_INTERPRED, "InterPred", 2);
 	profile_register(PS_H264_INTERPRED_LUMA, "InterPred Luma", 3);
 	profile_register(PS_H264_INTERPRED_CHROMA, "InterPred Chroma", 3);
