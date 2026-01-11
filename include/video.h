@@ -231,6 +231,20 @@ void video_rewind(video_t *v);
 int video_seek(video_t *v, int frame_idx);
 
 /**
+ * @brief Check if a frame index is a seekpoint (keyframe) according to the seektable
+ *
+ * This function returns true only if a seek index (.seek file) has been loaded for
+ * the specified video and the specified frame index is an exact entry in that table.
+ * If no seek index is available, the function returns false.
+ *
+ * @param v             Handle to the video
+ * @param frame_idx     Frame index to check
+ * @return true         If the frame index is a seekpoint (keyframe)
+ * @return false        Otherwise (including missing seektable)
+ */
+bool video_is_seekable(video_t *v, int frame_idx);
+
+/**
  * @brief Close the video file
  * 
  * @param v             Handle to the video

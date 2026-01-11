@@ -181,3 +181,12 @@ int video_seek(video_t *v, int frame_idx)
     return -1;
 }
 
+bool video_is_seekable(video_t *v, int frame_idx)
+{
+    if (!v->seektable) return false;
+
+    int found = frame_idx;
+    video_seektable_lookup(v->seektable, &found);
+    return found == frame_idx;
+}
+
