@@ -7,6 +7,7 @@
 #define PROFILE_H
 
 #include "n64sys.h"
+#include "emux.h"
 #include <stdint.h>
 
 /** 
@@ -157,15 +158,19 @@ inline void __profile_record(int slot, int32_t len) {
 	// If omitted, it defaults to 0 (so PROFILE_START(SLOT) pairs with PROFILE_STOP(SLOT)).
 	#define __PROFILE_START_0(slot) \
 		int64_t __prof_start_##slot##_0 = TICKS_READ() - get_system_ticks(); \
+		emux_prof_start(slot); \
 		MEMORY_BARRIER();
 	#define __PROFILE_START_1(slot, n) \
 		int64_t __prof_start_##slot##_##n = TICKS_READ() - get_system_ticks(); \
+		emux_prof_start(slot); \
 		MEMORY_BARRIER();
 	#define __PROFILE_STOP_0(slot) \
 		MEMORY_BARRIER(); \
+		emux_prof_stop(slot); \
 		__profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot##_0);
 	#define __PROFILE_STOP_1(slot, n) \
 		MEMORY_BARRIER(); \
+		emux_prof_stop(slot); \
 		__profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot##_##n);
 	/** 
 	 * @brief Start profiling a code section
@@ -245,9 +250,10 @@ inline void __profile_record(int slot, int32_t len) {
 	 * @see PROFILE_STOP
 	 */
 	#define PROFILE_SCOPE(slot) \
-		for (int64_t __prof_start_##slot = TICKS_READ() - get_system_ticks(); ; ) \
+		for (int64_t __prof_start_##slot = emux_prof_start(slot), TICKS_READ() - get_system_ticks() ; ) \
 			for (int __prof_once_##slot = ({ MEMORY_BARRIER(); 1; }); __prof_once_##slot; __prof_once_##slot = 0, \
 				({ MEMORY_BARRIER(); }), \
+				emux_prof_stop(slot), \
 				__profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot))
 #else
 	///@cond
