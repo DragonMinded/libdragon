@@ -12,11 +12,15 @@
 #ifndef LIBDRAGON_EMUX_H
 #define LIBDRAGON_EMUX_H
 
+///@cond
+#ifndef __ASSEMBLER__
 #include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
+#define cast64(x) (uint64_t)(x)
+#else
+#define cast64(x) x
 #endif
+///@endcond
+
 
 /** @brief Assemble a single emux opcode */
 #define EMUX_OP(ext, rd, rt, code) \
@@ -36,15 +40,15 @@ extern "C" {
 #define EMUX_XIOCTL(code)               EMUX_OP(0x2C,    0,      0,  code)  ///< Modify emulator behavior
 /** @} */
 
-#define EMUX_FEAT_DETECT                        (1ull << 0x20)    ///< EMUX detection support
-#define EMUX_FEAT_BREAK                         (1ull << 0x21)    ///< Immediate breakpoint support
-#define EMUX_FEAT_BREAKPOINTS                   (1ull << 0x22)    ///< Breakpoint configuration support
-#define EMUX_FEAT_TRACE                         (1ull << 0x23)    ///< Tracing support
-#define EMUX_FEAT_LOG                           (1ull << 0x25)    ///< Logging support
-#define EMUX_FEAT_LOGREGS                       (1ull << 0x26)    ///< Register logging support
-#define EMUX_FEAT_HEXDUMP                       (1ull << 0x27)    ///< Hexdump support
-#define EMUX_FEAT_PROFILER                      (1ull << 0x28)    ///< Profiling support
-#define EMUX_FEAT_IOCTL                         (1ull << 0x2C)    ///< Emulator behavior support
+#define EMUX_FEAT_DETECT                        (cast64(1) << 0x20)    ///< EMUX detection support
+#define EMUX_FEAT_BREAK                         (cast64(1) << 0x21)    ///< Immediate breakpoint support
+#define EMUX_FEAT_BREAKPOINTS                   (cast64(1) << 0x22)    ///< Breakpoint configuration support
+#define EMUX_FEAT_TRACE                         (cast64(1) << 0x23)    ///< Tracing support
+#define EMUX_FEAT_LOG                           (cast64(1) << 0x25)    ///< Logging support
+#define EMUX_FEAT_LOGREGS                       (cast64(1) << 0x26)    ///< Register logging support
+#define EMUX_FEAT_HEXDUMP                       (cast64(1) << 0x27)    ///< Hexdump support
+#define EMUX_FEAT_PROFILER                      (cast64(1) << 0x28)    ///< Profiling support
+#define EMUX_FEAT_IOCTL                         (cast64(1) << 0x2C)    ///< Emulator behavior support
 
 #define EMUX_IOCTL_EXIT                         0x001      ///< Exit the emulator
 #define EMUX_IOCTL_FAST                         0x002      ///< Fast mode (go uncapped)
@@ -106,6 +110,12 @@ extern "C" {
 #define EMUX_PROF_RAM_RDPDMA_BYTES             0x03A0      ///< RDRAM bytes transferred via RDP DMA (r/w)
 #define EMUX_PROF_RAM_RDPDMA_BYTES_R           0x03A1      ///< RDRAM bytes transferred via RDP DMA (read)
 #define EMUX_PROF_RAM_RDPDMA_BYTES_W           0x03A2      ///< RDRAM bytes transferred via RDP DMA (write) (always 0)
+
+#ifndef __ASSEMBLER__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * @brief Detect if EMUX is present and which features are supported
@@ -357,5 +367,7 @@ inline uint64_t emux_prof_read(int slot, uint32_t metric)
 #ifdef __cplusplus
 }
 #endif
+
+#endif // __ASSEMBLER__
 
 #endif  // LIBDRAGON_EMUX_H
