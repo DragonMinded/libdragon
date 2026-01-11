@@ -201,7 +201,7 @@ inline void emux_logn(const char *utf8_str, int len)
  * hexadecimal values of each byte in the string (and possibly also its
  * ASCII representation).
  * 
- * @param utf8_str        UTF-8 encoded string to log
+ * @param buffer          UTF-8 encoded string to log
  * @param len             Length of the string
  */
 inline void emux_hexdump(const uint8_t *buffer, int len)
