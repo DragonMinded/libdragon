@@ -85,6 +85,7 @@ typedef struct {
     u32 outIndex;
     u32 maxRefFrames;
     u32 dpbSize;
+    u32 maxNumBufferedPics; /* rasky: max number of buffered pictures */
     u32 maxFrameNum;
     u32 maxLongTermFrameIdx;
     u32 numRefFrames;
@@ -105,7 +106,8 @@ u32 h264bsdInitDpb(
   u32 dpbSize,
   u32 numRefFrames,
   u32 maxFrameNum,
-  u32 noReordering);
+  u32 noReordering,
+  u32 maxNumBufferedPics);
 
 u32 h264bsdResetDpb(
   dpbStorage_t *dpb,
@@ -113,7 +115,8 @@ u32 h264bsdResetDpb(
   u32 dpbSize,
   u32 numRefFrames,
   u32 maxFrameNum,
-  u32 noReordering);
+  u32 noReordering,
+  u32 maxNumBufferedPics);
 
 void h264bsdInitRefPicList(dpbStorage_t *dpb);
 

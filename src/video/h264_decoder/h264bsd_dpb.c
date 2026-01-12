@@ -681,11 +681,11 @@ u32 h264bsdMarkDecRefPic(
     /* IDR picture */
     else if (isIdr)
     {
-        #if MAX_NUM_BUFFERED_PICS == 0
-        /* h264bsdCheckGapsInFrameNum not called for IDR pictures -> have to
-         * reset numOut and outIndex here */
-        dpb->numOut = dpb->outIndex = 0;
-        #endif
+        if (dpb->maxNumBufferedPics == 0) {
+            /* h264bsdCheckGapsInFrameNum not called for IDR pictures -> have to
+             * reset numOut and outIndex here */
+            dpb->numOut = dpb->outIndex = 0;
+        }
 
         /* flush the buffer */
         Mmcop5(dpb);
@@ -693,16 +693,16 @@ u32 h264bsdMarkDecRefPic(
          * IDR picture shall not be output -> set output buffer empty */
         if (mark->noOutputOfPriorPicsFlag || dpb->noReordering)
         {
-            #if MAX_NUM_BUFFERED_PICS == 0
-            dpb->numOut = 0;
-            dpb->outIndex = 0;
-            #else
+            if (dpb->maxNumBufferedPics == 0) {
+                dpb->numOut = 0;
+                dpb->outIndex = 0;
+            } else {
             /* TODO(rasky): in baseline profile, noReordering should always be TRUE.
              * If it was FALSE, I don't know how to handle noOutputOfPriorPicsFlag,
              * because we keep pictures in output buffer as cache for the decoder,
              * so we can't throw all of them away. */
             ASSERT(!(!dpb->noReordering && mark->noOutputOfPriorPicsFlag));
-            #endif
+            }
         }
 
         if (mark->longTermReferenceFlag)
@@ -820,12 +820,7 @@ u32 h264bsdMarkDecRefPic(
      * picture immediately */
     if (dpb->noReordering)
     {
-        #if MAX_NUM_BUFFERED_PICS == 0
-        ASSERT(dpb->numOut == 0);
-        ASSERT(dpb->outIndex == 0);
-        #else
         ASSERT(dpb->numOut < dpb->dpbSize+1);
-        #endif
         dpb->outBuf[dpb->numOut].data  = dpb->currentOut->data;
         dpb->outBuf[dpb->numOut].isIdr = dpb->currentOut->isIdr;
         dpb->outBuf[dpb->numOut].picId = dpb->currentOut->picId;
@@ -1005,7 +1000,8 @@ u32 h264bsdInitDpb(
   u32 dpbSize,
   u32 maxRefFrames,
   u32 maxFrameNum,
-  u32 noReordering)
+  u32 noReordering,
+  u32 maxNumBufferedPics)
 {
 
 /* Variables */
@@ -1032,8 +1028,9 @@ u32 h264bsdInitDpb(
     dpb->numRefFrames        = 0;
     dpb->prevRefFrameNum     = 0;
 
-    /* Add MAX_NUM_BUFFERED_PICS to have enough space in the DPB for buffered pictures. */
-    dpb->dpbSize += MAX_NUM_BUFFERED_PICS;
+    dpb->maxNumBufferedPics = maxNumBufferedPics;
+    /* Add maxNumBufferedPics to have enough space in the DPB for buffered pictures. */
+    dpb->dpbSize += dpb->maxNumBufferedPics;
 
     ALLOCATE(dpb->buffer, dpb->dpbSize + 1, dpbPicture_t);
     if (dpb->buffer == NULL)
@@ -1088,7 +1085,8 @@ u32 h264bsdResetDpb(
   u32 dpbSize,
   u32 maxRefFrames,
   u32 maxFrameNum,
-  u32 noReordering)
+  u32 noReordering,
+  u32 maxNumBufferedPics)
 {
 
 /* Code */
@@ -1102,7 +1100,7 @@ u32 h264bsdResetDpb(
     h264bsdFreeDpb(dpb);
 
     return h264bsdInitDpb(dpb, picSizeInMbs, dpbSize, maxRefFrames,
-                          maxFrameNum, noReordering);
+                          maxFrameNum, noReordering, maxNumBufferedPics);
 }
 
 /*------------------------------------------------------------------------------
@@ -1281,10 +1279,10 @@ u32 h264bsdCheckGapsInFrameNum(dpbStorage_t *dpb, u32 frameNum, u32 isRefPic,
     ASSERT(dpb->fullness <= dpb->dpbSize);
     ASSERT(frameNum < dpb->maxFrameNum);
 
-    #if MAX_NUM_BUFFERED_PICS == 0
-    dpb->numOut = 0;
-    dpb->outIndex = 0;
-    #endif
+    if (dpb->maxNumBufferedPics == 0) {
+        dpb->numOut = 0;
+        dpb->outIndex = 0;
+    }
 
     if(!gapsAllowed)
         return(HANTRO_OK);
@@ -1533,7 +1531,8 @@ dpbOutPicture_t* h264bsdDpbOutputPicture(dpbStorage_t *dpb)
 
     /* Recompact the output buffer, removing pictures that were already
        extracted. We don't do this every time to avoid wasting time. */
-    if (dpb->outIndex >= MAX_NUM_BUFFERED_PICS) {
+    if (dpb->outIndex && (dpb->outIndex == dpb->numOut ||
+        dpb->outIndex >= (dpb->maxNumBufferedPics ? dpb->maxNumBufferedPics : 1))) {
         int left = dpb->numOut - dpb->outIndex;
         for (int i = 0; i < left; i++)
             dpb->outBuf[i] = dpb->outBuf[dpb->outIndex+i];
@@ -1564,7 +1563,7 @@ dpbOutPicture_t* h264bsdDpbOutputPicture(dpbStorage_t *dpb)
             Release an output picture previously obtained via
             h264bsdDpbOutputPicture() (and thus h264bsdNextOutputPicture()).
 
-            When MAX_NUM_BUFFERED_PICS > 0, pictures placed in the output buffer
+            When output buffering is enabled (maxNumBufferedPics > 0), pictures placed in the output buffer
             are marked as "inOutputBuf" so that their underlying memory cannot
             be reused for decoding. This function clears that flag, making the
             picture memory available again for decoding.

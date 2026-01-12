@@ -36,6 +36,7 @@ typedef struct h264_s {
     int fd;                             ///< File descriptor of the opened H264 file
     bool in_frame_decoding;             ///< True if we have partially decoded a frame 
     uint32_t max_slice_size;            ///< Maximum size of a slice seen so far
+    int max_buffered_pics;              ///< Runtime-configured buffered pictures
 } h264_t;
 
 static void release_current_picture(h264_t *player) {
@@ -164,9 +165,11 @@ static video_t* h264_open(const char *fn) {
     assertf(player, "Out of memory");
     sys_hw_memset(player, 0, sizeof(h264_t));
     player->fd = -1;
+    player->max_buffered_pics = 4; /* TODO: make configurable by the caller */
 
     rsph264_init();
     h264bsdInitStorage(&player->s);
+    h264bsdSetNumBufferedPics(&player->s, (u32)player->max_buffered_pics);
     
     player->fd = must_open(fn);
     h264_rewind(&player->video);
@@ -214,10 +217,9 @@ static poll_status_t poll(h264_t *player)
 {
     // If the output buffer is full, we can't decode more, as there
     // wouldn't be space for further pictures. Just exit.
-    #if MAX_NUM_BUFFERED_PICS > 0
-    if (h264bsdDpbNumOutputPictures(player->s.dpb) >= MAX_NUM_BUFFERED_PICS)
+    if (player->max_buffered_pics > 0 &&
+        h264bsdDpbNumOutputPictures(player->s.dpb) >= (u32)player->max_buffered_pics)
         return POLL_NOTHING;
-    #endif
 
     int status = decode_next_slice(player);
 
@@ -252,6 +254,12 @@ static bool poll_loop(h264_t *player)
 static int h264_poll(video_t *v)
 {
     h264_t *player = (h264_t*)v;
+
+    /* If buffering is disabled, do not decode in background. Decoding will
+       still happen on-demand via h264_next_frame()/poll_loop(). */
+    if (player->max_buffered_pics == 0)
+        return 0;
+
     switch (poll(player))
     {
         case POLL_DECODING:
