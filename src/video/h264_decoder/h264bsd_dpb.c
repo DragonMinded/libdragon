@@ -1541,29 +1541,56 @@ dpbOutPicture_t* h264bsdDpbOutputPicture(dpbStorage_t *dpb)
         dpb->numOut = left;
     }
 
-    /* If there's at least one picture in the output buffer, extract it */
+    /* If there's at least one picture in the output buffer, extract it.
+       NOTE: the extracted picture remains "locked" (inOutputBuf=1) until the
+       client explicitly releases it via h264bsdDpbReleasePicture(). This is
+       required so that background decoding (eg: via video_poll()) cannot
+       overwrite the picture memory while the client is still using it. */
     if (dpb->outIndex < dpb->numOut) {
         dpbOutPicture_t* out = dpb->outBuf + dpb->outIndex++;
-
-        /* Mark the extracted picture as not part of the output buffer anymore,
-           so that it becomes available for usage during decoding. */
-        int found = 0;
-        for (int i=0; i < dpb->dpbSize+1; i++) {
-            if (dpb->buffer[i].data == out->data) {
-                ASSERT(dpb->buffer[i].inOutputBuf == 1);
-                dpb->buffer[i].inOutputBuf = 0;
-                found = 1;
-                break;
-            }
-        }
-        (void)found;
-        ASSERT(found);
 
         return(out);
     }
     else
         return(NULL);
 
+}
+
+/*------------------------------------------------------------------------------
+
+    Function: h264bsdDpbReleasePicture
+
+        Functional description:
+            Release an output picture previously obtained via
+            h264bsdDpbOutputPicture() (and thus h264bsdNextOutputPicture()).
+
+            When MAX_NUM_BUFFERED_PICS > 0, pictures placed in the output buffer
+            are marked as "inOutputBuf" so that their underlying memory cannot
+            be reused for decoding. This function clears that flag, making the
+            picture memory available again for decoding.
+
+        Inputs:
+            dpb     pointer to dpb data structure
+            data    pointer to the picture data previously returned by the API
+
+------------------------------------------------------------------------------*/
+
+void h264bsdDpbReleasePicture(dpbStorage_t *dpb, const u8 *data)
+{
+    ASSERT(dpb);
+    ASSERT(data);
+
+    int found = 0;
+    for (int i = 0; i < (int)dpb->dpbSize + 1; i++) {
+        if (dpb->buffer[i].data == data) {
+            ASSERT(dpb->buffer[i].inOutputBuf == 1);
+            dpb->buffer[i].inOutputBuf = 0;
+            found = 1;
+            break;
+        }
+    }
+    (void)found;
+    ASSERT(found);
 }
 
 /*------------------------------------------------------------------------------

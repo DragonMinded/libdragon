@@ -38,6 +38,15 @@ typedef struct h264_s {
     uint32_t max_slice_size;            ///< Maximum size of a slice seen so far
 } h264_t;
 
+static void release_current_picture(h264_t *player) {
+    if (player->pic) {
+        /* The DPB keeps output pictures locked until the client releases them,
+           so that background decoding cannot overwrite the current picture. */
+        h264bsdDpbReleasePicture(player->s.dpb, player->pic);
+        player->pic = NULL;
+    }
+}
+
 static int decode_next_slice(h264_t *player) {
     int left = player->buf_len - player->idx;
 
@@ -125,6 +134,7 @@ static yuv_colorspace_t get_colorspace(h264_t *player) {
 static void h264_rewind(video_t *v) {
     h264_t *player = (h264_t*)v;
 
+    release_current_picture(player);
     lseek(player->fd, 0, SEEK_SET);
     player->idx = 0;
     player->buf_len = 0;
@@ -204,8 +214,10 @@ static poll_status_t poll(h264_t *player)
 {
     // If the output buffer is full, we can't decode more, as there
     // wouldn't be space for further pictures. Just exit.
+    #if MAX_NUM_BUFFERED_PICS > 0
     if (h264bsdDpbNumOutputPictures(player->s.dpb) >= MAX_NUM_BUFFERED_PICS)
         return POLL_NOTHING;
+    #endif
 
     int status = decode_next_slice(player);
 
@@ -256,6 +268,10 @@ static bool h264_next_frame(video_t *v)
 {
     h264_t *player = (h264_t*)v;
 
+    /* Release previous frame, if any. This makes the DPB buffer slot available
+       again for background decoding. */
+    release_current_picture(player);
+
     // debugf("buffered: %d\n", h264bsdDpbNumOutputPictures(player->s.dpb));
 
     // Fetch one picture from the output buffer. It could be pending because
@@ -292,6 +308,9 @@ static void h264_seekfast(video_t *v, int frame_idx, uint32_t file_off)
 {
     h264_t *player = (h264_t*)v;
 
+    /* Discard the current frame (if any) */
+    release_current_picture(player);
+
 	// Finish decoding the current frame, if any. This is required if we're
 	// using poll() and we are in the middle of a single frame decoding
 	// (or if we've just initialized the player and we're in the middle
@@ -302,8 +321,10 @@ static void h264_seekfast(video_t *v, int frame_idx, uint32_t file_off)
     }
 
 	// Flush all pending pictures
-	do fetch_picture(player);
-	while (player->pic != NULL);
+	while (fetch_picture(player)) {
+        /* We're discarding these pictures, so release them immediately. */
+        release_current_picture(player);
+    }
 
     // Seek the underlying file to the specified offset, so that we're
 	// ready for next frame.

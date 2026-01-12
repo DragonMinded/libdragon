@@ -144,6 +144,8 @@ dpbOutPicture_t* h264bsdDpbOutputPicture(dpbStorage_t *dpb);
 
 u32 h264bsdDpbNumOutputPictures(dpbStorage_t *dpb);
 
+void h264bsdDpbReleasePicture(dpbStorage_t *dpb, const u8 *data);
+
 void h264bsdFlushDpb(dpbStorage_t *dpb);
 
 void h264bsdFreeDpb(dpbStorage_t *dpb);
