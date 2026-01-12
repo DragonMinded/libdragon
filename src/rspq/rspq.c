@@ -922,6 +922,8 @@ void rspq_overlay_share_state(rsp_ucode_t *overlay_dest, rsp_ucode_t *overlay_so
 
     // At overlay save time, copy state from DMEM into source overlay
     dsth->state_rdram = srch->state_rdram;
+
+    data_cache_hit_writeback_invalidate(dsth, sizeof(rspq_overlay_header_t));
 }
 
 void rspq_overlay_unregister(uint32_t overlay_id)
