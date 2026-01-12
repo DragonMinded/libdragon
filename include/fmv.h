@@ -51,6 +51,13 @@ typedef struct fmv_parms_s {
     bool disable_audio;
     /** @brief Disable subtitle rendering (even though a subtitle file is present) */
     bool disable_subtitles;
+    /** 
+     * @brief Disable frame skipping to keep audio in sync.
+     * 
+     * Note that disabling this can cause video and audio to go out of sync,
+     * if the video player can't keep up with the audio.
+     */
+    bool disable_frame_skipping;
 
     /** 
      * @brief Filename of the audio track to play alongside the video. 

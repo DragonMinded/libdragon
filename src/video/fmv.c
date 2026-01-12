@@ -153,8 +153,9 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     if (audio) {
         mixer_ch_play(parms->audio_mixer_channel, &audio->wave);
 
-        vsync = video_sync_create(video, NULL);
-        video_sync_reset(vsync, frame_idx);
+        if (!parms->disable_frame_skipping) {
+            vsync = video_sync_create(video, NULL);
+        }
     }
 
     while (!abort) {
