@@ -40,6 +40,9 @@ static const uint8_t *last_packed_delta_buf = NULL;
 
 inline void rsph264_init(void)
 {
+    static bool initialized = false;
+    if (initialized) return;
+    initialized = true;
     rspq_init();
     rsph264_inter_ovl_id = rspq_overlay_register(&rsph264_inter);
     rsph264_intra_ovl_id = rspq_overlay_register(&rsph264_intra);
