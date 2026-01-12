@@ -164,7 +164,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         mixer_try_play();
 
         if (!paused) {
-            if (vsync) {
+            if (vsync && mixer_ch_playing(parms->audio_mixer_channel)) {
                 // Decide what to do next based on the sync controller
                 double master_time_sec = mixer_ch_get_pos(parms->audio_mixer_channel) / (double)audio->wave.frequency;
                 video_sync_action_t a = video_sync_step(vsync, master_time_sec, frame_idx);
