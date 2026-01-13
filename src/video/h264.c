@@ -143,6 +143,7 @@ static void h264_rewind(video_t *v) {
     
     // Reset decoder
     h264bsdInit(&player->s, 0);
+    h264bsdSetNumBufferedPics(&player->s, (u32)player->max_buffered_pics);
 
     rsph264_begin_frame();
     while (1) {
@@ -160,12 +161,13 @@ static void h264_rewind(video_t *v) {
     }
 }
 
-static video_t* h264_open(const char *fn) {
+static video_t* h264_open(const char *fn, const video_parms_t *parms) {
     h264_t *player = malloc(sizeof(h264_t));
     assertf(player, "Out of memory");
     sys_hw_memset(player, 0, sizeof(h264_t));
     player->fd = -1;
-    player->max_buffered_pics = 4; /* TODO: make configurable by the caller */
+    if (parms && parms->buffered_pics)
+        player->max_buffered_pics = parms->buffered_pics;
 
     rsph264_init();
     h264bsdInitStorage(&player->s);

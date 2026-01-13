@@ -25,7 +25,7 @@ typedef struct video_s {
 /** @brief Video codec structure */
 typedef struct video_codec_s {
     const char *extension;                  ///< File extension handled by this codec
-    video_t* (*open)(const char *fn);       ///< Open a video file
+    video_t* (*open)(const char *fn, const video_parms_t *parms); ///< Open a video file
     void (*close)(video_t *v);              ///< Close a video file
     int (*poll)(video_t *v);                ///< Decode a bit
     bool (*next_frame)(video_t *v);         ///< Advance to the next frame

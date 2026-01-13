@@ -19,7 +19,7 @@
 
 void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 {
-    video_t *video = video_open(video_fn);
+    video_t *video = video_open(video_fn, &(video_parms_t){ .buffered_pics = 8 });
     video_info_t info = video_get_info(video);
     if (!parms) {
         parms = alloca(sizeof(fmv_parms_t));

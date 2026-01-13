@@ -82,6 +82,22 @@ typedef struct video_codec_s video_codec_t;
 /** @brief A video handle */
 typedef struct video_s video_t;
 
+/** @brief Video playback parameters*/
+typedef struct {
+    /**
+     * @brief Number of fully decoded pictures the decoder is allowed to keep buffered
+     *
+     * This acts as a "cushion" for the player, allowing background decoding
+     * (via #video_poll) to run ahead of time. Not all codecs use this setting.
+     * This setting obviously impacts the memory usage of the decoder; decoded
+     * pictures are kept in a codec-specific format, though this is normally
+     * YUV 4:2:0 (16 bpp).
+     *
+     * If 0 (default), #video_poll is effectively disabled and cannot decode ahead.
+     */
+    int buffered_pics;
+} video_parms_t;
+
 /**
  * @brief Information about a video stream
  * 
@@ -132,9 +148,10 @@ void video_register_codec(video_codec_t *codec);
  * file will be handled by the appropriate codec, based on the file extension.
  * 
  * @param fn            Path to the video file (including filesystem prefix)
+ * @param parms         Optional parameter block (can be NULL)
  * @return video_t*     Handle to the opened video
  */
-video_t* video_open(const char *fn);
+video_t* video_open(const char *fn, const video_parms_t *parms);
 
 /**
  * @brief Get information about the video
@@ -189,6 +206,10 @@ yuv_frame_t video_get_frame(video_t *v);
  * It is however useful to make use of idle CPU time to buffer ahead.
  * Depending on the exact video encoding parameters and how the codec is
  * written, this function can decode multiple frames ahead of time.
+ *
+ * For #video_poll to decode ahead, video_parms_t::buffered_pics must
+ * be greater than 0 (when video_open is called). In fact this is the number
+ * of pictures that the decoder is allowed to keep buffered.
  * 
  * The function returns 1 if the decoder did a chunk of work, or 0
  * if no work could be done. Typically, if poll returns 0, no more work
