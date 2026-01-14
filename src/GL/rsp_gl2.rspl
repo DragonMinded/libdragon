@@ -60,6 +60,20 @@ temp_state {
 function DmaMagmaState();
 function GL_MtxMult();
 
+macro MakeNormalMatrix(vec32 m0, vec32 m1)
+{
+    // TODO: transpose inverse
+
+    // Multiply by 0x7FFF to convert to s0.15 with proper saturation
+    vec16 c;
+    c.x = 0x7FFF;
+    m0 = m0 * c.x;
+    m1 = m1 * c.x;
+
+    store(m0:sint, MATRICES_NORMAL, 0x00);
+    store(m1:sint, MATRICES_NORMAL, 0x10);
+}
+
 command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
 {
     u32<$k0> flags = load(GL_STATE_FLAGS, 0);
@@ -215,12 +229,7 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
                 m0:ufract = load(MATRICES_MV, 0x20);
                 m1:ufract = load(MATRICES_MV, 0x30);
 
-                // TODO: transpose inverse
-                m0 = m0 >> 1;
-                m1 = m1 >> 1;
-
-                store(m0:sfract, MATRICES_NORMAL, 0x00);
-                store(m1:sfract, MATRICES_NORMAL, 0x10);
+                MakeNormalMatrix(m0, m1);
 
                 // TODO: reuse modelview matrix already loaded into registers
                 GL_MtxMult();
@@ -255,12 +264,7 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
             store(m0:ufract, MATRICES_MV, 0x20);
             store(m1:ufract, MATRICES_MV, 0x30);
 
-            // TODO: transpose inverse
-            m0 = m0 >> 1;
-            m1 = m1 >> 1;
-
-            store(m0:sfract, MATRICES_NORMAL, 0x00);
-            store(m1:sfract, MATRICES_NORMAL, 0x10);
+            MakeNormalMatrix(m0, m1);
         }
     }
 
