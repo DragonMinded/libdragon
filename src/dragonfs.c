@@ -1383,7 +1383,7 @@ int dfs_init(uint32_t base_fs_loc)
         /* Historically, we accepts base_fs_loc as virtual address. Keep allowing
            that for backward compatibility. */
         debugf("dfs_init: WARNING: base_fs_loc is a virtual address: %08lX\n"
-               "Please update your code to use a PI addresses instead.\n");
+               "Please update your code to use a PI addresses instead.\n", base_fs_loc);
         base_fs_loc -= 0xA0000000;
     }
 

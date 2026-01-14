@@ -62,6 +62,17 @@ u32 h264bsdDecode(storage_t *pStorage, u8 *byteStrm, u32 len, u32 picId,
     u32 *readBytes);
 void h264bsdShutdown(storage_t *pStorage);
 
+/**
+ * @brief Configure how many fully decoded pictures can be cached in the DPB output buffer
+ *
+ * This must be called before decoding starts (before the first parameter sets
+ * activation / DPB initialization), as it affects DPB memory sizing.
+ *
+ * @param pStorage   decoder storage
+ * @param numPics    number of buffered output pictures (0 = disabled)
+ */
+void h264bsdSetNumBufferedPics(storage_t *pStorage, u32 numPics);
+
 u8* h264bsdNextOutputPicture(storage_t *pStorage, u32 *picId, u32 *isIdrPic,
     u32 *numErrMbs);
 

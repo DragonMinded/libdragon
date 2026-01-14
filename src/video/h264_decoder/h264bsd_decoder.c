@@ -125,6 +125,31 @@ u32 h264bsdInit(storage_t *pStorage, u32 noOutputReordering)
 
 /*------------------------------------------------------------------------------
 
+    Function: h264bsdSetNumBufferedPics
+
+        Functional description:
+            Configure how many fully decoded pictures can be cached in the DPB
+            output buffer as a "cushion" for the client.
+
+            This affects DPB memory sizing and therefore must be called before
+            the DPB is allocated (which happens during SPS/PPS activation).
+
+        Inputs:
+            pStorage    pointer to storage data structure
+            numPics     number of buffered output pictures (0 disables buffering)
+
+------------------------------------------------------------------------------*/
+
+void h264bsdSetNumBufferedPics(storage_t *pStorage, u32 numPics)
+{
+    ASSERT(pStorage);
+    /* Must be set before DPB allocation (DPB is allocated on SPS/PPS activation). */
+    ASSERT(pStorage->dpb->buffer == NULL);
+    pStorage->maxNumBufferedPics = numPics;
+}
+
+/*------------------------------------------------------------------------------
+
     Function: h264bsdDecode
 
         Functional description:

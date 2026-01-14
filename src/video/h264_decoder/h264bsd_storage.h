@@ -115,6 +115,11 @@ typedef struct
     /* flag to store noOutputReordering flag set by the application */
     u32 noReordering;
 
+    /* rasky: max number of fully decoded pictures that can be kept in the DPB output
+       buffer as a "cushion" for the client (0 = disabled). This is a runtime
+       configuration set by the application before decoding starts. */
+    u32 maxNumBufferedPics;
+
     /* DPB */
     dpbStorage_t dpb[1];
 

@@ -6,21 +6,20 @@
 
 #include "fmv.h"
 #include "video.h"
+#include "video_sync.h"
 #include "yuv.h"
 #include "display.h"
 #include "wav64.h"
-#include "display.h"
 #include "mixer.h"
 #include "subtitles.h"
 #include "graphics.h"
 #include "rdpq.h"
 #include "rdpq_attach.h"
-#include <math.h>
 #include <sys/stat.h>
 
 void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 {
-    video_t *video = video_open(video_fn);
+    video_t *video = video_open(video_fn, &(video_parms_t){ .buffered_pics = 8 });
     video_info_t info = video_get_info(video);
     if (!parms) {
         parms = alloca(sizeof(fmv_parms_t));
@@ -102,6 +101,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     int frame_idx = 0;
     bool paused = false;
     bool abort = false;
+    video_sync_t *vsync = NULL;
 
     void ctrl_pause(fmv_control_t *ctrl, bool pause) {
         paused = pause;
@@ -127,6 +127,9 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         if (subs) {
             subtitles_seek(subs, frame_idx);
         }
+        if (vsync) {
+            video_sync_reset(vsync, frame_idx);
+        }
         return frame_idx;
     }
     float ctrl_seek_time(fmv_control_t *ctrl, float time_sec, bool exact) {
@@ -147,60 +150,91 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         .seek_time = ctrl_seek_time,
     };
     
-    if (audio)
+    if (audio) {
         mixer_ch_play(parms->audio_mixer_channel, &audio->wave);
 
+        if (!parms->disable_frame_skipping) {
+            vsync = video_sync_create(video, NULL);
+        }
+    }
+
     while (!abort) {
+        bool skip_render = false;
+
         mixer_try_play();
 
         if (!paused) {
+            if (vsync && mixer_ch_playing(parms->audio_mixer_channel)) {
+                // Decide what to do next based on the sync controller
+                double master_time_sec = mixer_ch_get_pos(parms->audio_mixer_channel) / (double)audio->wave.frequency;
+                video_sync_action_t a = video_sync_step(vsync, master_time_sec, frame_idx);
+
+                if (a.kind == VIDEO_SYNC_SKIP_NEXT) {
+                    // Skip rendering this frame
+                    skip_render = true;
+                } else if (a.kind == VIDEO_SYNC_SEEK_AND_RENDER) {
+                    // Seek to the target frame and render it.
+                    // Also seek subtitles to the target frame.
+                    int new_idx = video_seek(video, a.seek_frame);
+                    if (new_idx >= 0) {
+                        frame_idx = new_idx;
+                        if (subs) subtitles_seek(subs, frame_idx);
+                    }
+                }
+            }
+
             if (!video_next_frame(video)) {
                 if (parms->loop) {
+                    frame_idx = 0;
                     video_rewind(video);
                     if (audio) wav64_seek(audio, parms->audio_mixer_channel, 0.0);
                     if (subs) subtitles_seek(subs, 0);
-                    frame_idx = 0;
+                    if (vsync) video_sync_reset(vsync, frame_idx);
                     continue;
                 } else {
                     break;
                 }
             }
+
             if (subs) subtitles_next_frame(subs);
         }
 
         mixer_try_play();
 
-        surface_t *disp = display_try_get();
-        while (disp == NULL) {
-            if (!video_poll(video)) {
-                disp = display_get();
-                break;
+        if (!skip_render) {
+            surface_t *disp = display_try_get();
+            while (disp == NULL) {
+                if (!paused && !video_poll(video)) {
+                    disp = display_get();
+                    break;
+                }
+                disp = display_try_get();
             }
-            disp = display_try_get();
+
+            rdpq_attach(disp, NULL);
+
+            // Get the next video frame and feed it into our previously set up blitter.
+            yuv_frame_t frame = video_get_frame(video);
+            yuv_blitter_run(&yuv, &frame);
+
+            // Draw subtitles
+            if (subs) {
+                subtitle_cue_t cues[3];
+                int num_cues = subtitles_get_current_cues(subs, cues, 3);
+                subrenderer_render(subrenderer, cues, num_cues);
+            }
+
+            // Call OSD callback if provided
+            if (parms->osd_callback) {
+                float time_sec = frame_idx / info.framerate;
+                parms->osd_callback(parms->osd_ctx, frame_idx, time_sec, &ctrl);
+            }
+
+            rdpq_detach_show();
         }
 
-        rdpq_attach(disp, NULL);
-
-        // Get the next video frame and feed it into our previously set up blitter.
-        yuv_frame_t frame = video_get_frame(video);
-        yuv_blitter_run(&yuv, &frame);
-
-        // Draw subtitles
-        if (subs) {
-            subtitle_cue_t cues[3];
-            int num_cues = subtitles_get_current_cues(subs, cues, 3);
-            subrenderer_render(subrenderer, cues, num_cues);
-        }
-
-        // Call OSD callback if provided
-        if (parms->osd_callback) {
-            float time_sec = frame_idx / info.framerate;
-            parms->osd_callback(parms->osd_ctx, frame_idx, time_sec, &ctrl);
-        }
-
-        rdpq_detach_show();
-
-        frame_idx++;
+        if (!paused)
+            frame_idx++;
     }
 
     rspq_wait();
@@ -212,6 +246,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 
     yuv_blitter_free(&yuv);
     yuv_close();
+    if (vsync) video_sync_destroy(vsync);
     video_close(video);
     display_close();
 }

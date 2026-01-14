@@ -14,9 +14,11 @@
 /** @brief Internal profile slot data */
 typedef struct {
 	const char *name;		///< Name of the slot
-	uint32_t ticks;			///< Total number of ticks spent in the slot
-	int count;				///< Number of times the slot was hit
 	int nest_level;			///< Number of nesting levels for this slot
+	uint32_t ticks;			///< Total number of ticks spent in the slot
+	uint32_t cache_misses; 	///< Total number of cache misses in the slot
+	uint32_t cache_hits; 	///< Total number of cache hits in the slot
+	int count;				///< Number of times the slot was hit
 } profile_slot_t;
 
 /** @brief Profile counters (actual accumulators) */
@@ -70,17 +72,25 @@ void profile_close(void)
 void profile_reset(void) {
 	sys_hw_memset(__profile_counters, 0, num_slots * sizeof(uint64_t));
 	for (int i=0; i<num_slots; i++) {
-		slots[i].ticks = 0;
-		slots[i].count = 0;
+		const char *name = slots[i].name;
+		int nest_level = slots[i].nest_level;
+		sys_hw_memset(&slots[i], 0, sizeof(profile_slot_t));
+		slots[i].name = name;
+		slots[i].nest_level = nest_level;
 	}
 	frames = 0;
 	total_time_wall = 0;
 	total_time_user = 0;
 	last_frame_wall = get_ticks();
 	last_frame_user = get_user_ticks();
+
+	bool emux_profile_available = (emux_detect() & EMUX_FEAT_PROFILER) != 0;
 	for (int i=0; i<ACCT_CAT_MAX; i++) {
 		sys_total[i] = 0;
-		sys_frame_last[i] = acct_get_ticks(i);
+		if (i == ACCT_CAT_IRQ && emux_profile_available)
+			sys_frame_last[i] = emux_prof_read(-1, EMUX_PROF_CYCLES_EXC);
+		else
+			sys_frame_last[i] = acct_get_ticks(i);
 	}
 }
 
@@ -99,14 +109,29 @@ void profile_set_target_fps(float fps) {
 }
 
 void profile_next_frame(void) {
+	bool emux_profile_available = (emux_detect() & EMUX_FEAT_PROFILER) != 0;
 	for (int i=0; i<num_slots; i++) {
+		profile_slot_t *slot = &slots[i];
 		// Extract and save the total time for this frame.
-		slots[i].ticks += __profile_counters[i] >> 32;
-		slots[i].count += __profile_counters[i] & 0xFFFFFFFF;
+		slot->ticks += __profile_counters[i] >> 32;
+		slot->count += __profile_counters[i] & 0xFFFFFFFF;
+		if (emux_profile_available) {
+			slot->cache_misses += emux_prof_read(i, EMUX_PROF_ICACHE_MISSES) + emux_prof_read(i, EMUX_PROF_DCACHE_MISSES);
+			slot->cache_hits   += emux_prof_read(i, EMUX_PROF_ICACHE_HITS)   + emux_prof_read(i, EMUX_PROF_DCACHE_HITS);
+		}
 		__profile_counters[i] = 0;
+		emux_prof_clear(i);
 	}
 	for (int i=0;i<ACCT_CAT_MAX;i++) {
-		uint64_t now = acct_get_ticks(i);
+		uint64_t now;
+		if (i == ACCT_CAT_IRQ) {
+			// For the IRQ category, we use emux if available since accounting.h
+			// still doesn't implement it properly (it's hard to do without
+			// slowing down the interrupt handler).
+			now = emux_prof_read(-1, EMUX_PROF_CYCLES_EXC);
+		} else {
+			now = acct_get_ticks(i);
+		}
 		sys_total[i] += now - sys_frame_last[i];
 		sys_frame_last[i] = now;
 	}
@@ -129,14 +154,9 @@ void profile_next_frame(void) {
 	}
 }
 
-static void stats(profile_slot_t* slot, uint64_t frame_avg, uint32_t *mean, float *partial) {
-	*mean = slot->ticks / frames;
-	*partial = (float)*mean * 100.0 / (float)frame_avg;
-}
-
 void profile_dump(void) {
-	debugf("%-35s %4s    %-15s\n", "Slot", "Cnt", "Avg");
-	debugf("------------------------------------------------------------\n");
+	debugf("%-35s %4s    %-15s %-10s\n", "Slot", "Cnt", "Avg", "Cache Misses");
+	debugf("------------------------------------------------------------------------\n");
 
 	uint64_t frame_avg_user = total_time_user / frames;
 	uint64_t frame_avg_wall = total_time_wall / frames;
@@ -152,12 +172,18 @@ void profile_dump(void) {
 		*n++ = '-'; *n++ = ' ';
 		strcpy(n, slots[i].name);
 		
-		uint32_t mean; float partial_avg;
-		stats(&slots[i], frame_avg_wall, &mean, &partial_avg);
+		uint32_t mean = slots[i].ticks / frames;
+	    float partial_avg = (float)mean * 100.0 / (float)frame_avg_wall;
+		int cache_misses = slots[i].cache_misses / frames;
+		float cache_miss_rate = 0.0f;
+		if (slots[i].cache_hits + slots[i].cache_misses > 0) {
+			cache_miss_rate = (float)cache_misses * 100.0f /
+				(float)(slots[i].cache_hits + slots[i].cache_misses);
+		}
 
 		int avg_us = TIMER_MICROS(mean);
-		debugf("%-35.35s %4d %6d (%5.1f%%)\n",
-			name, slots[i].count / frames, avg_us, partial_avg);
+		debugf("%-35.35s %4d %6d (%5.1f%%) %6d (%5.2f%%)\n",
+			name, slots[i].count / frames, avg_us, partial_avg, cache_misses, cache_miss_rate);
 	}
 
 ///@cond
@@ -176,7 +202,7 @@ void profile_dump(void) {
 	DUMP_SYS(ACCT_CAT_VI, "[sys] VI wait");
 	DUMP_SYS(ACCT_CAT_JOYBUS, "[sys] Joybus wait");
 
-	debugf("------------------------------------------------------------\n");
+	debugf("------------------------------------------------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);
 	debugf("Frames per second:    %4.1f\n", (float)TICKS_PER_SECOND/(float)frame_avg_wall);
 	debugf("Target frame time:    %4d us\n", TIMER_MICROS(target_frame_ticks));

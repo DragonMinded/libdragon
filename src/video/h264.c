@@ -36,7 +36,17 @@ typedef struct h264_s {
     int fd;                             ///< File descriptor of the opened H264 file
     bool in_frame_decoding;             ///< True if we have partially decoded a frame 
     uint32_t max_slice_size;            ///< Maximum size of a slice seen so far
+    int max_buffered_pics;              ///< Runtime-configured buffered pictures
 } h264_t;
+
+static void release_current_picture(h264_t *player) {
+    if (player->pic) {
+        /* The DPB keeps output pictures locked until the client releases them,
+           so that background decoding cannot overwrite the current picture. */
+        h264bsdDpbReleasePicture(player->s.dpb, player->pic);
+        player->pic = NULL;
+    }
+}
 
 static int decode_next_slice(h264_t *player) {
     int left = player->buf_len - player->idx;
@@ -125,6 +135,7 @@ static yuv_colorspace_t get_colorspace(h264_t *player) {
 static void h264_rewind(video_t *v) {
     h264_t *player = (h264_t*)v;
 
+    release_current_picture(player);
     lseek(player->fd, 0, SEEK_SET);
     player->idx = 0;
     player->buf_len = 0;
@@ -132,6 +143,7 @@ static void h264_rewind(video_t *v) {
     
     // Reset decoder
     h264bsdInit(&player->s, 0);
+    h264bsdSetNumBufferedPics(&player->s, (u32)player->max_buffered_pics);
 
     rsph264_begin_frame();
     while (1) {
@@ -149,14 +161,17 @@ static void h264_rewind(video_t *v) {
     }
 }
 
-static video_t* h264_open(const char *fn) {
+static video_t* h264_open(const char *fn, const video_parms_t *parms) {
     h264_t *player = malloc(sizeof(h264_t));
     assertf(player, "Out of memory");
     sys_hw_memset(player, 0, sizeof(h264_t));
     player->fd = -1;
+    if (parms && parms->buffered_pics)
+        player->max_buffered_pics = parms->buffered_pics;
 
     rsph264_init();
     h264bsdInitStorage(&player->s);
+    h264bsdSetNumBufferedPics(&player->s, (u32)player->max_buffered_pics);
     
     player->fd = must_open(fn);
     h264_rewind(&player->video);
@@ -204,7 +219,8 @@ static poll_status_t poll(h264_t *player)
 {
     // If the output buffer is full, we can't decode more, as there
     // wouldn't be space for further pictures. Just exit.
-    if (h264bsdDpbNumOutputPictures(player->s.dpb) >= MAX_NUM_BUFFERED_PICS)
+    if (player->max_buffered_pics > 0 &&
+        h264bsdDpbNumOutputPictures(player->s.dpb) >= (u32)player->max_buffered_pics)
         return POLL_NOTHING;
 
     int status = decode_next_slice(player);
@@ -240,6 +256,12 @@ static bool poll_loop(h264_t *player)
 static int h264_poll(video_t *v)
 {
     h264_t *player = (h264_t*)v;
+
+    /* If buffering is disabled, do not decode in background. Decoding will
+       still happen on-demand via h264_next_frame()/poll_loop(). */
+    if (player->max_buffered_pics == 0)
+        return 0;
+
     switch (poll(player))
     {
         case POLL_DECODING:
@@ -255,6 +277,10 @@ static int h264_poll(video_t *v)
 static bool h264_next_frame(video_t *v)
 {
     h264_t *player = (h264_t*)v;
+
+    /* Release previous frame, if any. This makes the DPB buffer slot available
+       again for background decoding. */
+    release_current_picture(player);
 
     // debugf("buffered: %d\n", h264bsdDpbNumOutputPictures(player->s.dpb));
 
@@ -292,6 +318,9 @@ static void h264_seekfast(video_t *v, int frame_idx, uint32_t file_off)
 {
     h264_t *player = (h264_t*)v;
 
+    /* Discard the current frame (if any) */
+    release_current_picture(player);
+
 	// Finish decoding the current frame, if any. This is required if we're
 	// using poll() and we are in the middle of a single frame decoding
 	// (or if we've just initialized the player and we're in the middle
@@ -302,8 +331,10 @@ static void h264_seekfast(video_t *v, int frame_idx, uint32_t file_off)
     }
 
 	// Flush all pending pictures
-	do fetch_picture(player);
-	while (player->pic != NULL);
+	while (fetch_picture(player)) {
+        /* We're discarding these pictures, so release them immediately. */
+        release_current_picture(player);
+    }
 
     // Seek the underlying file to the specified offset, so that we're
 	// ready for next frame.

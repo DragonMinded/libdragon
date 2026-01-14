@@ -376,7 +376,8 @@ u32 h264bsdActivateParamSets(storage_t *pStorage, u32 ppsId, u32 isIdr)
             pStorage->activeSps->maxDpbSize,
             pStorage->activeSps->numRefFrames,
             pStorage->activeSps->maxFrameNum,
-            flag);
+            flag,
+            pStorage->maxNumBufferedPics);
         if (tmp != HANTRO_OK)
             return(tmp);
     }

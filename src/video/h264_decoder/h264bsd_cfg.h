@@ -43,19 +43,6 @@
 #define MAX_NUM_SEQ_PARAM_SETS 32
 #define MAX_NUM_PIC_PARAM_SETS 256
 
-// Number of fully decoded pictures that can be cached in DPB.
-// On N64, we keep up to 4 extra pictures in the buffer. Notice
-// that the buffer already contains 16 pictures for correctly
-// keeping reference frames of a baseline profile video.
-// These extra pics allow the client to keep decode pictures in
-// advance and keep them around until it's time to display them,
-// without having to copy them away.
-#if H264BSD_N64
-#define MAX_NUM_BUFFERED_PICS   4
-#else
-#define MAX_NUM_BUFFERED_PICS   0
-#endif
-
 /*------------------------------------------------------------------------------
     3. Data types
 ------------------------------------------------------------------------------*/

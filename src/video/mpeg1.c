@@ -128,7 +128,8 @@ void rsp_mpeg1_set_quant_matrix(bool intra, const uint8_t quant_mtx[64]) {
 #define PL_MPEG_IMPLEMENTATION
 #include "pl_mpeg/pl_mpeg.h"
 
-static video_t *mpeg1_open(const char *fn) {
+static video_t *mpeg1_open(const char *fn, const video_parms_t *parms) {
+	(void)parms;
 	mpeg1_t *mp1 = malloc(sizeof(mpeg1_t));
 	assertf(mp1, "Out of memory");
 	memset(mp1, 0, sizeof(mpeg1_t));

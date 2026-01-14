@@ -251,7 +251,7 @@ void subtitles_seek(subtitles_t *sub, int frame_idx)
     frame_idx = CLAMP(frame_idx, 0, (int)sub->num_frames - 1);
 
     for (int i=0; i<sub->num_syncs; i++)
-        debugf("  Seek entry %d: sync_frame=%d\n", i, sub->seek_entries[i].sync_frame);
+        debugf("  Seek entry %d: sync_frame=%ld\n", i, sub->seek_entries[i].sync_frame);
 
     // Find the closest seek entry via binary search
     int lo = 0, hi = sub->num_syncs;
@@ -276,7 +276,7 @@ void subtitles_seek(subtitles_t *sub, int frame_idx)
         .end_frame_idx = (int)entry->sync_frame + __peek_varint_u64(entry->deltas),
     };
 
-    debugf("Subtitles seek to frame %d using seek entry %d (sync_frame=%d)\n",
+    debugf("Subtitles seek to frame %d using seek entry %d (sync_frame=%ld)\n",
            frame_idx, seek_idx, entry->sync_frame);
     debugf("  Initial state: begin_frame_idx=%d, end_frame_idx=%d\n",
            sub->state.begin_frame_idx, sub->state.end_frame_idx);

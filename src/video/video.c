@@ -99,7 +99,7 @@ void video_register_codec(video_codec_t *codec)
     registered_codecs = codec;
 }
 
-video_t* video_open(const char *fn)
+video_t* video_open(const char *fn, const video_parms_t *parms)
 {
     video_codec_t *codec = registered_codecs;
 
@@ -108,7 +108,7 @@ video_t* video_open(const char *fn)
 
     while (codec) {
         if (strcmp(codec->extension, ext) == 0) {
-            video_t *v = codec->open(fn);
+            video_t *v = codec->open(fn, parms);
             if (v) {
                 v->codec = codec;
 
@@ -179,5 +179,14 @@ int video_seek(video_t *v, int frame_idx)
     }
     
     return -1;
+}
+
+bool video_is_seekable(video_t *v, int frame_idx)
+{
+    if (!v->seektable) return false;
+
+    int found = frame_idx;
+    video_seektable_lookup(v->seektable, &found);
+    return found == frame_idx;
 }
 
