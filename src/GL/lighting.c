@@ -505,9 +505,9 @@ void gl_light_set_position(gl_light_t *light, uint32_t offset, const GLfloat *po
         // Light is directional
         // -> Pre-normalize so the ucode doesn't need to
         float mag = gl_mag(pos);
-        x = -FLOAT_TO_I16(pos[0] / mag);
-        y = -FLOAT_TO_I16(pos[1] / mag);
-        z = -FLOAT_TO_I16(pos[2] / mag);
+        x = FLOAT_TO_I16(pos[0] / mag);
+        y = FLOAT_TO_I16(pos[1] / mag);
+        z = FLOAT_TO_I16(pos[2] / mag);
         w = 0;
     } else {
         // Light is positional
