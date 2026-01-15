@@ -539,8 +539,6 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
 
 void glTexSizeN64(GLushort width, GLushort height)
 {
-    width <<= TEX_COORD_SHIFT;
-    height <<= TEX_COORD_SHIFT;
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_size[0]), (width << 16) | height);
 }
 

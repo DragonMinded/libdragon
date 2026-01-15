@@ -367,7 +367,7 @@ GLCmd_PreInitPipeTex:
     #define state_flags     k1
     #define state_flags2    k0
 
-    # Skip processing textutre state if we are using rdpq API for texturing
+    # Skip processing texture state if we are using rdpq API for texturing
     # (FLAG2_USE_RDPQ_TEXTURING)
     lw state_flags2, %lo(GL_STATE_FLAGS2)
     andi t1, state_flags2, FLAG2_USE_RDPQ_TEXTURING
