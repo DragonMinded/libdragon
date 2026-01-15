@@ -288,11 +288,11 @@ void die(void)
 
 void sys_get_heap_stats(heap_stats_t *stats)
 {
-    extern int __heap_total_size;
+    extern int __heap_total_size, __heap_top_allocated_size;
     struct mallinfo m = mallinfo();
 
     stats->total = __heap_total_size;
-    stats->used = m.uordblks;
+    stats->used = m.uordblks + __heap_top_allocated_size;
 }
 
 static void version_callback(void *ctx, char *key, char *value)

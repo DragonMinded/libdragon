@@ -59,6 +59,8 @@
 
 /** Total Size of the heap */
 int __heap_total_size = 0;
+/** Memory allocated via sbrk_top */
+int __heap_top_allocated_size = 0;
 /** End of the heap */
 char *__heap_end = 0;
 /** Top of the heap */
@@ -1157,6 +1159,8 @@ void* sbrk_top( int incr )
         errno = ENOMEM;
         return (void *)-1;
     }
+
+    __heap_top_allocated_size += incr;
 
     enable_interrupts();
 
