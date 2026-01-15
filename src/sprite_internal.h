@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <surface.h>
 
+#define SPRITE_EXT_VERSION                  5        ///< Current version of the sprite extended structure
+
 #define SPRITE_FLAG_NUMLODS                 0x0007   ///< Number of LODs, including detail texture if any (0 = no LODs)
 #define SPRITE_FLAG_HAS_TEXPARMS            0x0008   ///< Sprite contains texture parameters
 #define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
@@ -25,7 +27,7 @@
  */
 typedef struct sprite_ext_s {
     uint16_t size;              ///< Size of the structure itself (for forward compatibility)
-    uint16_t version;           ///< Version of the structure (currently 1)
+    uint16_t version;           ///< Version of the structure (#SPRITE_EXT_VERSION)
     uint32_t pal_file_pos;      ///< Position of the palette in the file
     /// Information on LODs
     struct sprite_lod_s {
@@ -54,9 +56,11 @@ typedef struct sprite_ext_s {
         bool              use_main_texture; ///< True if the detail texture is the same as the LOD0 of the main texture
         uint8_t           padding[3];    ///< Padding
     } detail;                    ///< Detail texture parameters
+
+    uint32_t data_ptr;          ///< Optional offset (from sprite base) to pixel data
 } sprite_ext_t;
 
-_Static_assert(sizeof(sprite_ext_t) == 124, "invalid sizeof(sprite_ext_t)");
+_Static_assert(sizeof(sprite_ext_t) == 128, "invalid sizeof(sprite_ext_t)");
 
 /** @brief Convert a sprite from the old format with implicit texture format */ 
 bool __sprite_upgrade(sprite_t *sprite);

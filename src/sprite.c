@@ -25,13 +25,17 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite)
     if (!(sprite->flags & SPRITE_FLAGS_EXT))
         return NULL;
 
+    // For SPRITE_FLAGS_NODATA, the ext header is immediately after the base sprite header.
+    // Otherwise, it follows the embedded pixel data.
     uint8_t *data = (uint8_t*)sprite->data;
-    tex_format_t format = sprite_get_format(sprite);
-    data += ROUND_UP(TEX_FORMAT_PIX2BYTES(format, sprite->width) * sprite->height, 8);
+    if (!(sprite->flags & SPRITE_FLAGS_NODATA)) {
+        tex_format_t format = sprite_get_format(sprite);
+        data += ROUND_UP(TEX_FORMAT_PIX2BYTES(format, sprite->width) * sprite->height, 8);
+    }
 
     // Access extended header
     sprite_ext_t *sx = (sprite_ext_t*)data;
-    assertf(sx->version == 4, "Invalid sprite version (%d); please regenerate your asset files", sx->version);
+    assertf(sx->version == SPRITE_EXT_VERSION, "Invalid sprite version (%d); please regenerate your asset files", sx->version);
     return sx;
 }
 
@@ -94,7 +98,12 @@ void sprite_free(sprite_t *s)
 }
 
 surface_t sprite_get_pixels(sprite_t *sprite) {
-    return surface_make_linear(sprite->data, sprite_get_format(sprite),
+    void *pixels = sprite->data;
+    if (sprite->flags & SPRITE_FLAGS_NODATA) {
+        sprite_ext_t *sx = __sprite_ext(sprite);
+        pixels = (void*)((uint8_t*)sprite + sx->data_ptr);
+    }
+    return surface_make_linear(pixels, sprite_get_format(sprite),
         sprite->width, sprite->height);
 }
 
