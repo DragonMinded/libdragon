@@ -32,7 +32,8 @@ int convert_meshdb(const cgltf_data *data, mgfx_meshdb_t *out_meshdb)
         entry->name = in_mesh->name;
         entry->mesh = calloc(1, sizeof(mgfx_mesh_t));
 
-        if (convert_mesh(in_mesh, entry->mesh, flag_verbose) != 0) {
+        // TODO: add CLI flag for strict mode
+        if (convert_mesh(in_mesh, entry->mesh, flag_verbose, false) != 0) {
             fprintf(stderr, "Error: failed converting mesh %s\n", in_mesh->name);
             return 1;
         }
@@ -67,8 +68,8 @@ void mesh_write(mgfx_mesh_t *mesh, FILE *out)
         w32(out, submesh->vertex_layout.attribute_count);
         w32_placeholderf(out, "vtx_attributes%d", i);
 
-        w32(out, submesh->input_assembly_parms.primitive_topology);
-        w8(out, submesh->input_assembly_parms.primitive_restart_enabled);
+        w32(out, submesh->primitive_topology);
+        w8(out, submesh->primitive_restart_enabled);
 
         walign(out, sizeof(submesh->vertices_count));
         w32(out, submesh->vertices_count);
@@ -76,6 +77,11 @@ void mesh_write(mgfx_mesh_t *mesh, FILE *out)
         w32_placeholderf(out, "vertices%d", i);
         if (submesh->indices != NULL) {
             w32_placeholderf(out, "indices%d", i);
+        } else {
+            w32(out, 0);
+        }
+        if (submesh->mtx_indices != NULL) {
+            w32_placeholderf(out, "mtx_indices%d", i);
         } else {
             w32(out, 0);
         }
@@ -115,6 +121,16 @@ void mesh_write(mgfx_mesh_t *mesh, FILE *out)
             w16(out, submesh->indices[j]);
         }
     }
+
+    for (size_t i = 0; i < mesh->submesh_count; i++)
+    {
+        mgfx_submesh_t *submesh = &mesh->submeshes[i];
+        if (submesh->mtx_indices == NULL) continue;
+
+        placeholder_set(out, "mtx_indices%d", i);
+        fwrite(submesh->mtx_indices, submesh->vertices_count, 1, out);
+    }
+    
 }
 
 void meshdb_write(mgfx_meshdb_t *meshdb, FILE *out)

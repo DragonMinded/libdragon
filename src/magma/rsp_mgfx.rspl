@@ -368,8 +368,11 @@ shader mgfx()
                 vec32<$v03> vmvp1;
                 vec32<$v05> vmvp2;
                 vec32<$v07> vmvp3;
+
+                #ifndef ENABLE_ENV_MAP
                 u16 addr = MATRICES_MVP;
                 load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
+                #endif
             }
             
             vlpos *= vnorm:sfract;
@@ -395,6 +398,10 @@ shader mgfx()
         undef vfog;
         
         #ifdef ENABLE_ENV_MAP
+
+        u16 addr = MATRICES_MVP;
+        load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
+        
         {   // Environment mapping
             vec32 vsqdist = vpos * vpos;
             vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;

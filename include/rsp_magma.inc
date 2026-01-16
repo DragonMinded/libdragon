@@ -1,8 +1,7 @@
 #include <rsp_queue.inc>
-#include "magma_constants.h"
+#include <rsp_magma_state.inc>
 
 #define TRIANGLE_SIZE       0xB0
-#define MAX_UNIFORMS_SIZE   0x200
 
 .macro MgBeginShaderUniforms
     .section .meta.mg_uniforms
@@ -18,17 +17,7 @@ _MG_META_UNIFORMS:
 
     .align 4
 MG_STATE:
-    MG_VIEWPORT:
-        MG_VIEWPORT_SCALE:      .half   0,0,0,0
-        MG_VIEWPORT_OFFSET:     .half   0,0,0,0
-    MG_CLIP_FACTORS:            .half   1,1,MG_DEFAULT_GUARD_BAND,MG_DEFAULT_GUARD_BAND
-    MG_VERTEX_SIZE:             .half   0,0,0,0
-    MG_SHADER_TEXT:             .word   0
-    MG_SHADER_TEXT_SIZE:        .word   0
-    MG_VERTEX_BUFFER:           .word   0
-    MG_TRI_CMD:                 .half   0x800
-    MG_CULL_MODE:               .byte   0
-    MG_OUTPUT_OFFSET:           .byte   0
+    _MgState 1
 
     .align 3
 _MG_VTX_SHADER_UNIFORMS:
@@ -78,7 +67,7 @@ _MG_UNIFORM_END\@ :
 # Whenever shaders are loaded, they will be reading/writing from that area automatically.
 .macro _MgDefineUniformRegion
     MgBeginShaderUniforms
-        .fill MAX_UNIFORMS_SIZE
+        .fill MG_MAX_UNIFORMS_SIZE
     MgEndShaderUniforms
 .endm
 

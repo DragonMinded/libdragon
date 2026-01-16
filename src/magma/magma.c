@@ -1,4 +1,4 @@
-#include "magma.h"
+#include "magma_internal.h"
 #include "magma_constants.h"
 #include "rspq.h"
 #include "rdpq.h"
@@ -9,16 +9,6 @@
 #include <malloc.h>
 
 // TODO: Documentation on how magma works internally
-
-/** @brief A pipeline instance */
-typedef struct mg_pipeline_s 
-{
-    void *shader_code;          ///< Pointer to the duplicated and patched shader ucode text.
-    uint32_t shader_code_size;  ///< Size of the duplicated and patched shader ucode text.
-    uint32_t vertex_stride;     ///< Stride of the vertex layout.
-    uint32_t uniform_count;     ///< Number of uniforms.
-    mg_uniform_t *uniforms;     ///< List of uniforms.
-} mg_pipeline_t;
 
 /** @brief Metadata about a uniform defined by a shader. */
 typedef struct
@@ -82,22 +72,22 @@ void mg_draw_end(void)
 void mg_load_vertices(uint32_t buffer_index, uint8_t cache_index, uint32_t count)
 {
     assertf(count > 0, "count must be greater than 0");
-    assertf(count <= MG_VERTEX_CACHE_COUNT, "too many vertices");
-    assertf(cache_index + count <= MG_VERTEX_CACHE_COUNT, "offset out of range");
+    assertf(count <= MG_VERTEX_CACHE_COUNT, "too many vertices: %lu", count);
+    assertf(cache_index + count <= MG_VERTEX_CACHE_COUNT, "cache_index out of range: %u, count: %lu", cache_index, count);
     mg_cmd_write(MG_CMD_LOAD_VERTICES, buffer_index, (cache_index<<16) | count);
 }
 
 void mg_draw_triangle(uint8_t index0, uint8_t index1, uint8_t index2)
 {
-    assertf(index0 <= MG_VERTEX_CACHE_COUNT, "index0 is out of range");
-    assertf(index1 <= MG_VERTEX_CACHE_COUNT, "index1 is out of range");
-    assertf(index2 <= MG_VERTEX_CACHE_COUNT, "index2 is out of range");
+    assertf(index0 <= MG_VERTEX_CACHE_COUNT, "index0 is out of range: %u", index0);
+    assertf(index1 <= MG_VERTEX_CACHE_COUNT, "index1 is out of range: %u", index1);
+    assertf(index2 <= MG_VERTEX_CACHE_COUNT, "index2 is out of range: %u", index2);
 
     uint16_t i0 = index0 * MG_VTX_SIZE + RSP_MAGMA_MG_VERTEX_CACHE;
     uint16_t i1 = index1 * MG_VTX_SIZE + RSP_MAGMA_MG_VERTEX_CACHE;
     uint16_t i2 = index2 * MG_VTX_SIZE + RSP_MAGMA_MG_VERTEX_CACHE;
 
-    mg_cmd_write(MG_CMD_DRAW_INDICES, i0, (i1 << 16) | i2);
+    mg_rdpq_write(MG_CMD_DRAW_INDICES, i0, (i1 << 16) | i2);
 }
 
 static void get_overlay_span(rsp_ucode_t *ucode, void **code, uint32_t *code_size)
@@ -107,6 +97,11 @@ static void get_overlay_span(rsp_ucode_t *ucode, void **code, uint32_t *code_siz
 
     *code = (uint8_t*)ucode->code + overlay_offset;
     *code_size = ucode_size - overlay_offset;
+}
+
+mg_rsp_state_t *mg_get_rsp_state()
+{
+    return (mg_rsp_state_t*)(((uint8_t*)rspq_overlay_get_state(&rsp_magma)) + RSP_MAGMA_MG_STATE - RSP_MAGMA__RSPQ_SAVED_STATE_START);
 }
 
 void mg_init(void)
@@ -338,17 +333,21 @@ bool mg_pipeline_is_uniform_compatible(mg_pipeline_t *pipeline, const mg_uniform
     return matching_uniform != NULL && matching_uniform->offset == uniform->offset && matching_uniform->size == uniform->size;
 }
 
+void mg_set_vertex_stride(uint32_t vertex_stride)
+{
+    int16_t v0 = vertex_stride;
+    int16_t v1 = MG_VTX_SIZE;
+    int16_t v2 = vertex_stride;
+    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size), (v0 << 16) | v1);
+    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size) + sizeof(int16_t)*2, (v2 << 16));
+}
+
 void mg_pipeline_bind(mg_pipeline_t *pipeline)
 {
     uint32_t code = PhysicalAddr(pipeline->shader_code);
     uint32_t code_size = pipeline->shader_code_size;
     mg_cmd_write(MG_CMD_SET_SHADER, code, ROUND_UP(code_size, 8) - 1);
-
-    int16_t v0 = pipeline->vertex_stride;
-    int16_t v1 = MG_VTX_SIZE;
-    int16_t v2 = pipeline->vertex_stride;
-    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size), (v0 << 16) | v1);
-    mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_size) + sizeof(int16_t)*2, (v2 << 16));
+    mg_set_vertex_stride(pipeline->vertex_stride);
 }
 
 static mg_rsp_viewport_t viewport_to_rsp_state(const mg_viewport_t *viewport)
@@ -442,10 +441,40 @@ void mg_uniform_load_inline_raw(uint32_t offset, uint32_t size, const void *data
     rspq_write_end(&w);
 }
 
+static void load_batch_with_mtx_indices(const mg_input_assembly_parms_t *input_assembly_parms, uint32_t first, uint32_t count, uint32_t cache_offset, uint8_t *prev_mtx_index)
+{
+    if (input_assembly_parms->mtx_indices == NULL) {
+        mg_load_vertices(first, cache_offset, count);
+        return;
+    }
+
+    const uint8_t *mtx_indices = (const uint8_t*)input_assembly_parms->mtx_indices;
+    uint32_t batch_offset = 0;
+
+    for (size_t i = 0; i < count; i++)
+    {
+        uint8_t mtx_index = mtx_indices[(first + i) * input_assembly_parms->mtx_indices_stride];
+        if (mtx_index != *prev_mtx_index) {
+            if (i != 0) {
+                mg_load_vertices(first + batch_offset, cache_offset + batch_offset, i - batch_offset);
+            }
+            mg_uniform_load(&input_assembly_parms->matrix_uniform, ((const uint8_t*)input_assembly_parms->matrices) + mtx_index * input_assembly_parms->matrices_stride);
+            batch_offset = i;
+            *prev_mtx_index = mtx_index;
+        }
+    }
+
+    if (batch_offset < count) {
+        mg_load_vertices(first + batch_offset, cache_offset + batch_offset, count - batch_offset);
+    }
+}
+
 #define TRI_LIST_ADVANCE_COUNT ROUND_DOWN(MG_VERTEX_CACHE_COUNT, 3)
 
 void mg_draw(const mg_input_assembly_parms_t *input_assembly_parms, uint32_t vertex_count, uint32_t first_vertex)
 {
+    assertf(input_assembly_parms != NULL, "input_assembly_parms must not be NULL!");
+
     uint32_t cache_offset = 0;
     uint32_t next_cache_offset = 0;
     uint32_t advance_count = 0;
@@ -465,11 +494,14 @@ void mg_draw(const mg_input_assembly_parms_t *input_assembly_parms, uint32_t ver
         break;
     }
 
+    uint8_t mtx_index = UINT8_MAX;
+
     for (uint32_t current_vertex = 0; current_vertex < vertex_count; current_vertex += advance_count - cache_offset)
     {
         cache_offset = next_cache_offset;
         uint32_t load_count = MIN(batch_size - cache_offset, vertex_count - current_vertex);
-        mg_load_vertices(current_vertex + first_vertex, cache_offset, load_count);
+
+        load_batch_with_mtx_indices(input_assembly_parms, current_vertex + first_vertex, load_count, cache_offset, &mtx_index);
 
         switch (input_assembly_parms->primitive_topology) {
             case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
@@ -668,13 +700,13 @@ static uint8_t vertex_cache_get(const vertex_cache *cache, uint16_t index)
     return cache_index;
 }
 
-static void vertex_cache_load(const vertex_cache *cache, int32_t offset, uint32_t cache_offset)
+static void vertex_cache_load(const vertex_cache *cache, int32_t offset, uint32_t cache_offset, const mg_input_assembly_parms_t *assembly_parms, uint8_t *mtx_index)
 {
     vertex_cache_block *block = cache->head;
     while (block)
     {
         if (block->count > 0) {
-            mg_load_vertices(block->start + offset, cache_offset, block->count);
+            load_batch_with_mtx_indices(assembly_parms, block->start + offset, block->count, cache_offset, mtx_index);
             cache_offset += block->count;
         }
 
@@ -695,7 +727,7 @@ static void vertex_cache_dump(const vertex_cache *cache)
 }
 #endif
 
-static uint32_t prepare_batch(const uint16_t *indices, int32_t vertex_offset, uint32_t max_count, vertex_cache *cache, uint32_t windup, uint32_t advance, bool restart_enabled, uint32_t cache_offset)
+static uint32_t prepare_batch(const mg_input_assembly_parms_t *assembly_parms, const uint16_t *indices, int32_t vertex_offset, uint32_t max_count, vertex_cache *cache, uint32_t windup, uint32_t advance, uint32_t cache_offset, uint8_t *mtx_index)
 {
     vertex_cache_clear(cache);
 
@@ -709,7 +741,7 @@ static uint32_t prepare_batch(const uint16_t *indices, int32_t vertex_offset, ui
         for (size_t i = 0; i < required; i++)
         {
             uint16_t index = indices[count + i];
-            if (restart_enabled && index == SPECIAL_INDEX) {
+            if (assembly_parms->primitive_restart_enabled && index == SPECIAL_INDEX) {
                 required = windup + advance;
                 need_insertion = 0;
                 count++;
@@ -756,7 +788,7 @@ static uint32_t prepare_batch(const uint16_t *indices, int32_t vertex_offset, ui
     vertex_cache_dump(cache);
     #endif
 
-    vertex_cache_load(cache, vertex_offset, cache_offset);
+    vertex_cache_load(cache, vertex_offset, cache_offset, assembly_parms, mtx_index);
     return count;
 }
 
@@ -862,11 +894,14 @@ static uint32_t get_windup_count(mg_primitive_topology_t topology)
 
 void mg_draw_indexed(const mg_input_assembly_parms_t *input_assembly_parms, const uint16_t *indices, uint32_t index_count, int32_t vertex_offset)
 {
+    assertf(input_assembly_parms != NULL, "input_assembly_parms must not be NULL!");
+    assertf(indices != NULL, "indices must not be NULL!");
+
     vertex_cache cache;
     uint32_t current_index = 0;
 
-    mg_primitive_topology_t topology = input_assembly_parms ? input_assembly_parms->primitive_topology : MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    bool restart_enabled = input_assembly_parms != NULL && input_assembly_parms->primitive_restart_enabled;
+    mg_primitive_topology_t topology = input_assembly_parms->primitive_topology;
+    bool restart_enabled = input_assembly_parms->primitive_restart_enabled;
 
     assertf(!(restart_enabled && topology == MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST), "Primitive restart is not supported for triangle lists!");
 
@@ -875,9 +910,11 @@ void mg_draw_indexed(const mg_input_assembly_parms_t *input_assembly_parms, cons
 
     uint32_t cache_offset = 0;
 
+    uint8_t mtx_index = UINT8_MAX;
+
     while (current_index < index_count - windup + cache_offset)
     {
-        uint32_t batch_index_count = prepare_batch(indices + current_index, vertex_offset, index_count - current_index, &cache, windup, advance, restart_enabled, cache_offset);
+        uint32_t batch_index_count = prepare_batch(input_assembly_parms, indices + current_index, vertex_offset, index_count - current_index, &cache, windup, advance, cache_offset, &mtx_index);
 
         switch (topology) {
         case MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:

@@ -34,6 +34,7 @@ mgfx_meshdb_t *mgfx_meshdb_open(const char *fn)
             submesh->vertex_layout.attributes = PTR_DECODE(meshdb, submesh->vertex_layout.attributes);
             submesh->vertices = PTR_DECODE(meshdb, submesh->vertices);
             submesh->indices = PTR_DECODE(meshdb, submesh->indices);
+            submesh->mtx_indices = PTR_DECODE(meshdb, submesh->mtx_indices);
         }
     }
     

@@ -544,6 +544,7 @@ void mg_draw_indexed(const mg_input_assembly_parms_t *input_assembly_parms, cons
 /* Inline function definitions and prerequisites */
 
 #define mg_cmd_write(cmd_id, ...)   rspq_write(mg_overlay_id, cmd_id, ##__VA_ARGS__)
+#define mg_rdpq_write(cmd_id, ...)  rdpq_write(-1, mg_overlay_id, cmd_id, ##__VA_ARGS__)
 
 extern uint32_t mg_overlay_id;
 

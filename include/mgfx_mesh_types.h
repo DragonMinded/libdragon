@@ -12,11 +12,13 @@
 typedef struct mgfx_submesh_s
 {
     mg_vertex_layout_t vertex_layout;
-    mg_input_assembly_parms_t input_assembly_parms;
+    mg_primitive_topology_t primitive_topology;
+    bool primitive_restart_enabled;
     uint32_t vertices_count;
     uint32_t indices_count;
     void *vertices;
     uint16_t *indices;
+    uint8_t *mtx_indices;
 } mgfx_submesh_t;
 
 typedef struct mgfx_mesh_s
