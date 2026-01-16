@@ -341,7 +341,7 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
 
                     if (color_constant != 0) {
                         light_color = light_color:sfract * color:sfract;
-                        light_color.w = load(light_ptr, 6).x;
+                        light_color.w = load(light_ptr, 14).x;
                     }
 
                     store(light_position.xyzw, out_ptr, 0);
