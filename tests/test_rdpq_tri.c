@@ -68,7 +68,7 @@ void test_rdpq_triangle(TestContext *ctx) {
         rdpq_debug_log_msg("CPU");
         rdpq_triangle_cpu(&trifmt, v1, v2, v3);
         rdpq_debug_log_msg("RSP");
-        rdpq_triangle_rsp(&trifmt, v1, v2, v3);
+        rdpq_triangle_rsp(&trifmt, v1, v2, v3, NULL);
         rspq_wait();
         
         const int RDP_TRI_SIZE = 22;

@@ -54,6 +54,13 @@ typedef struct {
 	void (*close)(wav64_t *wav);
 	/** @brief Return the compressed bitrate, mainly used for statistics */
 	int (*get_bitrate)(wav64_t *wav);
+	/**
+	 * @brief Adjust a requested seek position (in samples) to a valid codec-specific seek point.
+	 *
+	 * If NULL, the codec supports sample-accurate seeking and no adjustment is performed.
+	 * If non-NULL, the function must return a valid seek point (in samples) for this codec.
+	 */
+	int (*adjust_seek)(wav64_t *wav, int wpos);
 } wav64_compression_t;
 
 /**

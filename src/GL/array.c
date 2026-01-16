@@ -407,6 +407,7 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
     for (GLsizei i = 0; i < n; i++)
     {
         gl_array_object_t *new_obj = calloc(sizeof(gl_array_object_t), 1);
+        assertf(new_obj, "Out of memory");
         gl_array_object_init(new_obj);
         arrays[i] = (GLuint)new_obj;
     }

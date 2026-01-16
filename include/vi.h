@@ -417,6 +417,53 @@ typedef enum vi_gamma_e {
 
 
 /** 
+ * @brief Timing preset of settings for VI
+ * 
+ * This is an advanced, low-level structure that defines all timing-related
+ * settings for VI. Most users will not need to use this directly, as
+ * default VI timings are automatically applied by #vi_init and #vi_reset.
+ */
+typedef struct vi_timing_preset_s {
+    uint32_t vi_h_total;        ///< Total horizontal length (in 1/4th pixels)
+    uint32_t vi_h_total_leap;   ///< Leap setting (alternate scanline lengths)
+    uint32_t vi_v_total;        ///< Total vertical length (in scanlines)
+    uint32_t vi_burst;          ///< Horizontal Burst settings
+    uint32_t vi_v_burst;        ///< Vertical burst settings
+    struct {
+        int x0;                 ///< Default active area x0
+        int y0;                 ///< Default active area y0
+        int width;              ///< Default active area width
+        int height;             ///< Default active area height (in half-lines)
+    } display;                  ///< Default active area
+} vi_timing_preset_t;
+
+/** @brief Default timing preset for PAL consoles */
+extern const vi_timing_preset_t VI_TIMING_PAL;
+/** @brief Default timing preset for NTSC consoles */
+extern const vi_timing_preset_t VI_TIMING_NTSC;
+/** @brief Default timing preset for M-PAL consoles */
+extern const vi_timing_preset_t VI_TIMING_MPAL;
+/** 
+ * @brief Alternative timing preset for PAL consoles to target 60 Hz
+ * 
+ * This timing preset configures the VI to emit a 60 Hz video signal
+ * with PAL timings. This creates a special "PAL60" mode that can be
+ * used to draw up to 60 frames per second on PAL TVs. This feature was
+ * also available more officially on 6th generation consoles (eg:
+ * GameCube, PlayStation 2),
+ * 
+ * Being a non-standard extension to the spec, not all PAL devices will support it.
+ * CRTs usually do support it, but some upscalers and grabbers might not.
+ * 
+ * Do *NOT* use this timing preset by default on PAL consoles, as that might
+ * make your applications unusable on some devices. If you want to support it,
+ * make sure to let the user opt-in to it and test if their device supports it.
+ * 
+ * @see #vi_set_timing_preset
+ */
+extern const vi_timing_preset_t VI_TIMING_PAL60;
+
+/** 
  * @brief Initialize the VI module 
  * 
  * This also calls #vi_reset to reset the VI configuration to the default state.
@@ -634,6 +681,24 @@ void vi_stabilize(volatile uint32_t *reg, bool enable);
  */
 void vi_blank(bool blank);
 
+/**
+ * @brief Configure a custom timing preset for VI
+ * 
+ * This is a low-level function that allows to configure a custom timing
+ * preset for VI. Most users will not need to use this directly, as
+ * default VI timings are automatically applied by #vi_init and #vi_reset.
+ * 
+ * The goal of this function is to allow advanced users to experiment
+ * with custom timings, potentially to support non-standard video modes.
+ * 
+ * The only non-standard timing preset provided by default is #VI_TIMING_PAL60,
+ * which allows PAL consoles to (try to) emit a 60 Hz video signal.
+ * 
+ * @param preset        Timing preset to apply
+ * 
+ */
+void vi_set_timing_preset(const vi_timing_preset_t *preset);
+
 /** @} */
 
 /**
@@ -798,6 +863,13 @@ inline int vi_get_scanline(int *field) {
  * @see #vi_set_yscale
  */
 void vi_set_origin(void *buffer, int pixel_stride, int bpp);
+
+/**
+ * @brief Get the bit depth of the current framebuffer
+ * 
+ * @return int Bit depth of the current framebuffer (16 or 32), or 0 if VI is disabled
+ */
+int vi_get_bpp(void);
 
 /**
  * @brief Configure the horizontal scale factor to display the specified framebuffer width

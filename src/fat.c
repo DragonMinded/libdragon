@@ -139,8 +139,13 @@ static void *__fat_open(char *name, int flags, int volid)
 			fp = &static_fat_files[i];
 			break;
 		}
-	if (!fp)
+	if (!fp) {
 		fp = malloc(sizeof(FIL));
+		if (!fp) {
+			errno = ENOMEM;
+			return NULL;
+		}
+	}
 
 	int fatfs_flags = 0;
 	if ((flags & O_ACCMODE) == O_RDONLY)
@@ -344,6 +349,10 @@ static int __fat_findnext(dir_t *dir)
 static int __fat_findfirst(char *name, dir_t *dir, int volid)
 {
 	DIR *find_dir = malloc(sizeof(DIR));
+	if (!find_dir) {
+		errno = ENOMEM;
+		return -2;
+	}
 	FRESULT res = f_opendir(find_dir, MAKE_FAT_NAME(volid, name));
 	if (res != FR_OK) {
 		free(find_dir);
@@ -456,6 +465,7 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
     fat_disks[vol_id] = *disk;
 
     FATFS *fs = malloc(sizeof(FATFS));
+	assertf(fs, "Out of memory");
     char path[3] = {'0' + vol_id, ':', 0};
 
     FRESULT err = f_mount(fs, path, (flags & FAT_MOUNT_DEFERRED) ? 0 : 1);
@@ -467,6 +477,7 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
 
     if (prefix) {
         filesystem_t *fs = malloc(sizeof(filesystem_t));
+		assertf(fs, "Out of memory");
         memcpy(fs, &fat_newlib_fs, sizeof(filesystem_t));
 
         fs->open 	  = __fat_open_func[vol_id];

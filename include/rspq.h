@@ -294,6 +294,34 @@ uint32_t rspq_overlay_register(rsp_ucode_t *overlay_ucode);
 void rspq_overlay_register_static(rsp_ucode_t *overlay_ucode, uint32_t overlay_id);
 
 /**
+ * @brief Make an overlay share the state with another
+ * 
+ * Sometimes it is useful for two overlays to share their state. This is
+ * common when a larger ucode is split into several ucodes for IMEM limit size,
+ * but the state must be shared among them.
+ * 
+ * This function "patches" overlay_dest so that it will actually use the state
+ * of overlay_source. If the state of the dest overlay was declared as smaller,
+ * it is assumed to be a prefix of the source overlay state. It is not possible
+ * for the dest overlay to have a split state (part shared with source, part
+ * kept private).
+ * 
+ * It is allowed for the state in the source and dest overlay to be kept at
+ * different offsets in DMEM.
+ * 
+ * It is possible for more than two overlays to share the same state; make sure to
+ * always use the same single overlay as source of truth.
+ * 
+ * This function must be called before beginning to use the overlays (before or
+ * after registration).
+ * 
+ * @param overlay_dest          Overlay that will be patched to share the state
+ *                              with overlay_source.
+ * @param overlay_source        Overlay whose state will be shared.
+ */
+void rspq_overlay_share_state(rsp_ucode_t *overlay_dest, rsp_ucode_t *overlay_source);
+
+/**
  * @brief Unregister a ucode overlay from the RSP queue engine.
  * 
  * This function removes an overlay that has previously been registered

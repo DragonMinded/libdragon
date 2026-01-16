@@ -258,6 +258,7 @@ void eia608_init(void)
     #endif
     assert(ring_buffer == NULL);
     ring_buffer = malloc(RING_BUFFER_SIZE * 2);
+    assertf(ring_buffer, "Out of memory");
     rb_rpos = rb_wpos = 0;
 
     // Allocate and initialize the linebuffer

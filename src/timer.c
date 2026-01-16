@@ -189,27 +189,25 @@ timer_link_t *new_timer(int ticks, int flags, timer_callback1_t callback)
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
-	if (timer)
+	assertf(timer, "Out of memory");
+	disable_interrupts();
+
+	uint32_t now = TICKS_READ();
+	timer->left = now + (int32_t)ticks;
+	timer->set = ticks;
+	timer->flags = flags;
+	timer->callback = callback;
+	timer->ctx = NULL;
+
+	if (!(flags & TF_DISABLED))
 	{
-		disable_interrupts();
-
-		uint32_t now = TICKS_READ();
-		timer->left = now + (int32_t)ticks;
-		timer->set = ticks;
-		timer->flags = flags;
-		timer->callback = callback;
-		timer->ctx = NULL;
-
-		if (!(flags & TF_DISABLED))
-		{
-			timer->next = TI_timers;
-			TI_timers = timer;
-			timer_update_compare(TI_timers, now);
-			timer_poll();
-		}
-
-		enable_interrupts();
+		timer->next = TI_timers;
+		TI_timers = timer;
+		timer_update_compare(TI_timers, now);
+		timer_poll();
 	}
+
+	enable_interrupts();
 	return timer;
 }
 
@@ -217,27 +215,25 @@ timer_link_t *new_timer_context(int ticks, int flags, timer_callback2_t callback
 {
 	assertf(timer_init_refcount > 0, "timer module not initialized");
 	timer_link_t *timer = malloc(sizeof(timer_link_t));
-	if (timer)
+	assertf(timer, "Out of memory");
+	disable_interrupts();
+
+	uint32_t now = TICKS_READ();
+	timer->left = now + (int32_t)ticks;
+	timer->set = ticks;
+	timer->flags = flags | TF_CONTEXT;
+	timer->callback_with_context = callback;
+	timer->ctx = ctx;
+
+	if (!(flags & TF_DISABLED))
 	{
-		disable_interrupts();
-
-		uint32_t now = TICKS_READ();
-		timer->left = now + (int32_t)ticks;
-		timer->set = ticks;
-		timer->flags = flags | TF_CONTEXT;
-		timer->callback_with_context = callback;
-		timer->ctx = ctx;
-
-		if (!(flags & TF_DISABLED))
-		{
-			timer->next = TI_timers;
-			TI_timers = timer;
-			timer_update_compare(TI_timers, now);
-			timer_poll();
-		}
-
-		enable_interrupts();
+		timer->next = TI_timers;
+		TI_timers = timer;
+		timer_update_compare(TI_timers, now);
+		timer_poll();
 	}
+
+	enable_interrupts();
 	return timer;
 }
 

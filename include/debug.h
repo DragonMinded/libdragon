@@ -182,6 +182,7 @@ extern "C" {
 	 * writing debug messages during interrupts or exceptions, when standard
 	 * I/O functions cannot be used safely.
 	 */
+	__attribute__((format(printf, 1, 2)))
 	void debugf(const char *msg, ...);
 
 	/** 

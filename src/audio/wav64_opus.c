@@ -30,10 +30,12 @@
 
 #include <stdint.h>
 #include <assert.h>
-#include <malloc.h>
+#include <stdlib.h>
 #include <stdalign.h>
+#include <stdbool.h>
 #include "wav64.h"
 #include "wav64_internal.h"
+#include "wav64_opus_internal.h"
 #include "samplebuffer.h"
 #include "debug.h"
 #include "dragonfs.h"
@@ -45,17 +47,25 @@
 
 #include "libopus_internal.h"
 
-/// @brief Wav64 Opus header extension
-typedef struct {
-    uint32_t frame_size;            ///< Size of an audioframe in samples
-    uint32_t max_cmp_frame_size;    ///< Maximum compressed frame size in bytes
-    uint32_t bitrate_bps;           ///< Bitrate in bits per second
-    OpusCustomMode *mode;           ///< Opus custom mode for this file
-} wav64_opus_header_ext;
+static wav64_opus_seekpoint_t *wav64_opus_find_seekpoint(wav64_opus_header_t *ext, int wpos) {
+    assert(wpos >= 0);
+
+    int lo = 0, hi = ext->num_seekpoints; // [lo, hi)
+    while (lo < hi) {
+        int mid = (lo + hi) >> 1;
+        uint32_t off = ext->seekpoints[mid].sample_offset;
+        if (off <= (uint32_t)wpos) lo = mid + 1;
+        else hi = mid;
+    }
+
+    int idx = lo - 1;
+    if (idx < 0) return NULL;
+    return &ext->seekpoints[idx];
+}
 
 static void waveform_opus_start(void *ctx, samplebuffer_t *sbuf) {
 	wav64_t *wav = (wav64_t*)sbuf->wave;
-	wav64_opus_header_ext *ext = wav->st->ext;
+	wav64_opus_header_t *ext = wav->st->ext;
 
     OpusCustomDecoder *dec = (OpusCustomDecoder*)CachedAddr(sbuf->state);
     int err = opus_custom_decoder_init(dec, ext->mode, wav->wave.channels);
@@ -64,29 +74,42 @@ static void waveform_opus_start(void *ctx, samplebuffer_t *sbuf) {
 
 static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	wav64_t *wav = (wav64_t*)sbuf->wave;
-	wav64_opus_header_ext *ext = wav->st->ext;
+	wav64_opus_header_t *ext = wav->st->ext;
     OpusCustomDecoder *dec = (OpusCustomDecoder*)CachedAddr(sbuf->state);
-    
-	if (seeking) {
-		if (wpos == 0) {            
-			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
-			opus_custom_decoder_ctl(dec, OPUS_RESET_STATE);
-		} else {
-			assertf(0, "seeking not support in wav64 with opus compression");
-		}
-	}
+    int preroll_frames = 0;
+    int intra_skip = 0;
+
+    if (seeking) {
+        if (wpos == 0) {
+            lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
+        } else {
+            wav64_opus_seekpoint_t *sp = wav64_opus_find_seekpoint(ext, wpos);
+            assertf(sp && sp->sample_offset == (uint32_t)wpos,
+                "wav64: %s: invalid Opus seeking point: %d", wav->wave.name, wpos);
+
+            // Seek directly to the preroll start frame and reset decoder state.
+            lseek(wav->st->current_fd, wav->st->base_offset + sp->file_offset_preroll, SEEK_SET);
+
+            // Clamp preroll (in case the target frame is at the beginning of the file)
+            preroll_frames = MIN(ext->preroll_frames, wpos / ext->frame_size);
+
+            // Round intra_skip to 8 bytes, because our RSP memmove requires 8-byte alignment
+            intra_skip = ROUND_DOWN(sp->intra_skip, wav->wave.channels == 2 ? 2 : 4);
+        }
+        opus_custom_decoder_ctl(dec, OPUS_RESET_STATE);
+    }
 
     // Allocate stack buffer for reading compressed data. Align it to cacheline
     // to avoid any false sharing.
     uint8_t alignas(16) buf[ext->max_cmp_frame_size + 1];
-    int nframes = DIVIDE_CEIL(wlen, ext->frame_size);
+    int nframes = DIVIDE_CEIL(wlen + intra_skip, ext->frame_size);
 
     // Make space for the decoded samples. Call samplebuffer_append once as we
     // use RSP in background, and each call to the function might trigger a
     // memmove of internal samples.
     int16_t *out = samplebuffer_append(sbuf, ext->frame_size*nframes);
 
-    for (int i=0; i<nframes; i++) {
+    for (int i=0; i<nframes+preroll_frames; i++) {
         assert(wpos < wav->wave.len);
 
         // Read frame size
@@ -109,9 +132,17 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
         assertf(err > 0, "opus decode error: %s", opus_strerror(err));
         assertf(err == ext->frame_size, "opus wrong frame size: %d (exp: %lx)", err, ext->frame_size);
 
-        out += ext->frame_size * wav->wave.channels;
-        wpos += ext->frame_size;
-        wlen -= ext->frame_size;
+        int frame_size = ext->frame_size;
+        if (i == preroll_frames && intra_skip > 0) {
+            rsp_opus_memmove_bytes(out, out + intra_skip * wav->wave.channels, (ext->frame_size - intra_skip) * wav->wave.channels * sizeof(int16_t));
+            samplebuffer_undo(sbuf, intra_skip);
+            frame_size -= intra_skip;
+        }
+        if (i >= preroll_frames) {
+            out += frame_size * wav->wave.channels;
+            wpos += frame_size;
+            wlen -= frame_size;
+        }
     }
 
     if (wav->wave.loop_len && wpos >= wav->wave.len) {
@@ -122,7 +153,7 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
 
 void wav64_opus_init(wav64_t *wav, int state_size) {
     rsp_opus_init();
-    wav64_opus_header_ext *ext = wav->st->ext;
+    wav64_opus_header_t *ext = wav->st->ext;
 
     int err = OPUS_OK;
     ext->mode = opus_custom_mode_create(wav->wave.frequency, ext->frame_size, &err);
@@ -135,11 +166,18 @@ void wav64_opus_init(wav64_t *wav, int state_size) {
 }
 
 void wav64_opus_close(wav64_t *wav) {
-    wav64_opus_header_ext *ext = wav->st->ext;
-    opus_custom_mode_destroy(ext->mode);
+    wav64_opus_header_t *ext = wav->st->ext;
+    if (ext->mode) opus_custom_mode_destroy(ext->mode);
+    ext->mode = NULL;
 }
 
 int wav64_opus_get_bitrate(wav64_t *wav) {
-    wav64_opus_header_ext *ext = wav->st->ext;
+    wav64_opus_header_t *ext = wav->st->ext;
     return ext->bitrate_bps;
+}
+
+int wav64_opus_adjust_seek(wav64_t *wav, int wpos) {
+    wav64_opus_header_t *ext = wav->st->ext;
+    wav64_opus_seekpoint_t *sp = wav64_opus_find_seekpoint(ext, wpos);
+    return sp ? (int)sp->sample_offset : 0;
 }

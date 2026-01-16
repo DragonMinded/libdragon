@@ -674,6 +674,11 @@ double plm_video_get_framerate(plm_video_t *self);
 int plm_video_get_width(plm_video_t *self);
 int plm_video_get_height(plm_video_t *self);
 
+// Get the display aspect ratio (DAR).
+// If a libdragon proprietary SAR (LD_SAR=NUM:DEN) is present as MPEG-1 user_data,
+// it is used; otherwise the MPEG-1 sequence header aspect_ratio_information is used.
+double plm_video_get_aspect_ratio(plm_video_t *self);
+
 
 // Set "no delay" mode. When enabled, the decoder assumes that the video does
 // *not* contain any B-Frames. This is useful for reducing lag when streaming.
@@ -865,6 +870,7 @@ plm_t *plm_create_with_memory(uint8_t *bytes, size_t length, int free_when_done)
 
 plm_t *plm_create_with_buffer(plm_buffer_t *buffer, int destroy_when_done) {
 	plm_t *self = (plm_t *)malloc(sizeof(plm_t));
+	assertf(self, "Out of memory");
 	memset(self, 0, sizeof(plm_t));
 
 	self->demux = plm_demux_create(buffer, destroy_when_done);
@@ -1388,6 +1394,7 @@ plm_buffer_t *plm_buffer_create_with_file(FILE *fh, int close_when_done) {
 
 plm_buffer_t *plm_buffer_create_with_memory(uint8_t *bytes, size_t length, int free_when_done) {
 	plm_buffer_t *self = (plm_buffer_t *)malloc(sizeof(plm_buffer_t));
+	assertf(self, "Out of memory");
 	memset(self, 0, sizeof(plm_buffer_t));
 	self->capacity = length;
 	self->length = length;
@@ -1401,10 +1408,12 @@ plm_buffer_t *plm_buffer_create_with_memory(uint8_t *bytes, size_t length, int f
 
 plm_buffer_t *plm_buffer_create_with_capacity(size_t capacity) {
 	plm_buffer_t *self = (plm_buffer_t *)malloc(sizeof(plm_buffer_t));
+	assertf(self, "Out of memory");
 	memset(self, 0, sizeof(plm_buffer_t));
 	self->capacity = capacity;
 	self->free_when_done = TRUE;
 	self->bytes = (uint8_t *)malloc(capacity);
+	assertf(self->bytes, "Out of memory");
 	self->mode = PLM_BUFFER_MODE_RING;
 	self->discard_read_bytes = TRUE;
 	return self;
@@ -1461,6 +1470,7 @@ size_t plm_buffer_write(plm_buffer_t *self, uint8_t *bytes, size_t length) {
 			new_size *= 2;
 		} while (new_size - self->length < length);
 		self->bytes = (uint8_t *)realloc(self->bytes, new_size);
+		assertf(self->bytes, "Out of memory");
 		self->capacity = new_size;
 	}
 
@@ -1735,6 +1745,7 @@ plm_packet_t *plm_demux_get_packet(plm_demux_t *self);
 
 plm_demux_t *plm_demux_create(plm_buffer_t *buffer, int destroy_when_done) {
 	plm_demux_t *self = (plm_demux_t *)malloc(sizeof(plm_demux_t));
+	assertf(self, "Out of memory");
 	memset(self, 0, sizeof(plm_demux_t));
 
 	self->buffer = buffer;
@@ -2595,6 +2606,14 @@ typedef struct plm_video_t {
 	int start_code;
 	int picture_type;
 
+	// Sequence header aspect_ratio_information code (4 bits, MPEG-1)
+	int aspect_ratio_code;
+	// Libdragon proprietary SAR parsed from MPEG-1 user_data (LD_SAR=NUM:DEN).
+	// Defaults to 1:1 (square pixels).
+	int sar_num;
+	int sar_den;
+	int sar_parsed;
+
 	plm_video_motion_t motion_forward;
 	plm_video_motion_t motion_backward;
 
@@ -2656,18 +2675,61 @@ void plm_video_decode_block(plm_video_t *self, int block);
 void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra);
 void plm_video_idct(int16_t *block);
 
+static void plm_video_parse_initial_userdata(plm_video_t *self) {
+	// Parse libdragon proprietary SAR from an initial user_data block:
+	//   00 00 01 B2 "LD_SAR=NUM:DEN\n"
+	//
+	// This is intentionally done lazily (not in create_with_buffer) to avoid
+	// triggering I/O during object creation. We only support this scan for
+	// buffers that can seek to 0 (file / fixed memory / append).
+	if (self->sar_parsed) return;
+	self->sar_parsed = TRUE;
+
+	if (self->buffer->mode == PLM_BUFFER_MODE_RING) return;
+
+	size_t prev_pos = plm_buffer_tell(self->buffer);
+	plm_buffer_seek(self->buffer, 0);
+
+	while (TRUE) {
+		int code = plm_buffer_next_start_code(self->buffer);
+		if (code == -1) break;
+		if (code == PLM_START_SEQUENCE) break;
+		if (code == PLM_START_USER_DATA) { // user_data
+			char tmp[128];
+			int len = 0;
+			while (len < (int)sizeof(tmp) - 1 && plm_buffer_has(self->buffer, 8)) {
+				int c = plm_buffer_read(self->buffer, 8);
+				tmp[len++] = (char)c;
+				if (c == '\n') break;
+			}
+			tmp[len] = 0;
+			int n = 0, d = 0;
+			if (sscanf(tmp, "LD_SAR=%d:%d", &n, &d) == 2 && n > 0 && d > 0) {
+				self->sar_num = n;
+				self->sar_den = d;
+			}
+		}
+	}
+
+	plm_buffer_seek(self->buffer, prev_pos);
+}
+
 plm_video_t * plm_video_create_with_buffer(plm_buffer_t *buffer, int destroy_when_done) {
 	plm_video_t *self = (plm_video_t *)malloc(sizeof(plm_video_t));
+	assertf(self, "Out of memory");
 	memset(self, 0, sizeof(plm_video_t));
 	
 	self->buffer = buffer;
 	self->destroy_buffer_when_done = destroy_when_done;
 
-	// Attempt to decode the sequence header
-	self->start_code = plm_buffer_find_start_code(self->buffer, PLM_START_SEQUENCE);
-	if (self->start_code != -1) {
-		plm_video_decode_sequence_header(self);
-	}
+	// Defaults
+	self->sar_num = 1;
+	self->sar_den = 1;
+	self->sar_parsed = FALSE;
+	self->aspect_ratio_code = 1;
+
+	// Do not scan/decode here: avoid triggering I/O during object creation.
+	self->start_code = -1;
 	return self;
 }
 
@@ -2704,6 +2766,27 @@ int plm_video_get_height(plm_video_t *self) {
 		: 0;
 }
 
+double plm_video_get_aspect_ratio(plm_video_t *self) {
+	if (!plm_video_has_header(self)) {
+		return 0.0;
+	}
+
+	// Prefer proprietary SAR if present.
+	if (self->sar_num > 0 && self->sar_den > 0 && (self->sar_num != 1 || self->sar_den != 1)) {
+		return ((double)self->width * (double)self->sar_num) / ((double)self->height * (double)self->sar_den);
+	}
+
+	// Fall back to MPEG-1 sequence header aspect code.
+	switch (self->aspect_ratio_code) {
+		case 2: return 4.0 / 3.0;
+		case 3: return 16.0 / 9.0;
+		case 4: return 2.21; // approximate
+		case 1:
+		default:
+			return (double)self->width / (double)self->height;
+	}
+}
+
 void plm_video_set_no_delay(plm_video_t *self, int no_delay) {
 	self->assume_no_b_frames = no_delay;
 }
@@ -2737,9 +2820,9 @@ plm_frame_t *plm_video_decode(plm_video_t *self) {
 	plm_frame_t *frame = NULL;
 	do {
 		if (self->start_code != PLM_START_PICTURE) {
-			PROFILE_START(PS_MPEG_FINDSTART, 0);
+			PROFILE_START(PS_MPEG_FINDSTART);
 			self->start_code = plm_buffer_find_start_code(self->buffer, PLM_START_PICTURE);
-			PROFILE_STOP(PS_MPEG_FINDSTART, 0);
+			PROFILE_STOP(PS_MPEG_FINDSTART);
 			
 			if (self->start_code == -1) {
 				// If we reached the end of the file and the previously decoded
@@ -2766,14 +2849,14 @@ plm_frame_t *plm_video_decode(plm_video_t *self) {
 		// of the next picture. Also, if we didn't find the start code for the
 		// next picture, but the source has ended, we assume that this last
 		// picture is in the buffer.
-		PROFILE_START(PS_MPEG_HASSTART, 0);
+		PROFILE_START(PS_MPEG_HASSTART);
 		if (
 			plm_buffer_has_start_code(self->buffer, PLM_START_PICTURE) == -1 &&
 			!plm_buffer_has_ended(self->buffer)
 		) {
 			return NULL;
 		}
-		PROFILE_STOP(PS_MPEG_HASSTART, 0);
+		PROFILE_STOP(PS_MPEG_HASSTART);
 		
 		plm_video_decode_picture(self);
 
@@ -2803,6 +2886,9 @@ int plm_video_has_header(plm_video_t *self) {
 		return TRUE;
 	}
 
+	// Lazily parse initial user_data (LD_SAR) before scanning for the sequence header.
+	plm_video_parse_initial_userdata(self);
+
 	if (self->start_code != PLM_START_SEQUENCE) {
 		self->start_code = plm_buffer_find_start_code(self->buffer, PLM_START_SEQUENCE);
 	}
@@ -2830,8 +2916,9 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 		return FALSE;
 	}
 
-	// Skip pixel aspect ratio
-	plm_buffer_skip(self->buffer, 4);
+	// MPEG-1 aspect_ratio_information (4 bits). Despite the name used historically
+	// in this file, this is used as a display aspect ratio signal by most tools.
+	self->aspect_ratio_code = plm_buffer_read(self->buffer, 4);
 
 	self->framerate = PLM_VIDEO_PICTURE_RATE[plm_buffer_read(self->buffer, 4)];
 
@@ -2882,6 +2969,7 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 		self->frames_data = (uint8_t*)malloc_uncached(frame_data_size * 3);
 	else
 		self->frames_data = (uint8_t*)memalign(16, frame_data_size * 3);
+	assertf(self->frames_data, "Out of memory");
 	plm_video_init_frame(self, &self->frame_current, self->frames_data + frame_data_size * 0);
 	plm_video_init_frame(self, &self->frame_forward, self->frames_data + frame_data_size * 1);
 	plm_video_init_frame(self, &self->frame_backward, self->frames_data + frame_data_size * 2);
@@ -2962,7 +3050,7 @@ void plm_video_decode_picture(plm_video_t *self) {
 	);
 
 	// Decode all slices
-	PROFILE_START(PS_MPEG_DECODESLICE, 0);
+	PROFILE_START(PS_MPEG_DECODESLICE);
 	while (PLM_START_IS_SLICE(self->start_code)) {
 		plm_video_decode_slice(self, self->start_code & 0x000000FF);
 		if (self->macroblock_address >= self->mb_size - 2) {
@@ -2970,7 +3058,7 @@ void plm_video_decode_picture(plm_video_t *self) {
 		}
 		self->start_code = plm_buffer_next_start_code(self->buffer);
 	}
-	PROFILE_STOP(PS_MPEG_DECODESLICE, 0);
+	PROFILE_STOP(PS_MPEG_DECODESLICE);
 
 	// If this is a reference picture rotate the prediction pointers
 	if (
@@ -3001,9 +3089,9 @@ void plm_video_decode_slice(plm_video_t *self, int slice) {
 	}
 
 	do {
-		PROFILE_START(PS_MPEG_MB, 0);
+		PROFILE_START(PS_MPEG_MB);
 		plm_video_decode_macroblock(self);
-		PROFILE_STOP(PS_MPEG_MB, 0);
+		PROFILE_STOP(PS_MPEG_MB);
 	} while (
 		self->macroblock_address < self->mb_size - 1 &&
 		plm_buffer_peek_non_zero(self->buffer, 23)
@@ -3128,7 +3216,7 @@ void plm_video_decode_macroblock(plm_video_t *self) {
 }
 
 void plm_video_decode_motion_vectors(plm_video_t *self) {
-	PROFILE_START(PS_MPEG_MB_MV, 0);
+	PROFILE_START(PS_MPEG_MB_MV);
 
 	// Forward
 	if (self->motion_forward.is_set) {
@@ -3147,7 +3235,7 @@ void plm_video_decode_motion_vectors(plm_video_t *self) {
 		self->motion_backward.h = plm_video_decode_motion_vector(self, r_size, self->motion_backward.h);
 		self->motion_backward.v = plm_video_decode_motion_vector(self, r_size, self->motion_backward.v);
 	}
-	PROFILE_STOP(PS_MPEG_MB_MV, 0);
+	PROFILE_STOP(PS_MPEG_MB_MV);
 }
 
 int plm_video_decode_motion_vector(plm_video_t *self, int r_size, int motion) {
@@ -3179,7 +3267,7 @@ int plm_video_decode_motion_vector(plm_video_t *self, int r_size, int motion) {
 }
 
 void plm_video_predict_macroblock(plm_video_t *self) {
-	PROFILE_START(PS_MPEG_MB_PREDICT, 0);
+	PROFILE_START(PS_MPEG_MB_PREDICT);
 	int fw_h = self->motion_forward.h;
 	int fw_v = self->motion_forward.v;
 
@@ -3227,7 +3315,7 @@ void plm_video_predict_macroblock(plm_video_t *self) {
 		}
 	}
 
-	PROFILE_STOP(PS_MPEG_MB_PREDICT, 0);
+	PROFILE_STOP(PS_MPEG_MB_PREDICT);
 }
 
 void plm_video_copy_macroblock_rsp(plm_video_t *self, plm_frame_t *s, int motion_h, int motion_v) {
@@ -3383,9 +3471,9 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	int n = 0;
 	uint8_t *quant_matrix;
 
-	PROFILE_START(PS_MPEG_MB_DECODE, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE);
 
-	PROFILE_START(PS_MPEG_MB_DECODE_DC, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE_DC);
 	// Decode DC coefficient of intra-coded blocks
 	if (self->macroblock_intra) {
 		int predictor;
@@ -3422,10 +3510,10 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	else {
 		quant_matrix = self->non_intra_quant_matrix;
 	}
-	PROFILE_STOP(PS_MPEG_MB_DECODE_DC, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_DC);
 
 	// Calculate block position
-	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK);
 	uint8_t *d;
 	int dw;
 	int di;
@@ -3446,7 +3534,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 		dw = self->chroma_width;
 		di = ((self->mb_row * self->luma_width) << 2) + (self->mb_col << 3);
 	}
-	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK);
 
 	if (RSP_MODE > 0) {		
 		if (RSP_MODE >= 3 && !self->macroblock_intra) {
@@ -3468,7 +3556,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	}
 
 	// Decode AC coefficients (+DC for non-intra)
-	PROFILE_START(PS_MPEG_MB_DECODE_AC, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE_AC);
 	plm_buffer_has(self->buffer, 64*24);
 	while (TRUE) {
 		static const uint16_t qtable0[128] __attribute__((aligned(16))) = { 0,0,0,0,65535,65535,65535,65535,49666,49666,51457,51457,49156,49156,51201,51201,42753,42753,42753,42753,42497,42497,42497,42497,41218,41218,41218,41218,42241,42241,42241,42241,60673,57350,60417,60161,58114,57603,57349,59905,32771,32771,32771,32771,32771,32771,32771,32771,33793,33793,33793,33793,33793,33793,33793,33793,33537,33537,33537,33537,33537,33537,33537,33537,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,24578,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,25089,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641,16641 };
@@ -3559,9 +3647,9 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 			rsp_mpeg1_block_coeff(n, level);
 		}
 		n++;
-		// PROFILE_STOP(PS_MPEG_MB_DECODE_AC_DEQUANT, 0);
+		// PROFILE_STOP(PS_MPEG_MB_DECODE_AC_DEQUANT);
 	}
-	PROFILE_STOP(PS_MPEG_MB_DECODE_AC, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_AC);
 
 	// Move block to its place
 	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK, 1);
@@ -3596,7 +3684,7 @@ void plm_video_decode_block(plm_video_t *self, int block) {
 	}
 
 	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK, 1);
-	PROFILE_STOP(PS_MPEG_MB_DECODE, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE);
 }
 
 void plm_video_decode_block_residual(int16_t *s, int si, uint8_t *d, int di, int dw, int n, int intra)
@@ -3634,7 +3722,7 @@ void plm_video_idct(int16_t *block) {
 		b1, b3, b4, b6, b7, tmp1, tmp2, m0,
 		x0, x1, x2, x3, x4, y3, y4, y5, y6, y7;
 
-	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK_IDCT, 0);
+	PROFILE_START(PS_MPEG_MB_DECODE_BLOCK_IDCT);
 
 	// Transform columns
 	for (int i = 0; i < 8; ++i) {
@@ -3696,7 +3784,7 @@ void plm_video_idct(int16_t *block) {
 		block[7 + i] = (y4 - b7 + (128 >> RSP_IDCT_SCALER)) >> (8 - RSP_IDCT_SCALER);
 	}
 
-	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK_IDCT, 0);
+	PROFILE_STOP(PS_MPEG_MB_DECODE_BLOCK_IDCT);
 }
 
 // YCbCr conversion following the BT.601 standard:
@@ -3990,6 +4078,7 @@ void plm_audio_idct36(int s[32][3], int ss, float *d, int dp);
 
 plm_audio_t *plm_audio_create_with_buffer(plm_buffer_t *buffer, int destroy_when_done) {
 	plm_audio_t *self = (plm_audio_t *)malloc(sizeof(plm_audio_t));
+	assertf(self, "Out of memory");
 	memset(self, 0, sizeof(plm_audio_t));
 
 	self->samples.count = PLM_AUDIO_SAMPLES_PER_FRAME;

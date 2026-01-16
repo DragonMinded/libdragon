@@ -57,6 +57,7 @@ void gl_init()
     rdpq_init();
 
     state = calloc(1, sizeof(gl_state_t));
+    assertf(state, "Out of memory");
 
     gl_texture_init();
 
@@ -98,6 +99,8 @@ void gl_init()
     state->matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
     state->matrix_stacks[2] = malloc_uncached(sizeof(gl_matrix_srv_t) * TEXTURE_STACK_SIZE);
     state->matrix_palette = malloc_uncached(sizeof(gl_matrix_srv_t) * MATRIX_PALETTE_SIZE * 2); // Double size for mvp-matrices
+    assertf(state->matrix_stacks[0] && state->matrix_stacks[1] && state->matrix_stacks[2] && state->matrix_palette,
+        "Out of memory");
 
     server_state->matrix_pointers[0] = PhysicalAddr(state->matrix_stacks[0]);
     server_state->matrix_pointers[1] = PhysicalAddr(state->matrix_stacks[1]);

@@ -100,13 +100,16 @@ RDPQ_Send:
     # so using that bit in the RSPQ_RdpWait wait mask will make sure we wait for the RDP
     # to be idle.
     lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
-    jal RSPQ_RdpWait
     ori t3, DP_STATUS_END_VALID
+rdpq_send_wait:
+    mfc0 t0, COP0_DP_STATUS
+    and t0, t3
+    bnez t0, rdpq_send_wait
 
     # Switch to the next dynamic buffer.
     # Since there are two of them, also switch between
     # them so next time we will pick the other one.
-    lw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
+     lw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
     lw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 0
     sw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 0
     sw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
@@ -729,6 +732,7 @@ RDPQ_WriteSetScissor:
 RDPQ_WriteSetFillColor:
     sw a1, %lo(RDPQ_FILL_COLOR)
     lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
+    andi t0, 3
     beq t0, 3, RDPQ_Write8
     lui a0, 0xF700   # SET_FILL_COLOR
     srl t0, a1, 24 + (8-5) - 11

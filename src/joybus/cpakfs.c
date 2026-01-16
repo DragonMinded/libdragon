@@ -651,6 +651,10 @@ static void *__cpakfs_open(char *name, int flags, int port)
 
     int mode = flags & 7;
     cpakfs_openfile_t *file = malloc(sizeof(cpakfs_openfile_t));
+    if (!file) {
+        errno = ENOMEM;
+        return NULL;
+    }
     memset(file, 0, sizeof(*file));
     file->port = port;
     file->note = note;
@@ -953,6 +957,7 @@ int cpakfs_mount(joypad_port_t port, const char *prefix)
 
     int fat_size = be16(fsid.bank_size_msb) & 0xFF00;
     cpakfs_t *fs = malloc(sizeof(cpakfs_t) + fat_size);
+    assertf(fs != NULL, "Out of memory");
     memset(fs, 0, sizeof(cpakfs_t));
     fs->port = port;
     fs->fat_size = fat_size;

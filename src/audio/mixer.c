@@ -402,7 +402,7 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		int size = ROUND_UP(mixer_calc_buffer_size(ch, wave->channels), 16);
 		int state_size = ROUND_UP(wave->state_size, 16);
 		void *ptr = malloc_uncached(size + state_size);
-		assertf(ptr, "out of memory (size=%d)", size);
+		assertf(ptr, "Out of memory");
 		samplebuffer_init(sbuf, ptr, size, state_size);
 		if (wave->channels == 2) c->flags |= CH_FLAGS_STEREO_ALLOC;
 	}
@@ -817,7 +817,7 @@ void mixer_poll(int16_t *out16, int num_samples) {
 
 void mixer_try_play()
 {
-    if (audio_can_write())
+    while (audio_can_write())
     {
         short *buf = audio_write_begin();
         mixer_poll(buf, audio_get_buffer_length());

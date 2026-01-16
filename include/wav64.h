@@ -156,6 +156,21 @@ void wav64_set_loop(wav64_t *wav, bool loop);
 void wav64_play(wav64_t *wav, int ch);
 
 /**
+ * @brief Seek a playing WAV64 to a given time position (in seconds).
+ *
+ * This is a convenience wrapper around #mixer_ch_set_pos that calculates the
+ * nearest seekable position for the given time position, depending on how
+ * the file was compressed. In general, compressed audio files can only seek to
+ * specific precomputed skip points. 
+ *
+ * @param wav       Pointer to wav64_t structure
+ * @param ch        Channel of the mixer to seek (same channel passed to #wav64_play)
+ * @param time_sec  Desired time position (in seconds)
+ * @return          The adjusted time in seconds that was actually used for seeking
+ */
+double wav64_seek(wav64_t *wav, int ch, double time_sec);
+
+/**
  * @brief Get the (possibly compressed) bitrate of the WAV64 file.
  * 
  * @param wav 			Pointer to wav64_t structure

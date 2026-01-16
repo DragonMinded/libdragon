@@ -54,6 +54,7 @@ static wav64_compression_t algos[4] = {
 		.init = wav64_vadpcm_init,
 		.close = wav64_vadpcm_close,
 		.get_bitrate = wav64_vadpcm_get_bitrate,
+		.adjust_seek = wav64_vadpcm_adjust_seek,
 	},
 };
 
@@ -133,7 +134,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		assertf(0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
 			file_name, head.id[0], head.id[1], head.id[2], head.id[3]);
 	}
-	assertf(head.version == 4, "wav64 %s: invalid version: %02x\n",
+	assertf(head.version == 6, "wav64 %s: invalid version: %02x\n",
 		file_name, head.version);
 	assertf(head.format < WAV64_NUM_FORMATS, "Unknown wav64 compression format %d; corrupted file?", head.format);
 	assertf(head.format < WAV64_NUM_FORMATS && algos[head.format].init != NULL,
@@ -166,7 +167,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	// Allocate heap memory
 	assert(heap_size % 16 == 0);
 	void *heap = memalign(16, heap_size);
-	assertf(heap != NULL, "wav64: failed to allocate %d bytes for %s", heap_size, file_name);
+	assertf(heap, "Out of memory");
 	if (!wav) wav = heap + heap_off_waveform;
 	wav->st = heap;
 	wav->st->ext = heap + heap_off_ext;
@@ -246,6 +247,22 @@ void wav64_play(wav64_t *wav, int ch)
 	mixer_ch_play(ch, &wav->wave);
 }
 
+double wav64_seek(wav64_t *wav, int ch, double time_sec)
+{
+	// Compute a target sample position (rounded to nearest integer sample)
+	int spos = (int)(time_sec * wav->wave.frequency + 0.5);
+	spos = CLAMP(spos, 0, wav->wave.len);
+
+	// Apply codec-specific seek constraints (if any).
+	if (algos[wav->st->format].adjust_seek)
+		spos = algos[wav->st->format].adjust_seek(wav, spos);
+
+	mixer_ch_set_pos(ch, spos);
+
+	// Return the adjusted time in seconds
+	return (double)spos / wav->wave.frequency;
+}
+
 void wav64_set_loop(wav64_t *wav, bool loop) {
 	wav->wave.loop_len = loop ? wav->wave.len : 0;
 
@@ -301,5 +318,6 @@ void __wav64_init_compression_lvl3(void)
 		.init = wav64_opus_init,
 		.close = wav64_opus_close,
 		.get_bitrate = wav64_opus_get_bitrate,
+		.adjust_seek = wav64_opus_adjust_seek,
 	};
 }

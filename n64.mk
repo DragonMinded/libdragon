@@ -8,7 +8,7 @@ N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game
 N64_ROM_CATEGORY = # Set an N64 Media Category code in the ROM header (N, D, C, E, Z)
 N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
 N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
-N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
+N64_ROM_REGIONFREE ?= 1 # Set to true to allow booting on any console region
 N64_ROM_REGION = # Set to a region code (emulators will boot on a specific console region)
 N64_ROM_ELFCOMPRESS ?= 1 # Set compression level of ELF file in ROM
 N64_ROM_DSOCOMPRESS ?= 1 # Set compression level of DSOs file in ROM
@@ -16,6 +16,7 @@ N64_ROM_CONTROLLER1 = # Sets the type of Controller 1 in the Advanced Homebrew H
 N64_ROM_CONTROLLER2 = # Sets the type of Controller 2 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
 N64_ROM_CONTROLLER3 = # Sets the type of Controller 3 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
 N64_ROM_CONTROLLER4 = # Sets the type of Controller 4 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_METADATA = # Path to a metadata INI file to embed in the ROM. If set, invokes n64metadata.
 
 # Override this to use a different file prefix for the debug symbols. This is
 # useful when building multiple projects in the same directory and you can set
@@ -56,6 +57,7 @@ N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 N64_MKSPRITE = $(N64_BINDIR)/mksprite
 N64_MKFONT = $(N64_BINDIR)/mkfont
 N64_MKMODEL = $(N64_BINDIR)/mkmodel
+N64_METADATA = $(N64_BINDIR)/n64metadata
 N64_MKMESH = $(N64_BINDIR)/mkmesh
 N64_DSO = $(N64_BINDIR)/n64dso
 N64_DSOEXTERN = $(N64_BINDIR)/n64dso-extern
@@ -87,6 +89,12 @@ N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER1),--controller1 $(N64_ROM_CO
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER2),--controller2 $(N64_ROM_CONTROLLER2))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER3),--controller3 $(N64_ROM_CONTROLLER3))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER4),--controller4 $(N64_ROM_CONTROLLER4))
+
+# If metadata is used, disable padding to avoid double padding (n64tool + n64metadata).
+# n64metadata will handle the final 16 KiB padding.
+ifneq ($(N64_ROM_METADATA),)
+N64_TOOLFLAGS += --padding 0
+endif
 
 # Add *.version files to the rompak
 N64_TOOLFILES = $(wildcard $(N64_INCLUDEDIR)/*.version)
@@ -122,15 +130,19 @@ RSPASFLAGS+=-MMD
 	$(N64_STRIP) -s $<.stripped
 	$(N64_ELFCOMPRESS) -o $(dir $<) -c $(N64_ROM_ELFCOMPRESS) $<.stripped
 	@rm -f $@
-	$(N64_TOOL) $(N64_TOOLFLAGS) --output $@ \
+	$(N64_TOOL) $(N64_TOOLFLAGS) --output $(BUILD_DIR)/$@.tmp \
 		--align 256 $<.stripped \
 		$<.sym \
 		$(filter %.dfs, $^) \
 		$(filter %.msym, $^) \
 		$(N64_TOOLFILES)
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
-		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
+		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $(BUILD_DIR)/$@.tmp; \
 	fi
+	if [ ! -z "$(N64_ROM_METADATA)" ]; then \
+		$(N64_METADATA) $(if $(V),-v) $(BUILD_DIR)/$@.tmp $(N64_ROM_METADATA); \
+	fi
+	@mv $(BUILD_DIR)/$@.tmp $@
 
 %.v64: %.z64
 	@echo "    [V64] $@"

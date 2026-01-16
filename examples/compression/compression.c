@@ -140,7 +140,7 @@ int main(void) {
         do {
             if (dff.d_type == DT_REG)
                 if (strendswith(dff.d_name, ".c0") || strendswith(dff.d_name, ".c1") || 
-                    strendswith(dff.d_name, ".c2") || strendswith(dff.d_name, ".c3x")) {
+                    strendswith(dff.d_name, ".c2") || strendswith(dff.d_name, ".c3")) {
                         cmpfiles[num_files] = malloc(5 + strlen(dff.d_name) + 1);
                         sprintf(cmpfiles[num_files++], "rom:/%s", dff.d_name);
                     }

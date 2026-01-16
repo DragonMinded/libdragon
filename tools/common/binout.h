@@ -57,6 +57,8 @@ void _w64(FILE *f, uint64_t v);
 #define wf32(f, v) _w32(f, BITCAST_F2I(v))
 #define wf32approx(f, v, prec) wf32(f, roundf((v)/(prec))*(prec))
 #define wa(f, v, s) fwrite(v, s, 1, f)
+void wleb128u(FILE *f, uint64_t v);
+void wleb128s(FILE *f, int64_t v);
 
 int w64_placeholder(FILE *f);
 void w64_placeholdervf(FILE *file, const char *format, va_list arg);

@@ -29,6 +29,24 @@ bool fm_vec3_refract(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n, flo
     return true;
 }
 
+void fm_vec3_rotate(fm_vec3_t *out, const fm_vec3_t *i, const fm_quat_t *q)
+{
+  fm_vec3_t *q_vec3 = (fm_vec3_t*)q;
+
+  float dot = fm_vec3_dot(q_vec3, i);
+
+  fm_vec3_t cross;
+  fm_vec3_cross(&cross, q_vec3, i);
+  fm_vec3_scale(&cross, &cross, q->w + q->w);
+
+  fm_vec3_t i_scaled;
+  fm_vec3_scale(&i_scaled, i, q->w * q->w - fm_vec3_dot(q_vec3, q_vec3));
+
+  fm_vec3_scale(out, q_vec3, dot + dot);
+  fm_vec3_add(out, out, &cross);
+  fm_vec3_add(out, out, &i_scaled);
+}
+
 // Create a quaternion 
 void fm_quat_from_euler(fm_quat_t *out, const float euler[3])
 {

@@ -142,7 +142,6 @@ command_send_rdp_many:
 
 
 command_big:
-    emux_log_string "command_big\n"
     addi s1, rspq_dmem_buf_ptr, -TEST_RSPQ_BIG_PAYLOAD_SIZE
     move s2, zero
 command_big_loop:

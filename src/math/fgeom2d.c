@@ -12,7 +12,7 @@ void fm_mat3_rotate(fm_mat3_t *out, float rotation)
     fm_mat3_mul(out, &rotation_matrix, out);
 }
 
-void fm_mat3_from_srt(fm_mat3_t *out, const fm_vec2_t *scale, float rotation, const fm_vec2_t *translate)
+void fm_mat3_from_rst(fm_mat3_t *out, float rotation, const fm_vec2_t *scale, const fm_vec2_t *translate)
 {
     float s, c;
 
@@ -22,6 +22,20 @@ void fm_mat3_from_srt(fm_mat3_t *out, const fm_vec2_t *scale, float rotation, co
     *out = (fm_mat3_t){{
         { c*sx, -s*sy, 0 },
         { s*sx, c*sy, 0 },
+        { translate->x, translate->y, 1 }
+    }};
+}
+
+void fm_mat3_from_srt(fm_mat3_t *out, const fm_vec2_t *scale, float rotation, const fm_vec2_t *translate)
+{
+    float s, c;
+
+    fm_sincosf(rotation, &s, &c);
+    float sx = scale->x, sy = scale->y;
+
+    *out = (fm_mat3_t){{
+        { c*sx, -s*sx, 0 },
+        { s*sy, c*sy, 0 },
         { translate->x, translate->y, 1 }
     }};
 }

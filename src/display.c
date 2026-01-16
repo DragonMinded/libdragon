@@ -20,6 +20,7 @@
 #include "surface.h"
 #include "rsp.h"
 #include "kirq.h"
+#include "accounting_internal.h"
 
 /** @brief Maximum number of video backbuffers */
 #define NUM_BUFFERS         32
@@ -45,8 +46,6 @@ static uint32_t __height;
 static interlace_mode_t __interlace_mode = INTERLACE_OFF;
 /** @brief Number of active buffers */
 static uint32_t __buffers = 0;
-/** @brief Pointer to uncached 16-bit aligned version of buffers */
-static void *__safe_buffer[NUM_BUFFERS];
 /** @brief Currently displayed buffer */
 static int now_showing = -1;
 /** @brief Bitmask of surfaces that are currently being drawn */
@@ -57,6 +56,8 @@ static volatile uint32_t ready_mask = 0;
 static float refresh_rate;
 /** @brief Actual display refresh period */
 static float refresh_period;
+/** @brief Currently set FPS limit */
+static float fps_limit;
 /** @brief Currently calculated delta time estimation */
 static volatile float delta_time;
 /** @brief Snapshot of frame rate for display purposes (avoid changing it too fast) */
@@ -67,6 +68,8 @@ static float frame_skip;
 static float min_refresh_period;
 /** @brief Rounded minimum refresh period as requested by #display_set_fps_limit */
 static float min_refresh_period_rounded;
+/** @brief True if we are applying the workaround for the VI bug on 320x16-bit unfiltered mode */
+static bool vi_bug_workaround = false;
 
 /** @brief State for the Kalman filter */
 typedef struct {
@@ -155,6 +158,10 @@ static void update_fps(bool newframe)
     if (TICKS_DISTANCE(last_update, now) > TICKS_PER_SECOND / FPS_UPDATE_FREQ) {
         last_update = now;        
         frame_rate_snapshot = 1.0f / (kk_fps * min_refresh_period_rounded);
+        // Update the refresh rate in case it changed (eg: switch PAL50/PAL60)
+        refresh_rate = vi_get_refresh_rate();
+        refresh_period = 1.0f / refresh_rate;    
+        display_set_fps_limit(fps_limit);
     }
 
     last_frame_counter = 0;
@@ -190,7 +197,10 @@ static void __display_callback(void *arg)
         update_fps(newframe);
     }
 
-    vi_write(VI_ORIGIN, PhysicalAddr(__safe_buffer[now_showing]));
+    vi_write_begin();
+    vi_show(&surfaces[now_showing]);
+    if ( vi_bug_workaround ) vi_write(VI_X_SCALE, 0x201);
+    vi_write_end();
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -317,7 +327,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     vi_set_borders(vi_calc_borders(aspect_ratio, res.overscan_margin));
 
     surfaces = malloc(sizeof(surface_t) * __buffers);
-    assert(surfaces != NULL);
+    assertf(surfaces, "Out of memory");
 
     /* Initialize buffers and set parameters */
     for( int i = 0; i < __buffers; i++ )
@@ -326,28 +336,11 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         /* Grab a location to render to */
         tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
         surfaces[i] = surface_alloc(format, __width, __height);
-        __safe_buffer[i] = surfaces[i].buffer;
-        assert(__safe_buffer[i] != NULL);
+        assertf(surfaces[i].buffer, "Out of memory");
 
         /* Baseline is blank */
-        memset( __safe_buffer[i], 0, __width * __height * __bitdepth );
+        memset( surfaces[i].buffer, 0, __width * __height * __bitdepth );
     }
-
-#if 0
-    if( get_tv_type() == TV_PAL && res.pal60 )
-    {
-        /* 60Hz PAL is a regular PAL video mode with NTSC-like V_SYNC and V_VIDEO */
-
-        /* NOTE: Ideally V_SYNC would be 524/525, matching NTSC, however in practice this appears
-                to cause too-slow retrace intervals. Instead we use 518/519 half-lines which is
-                only a 1.14% deviation, the expectation is that this is within the tolerance ranges
-                of almost all devices.
-                Alternatively we could have elected to shorten H_SYNC, however H_SYNC is expected
-                to be less tolerant than V_SYNC so we opt to leave it alone at the nominal value. */
-        vi_write_safe(VI_V_TOTAL, VI_V_TOTAL_SET(526 - 6 - serrate));
-        vi_write_safe(VI_V_VIDEO, (serrate) ? vi_ntsc_i.regs[VI_TO_INDEX(VI_V_VIDEO)] : vi_ntsc_p.regs[VI_TO_INDEX(VI_V_VIDEO)]);
-    }
-#endif
 
     /* Set the first buffer as the displaying buffer */
     now_showing = 0;
@@ -356,7 +349,9 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     vi_show(&surfaces[0]);
 
     /* Workaround for VI bug */
-    if ( res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED )
+    vi_bug_workaround = ( res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED );
+
+    if (vi_bug_workaround)
     {
         /* VI hits a rendering bug when HSTART < 128 && 16-bpp && X_SCALE <= 0x200,
            and resampling is disabled (see vi.c for this). HSTART < 128 is the
@@ -421,7 +416,6 @@ void display_close()
         {
             /* Free framebuffer memory */
             surface_free(&surfaces[i]);
-            __safe_buffer[i] = NULL;
         }
         free(surfaces);
         surfaces = NULL;
@@ -473,7 +467,7 @@ surface_t* display_get(void)
     assertf(__buffers != 0, "Display not initialized.");
 
     kirq_wait_t kirq = kirq_begin_wait_vi();
-    RSP_WAIT_LOOP(200) {
+    ACCT_SCOPE(ACCT_CAT_DISPLAY) RSP_WAIT_LOOP(200) {
          if ((disp = display_try_get())) {
              break;
          }
@@ -576,6 +570,8 @@ void display_set_fps_limit(float fps)
     // This will be used only for display purposes, so that FPS are capped
     // to 60 Hz rather than 59.83 Hz, which would be the hw-accurate value.
     min_refresh_period_rounded = 1.0f / (fps ? MIN(fps, roundf(refresh_rate)) : roundf(refresh_rate));
+
+    fps_limit = fps;
 
     enable_interrupts();
 }

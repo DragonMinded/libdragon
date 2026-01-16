@@ -93,13 +93,19 @@ _RSPQ_OVERLAY_HEADER:
     .short _RSPQ_SAVED_STATE_END - _RSPQ_SAVED_STATE_START - 1
     # 4: state RDRAM address (filled in by C code)
     .long 0
-    # 8: text RDRAM address (filled in by C code)
-    .long 0
-    # 10: text size (filled in by C code)
+    # 8: command base (filled in by C code)
     .short 0
-    # 14: command base (filled in by C code)
+    # 10: overlay ID (multipled by 4, filled in by C code)
+    .short 0        
+    # 12: Load segment table. First entry is text segment
+    .long 0         # RDRAM address
+    .short 0        # Size in bytes (filled by C code)
+    .short _ovl_text_start - _text_start + 0x1000
+    .long 0         # Space for a second segment (shared state, if any)
+    .short 0
     .short 0
     #if RSPQ_PROFILE
+    # 28: Profiling slot address
     .short _RSPQ_OVL_PROFILESLOT - _data_start
     #endif
 	.align 1
@@ -111,11 +117,11 @@ _RSPQ_OVERLAY_COMMAND_TABLE:
 #define RSPQ_OH_STATESTART   0
 #define RSPQ_OH_STATESIZE    2
 #define RSPQ_OH_STATEADDR    4
-#define RSPQ_OH_TEXTADDR     8
-#define RSPQ_OH_TEXTSIZE     10
-#define RSPQ_OH_CMDBASE      14
+#define RSPQ_OH_CMDBASE      8
+#define RSPQ_OH_OVLID        10
+#define RSPQ_OH_LOADSEGTABLE 12
 #if RSPQ_PROFILE
-#define RSPQ_OH_PROFILESLOT  16
+#define RSPQ_OH_PROFILESLOT  28
 #endif
 
 ########################################################
@@ -309,6 +315,9 @@ RSPQ_SCRATCH_MEM: # the following 32-bytes can be used by any overlay as tempora
     .ascii "Dragon RSP Queue"
     .ascii "Rasky & Snacchus"
 
+    .align 3
+RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
+
 ################################################################
 # RDPQ shared state
 #
@@ -349,26 +358,20 @@ RDPQ_CURRENT:                .long 0
 RDPQ_SENTINEL:               .long 0
 # Current fill color
 RDPQ_FILL_COLOR:             .word 0
-# Current target buffer color depth
+# RDRAM address of the current command list.
+RSPQ_RDRAM_PTR:              .long 0
+# Current target buffer color depth (0-3).
+# The top bit (0x80) is set if the rdpq validator is enabled
 RDPQ_TARGET_BITDEPTH:        .byte 0
 # True if there is a SYNC_FULL command in the current RDP output buffer
 RDPQ_SYNCFULL_ONGOING:       .byte 0
-# True if the rdpq debug mode is active (validator). TODO: hide this bit elsewhere to save one byte
-RDPQ_DEBUG:                  .byte 0
 
 ################################################################
 # End of RDPQ shared state
 ################################################################
 
-                              .byte 0    # explicit padding byte (would be emitted by the assembler anyway)
-
-# RDRAM address of the current command list.
-RSPQ_RDRAM_PTR:               .long 0
-
-# ID of the current overlay
-RSPQ_CURRENT_OVL:             .half 0
-
 #if RSPQ_PROFILE
+    .align 1
 RSPQ_PROFILE_CUR_SLOT:        .long 0
 RSPQ_PROFILE_START_TIME:      .long 0
 RSPQ_PROFILE_DATA:
@@ -380,11 +383,6 @@ RSPQ_PROFILE_DATA:
     RSPQ_PROFILESLOT_BUILTINS:              .long 0,0
 #endif
 
-    .align 3
-RSPQ_DMEM_BUFFER:             .ds.b RSPQ_DMEM_BUFFER_SIZE
-
-
-    .align 3
 RSPQ_INTERNAL_COMMAND_TABLE:
 RSPQ_DefineCommand RSPQCmd_WaitNewInput,    0     # 0x00
 RSPQ_DefineCommand RSPQCmd_Noop,            4     # 0x01
@@ -395,15 +393,17 @@ RSPQ_DefineCommand RSPQCmd_Dma,             16    # 0x05
 RSPQ_DefineCommand RSPQCmd_WriteStatus,     4     # 0x06 -- must be even (bit 24 must be 0)
 RSPQ_DefineCommand RSPQCmd_SwapBuffers,     12    # 0x07
 RSPQ_DefineCommand RSPQCmd_TestWriteStatus, 8     # 0x08 -- must be even (bit 24 must be 0)
-RSPQ_DefineCommand RSPQCmd_RdpWaitIdle,     4     # 0x09
-RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x0A
-RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0B
+RSPQ_DefineCommand RSPQCmd_RdpSetBuffer,    12    # 0x09
+RSPQ_DefineCommand RSPQCmd_RdpAppendBuffer, 4     # 0x0A
 
-    .align 4
-# Overlay data will be loaded at this address
+# Overlay data will be loaded at this address. We force 8-byte alignment
+# here so that the overlay header can layout 2/4 bytes field in a way
+# to guarantee no padding. See RSPQ_BeginOverlayHeader.
+    .align 3
 _ovl_data_start:
 
     .text
+_text_start:
 
     # Just declare the shift macros, without emitting code. We will be emitting it later
     setup_vsll      vshift, 0
@@ -465,6 +465,7 @@ RSPQ_Loop:
     #define ovl_index t4
     #define cmd_index t5    // referenced in rspq_assert_invalid_overlay
     #define cmd_desc  t6
+    #define ovl_id    t7
 
 #if RSPQ_PROFILE
     mfc0 t0, COP0_DP_CLOCK
@@ -494,38 +495,33 @@ RSPQ_Loop:
     beq t2, t0, rspq_switch_highpri
 
     # Index into overlay table
-    srl t0, a0, 28
+    srl ovl_id, a0, 28
 
     # Index into command table
     srl cmd_index, a0, 23
     andi cmd_index, 0x1FE
 
     # Overlay 0 is reserved for internal commands
-    beqz t0, rspq_execute_command
-    # Load command descriptor from internal command table if using the default overlay.
-    # Otherwise, cmd_desc will be overwritten further down
-    lhu cmd_desc, %lo(RSPQ_INTERNAL_COMMAND_TABLE)(cmd_index)
+    beqz ovl_id, rspq_execute_command
+     # Load command descriptor from internal command table if using the default overlay.
+     # Otherwise, cmd_desc will be overwritten further down
+     lhu cmd_desc, %lo(RSPQ_INTERNAL_COMMAND_TABLE)(cmd_index)
 
-    lhu t1, %lo(RSPQ_CURRENT_OVL)
+rspq_overlay_check:
+    lhu t1, %lo(_ovl_data_start) + RSPQ_OH_OVLID
 
     # Map overlay index through the ID map. This allows to resolve ID for
     # overlays that spans multiple IDs.
-    lbu ovl_index, RSPQ_OVERLAY_IDMAP(t0)
+    lbu ovl_index, RSPQ_OVERLAY_IDMAP(ovl_id)
 
     # Load the command base (index of the first command of the overlay).
-    lhu t0, %lo(_ovl_data_start) + 14
+    lhu t0, %lo(_ovl_data_start) + RSPQ_OH_CMDBASE
 
     # <stall cycle> Initial vshift in preparation to running the command
     lpv vshift8,  0x00,zero
 
-    #if RSPQ_DEBUG
-    assert_ne ovl_index, 0, ASSERT_INVALID_OVERLAY
-    #endif
-    
     # Check if the requested overlay is already in memory
     bne ovl_index, t1, rspq_load_overlay
-
-rspq_overlay_loaded:
      # Subtract the command base to determine the final offset into the command table.
      sub cmd_index, t0
 
@@ -590,29 +586,35 @@ rspq_load_overlay:
 #if RSPQ_PROFILE
     mfc0 t3, COP0_DP_CLOCK
 #endif
-
+    
     # Restore full command index before switching overlay
     addu cmd_index, t0
 
     # Save current overlay state
-    lhu t0, %lo(_ovl_data_start) + 2
-    lw s0, %lo(_ovl_data_start) + 4
+    lhu t0, %lo(_ovl_data_start) + RSPQ_OH_STATESIZE
+    lw s0, %lo(_ovl_data_start) + RSPQ_OH_STATEADDR
     jal DMAOutAsync
-    lhu s4, %lo(_ovl_data_start) + 0
+     lhu s4, %lo(_ovl_data_start) + RSPQ_OH_STATESTART
+
+    #if RSPQ_DEBUG
+    assert_ne ovl_index, 0, ASSERT_INVALID_OVERLAY
+    #endif
 
     # Load data segment
-    sll s0, ovl_index, 2
-    lw s0, %lo(RSPQ_OVERLAY_TABLE)(s0)
+    lw s0, %lo(RSPQ_OVERLAY_TABLE)(ovl_index)
     li s4, %lo(_ovl_data_start)
+    li t1, %lo(_ovl_data_start) + RSPQ_OH_LOADSEGTABLE
     srl t0, s0, 24-4
     jal DMAIn
-    ori t0, 0xf
+     ori t0, 0xf
 
-    # Load text segment
-    lw s0, %lo(_ovl_data_start) + 8
-    lhu t0, %lo(_ovl_data_start) + 12
+    # Load text segment plus additional optionally segments
+1:  lw s0, 0(t1)
+    lhu t0, 4(t1)
     jal DMAIn
-    li s4, %lo(_ovl_text_start)
+     lhu s4, 6(t1)
+    bltz s0, 1b
+     addiu t1, 8
 
 #if RSPQ_PROFILE
     mfc0 t0, COP0_DP_CLOCK
@@ -621,10 +623,8 @@ rspq_load_overlay:
     li s0, %lo(RSPQ_PROFILESLOT_OVLSWITCH)
 #endif
     # Load new overlay command base
-    lhu t0, %lo(_ovl_data_start) + 14
-    j rspq_overlay_loaded
-    sh ovl_index, %lo(RSPQ_CURRENT_OVL)
-
+    j rspq_overlay_check
+    # FALLTHROUGH - DELAY SLOT
 
     #undef ovl_index
     #undef cmd_index
@@ -636,7 +636,7 @@ rspq_switch_highpri:
     # Switch to highpri mode, calling RSPQCMD_SwapBuffers. We prepare the
     # argument to switch to the highpri buffer, clears the highpri requested
     # signal, and set the highpri running signal.
-    li a2, SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
+     li a2, SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING
     li a0, RSPQ_HIGHPRI_CALL_SLOT<<2
     li a1, RSPQ_LOWPRI_CALL_SLOT<<2
     #fallthrough
@@ -833,20 +833,24 @@ RSPQCmd_RdpSetBuffer:
     bne t0, a1, 1f
      lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
     ori t3, DP_STATUS_DMA_BUSY
-1:  jal RSPQ_RdpWait
-     ori t3, DP_STATUS_END_VALID
+1:  ori t3, DP_STATUS_END_VALID
+
+RSPQCmd_RdpSetBuffer_RdpWait:
+    mfc0 t2, COP0_DP_STATUS
+    and t1, t2, t3
+    bnez t1, RSPQCmd_RdpSetBuffer_RdpWait
 
     # In case there was a SYNC_FULL pending, before switching to next buffer, we need
     # to actually write the current one to RDP. Notice that the following two instructions
     # are actually nops in case there was no SYNC_FULL (as DP_END == RDPQ_CURRENT in that case).
-    sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
+     sb zero, %lo(RDPQ_SYNCFULL_ONGOING)
     lw t0, %lo(RDPQ_CURRENT)
 #ifdef NDEBUG
     mtc0 t0, COP0_DP_END
 #else
     # Check if the RDPQ debug mode is active (validator)
-    lbu t2, %lo(RDPQ_DEBUG)
-    beqz t2, 1f
+    lb t2, %lo(RDPQ_TARGET_BITDEPTH)
+    bgez t2, 1f
      mtc0 t0, COP0_DP_END
 
     # Generate a RSP interrupt to tell the CPU to fetch the new DP_START / DP_END.
@@ -886,54 +890,6 @@ RSPQCmd_RdpAppendBuffer:
     mtc0 a0, COP0_DP_END
     .endfunc
 
-    #############################################################
-    # RSPQCmd_RdpWaitIdle
-    #
-    # Wait until RDP is idle. 
-    # 
-    # *NOTE*: a SYNC_FULL command *must* have been already written
-    # to the RDP output buffer,  otherwise this function will stall
-    # forever. In fact, once the RDP is running, it never gets back
-    # to idle state until a SYNC_FULL is found, even if it has no
-    # more commands to run.
-    #############################################################
-    .func RSPQCmd_RdpWaitIdle
-RSPQCmd_RdpWaitIdle:
-    li t3, DP_STATUS_BUSY
-
-RSPQ_RdpWait:
-#if RSPQ_PROFILE
-    mfc0 t0, COP0_DP_CLOCK
-#endif
-    mfc0 t2, COP0_DP_STATUS
-1:
-    # Wait for selected RDP status bits to become 0.
-    and t1, t2, t3
-    bnez t1, 1b
-    mfc0 t2, COP0_DP_STATUS
-#if RSPQ_PROFILE
-    # Measure the time we have been waiting for the RDP and save it to the special "RDP idle" slot.
-    # Also, subtract this time from the sample that is currently being recorded by adding it to the current start time.
-    mfc0 t1, COP0_DP_CLOCK
-
-    # If DP_STATUS_BUSY is set we are waiting for a FULL_SYNC. Divert this to yet another special slot.
-    andi t2, t3, DP_STATUS_BUSY
-    bnez t2, 1f
-    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPSYNCFULL)
-    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPBUSY)
-1:
-    lw t2, %lo(RSPQ_PROFILE_START_TIME)
-    subu t1, t0
-    and t0, t1, 0xFFFFFF
-    # Masking the updated start time is not necessary here because that will happen in RSPQ_Loop anyway
-    add t2, t0
-    j RSPQ_ProfileAccumulate
-    sw t2, %lo(RSPQ_PROFILE_START_TIME)
-#else
-    jr ra
-    nop
-#endif
-    .endfunc
 
 #if RSPQ_PROFILE
     #############################################################

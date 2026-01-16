@@ -363,6 +363,7 @@
 #include "rdpq_internal.h"
 #include "rdpq_constants.h"
 #include "rdpq_debug_internal.h"
+#include "rdpq_xform_internal.h"
 #include "rspq.h"
 #include "rspq/rspq_internal.h"
 #include "rspq_constants.h"
@@ -457,7 +458,8 @@ void rdpq_init()
         return;
 
     rspq_init();
-
+    __rdpq_xform_init();
+    
     // Get a pointer to the RDRAM copy of the rdpq ucode state.
     rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
 
@@ -499,7 +501,8 @@ void rdpq_close()
     
     rspq_overlay_unregister(RDPQ_OVL_ID);
     __rdpq_attach_close();
-
+    __rdpq_xform_close();
+    
     set_DP_interrupt( 0 );
     unregister_DP_handler(__rdpq_interrupt);
 
@@ -530,7 +533,7 @@ void rdpq_fence(void)
     // then we send the internal rspq command that make the RSP spin-wait
     // until the RDP is idle. The RDP becomes idle only after SYNC_FULL is done.
     rdpq_sync_full(NULL, NULL);
-    rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_WAIT_IDLE);
 }
 
 void rdpq_exec(void *buffer, int size)
@@ -677,6 +680,7 @@ void __rdpq_block_next_buffer(void)
         // Allocate RDP static buffer.
         int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
         rdpq_block_t *b = malloc_uncached(memsz);
+        assertf(b, "Out of memory");
 
         // Chain the block to the current one (if any)
         b->next = NULL;

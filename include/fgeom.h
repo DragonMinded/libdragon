@@ -215,6 +215,15 @@ void fm_vec3_reflect(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n);
  */
 bool fm_vec3_refract(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n, float eta);
 
+/**
+ * @brief Rotates a given vector by a quaternion
+ * 
+ * @param out Will contain rotated vector
+ * @param i The vector to rotate
+ * @param q The quaternion
+ */
+void fm_vec3_rotate(fm_vec3_t *out, const fm_vec3_t *i, const fm_quat_t *q);
+
 /******** QUAT **********/
 
 /**
@@ -526,6 +535,116 @@ inline void fm_mat4_mul_vec4(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec4_t
 
 #ifdef __cplusplus
 }
+#endif
+
+
+#ifdef __cplusplus
+
+  constexpr fm_vec3_t operator+(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return {lhs.x + rhs.x, lhs.y + rhs.y, lhs.z + rhs.z};
+  }
+
+  constexpr fm_vec3_t operator-(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return {lhs.x - rhs.x, lhs.y - rhs.y, lhs.z - rhs.z};
+  }
+
+  constexpr fm_vec3_t operator*(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return {lhs.x * rhs.x, lhs.y * rhs.y, lhs.z * rhs.z};
+  }
+
+  constexpr fm_vec3_t operator/(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return {lhs.x / rhs.x, lhs.y / rhs.y, lhs.z / rhs.z};
+  }
+
+  constexpr fm_vec3_t operator+(fm_vec3_t const& lhs, float rhs) {
+    return {lhs.x + rhs, lhs.y + rhs, lhs.z + rhs};
+  }
+
+  constexpr fm_vec3_t operator-(fm_vec3_t const& lhs, float rhs) {
+    return {lhs.x - rhs, lhs.y - rhs, lhs.z - rhs};
+  }
+
+  constexpr fm_vec3_t operator*(fm_vec3_t const& lhs, float rhs) {
+    return {lhs.x * rhs, lhs.y * rhs, lhs.z * rhs};
+  }
+
+  constexpr fm_vec3_t operator/(fm_vec3_t const& lhs, float rhs) {
+    return {lhs.x / rhs, lhs.y / rhs, lhs.z / rhs};
+  }
+
+  constexpr fm_vec3_t operator-(fm_vec3_t const& lhs) {
+    return {-lhs.x, -lhs.y, -lhs.z};
+  }
+
+  constexpr fm_vec3_t& operator+=(fm_vec3_t &lhs, fm_vec3_t const& rhs) {
+    lhs.x += rhs.x;
+    lhs.y += rhs.y;
+    lhs.z += rhs.z;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator+=(fm_vec3_t &lhs, float rhs) {
+    lhs.x += rhs;
+    lhs.y += rhs;
+    lhs.z += rhs;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator-=(fm_vec3_t &lhs, fm_vec3_t const& rhs) {
+    lhs.x -= rhs.x;
+    lhs.y -= rhs.y;
+    lhs.z -= rhs.z;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator-=(fm_vec3_t &lhs, float rhs) {
+    lhs.x -= rhs;
+    lhs.y -= rhs;
+    lhs.z -= rhs;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator*=(fm_vec3_t &lhs, fm_vec3_t const& rhs) {
+    lhs.x *= rhs.x;
+    lhs.y *= rhs.y;
+    lhs.z *= rhs.z;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator*=(fm_vec3_t &lhs, float rhs) {
+    lhs.x *= rhs;
+    lhs.y *= rhs;
+    lhs.z *= rhs;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator/=(fm_vec3_t &lhs, fm_vec3_t const& rhs) {
+    lhs.x /= rhs.x;
+    lhs.y /= rhs.y;
+    lhs.z /= rhs.z;
+    return lhs;
+  }
+
+  constexpr fm_vec3_t& operator/=(fm_vec3_t &lhs, float rhs) {
+    lhs.x /= rhs;
+    lhs.y /= rhs;
+    lhs.z /= rhs;
+    return lhs;
+  }
+
+  inline fm_quat_t operator*(fm_quat_t const& lhs, fm_quat_t const& rhs) {
+    fm_quat_t res{};
+    fm_quat_mul(&res, const_cast<fm_quat_t*>(&lhs), const_cast<fm_quat_t*>(&rhs));
+    return res;
+  }
+
+  inline fm_vec3_t operator*(fm_quat_t const& quat, fm_vec3_t const& vec) {
+    fm_vec3_t res{};
+    fm_vec3_rotate(&res, &vec, &quat);
+    return res;
+  }
+
+  
 #endif
 
 #endif

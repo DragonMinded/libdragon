@@ -20,7 +20,7 @@
 #include <sys/param.h>
 #include <stdbool.h>
 #include "dragonfs.h"
-#include "dfsinternal.h"
+#include "../../src/dfs_internal.h"
 #include "../common/polyfill.h"
 
 #define STBDS_NO_SHORT_NAMES
@@ -61,7 +61,8 @@ static inline void *sector_to_memory(uint32_t offset)
 uint32_t dfs_alloc(int size)
 {
     void *end;
-    int rsize = (size + SECTOR_SIZE - 1) / SECTOR_SIZE * SECTOR_SIZE;
+    int rsize = size;
+    if (rsize & 1) rsize++;
 
     if(!dfs)
     {
@@ -84,16 +85,11 @@ uint32_t dfs_alloc(int size)
     return sector_offset(end);    
 }
 
-/* Add a new sector to the filesystem, return that sector pointer */
-uint32_t new_sector(void)
-{
-    return dfs_alloc(SECTOR_SIZE);
-}
-
 uint32_t new_blob(int size)
 {
     return dfs_alloc(size);    
 }
+
 
 void kill_fs()
 {
@@ -226,15 +222,13 @@ uint32_t add_directory(const char * const base_path, const char * const path)
 
         if(S_ISREG(stats.st_mode))
         {
-            uint32_t new_entry = new_sector();
+            const char* bname = mybasename(file);
+            uint32_t new_entry = new_blob(sizeof(directory_entry_t) + strlen(bname) + 1);
             uint32_t file_size = 0;
 
             tmp_entry = sector_to_memory(new_entry);
             tmp_entry->next_entry = 0;
-
-            /* Copy over filename */
-            strncpy(tmp_entry->path, mybasename(file), MAX_FILENAME_LEN);
-            tmp_entry->path[MAX_FILENAME_LEN] = 0;
+            strcpy(tmp_entry->path, bname);
 
             uint32_t new_file = add_file(file, &file_size);
 
@@ -266,16 +260,7 @@ uint32_t add_directory(const char * const base_path, const char * const path)
         }
         else if(S_ISDIR(stats.st_mode))
         {
-            uint32_t new_entry = new_sector();
-
-            tmp_entry = sector_to_memory(new_entry);
-            tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
-            tmp_entry->next_entry = 0;
-
-            /* Copy over filename */
-            strncpy(tmp_entry->path, mybasename(file), MAX_FILENAME_LEN);
-            tmp_entry->path[MAX_FILENAME_LEN] = 0;
-
+            /* First check if the subdirectory has any content before allocating an entry */
             uint32_t new_directory = add_directory(base_path, file);
 
             if(!new_directory)
@@ -285,7 +270,14 @@ uint32_t add_directory(const char * const base_path, const char * const path)
                 continue;
             }
 
+            /* Subdirectory is not empty, now allocate the entry */
+            const char *bname = mybasename(file);
+            uint32_t new_entry = new_blob(sizeof(directory_entry_t) + strlen(bname) + 1);
+
             tmp_entry = sector_to_memory(new_entry);
+            tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
+            tmp_entry->next_entry = 0;
+            strcpy(tmp_entry->path, bname);
             tmp_entry->file_pointer = SWAPLONG(new_directory);
 
             if(cur_entry)
@@ -393,7 +385,7 @@ int main(int argc, char *argv[])
     }
 
     /* Add in identifier */
-    directory_entry_t *id = sector_to_memory(new_sector());
+    directory_entry_t *id = sector_to_memory(new_blob(ID_DIRENT_SIZE));
 
     if(!id)
     {

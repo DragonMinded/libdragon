@@ -53,8 +53,10 @@ static texture_table_t* shared_textures;
 void texture_table_allocate()
 {
     shared_textures = calloc(1, sizeof(texture_table_t));
+    assertf(shared_textures, "Out of memory");
     shared_textures->size = 2;
     shared_textures->entries = calloc(shared_textures->size, sizeof(shared_textures->entries[0]));
+    assertf(shared_textures->entries, "Out of memory");
     shared_textures->ref_count = 1;
 }
 
@@ -117,7 +119,7 @@ uint32_t texture_table_add(const char* path, const char* prefix)
         // Table must be full because a free slot wasn't found.
         uint32_t new_size = shared_textures->size * 2;
         shared_textures->entries = realloc(shared_textures->entries, new_size * sizeof(shared_textures->entries[0]));
-        assertf(shared_textures->entries, "Entry array allocation failed");
+        assertf(shared_textures->entries, "Out of memory");
 
         for (uint32_t i = shared_textures->size; i < new_size; i++) {
             memset(&shared_textures->entries[i], 0, sizeof(shared_textures->entries[i]));
@@ -141,6 +143,7 @@ uint32_t texture_table_add(const char* path, const char* prefix)
 
     size_t size = strlen(path) + 1;
     char *new = malloc(size);
+    assertf(new, "Out of memory");
     strncpy(new, path, size);
 
     texture_entry_t* entry = &shared_textures->entries[idx];
@@ -379,6 +382,7 @@ static void init_model_transforms(model64_t *model)
 static model64_t *make_model_instance(model64_data_t *model_data)
 {
     model64_t *instance = calloc(1, get_model_instance_size(model_data));
+    assertf(instance, "Out of memory");
     instance->data = model_data;
     instance->transforms = (node_transform_state_t *)&instance[1];
     init_model_transforms(instance);
@@ -786,6 +790,7 @@ static void alloc_anim_slot(model64_t *model, model64_anim_slot_t slot)
     state_size += (num_tracks*4)*sizeof(decoded_keyframe_t);
     state_size += sizeof(model64_keyframe_t);
     anim_state_t *anim_state = calloc(1, state_size);
+    assertf(anim_state, "Out of memory");
     anim_state->frames = PTR_DECODE(anim_state, sizeof(anim_state_t));
     anim_state->curr_frame = PTR_DECODE(anim_state->frames, (num_tracks*4)*sizeof(decoded_keyframe_t));
     anim_state->index = -1;

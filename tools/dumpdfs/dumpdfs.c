@@ -13,9 +13,10 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <assert.h>
 #include "dragonfs.h"
-#include "dfsinternal.h"
+#include "../../src/dfs_internal.h"
 #include "../common/polyfill.h"
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -23,11 +24,6 @@
 #else
 #define SWAPLONG(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
 #endif
-
-struct directory_entry root_dirent = {
-    .flags = SWAPLONG(ROOT_FLAGS),
-    .path = ROOT_PATH,
-};
 
 /* Directory walking flags */
 enum
@@ -52,16 +48,16 @@ typedef struct {
     uint32_t cart_start_loc;
 } open_file_t;
 #define MAX_OPEN_FILES  4
-static void *base_ptr = 0;
+static uint8_t *base_ptr = 0;
 static open_file_t open_files[MAX_OPEN_FILES];
-static directory_entry_t* directories[MAX_DIRECTORY_DEPTH];
+static uint8_t* directories[MAX_DIRECTORY_DEPTH];
 static uint32_t directory_top = 0;
-static directory_entry_t *next_entry = 0;
+static uint8_t *next_entry = 0;
 
 /* Handling DMA from ROM to RAM */
-static inline void grab_sector(void *cart_loc, void *ram_loc)
+static inline void grab_sector(uint8_t *cart_loc, directory_entry_t *ram_loc)
 {
-    memcpy( ram_loc, cart_loc, SECTOR_SIZE );
+    memcpy( ram_loc, cart_loc, MAX_DIRENT_SIZE );
 }
 
 /* File lookup*/
@@ -109,14 +105,14 @@ static inline uint32_t get_size(directory_entry_t *dirent)
 }
 
 /* Functions for easier traversal of directories */
-static inline directory_entry_t *get_first_entry(directory_entry_t *dirent)
+static inline uint8_t *get_first_entry(directory_entry_t *dirent)
 {
-    return (directory_entry_t *)(dirent->file_pointer ? (SWAPLONG(dirent->file_pointer) + base_ptr) : 0);
+    return (dirent->file_pointer ? (SWAPLONG(dirent->file_pointer) + base_ptr) : 0);
 }
 
-static inline directory_entry_t *get_next_entry(directory_entry_t *dirent)
+static inline uint8_t *get_next_entry(directory_entry_t *dirent)
 {
-    return (directory_entry_t *)(dirent->next_entry ? (SWAPLONG(dirent->next_entry) + base_ptr) : 0);
+    return (dirent->next_entry ? (SWAPLONG(dirent->next_entry) + base_ptr) : 0);
 }
 
 static inline uint8_t* get_file_location(uint32_t cart_start_loc, uint32_t loc)
@@ -130,7 +126,7 @@ static inline void clear_directory()
     directory_top = 0;
 }
 
-static inline void push_directory(directory_entry_t *dirent)
+static inline void push_directory(uint8_t *dirent)
 {
     if(directory_top < MAX_DIRECTORY_DEPTH)
     {
@@ -141,7 +137,7 @@ static inline void push_directory(directory_entry_t *dirent)
     }
 }
 
-static inline directory_entry_t *pop_directory()
+static inline uint8_t *pop_directory()
 {
     if(directory_top > 0)
     {
@@ -152,17 +148,17 @@ static inline directory_entry_t *pop_directory()
     }
 
     /* Just return the root pointer */
-    return (directory_entry_t *)(base_ptr + SECTOR_SIZE);
+    return (base_ptr + ID_DIRENT_SIZE);
 }
 
-static inline directory_entry_t *peek_directory()
+static inline uint8_t *peek_directory()
 {
     if(directory_top > 0)
     {
         return directories[directory_top-1];
     }
 
-    return (directory_entry_t *)(base_ptr + SECTOR_SIZE);
+    return (base_ptr + ID_DIRENT_SIZE);
 }
 
 /* Parse out the next token in a path delimited by '\' */
@@ -257,23 +253,23 @@ static char *get_next_token(char *path, char *token)
 }
 
 /* Find a directory node in the current path given a name */
-static directory_entry_t *find_dirent(char *name, directory_entry_t *cur_node)
+static uint8_t *find_dirent(char *name, uint8_t *cur_node)
 {
     while(cur_node)
     {
         /* Fetch sector off of 'disk' */
-        directory_entry_t node;
-        grab_sector(cur_node, &node);
+        directory_entry_t* node = alloca(MAX_DIRENT_SIZE);
+        grab_sector(cur_node, node);
 
         /* Do a string comparison on the filename */
-        if(strcmp(node.path, name) == 0)
+        if(strcmp(node->path, name) == 0)
         {
             /* We have a match! */
             return cur_node;
         }
 
         /* Follow linked list */
-        cur_node = get_next_entry(&node);
+        cur_node = get_next_entry(node);
     }
 
     /* Couldn't find entry */
@@ -293,7 +289,7 @@ static directory_entry_t *find_dirent(char *name, directory_entry_t *cur_node)
  
    The type specifier allows a person to specify that only a directory or file
    should be returned.  This works for WALK_OPEN only. */
-static int recurse_path(const char * const path, int mode, directory_entry_t **dirent, int type)
+static int recurse_path(const char * const path, int mode, uint8_t **dirent, int type)
 {
     int ret = DFS_ESUCCESS;
     char token[MAX_FILENAME_LEN+1];
@@ -341,20 +337,20 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
         else
         {
             /* Find directory entry, push */
-            directory_entry_t *tmp_node = find_dirent(token, peek_directory());
+            uint8_t *tmp_node = find_dirent(token, peek_directory());
 
             if(tmp_node)
             {
                 /* Grab node, make sure it is a directory, push subdirectory, try again! */
-                directory_entry_t node;
-                grab_sector(tmp_node, &node);
+                directory_entry_t* node = alloca(MAX_DIRENT_SIZE);
+                grab_sector(tmp_node, node);
 
-                uint32_t flags = get_flags(&node);
+                uint32_t flags = get_flags(node);
 
                 if(FILETYPE(flags) == FLAGS_DIR)
                 {
                     /* Push subdirectory onto stack and loop */
-                    push_directory(get_first_entry(&node));
+                    push_directory(get_first_entry(node));
                     last_type = TYPE_DIR;
                 }
                 else
@@ -424,10 +420,10 @@ int dfs_init_pc(void *base_fs_loc, int tries)
     /* Check to see if it passes the check */
     while(tries != 0)
     {
-        directory_entry_t id_node;
-        grab_sector(base_fs_loc, &id_node);
+        directory_entry_t *id_node = alloca(MAX_DIRENT_SIZE);
+        grab_sector(base_fs_loc, id_node);
 
-        if(SWAPLONG(id_node.flags) == ROOT_FLAGS && !strcmp(id_node.path, ROOT_PATH))
+        if(SWAPLONG(id_node->flags) == ROOT_FLAGS && !strcmp(id_node->path, ROOT_PATH))
         {
             /* Passes, set up the FS */
             base_ptr = base_fs_loc;
@@ -467,7 +463,7 @@ int dfs_chdir(const char * const path)
    name into buf. */
 int dumpdfs_dir_findfirst(const char * const path, char *buf)
 {
-    directory_entry_t *dirent;
+    uint8_t *dirent;
     int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_DIR);
 
     /* Ensure that if this fails, they can't call findnext */
@@ -480,18 +476,18 @@ int dumpdfs_dir_findfirst(const char * const path, char *buf)
     }
 
     /* We now have the pointer to the first entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
+    directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(dirent, t_node);
 
     if(buf)
     {
-        strcpy(buf, t_node.path);    
+        strcpy(buf, t_node->path);    
     }
     
     /* Set up directory to point to next entry */
-    next_entry = get_next_entry(&t_node);
+    next_entry = get_next_entry(t_node);
 
-    return get_flags(&t_node);
+    return get_flags(t_node);
 }
 
 /* Find the next file or directory in a directory listing.  Should be called
@@ -505,18 +501,18 @@ int dumpdfs_dir_findnext(char *buf)
     }
 
     /* We already calculated the pointer, just grab the information */
-    directory_entry_t t_node;
-    grab_sector(next_entry, &t_node);
+    directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(next_entry, t_node);
 
     if(buf)
     {
-        strcpy(buf, t_node.path);    
+        strcpy(buf, t_node->path);    
     }
     
     /* Set up directory to point to next entry */
-    next_entry = get_next_entry(&t_node);
+    next_entry = get_next_entry(t_node);
 
-    return get_flags(&t_node);
+    return get_flags(t_node);
 }
 
 /* Check if we have any free file handles, and if we do, try
@@ -536,7 +532,7 @@ int dfs_open(const char * const path)
     }
 
     /* Try to find file */
-    directory_entry_t *dirent;
+    uint8_t *dirent;
     int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
 
     if(ret != DFS_ESUCCESS)
@@ -546,14 +542,14 @@ int dfs_open(const char * const path)
     }
 
     /* We now have the pointer to the file entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
+    directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(dirent, t_node);
 
     /* Set up file handle */
     file->handle = next_handle++;
-    file->size = get_size(&t_node);
+    file->size = get_size(t_node);
     file->loc = 0;
-    file->cart_start_loc = t_node.file_pointer;
+    file->cart_start_loc = t_node->file_pointer;
 
     return file->handle;
 }
@@ -750,7 +746,7 @@ void list_dir( char *directory, int depth )
 
         if( FILETYPE( dir ) == FLAGS_DIR )
         {
-            struct directory_entry *e = next_entry;
+            uint8_t *e = next_entry;
             list_dir( full_path, depth + 2 );
             next_entry = e;
         }
@@ -779,6 +775,11 @@ int main( int argc, char *argv[] )
         return -1;
     }
 
+    directory_entry_t* root_dirent = alloca(MAX_DIRENT_SIZE);
+    memset(root_dirent, 0, MAX_DIRENT_SIZE);
+    root_dirent->flags = SWAPLONG(ROOT_FLAGS);
+    strcpy(root_dirent->path, ROOT_PATH);
+
     switch( argv[1][1] )
     {
         case 'h':
@@ -803,13 +804,13 @@ int main( int argc, char *argv[] )
             int offset = 0;
             if (!strstr(argv[2], ".dfs"))
             {
-                void *fs = memmem(filesystem, lSize, ((uint8_t *)&root_dirent)+4, sizeof(root_dirent)-8); //Exclude ROOT_NEXT_ENTRY and root file_pointer
+                void *fs = memmem(filesystem, lSize, ROOT_PATH, strlen(ROOT_PATH));
                 if (!fs)
                 {
                     fprintf(stderr, "cannot find DragonFS in ROM\n");
                     return -1;
                 }
-                offset = (fs - filesystem) - 4;
+                offset = (fs - filesystem) - offsetof(directory_entry_t, path);
             }
 
             if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)
@@ -846,13 +847,13 @@ int main( int argc, char *argv[] )
             int offset = 0;
             if (!strstr(argv[2], ".dfs"))
             {
-                void *fs = memmem(filesystem, lSize, ((uint8_t *)&root_dirent)+4, sizeof(root_dirent)-8); //Exclude ROOT_NEXT_ENTRY and root file_pointer
+                void *fs = memmem(filesystem, lSize, ROOT_PATH, strlen(ROOT_PATH));
                 if (!fs)
                 {
                     fprintf(stderr, "cannot find DragonFS in ROM\n");
                     return -1;
                 }
-                offset = (fs - filesystem) - 4;
+                offset = (fs - filesystem) - offsetof(directory_entry_t, path);
             }
 
             if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)

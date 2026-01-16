@@ -10,6 +10,7 @@
 #include "interrupt.h"
 #include "n64sys.h"
 #include "utils.h"
+#include "debug.h"
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
@@ -234,12 +235,14 @@ void audio_init(const int frequency, int numbuffers)
     _num_buf = (numbuffers > 1) ? numbuffers : NUM_BUFFERS;
     buffers = malloc(_num_buf * sizeof(short *));
     buffers_orig = malloc(_num_buf * sizeof(short *));
+    assertf(buffers && buffers_orig, "Out of memory");
 
     for(int i = 0; i < _num_buf; i++)
     {
         /* Stereo buffers, interleaved, plus 8 bytes of padding */
         buffers_orig[i] = buffers[i] =
             malloc_uncached(sizeof(short) * 2 * _buf_size + 8);
+        assertf(buffers[i], "Out of memory");
 
         /* Workaround AI DMA hardware bug. If a buffer ends exactly
          * at a 0x2000 address boundary, AI DMA gets confused because

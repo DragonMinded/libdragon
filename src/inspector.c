@@ -7,6 +7,7 @@
 #include "vi_internal.h"
 #include "display.h"
 #include "debug.h"
+#include "surface.h"
 #include "joypad.h"
 #include "rompak_internal.h"
 #include "joybus/joypad_internal.h"
@@ -90,7 +91,7 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 	static const char *ops[64] = { 
 		"s", "r", "jj", "jjal", "bbeq", "bbne", "bblez", "bbgtz",
 		"iaddi", "iaddiu", "islti", "isltiu", "iandi", "iori", "ixori", "klui",
-		"ccop0", "fcop1", "ccop2", "ccop3", "bbeql", "bbnel", "bblezl", "bbgtzl",
+		"qcop0", "fcop1", "ccop2", "ccop3", "bbeql", "bbnel", "bblezl", "bbgtzl",
 		"idaddi", "idaddiu", "mldl", "mldr", "*", "*", "*", "*",
 		"mlb", "mlh", "mlwl", "mlw", "mlbu", "mlhu", "mlwr", "mlwu",
 		"msb", "msh", "mswl", "msw", "msdl", "msdr", "mswr", "*",
@@ -100,7 +101,7 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 	static const char *special[64]= {
 		"esll", "*", "esrl", "esra", "rsllv", "*", "rsrlv", "rsrav",
 		"wjr", "wjalr", "*", "*", "asyscall", "abreak", "*", "_sync",
-		"cmfhi", "cmthi", "cmflo", "cmtlo", "rdsslv", "*", "rdsrlv", "rdsrav",
+		"cmfhi", "wmthi", "cmflo", "wmtlo", "rdsslv", "*", "rdsrlv", "rdsrav",
 		"hmult", "hmultu", "hdiv", "hdivu", "hdmult", "hdmultu", "hddiv", "hddivu", 
 		"radd", "raddu", "rsub", "rsubu", "rand", "ror", "rxor", "rnor", 
 		"*", "*", "rslt", "rsltu", "rdadd", "rdaddu", "rdsub", "rdsubu", 
@@ -116,6 +117,12 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
 		"*", "*", "*", "*", "*", "*", "*", "*", 
 		"hc.f", "hc.un", "hc.eq", "hc.ueq", "hc.olt", "hc.ult", "hc.ole", "hc.ule", 
 		"hc.sf", "hc.ngle", "hc.seq", "hc.ngl", "hc.lt", "hc.nge", "hc.le", "hc.ngt", 
+    };
+    static const char *cop0_regname[32] = {
+        "Index", "Random", "EntryLo0", "EntryLo1", "Context", "PageMask", "Wired", "Reserved7",
+        "BadVAddr", "Count", "EntryHi", "Compare", "Status", "Cause", "EPC", "PRId",
+        "Config", "LLAddr", "WatchLo", "WatchHi", "XContext", "Reserved21", "Reserved22", "Reserved23",
+        "Reserved24", "Reserved25", "ParityErr", "CacheErr", "TagLo", "TagHi", "ErrorEPC", "Reserved31"
     };
 
 	char symbuf[64];
@@ -159,7 +166,28 @@ static void mips_disasm(uint32_t *ptr, char *out, int n) {
                 rd = __mips_fpreg[(op >> 6) & 0x1F];
                 break;
         }
+	} else if (*opn == 'q') { // cop0
+        if (((op >> 25) & 1) == 0) {
+            uint32_t sub = (op >> 21) & 0xF;
+            switch (sub) {
+                case 0: opn = "hmfc0"; break;
+                case 1: opn = "hdmfc0"; break;
+                case 4: opn = "hmtc0"; break;
+                case 5: opn = "hdmtc0"; break;
+            }
+            rs = __mips_gpr[(op >> 16) & 0x1F];
+            rt = cop0_regname[(op >> 11) & 0x1F];
+        } else {
+            switch (op & 0x3F) {
+                case 1: opn = "ztlbr"; break;
+                case 2: opn = "ztlbwi"; break;
+                case 6: opn = "ztlbwr"; break;
+                case 8: opn = "ztlbp"; break;
+                case 24: opn = "zeret"; break;
+            }
+        }
     }
+
 	switch (*opn) {
 	/* op tgt26 */        case 'j': snprintf(out, n, "%08lx: \aG%-9s \aY%08lx <%s>", pc, opn+1, tgt26, __symbolize((void*)tgt26, symbuf, sizeof(symbuf))); break;
 	/* op rt, rs, imm */  case 'i': snprintf(out, n, "%08lx: \aG%-9s \aY%s, %s, %d", pc, opn+1, rt, rs, (int16_t)op); break;
@@ -325,7 +353,7 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, joypad_bu
         if (__kernel) {
             printf("\aWThread:\n    %s\n\n", kthread_current()->name);
         }
-        bt_skip = 2;
+        bt_skip = 4;
         break;
     }
     case MODE_CPP_EXCEPTION: {
@@ -597,9 +625,34 @@ static void inspector(exception_t* ex, enum Mode mode) {
         *MI_MASK = MI_WMASK_CLR_DP | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI;
     }
 
+    // Call vi_write_end_forced in case we crashed within vi_begin() block,
+    // otherwise all VI register changes would not be applied.
     vi_write_end_forced();
+
+    // Close display if it was open. This is useful mainly to free the framebuffers
+    // and hopefully be able to allocate the inspector's framebuffers even in
+    // low memory conditions.
 	display_close();
-	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
+
+    // Reset the VI to default state, so that we don't inherit any weird
+    // configuration from the crashed program.
+    vi_reset();
+	
+    // Try to allocate two framebuffers. We might be out of memory though,
+    // so be happy with a single framebuffer if that fails.
+    int fbidx = 0;
+    surface_t fb[2] = {0};
+    fb[0] = surface_alloc(FMT_RGBA16, 640, 240);
+    if (fb[0].buffer != NULL) {
+        fb[1] = surface_alloc(FMT_RGBA16, 640, 240);
+    } else {
+        // If we couldn't allocate any framebuffer, try to use the memory at
+        // the end of RAM. There's no guarantee this won't corrupt the inspector,
+        // but at least we try something.
+        int mem_size = get_memory_size();
+        void *end_mem = (void*)(0x80000000 + mem_size);
+        fb[0] = surface_make_linear(end_mem - 64*1024 - 640*240*2, FMT_RGBA16, 640, 240);
+    }
 
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
@@ -625,7 +678,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
             page--;
             if (page < 0) page = page_count - 1;
         }
-		disp = display_get();
+		disp = &fb[fbidx];
 
         // Clear the screen, initialize printf cursor position
         cursor_x = XTITLE;
@@ -654,8 +707,11 @@ static void inspector(exception_t* ex, enum Mode mode) {
         fflush(stdout);
 
         // Show the screen
-		display_show(disp);
+		vi_show(disp);
         vi_wait_vblank();
+        if (fb[1].buffer != NULL) {
+            fbidx ^= 1;
+        }
 
         // If we drew the first frame, we skipped the backtrace to make sure at least
         // basic crash information is shown in case the backtrace crashes.

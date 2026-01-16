@@ -48,6 +48,7 @@ $(BUILD_DIR)/$(TARGET).dfs: $(assets_conv)
 $(BUILD_DIR)/$(TARGET).elf: $(src:%.c=$(BUILD_DIR)/%.o)
 
 $(TARGET).z64: N64_ROM_TITLE="N64brew GameJam 4"
+$(TARGET).z64: N64_ROM_METADATA=metadata/metadata.ini
 $(TARGET).z64: $(BUILD_DIR)/$(TARGET).dfs 
 
 clean:

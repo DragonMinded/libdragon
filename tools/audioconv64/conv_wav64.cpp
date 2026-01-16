@@ -16,14 +16,16 @@
 #include <vector>
 #include <array>
 #include <algorithm>
+#include <time.h>
+#include <unordered_set>
 #include "../../src/audio/wav64_internal.h"
 #include "../common/binout.h"
 
 #define DR_WAV_IMPLEMENTATION
-#include "dr_wav.h"
+#include "../common/dr_wav.h"
 
 #define DR_MP3_IMPLEMENTATION
-#include "dr_mp3.h"
+#include "../common/dr_mp3.h"
 
 #include "libvadpcm.h"
 #include "libsamplerate.h"
@@ -38,7 +40,8 @@ int flag_wav_compress = 1;
 int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
 int flag_wav_resample = 0;
-std::vector<int> flag_wav_seek_offset;
+double flag_wav_seek_interval_sec = 0.0;
+const char *flag_wav_seek_file = NULL;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
 
@@ -71,26 +74,24 @@ static bool read_wav(const char *infn, wav_data_t *out)
 			if (smpl->sampleLoopCount > 0) {
 				// If we have multiple loops, we just take the first one.
 				drwav_smpl_loop* loop = &smpl->pLoops[0];
-				// NOTE: the offset appears to be in samples, not bytes.
-				// See also https://github.com/mackron/dr_libs/issues/267
 				out->looping = true;
-				out->loopOffset = loop->firstSampleByteOffset;
-				if (out->cnt > loop->lastSampleByteOffset+1)
-					out->cnt = loop->lastSampleByteOffset+1;
+				out->loopOffset = loop->firstSampleOffset;
+				if (out->cnt > loop->lastSampleOffset+1)
+					out->cnt = loop->lastSampleOffset+1;
 
 				switch (loop->type) {
 				case 0: // standard forward loop
 					if (flag_verbose)
-						fprintf(stderr, "  found forward loop [start=%d end=%d cnt=%d]\n", loop->firstSampleByteOffset,
-							loop->lastSampleByteOffset, out->cnt);
+						fprintf(stderr, "  found forward loop [start=%d end=%d cnt=%d]\n", loop->firstSampleOffset,
+							loop->lastSampleOffset, out->cnt);
 					break;
 				case 1: { // ping-pong loop
 					if (flag_verbose)
-						fprintf(stderr, "  found ping-pong loop [start=%d end=%d cnt=%d]\n", loop->firstSampleByteOffset,
-							loop->lastSampleByteOffset, out->cnt);
+						fprintf(stderr, "  found ping-pong loop [start=%d end=%d cnt=%d]\n", loop->firstSampleOffset,
+							loop->lastSampleOffset, out->cnt);
 					// Unroll the ping-pong loop in the buffer.
-					int last_offset = loop->lastSampleByteOffset / (wav.bitsPerSample / 8);
-					int first_offset = loop->firstSampleByteOffset / (wav.bitsPerSample / 8);
+					int last_offset = loop->lastSampleOffset;
+					int first_offset = loop->firstSampleOffset;
 					int loop_len = last_offset - first_offset + 1;
 					int16_t* new_samples = (int16_t*)malloc((out->cnt + loop_len) * out->channels * sizeof(int16_t));
 					memcpy(new_samples, samples, out->cnt * out->channels * sizeof(int16_t));
@@ -107,6 +108,18 @@ static bool read_wav(const char *infn, wav_data_t *out)
 				default:
 					fprintf(stderr, "WARNING: %s: loop type %d not supported\n", infn, loop->type);
 					break;
+				}
+			}
+		}
+
+		// If we find cue points, interpret them as "seek points" (skip points) used during compression.
+		// This is more semantically correct than abusing SMPL loops for markers.
+		if (wav.pMetadata[i].type == drwav_metadata_type_cue) {
+			drwav_cue *cue = &wav.pMetadata[i].data.cue;
+			if (cue->cuePointCount > 0 && cue->pCuePoints) {
+				for (drwav_uint32 j = 0; j < cue->cuePointCount; j++) {
+					drwav_uint32 off = cue->pCuePoints[j].sampleOffset;
+					if (off > 0) out->skipPoints.push_back((int)off);
 				}
 			}
 		}
@@ -137,6 +150,25 @@ static size_t read_mp3(const char *infn, wav_data_t *out)
 	out->sampleRate = mp3.sampleRate;
 	drmp3_uninit(&mp3);
 	return true;
+}
+
+static int64_t now_ms(void) {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (int64_t)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+static void resample_progress_print(int64_t bytes_done, int64_t bytes_total, int64_t *last_print_ms, double *last_pct) {
+	if (!flag_verbose) return;
+	int64_t now = now_ms();
+	// Print at most once every 2 seconds, but always print the final 100%.
+	const bool is_done = (bytes_total > 0 && bytes_done >= bytes_total);
+	if (!is_done && *last_print_ms && (now - *last_print_ms) < 1000) return;
+	double pct = (bytes_total > 0) ? (double)bytes_done * 100.0 / (double)bytes_total : 0.0;
+	if (pct > 100.0) pct = 100.0;
+	*last_print_ms = now;
+	*last_pct = pct;
+	fprintf(stderr, "Resampling: %lld bytes (%.1f%%)\n", (long long)bytes_done, pct);
 }
 
 /**
@@ -212,7 +244,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	}
 
 	fwrite("WV64", 1, 4, out);
-	w8(out, 4); 				 			// version
+	w8(out, 6); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
 	w8(out, wav->bitsPerSample);			// bits
@@ -303,13 +335,24 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				schan[j] = wav->samples[i + j*wav->channels];
 			vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
 			if (!skip_points.empty()) {
-				for (int j=0; j<skip_points.size(); j++) {
-					// Decode the whole buffer until the loop point to get the state
-					// at the beginning of the loop.
-					// FIXME: optimize by avoiding to redecode the whole buffer from scratch for each skip point
-					vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
-						codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
-						&skip_state[j][i], skip_points[j] / kVADPCMFrameSampleCount, schan, destchan);
+				// Compute decoder states at all skip points in a single forward pass.
+				// We need the state at the *beginning* of the target VADPCM frame N,
+				// which corresponds to the state after decoding frames [0..N).
+				struct vadpcm_vector st = {0};
+				int cur_frame = 0;
+				for (int j=0; j<(int)skip_points.size(); j++) {
+					const int target_frame = skip_points[j] / kVADPCMFrameSampleCount;
+					const int run_frames = target_frame - cur_frame;
+					if (run_frames > 0) {
+						vadpcm_error err = vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
+							codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
+							&st, (size_t)run_frames, schan,
+							destchan + (size_t)cur_frame * kVADPCMFrameByteSize);
+						assert(err == kVADPCMErrNone);
+					}
+
+					skip_state[j][i] = st;
+					cur_frame = target_frame;
 				}
 			}
 
@@ -341,14 +384,21 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			std::vector<uint8_t> scratch(dest_size);
 			HuffLookup tbl[HUFF_CONTEXTS];
 			huffv_decompress_init(ctxbuf, HUFF_CONTEXT_LEN, tbl);
-			int bitpos = huffv_decompress(compbuf, compbuflen, tbl, &scratch[0], dest_size);
+			std::vector<int> bitpos_stats;
+			if (!skip_points.empty())
+				bitpos_stats.resize(dest_size / kVADPCMFrameByteSize + 1);
+
+			int bitpos = huffv_decompress(compbuf, compbuflen, tbl, &scratch[0], dest_size,
+				bitpos_stats.empty() ? NULL : bitpos_stats.data());
 			assert((bitpos+7)/8 == compbuflen);
 			assert(memcmp(&scratch[0], dest, dest_size) == 0);
 
-			// Compute bit offset for each skip point
+			// Compute bit offset for each skip point (O(1) lookup from full decode stats)
 			for (int i=0; i<skip_points.size(); i++) {
-				skip_bitpos[i] = huffv_decompress(compbuf, compbuflen, tbl,
-					&scratch[0], skip_points[i] / 16 * 9 * wav->channels);
+				int blocks = (skip_points[i] / kVADPCMFrameSampleCount) * wav->channels;
+				assert(blocks >= 0);
+				assert(blocks < (int)bitpos_stats.size());
+				skip_bitpos[i] = bitpos_stats[blocks];
 			}
 		}
 
@@ -359,10 +409,12 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		struct vadpcm_vector state = {0};
 		w8(out, kPREDICTORS);
 		w8(out, kVADPCMEncodeOrder);
-		w8(out, flags);
-		w8(out, skip_points.size());
+		w16(out, flags);
+		w16(out, skip_points.size());
+		w16(out, 0); // padding
 		w32(out, 0); // huff_tbl_ptr
 		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 : 0); // skip_points_ptr
+		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 + skip_points.size()*8 : 0); // skip_states_ptr
 		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);					 // Huffman context
 		w32(out, 0); // padding
 		for (int i=0; i<CODEBOOK_SIZE; i++)    // codebook
@@ -370,11 +422,14 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				w16(out, codebook[i].v[j]);
 		// Write the skip points
 		for (int i=0; i<skip_points.size(); i++) {
-			for (int k=0;k<2;k++) // always serialize two channels
+			w32(out, skip_points[i]);
+			w32(out, skip_bitpos[i]);
+		}
+		for (int i=0; i<skip_points.size(); i++) {
+			for (int k=0;k<wav->channels;k++) {
 				for (int j=0; j<8; j++)
 					w16(out, skip_state[i][k].v[j]);
-			w32(out, skip_bitpos[i]);
-			w32(out, skip_points[i]);
+			}
 		}
 
 		// Start of samples data
@@ -431,6 +486,10 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	} break;
 
 	case 3: { // opus
+		// Number of preroll frames to decode/discard after seeking, to allow
+		// the decoder to warm up and start producing valid output.
+		const uint16_t PREROLL_FRAMES = 2;
+
 		// Frame size: for now this is hardcoded to frames of 20ms, which is the
 		// maximum support by celt and also the best for quality.
 		// 48 Khz => 960 samples
@@ -460,12 +519,39 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		if (flag_verbose)
 			fprintf(stderr, "  opus bitrate: %d bps\n", bitrate_bps);
 
+		// Collect seek points (cue points) from the input file. No extra CLI options.
+		std::vector<int> seek_points = wav->skipPoints;
+		if (wav->looping) seek_points.push_back(wav->loopOffset);
+		std::sort(seek_points.begin(), seek_points.end());
+
 		// Write extended header
 		w32(out, frame_size);
-		uint32_t max_cmp_size_pos = w32_placeholder(out);  // max compressed frame size
+		w32_placeholderf(out, "%s/max_cmp_frame_size", outfn);  // max compressed frame size
 		w32(out, bitrate_bps);
 		w32(out, 0);				// custom mode pointer at runtime
-		placeholder_set_offset(out, ftell(out)-basepos, "%s/samples", outfn);
+		w16(out, PREROLL_FRAMES);
+		w16(out, (uint16_t)seek_points.size());
+		w32(out, 0);                // reserved / padding
+
+		// Write seek table with placeholders for file offsets (relative to samples start)
+		std::unordered_set<int> missing_frame_offsets;
+		for (size_t si = 0; si < seek_points.size(); si++) {
+			const int sp = seek_points[si];
+			const int frame_idx = sp / frame_size;
+			const int intra_skip = sp - frame_idx * frame_size;
+			int pre_idx = frame_idx - (int)PREROLL_FRAMES;
+			if (pre_idx < 0) pre_idx = 0;
+
+			w32(out, sp);
+			w32_placeholderf(out, "%s/frame_offset/%d", outfn, pre_idx); // file_offset_preroll (patched later)
+			w16(out, intra_skip);
+			w16(out, 0); // padding
+			missing_frame_offsets.insert(pre_idx);
+		}
+
+		// Start of samples data
+		long samples_start = ftell(out);
+		placeholder_set_offset(out, samples_start-basepos, "%s/samples", outfn);
 
 		// Ask the size of the decoder state to the opus library. This is computed on x86-64
 		// so it could be larger than on the N64, but it's a good approximation.
@@ -495,7 +581,18 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		int max_nb = 0;
 		int out_max_size = bitrate_bps/8; // overestimation
 		uint8_t *out_buffer = (uint8_t*)malloc(out_max_size);
+
+		// Compress frames and write them to the output file. While doing so,
+		// we patch the file offsets of the seek points to allow seeking to
+		// the correct frame.
+		int frame_idx = 0;
 		for (int i=0; i<newcnt; i+=frame_size) {
+			if (missing_frame_offsets.find(frame_idx) != missing_frame_offsets.end()) {
+				uint32_t cur_off = (uint32_t)(ftell(out) - samples_start);
+				placeholder_set_offset(out, cur_off, "%s/frame_offset/%d", outfn, frame_idx);
+				missing_frame_offsets.erase(missing_frame_offsets.find(frame_idx));
+			}
+
 			int nb = opus_custom_encode(enc, wav->samples + i*wav->channels, frame_size, out_buffer, out_max_size);
 			if (nb < 0) {
 				fprintf(stderr, "ERROR: %s: opus encoding failed: %s\n", infn, opus_strerror(nb));
@@ -508,9 +605,11 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			if (nb > max_nb)
 				max_nb = nb;
 			walign(out, 2);	// make sure frames are 2-byte aligned
+			frame_idx++;
 		}
 
-		w32_at(out, max_cmp_size_pos, max_nb); // write maxixum compressed frame size
+		// Save the maximum compressed frame size to the placeholder.
+		placeholder_set_offset(out, max_nb, "%s/max_cmp_frame_size", outfn);
 		
 		free(out_buffer);
 		opus_custom_encoder_destroy(enc);
@@ -622,7 +721,7 @@ int wav_convert(const char *infn, const char *outfn) {
 	int uncompressedSize;
 	if (flag_verbose)
 		fprintf(stderr, "  input: %d bits, %d Hz, %d channels\n", wav.bitsPerSample, wav.sampleRate, wav.channels);
-	uncompressedSize = wav.cnt * wav.channels * wav.bitsPerSample / 8;
+	uncompressedSize = (int64_t)wav.cnt * wav.channels * wav.bitsPerSample / 8;
 
 	// Apply command line flags if not provided by WAV itself
 	if (flag_wav_looping_offset > 0 && wav.loopOffset == 0)
@@ -655,6 +754,32 @@ int wav_convert(const char *infn, const char *outfn) {
 		wav.channels = 1;
 	}
 
+	// Load or generate seek points as requested. Do this now before optional
+	// resampleing, so that frame indices are interpreted using the original
+	// sample rate.
+	if (flag_wav_seek_file || flag_wav_seek_interval_sec > 0.0) {
+		std::vector<int> points;
+
+		// From explicit list (file-based --wav-seek)
+		if (flag_wav_seek_file) {
+			points = load_seek_frames_file(flag_wav_seek_file, (double)wav.sampleRate);
+		}
+
+		// From periodic interval (seconds)
+		if (flag_wav_seek_interval_sec > 0.0) {
+			int step = (int)llround(flag_wav_seek_interval_sec * (double)wav.sampleRate);
+			if (step <= 0) step = 1;
+			for (int sp = step; sp < wav.cnt; sp += step)
+				points.push_back(sp);
+		}
+
+		// Append, then normalize (remove <=0 and out-of-range, sort+unique).
+		for (int sp : points) {
+			if (sp > 0 && sp < wav.cnt)
+				wav.skipPoints.push_back(sp);
+		}
+	}
+
 	int wavResampleTo = flag_wav_resample;
 
 	// When compressing with opus, we need to resample to 32 Khz. Whatever value
@@ -685,15 +810,73 @@ int wav_convert(const char *infn, const char *outfn) {
 		int newcnt = (int64_t)wav.cnt * wavResampleTo / wav.sampleRate + 16;
 		float *fsamples_out = (float*)malloc(newcnt * wav.channels * sizeof(float));
 
-		// Do the conversion
-		SRC_DATA data{};
-		data.data_in = fsamples_in;
-		data.data_out = fsamples_out;
-		data.input_frames = wav.cnt;
-		data.output_frames = newcnt;
-		data.src_ratio = (double)wavResampleTo / wav.sampleRate;
+		// Don't use best quality for files longer than 15 seconds. It is
+		// extremely slow and it's not worth the time.
+		int converter = SRC_SINC_BEST_QUALITY;
+		if (wav.cnt > 15 * wav.sampleRate) {
+			if (flag_verbose)
+				fprintf(stderr, "  using medium quality resampling for long files\n");
+			converter = SRC_SINC_MEDIUM_QUALITY;
+		}
 
-		int err = src_simple(&data, SRC_SINC_BEST_QUALITY, wav.channels);
+		// Do the conversion in chunks so we can report progress.
+		int err = 0;
+		SRC_STATE *st = src_new(converter, wav.channels, &err);
+		if (!st || err != 0) {
+			fprintf(stderr, "ERROR: %s: resampling init failed: %s\n", infn, src_strerror(err));
+			free(fsamples_in);
+			free(fsamples_out);
+			free(wav.samples);
+			return 1;
+		}
+
+		const int64_t total_in_frames = wav.cnt;
+		const int64_t total_in_bytes = (int64_t)wav.cnt * wav.channels * sizeof(int16_t);
+		int64_t in_pos = 0;
+		int64_t out_pos = 0;
+		int64_t last_print_ms = 0;
+		double last_pct = -1.0;
+
+		while (in_pos < total_in_frames) {
+			const int64_t remaining_in = total_in_frames - in_pos;
+			const int64_t chunk_in = remaining_in > 4096 ? 4096 : remaining_in;
+
+			SRC_DATA d{};
+			d.data_in = fsamples_in + in_pos * wav.channels;
+			d.input_frames = (long)chunk_in;
+			d.data_out = fsamples_out + out_pos * wav.channels;
+			d.output_frames = (long)(newcnt - out_pos);
+			d.src_ratio = (double)wavResampleTo / (double)wav.sampleRate;
+			d.end_of_input = (in_pos + chunk_in == total_in_frames) ? 1 : 0;
+
+			err = src_process(st, &d);
+			if (err != 0) break;
+
+			in_pos += d.input_frames_used;
+			out_pos += d.output_frames_gen;
+
+			resample_progress_print(in_pos * wav.channels * (int64_t)sizeof(int16_t), total_in_bytes, &last_print_ms, &last_pct);
+			if (d.input_frames_used == 0 && d.output_frames_gen == 0) break;
+		}
+
+		// Flush.
+		for (;;) {
+			SRC_DATA d{};
+			d.data_in = NULL;
+			d.input_frames = 0;
+			d.data_out = fsamples_out + out_pos * wav.channels;
+			d.output_frames = (long)(newcnt - out_pos);
+			d.src_ratio = (double)wavResampleTo / (double)wav.sampleRate;
+			d.end_of_input = 1;
+			err = src_process(st, &d);
+			if (err != 0) break;
+			out_pos += d.output_frames_gen;
+			if (d.output_frames_gen == 0) break;
+		}
+
+		src_delete(st);
+		if (err == 0) resample_progress_print(total_in_bytes, total_in_bytes, &last_print_ms, &last_pct);
+
 		if (err != 0) {
 			fprintf(stderr, "ERROR: %s: resampling failed: %s\n", infn, src_strerror(err));
 			free(fsamples_in);
@@ -703,29 +886,26 @@ int wav_convert(const char *infn, const char *outfn) {
 		}
 
 		// Extract the number of samples generated, and convert back to 16-bit
-		wav.cnt = data.output_frames_gen;
+		wav.cnt = (int)out_pos;
 		wav.samples = (int16_t*)realloc(wav.samples, wav.cnt * wav.channels * sizeof(int16_t));
 		src_float_to_short_array(fsamples_out, wav.samples, wav.cnt * wav.channels);
 
 		free(fsamples_in);
 		free(fsamples_out);
 
+		// Update loop/seek points to the new sample rate
+		wav.loopOffset = (int)((int64_t)wav.loopOffset * wavResampleTo / wav.sampleRate);
+		for (size_t i = 0; i < wav.skipPoints.size(); i++) {
+			wav.skipPoints[i] = (int)((int64_t)wav.skipPoints[i] * wavResampleTo / wav.sampleRate);
+		}
+
 		// Update wav.sampleRate as it will be used later
 		wav.sampleRate = wavResampleTo;
-
-		// Update also the loop offset to the new sample rate
-		wav.loopOffset = wav.loopOffset * wavResampleTo / wav.sampleRate;
 	}
 
-	// Apply additional seek offsets specified on the command line.
-	if (flag_wav_seek_offset.size() > 0) {
-		if (flag_wav_compress != 0 && flag_wav_compress != 1) {
-			fprintf(stderr, "ERROR: %s: seek points are only supported for VADPCM files\n", infn);
-			free(wav.samples);
-			return 1;
-		}
-		wav.skipPoints = flag_wav_seek_offset;
-	}
+	// Normalize seek points array
+	std::sort(wav.skipPoints.begin(), wav.skipPoints.end());
+	wav.skipPoints.erase(std::unique(wav.skipPoints.begin(), wav.skipPoints.end()), wav.skipPoints.end());
 
 	FILE *out = fopen(outfn, "wb");
 	if (!out) {

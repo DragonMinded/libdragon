@@ -473,7 +473,7 @@ kthread_t* __kthread_new_internal(const char *name, int stack_size, int8_t pri, 
 	extra_size += sizeof(struct _reent);
 	#endif
 	void *thmem = malloc(STACK_GUARD + stack_size + sizeof(kthread_t) + extra_size);
-	assertf(thmem, "out of free memory");
+	assertf(thmem, "Out of memory");
 	kthread_t *th = thmem + STACK_GUARD + stack_size;
 	void *extra = thmem + STACK_GUARD + stack_size + sizeof(kthread_t);
 
