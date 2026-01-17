@@ -25,18 +25,16 @@ int main(void) {
 	// let user increase it.
 	mixer_ch_set_limits(CHANNEL_MUSIC, 0, 128000, 0);
 
-	wav64_t sfx_cannon, sfx_laser, sfx_monosample;
-
-	wav64_open(&sfx_cannon, "rom:/cannon.wav64");
+	wav64_t *sfx_cannon = wav64_load("rom:/cannon.wav64", NULL);
 	
-	wav64_open(&sfx_laser, "rom:/laser.wav64");
-	wav64_set_loop(&sfx_laser, true);
+	wav64_t *sfx_laser = wav64_load("rom:/laser.wav64", NULL);
+	wav64_set_loop(sfx_laser, true);
 
-	wav64_open(&sfx_monosample, "rom:/monosample8.wav64");
-	wav64_set_loop(&sfx_monosample, true);
+	wav64_t *sfx_monosample = wav64_load("rom:/monosample8.wav64", NULL);
+	wav64_set_loop(sfx_monosample, true);
 
 	bool music = false;
-	int music_frequency = sfx_monosample.wave.frequency;
+	int music_frequency = sfx_monosample->wave.frequency;
 
 	while (1) {
 		display_context_t disp = display_get();
@@ -54,17 +52,17 @@ int main(void) {
 		joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
 		if (ckeys.a) {
-			wav64_play(&sfx_cannon, CHANNEL_SFX1);
+			wav64_play(sfx_cannon, CHANNEL_SFX1);
 		}
 		if (ckeys.b) {
-			wav64_play(&sfx_laser, CHANNEL_SFX2);
+			wav64_play(sfx_laser, CHANNEL_SFX2);
 			mixer_ch_set_vol(CHANNEL_SFX2, 0.25f, 0.25f);
 		}
 		if (ckeys.z) {
 			music = !music;
 			if (music) {
-				wav64_play(&sfx_monosample, CHANNEL_MUSIC);
-				music_frequency = sfx_monosample.wave.frequency;
+				wav64_play(sfx_monosample, CHANNEL_MUSIC);
+				music_frequency = sfx_monosample->wave.frequency;
 			}
 			else
 				mixer_ch_stop(CHANNEL_MUSIC);
