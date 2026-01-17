@@ -603,6 +603,12 @@ static int __dfs_findfirst(const char * const path, char *buf, pi_addr_t *next_e
         return ret;
     }
 
+    if(!dirent)
+    {
+        /* Directory exists but has no entries */
+        return FLAGS_EOF;
+    }
+
     /* We now have the pointer to the first entry */
     directory_entry_t* t_node = alloca(MAX_DIRENT_SIZE);
     grab_sector(dirent, t_node);
