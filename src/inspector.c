@@ -353,7 +353,7 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, joypad_bu
         if (__kernel) {
             printf("\aWThread:\n    %s\n\n", kthread_current()->name);
         }
-        bt_skip = 4;
+        bt_skip = 2;
         break;
     }
     case MODE_CPP_EXCEPTION: {
