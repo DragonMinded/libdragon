@@ -196,6 +196,36 @@ static int test_visit_functionality(hashtable_t *h) {
     return 0;
 }
 
+static int test_tombstone_full(hashtable_t *h) {
+    printf("[TEST] Tombstone full...\n");
+    hashtable_t ht;
+    hashtable_init(&ht, 4, NULL);
+
+    hashtable_insert(&ht, 1, (void*)123);
+    hashtable_remove(&ht, 1);
+    hashtable_insert(&ht, 1, (void*)123);
+
+    hashtable_insert(&ht, 2, (void*)234);
+    hashtable_remove(&ht, 2);
+    hashtable_insert(&ht, 2, (void*)234);
+
+    hashtable_insert(&ht, 3, (void*)345);
+    hashtable_remove(&ht, 3);
+    hashtable_insert(&ht, 3, (void*)345);
+
+    hashtable_insert(&ht, 4, (void*)456);
+    hashtable_remove(&ht, 4);
+    hashtable_insert(&ht, 4, (void*)456);
+
+    if (ht.size != 4) {
+        printf("[ERROR] Expected size 4, but got %zu\n", ht.size);
+        return 1;
+    }
+
+    hashtable_free(&ht);
+    return 0;
+}
+
 int main(void) {
     srand((unsigned)time(NULL));
     hashtable_t h;
@@ -207,6 +237,7 @@ int main(void) {
     if (test_resize_stress(&h) != 0) return 1;
     if (test_random_stress(&h) != 0) return 1;
     if (test_visit_functionality(&h) != 0) return 1;
+    if (test_tombstone_full(&h) != 0) return 1;
 
     printf("[TEST] ALL TESTS PASSED. Final size=%zu\n", h.size);
     hashtable_free(&h);

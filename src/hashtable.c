@@ -50,6 +50,9 @@ static uint32_t* hashtable_lookup_slot(hashtable_t *h, uint32_t k) {
         if (*kk == EMPTY_KEY) return tomb_key ? tomb_key : kk;
     }
     
+    // If no EMPTY_KEY was found but we saw a tombstone, reuse it.
+    if (tomb_key) return tomb_key;
+
     // Should never reach here if load factor is kept reasonable
     assert(0 && "hashtable full");
     return NULL;
