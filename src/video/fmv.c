@@ -110,8 +110,9 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         abort = true;
     }
     int ctrl_seek_frame(fmv_control_t *ctrl, int idx, bool exact) {
-        frame_idx = video_seek(video, idx);
-        if (frame_idx < 0) return -1;  // seeking not supported
+        int new_idx = video_seek(video, idx);
+        if (new_idx < 0) return -1;  // seeking not supported
+        frame_idx = new_idx;
         if (exact) {
             // Decode frames until we reach the exact frame
             while (frame_idx < idx) {
