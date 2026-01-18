@@ -24,13 +24,21 @@ $(BUILD_DIR)/videoplayer.dfs: $(DFS_FILES)
 filesystem/caminandes.m1v: $(MOVIE_FILE)
 	@mkdir -p "$(dir $@)"
 	@echo "    [VIDEO] $@"
-	$(N64_VIDEOCONV) -o filesystem --codec mpeg1 --quality 70 --quick --seek 5 "$<"
+	if [ -s "$<" ]; then \
+		$(N64_VIDEOCONV) -o filesystem --codec mpeg1 --quality 70 --quick --seek 5 "$<"; \
+	else \
+		echo "videoplayer: Skipping video re-encoding because the sample movie is missing" ; \
+	fi
 
 # Re-encode the movie's video stream if ffmpeg is available
 filesystem/caminandes.h264: $(MOVIE_FILE)
 	@mkdir -p "$(dir $@)"
 	@echo "    [VIDEO] $@"
-	$(N64_VIDEOCONV) -o filesystem --codec h264 --quality 70 --quick --seek 5 "$<"
+	if [ -s "$<" ]; then \
+		$(N64_VIDEOCONV) -o filesystem --codec h264 --quality 70 --quick --seek 5 "$<"; \
+	else \
+		echo "videoplayer: Skipping video re-encoding because the sample movie is missing" ; \
+	fi
 
 
 # Download the movie file if wget or curl is available and it isn't already downloaded
