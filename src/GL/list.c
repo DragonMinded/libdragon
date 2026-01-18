@@ -26,7 +26,7 @@ void list_free(rspq_block_t *block)
 
 void gl_list_init()
 {
-    hashtable_init(&state->lists, 4, NULL);
+    hashtable_init(&state->lists, 8, NULL);
     state->next_list_name = 1;
 }
 
