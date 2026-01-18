@@ -50,7 +50,7 @@ int main(void)
 
 	// Check if the movie is present in the filesystem, so that we can provide
 	// a specific error message.
-	FILE *f = fopen("rom:/movie.h264", "rb");
+	FILE *f = fopen("rom:/caminandes.h264", "rb");
 	assertf(f, "Movie not found!\nInstall wget and ffmpeg to download and encode the sample movie\n");
 	fclose(f);
 
@@ -87,7 +87,7 @@ int main(void)
 		profile_next_frame();
 	}
 
-	fmv_play("rom:/movie.h264", &(fmv_parms_t){
-		.osd_callback = osd_callback
+	fmv_play("rom:/caminandes.h264", &(fmv_parms_t){
+		.osd_callback = osd_callback,
 	});
 }
