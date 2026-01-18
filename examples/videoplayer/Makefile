@@ -25,9 +25,15 @@ filesystem/caminandes.m1v: $(MOVIE_FILE)
 	@mkdir -p "$(dir $@)"
 	@echo "    [VIDEO] $@"
 	if [ -s "$<" ]; then \
-		$(N64_VIDEOCONV) -o filesystem --codec mpeg1 --quality 70 --quick --seek 5 "$<"; \
+		if command -v ffmpeg >/dev/null; then \
+			$(N64_VIDEOCONV) -o filesystem --codec mpeg1 --quality 70 --quick --seek 5 "$<"; \
+		else \
+			echo "videoplayer: Skipping video re-encoding because ffmpeg is not installed" ; \
+			touch "$@" ; \
+		fi ; \
 	else \
 		echo "videoplayer: Skipping video re-encoding because the sample movie is missing" ; \
+		touch "$@" ; \
 	fi
 
 # Re-encode the movie's video stream if ffmpeg is available
@@ -35,9 +41,15 @@ filesystem/caminandes.h264: $(MOVIE_FILE)
 	@mkdir -p "$(dir $@)"
 	@echo "    [VIDEO] $@"
 	if [ -s "$<" ]; then \
-		$(N64_VIDEOCONV) -o filesystem --codec h264 --quality 70 --quick --seek 5 "$<"; \
+		if command -v ffmpeg >/dev/null; then \
+			$(N64_VIDEOCONV) -o filesystem --codec h264 --quality 70 --quick --seek 5 "$<"; \
+		else \
+			echo "videoplayer: Skipping video re-encoding because ffmpeg is not installed" ; \
+			touch "$@" ; \
+		fi ; \
 	else \
 		echo "videoplayer: Skipping video re-encoding because the sample movie is missing" ; \
+		touch "$@" ; \
 	fi
 
 
