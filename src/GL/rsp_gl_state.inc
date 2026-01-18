@@ -4,7 +4,7 @@ GL_STATE:
         GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
         GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
         GL_MATRIX_PALETTE:      .ds.b   MATRIX_SIZE
-    GL_LIGHTS:              .ds.b   MGFX_LIGHT_SIZE * LIGHT_COUNT
+    GL_LIGHTS:              .ds.b   GLP_LIGHT_SIZE * LIGHT_COUNT
     GL_TEX_GEN:             .ds.b   TEX_GEN_STRUCT_SIZE
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0

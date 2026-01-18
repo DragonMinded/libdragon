@@ -1,5 +1,4 @@
 #include "../../include/magma_constants.h"
-#include "../../include/mgfx_constants.h"
 #include "gl_constants.h"
 #include "../../include/GL/gl_enums.h"
 
@@ -48,7 +47,7 @@ temp_state {
     s16 TEXTURING_SCALE[2];
     s16 TEXTURING_OFFSET[2];
 
-    u8 LIGHTING_LIGHTS[MGFX_LIGHT_SIZE][MGFX_LIGHT_COUNT_MAX];
+    u8 LIGHTING_LIGHTS[GLP_LIGHT_SIZE][LIGHT_COUNT];
     s16 LIGHTING_AMBIENT[3];
     u8 LIGHTING_HAS_POINTS;
     u8 LIGHTING_COUNT;
@@ -339,23 +338,31 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
                     vec16 light_position = load(light_ptr, 0).xyzw;
                     vec16 light_color = load(light_ptr, 8).xyzw;
 
+                    u16 att_ptr = light_ptr + GLP_LIGHT_ATT_INT;
+                    vec16 attenuation;
+                    attenuation = load(att_ptr).xyzw;
+                    attenuation.XY = load(att_ptr).XY;
+
                     if (color_constant != 0) {
                         light_color = light_color:sfract * color:sfract;
-                        light_color.w = load(light_ptr, 14).x;
                     }
 
                     store(light_position.xyzw, out_ptr, 0);
                     store(light_color.xyzw, out_ptr, 8);
 
-                    s16 w = load(light_ptr, MGFX_LIGHT_POSITIONW);
+                    att_ptr = out_ptr + GLP_LIGHT_ATT_INT;
+                    store(attenuation.xyzw, att_ptr, 0);
+                    store(attenuation.XY, att_ptr, 8);
+
+                    s16 w = load(light_ptr, GLP_LIGHT_POSITIONW);
                     if (w != 0) {
                         point_count += 1;
                     }
 
                     light_count += 1;
-                    out_ptr += MGFX_LIGHT_SIZE;
+                    out_ptr += GLP_LIGHT_SIZE;
                 }
-                light_ptr += MGFX_LIGHT_SIZE;
+                light_ptr += GLP_LIGHT_SIZE;
                 light_flag = light_flag << 1;
             }
         } else if (color_constant == 0) {
@@ -378,7 +385,7 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
         factor.x = invert_half(diff).y;
         vec16 factor_f = factor << 11;
         vec32 offset = VZERO - fog_parms.x;
-        offset = offset << MGFX_VTX_POS_SHIFT;
+        offset = offset << GLP_VTX_POS_SHIFT;
 
         u32 enabled = flags & 0x8; // FLAG_FOG
         u8 mask = 0x77;

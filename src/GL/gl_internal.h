@@ -18,7 +18,6 @@
 #include "rdpq_tri.h"
 #include "vertex_layout.h"
 #include "hashtable_internal.h"
-#include "mgfx.h"
 #include "ringbuffer.h"
 
 #define MAX_PIPELINE_COUNT          (1<<4)
@@ -183,7 +182,19 @@ typedef struct {
     bool is_mvp_dirty;
 } gl_matrix_target_t;
 
-_Static_assert(sizeof(mgfx_matrix_t) == MATRIX_SIZE, "Matrix size does not match");
+typedef struct {
+    int16_t  i[4][4];
+    uint16_t f[4][4];
+} gl_pipeline_matrix_t;
+_Static_assert(sizeof(gl_pipeline_matrix_t) == MATRIX_SIZE, "Matrix size does not match");
+
+typedef struct
+{
+    gl_pipeline_matrix_t mvp;
+    gl_pipeline_matrix_t mv;
+    int16_t normal[16];
+} gl_pipeline_matrices_t;
+_Static_assert(sizeof(gl_pipeline_matrices_t) == MATRICES_SIZE, "Matrices size doesn't match!");
 
 typedef struct {
     uint16_t width;
@@ -355,6 +366,18 @@ _Static_assert(offsetof(gl_tex_gen_soa_t, fraction) == TEX_GEN_FRACTION_OFFSET);
 _Static_assert(offsetof(gl_tex_gen_soa_t, mode) == TEX_GEN_MODE_OFFSET);
 
 typedef struct {
+    int16_t position[4];
+    int16_t color[3];
+    int16_t attenuation_int[3];
+    uint16_t attenuation_frac[3];
+} gl_pipeline_light_t;
+_Static_assert(sizeof(gl_pipeline_light_t) == GLP_LIGHT_SIZE);
+_Static_assert(offsetof(gl_pipeline_light_t, position) == GLP_LIGHT_POSITION);
+_Static_assert(offsetof(gl_pipeline_light_t, color) == GLP_LIGHT_COLOR);
+_Static_assert(offsetof(gl_pipeline_light_t, attenuation_int) == GLP_LIGHT_ATT_INT);
+_Static_assert(offsetof(gl_pipeline_light_t, attenuation_frac) == GLP_LIGHT_ATT_FRAC);
+
+typedef struct {
     int16_t start_int;
     int16_t end_int;
     uint16_t start_frac;
@@ -513,8 +536,8 @@ typedef struct {
 
     gl_buffer_object_t *array_buffer;
 
-    mgfx_matrix_t *matrix_stacks[3];
-    mgfx_matrices_t *matrix_palette;
+    gl_pipeline_matrix_t *matrix_stacks[3];
+    gl_pipeline_matrices_t *matrix_palette;
     const mg_uniform_t *matrices_uniform;
 
     GLboolean unpack_swap_bytes;
@@ -549,8 +572,8 @@ typedef struct {
 } gl_pipeline_data_t;
 
 typedef struct {
-    mgfx_matrix_t matrices[4];
-    mgfx_light_t lights[LIGHT_COUNT];
+    gl_pipeline_matrix_t matrices[4];
+    gl_pipeline_light_t lights[LIGHT_COUNT];
     gl_tex_gen_soa_t tex_gen;
     int16_t viewport_scale[4];
     int16_t viewport_offset[4];
@@ -604,8 +627,6 @@ typedef struct {
 } __attribute__((aligned(8), packed)) gl_server_state_t;
 
 _Static_assert((offsetof(gl_server_state_t, bound_textures) & 0x7) == 0, "Bound textures must be aligned to 8 bytes in server state");
-
-_Static_assert(sizeof(mgfx_matrices_t) == MATRICES_SIZE, "Matrices size doesn't match!");
 
 void gl_matrix_init();
 void gl_texture_init();
@@ -875,7 +896,7 @@ inline void gl_set_current_mtx_index(GLubyte *index)
 
 inline void gl_set_palette_idx(uint32_t index)
 {
-    gl_write(GL_CMD_SET_PALETTE_IDX, index * sizeof(mgfx_matrices_t) + offsetof(mgfx_matrices_t, mv));
+    gl_write(GL_CMD_SET_PALETTE_IDX, index * sizeof(gl_pipeline_matrices_t) + offsetof(gl_pipeline_matrices_t, mv));
 }
 
 inline color_t color_from_floats(const float color[4])

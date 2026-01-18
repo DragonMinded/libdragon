@@ -6,7 +6,6 @@
 #include "gl_internal.h"
 #include "debug.h"
 #include <malloc.h>
-#include "mgfx.h"
 
 extern gl_state_t *state;
 
@@ -565,7 +564,7 @@ static void array_object_update_layout(gl_array_object_t *array_object)
 
     if (array_object->arrays[ATTRIB_VERTEX].enabled) {
         array_object->out_offsets[ATTRIB_VERTEX] = vl->vertex_layout.stride;
-        vertex_layout_append(vl, MGFX_ATTRIBUTE_POS_NORM, sizeof(int16_t) * 4);
+        vertex_layout_append(vl, GLP_ATTRIBUTE_POS_NORM, sizeof(int16_t) * 4);
     }
 
     if (array_object->arrays[ATTRIB_NORMAL].enabled) {
@@ -574,12 +573,12 @@ static void array_object_update_layout(gl_array_object_t *array_object)
 
     if (array_object->arrays[ATTRIB_COLOR].enabled) {
         array_object->out_offsets[ATTRIB_COLOR] = vl->vertex_layout.stride;
-        vertex_layout_append(vl, MGFX_ATTRIBUTE_COLOR, sizeof(uint32_t));
+        vertex_layout_append(vl, GLP_ATTRIBUTE_COLOR, sizeof(uint32_t));
     }
 
     if (array_object->arrays[ATTRIB_TEXCOORD].enabled) {
         array_object->out_offsets[ATTRIB_TEXCOORD] = vl->vertex_layout.stride;
-        vertex_layout_append(vl, MGFX_ATTRIBUTE_TEXCOORD, sizeof(int16_t) * 2);
+        vertex_layout_append(vl, GLP_ATTRIBUTE_TEXCOORD, sizeof(int16_t) * 2);
     }
 
     array_object->vertex_data_cache.cached_stride = vl->vertex_layout.stride;

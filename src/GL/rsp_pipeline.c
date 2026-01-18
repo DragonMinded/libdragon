@@ -8,13 +8,16 @@
 #include "gl_internal.h"
 #include "rsp_asm.h"
 #include "magma_constants.h"
-#include "mgfx.h"
 #include "rdpq_debug.h"
 #include "../magma/magma_internal.h"
+#include "mgfx_macros.h"
 
 _Static_assert(BEGIN_END_BUFFER_SIZE <= MG_VERTEX_CACHE_COUNT);
 
 extern gl_state_t *state;
+
+DEFINE_RSP_UCODE(rsp_gl_pipeline);
+DEFINE_RSP_UCODE(rsp_gl_pipeline_env);
 
 #define DEFINE_READ_FUNC(name, dst_type, src_type, convert, max_size, default) \
     static void name(dst_type *dst, const src_type *src, uint32_t count) \
@@ -41,13 +44,15 @@ extern gl_state_t *state;
         for (uint32_t i = count; i < max_size; i++) dst[i] = default[i]; \
     }
 
+#define GLP_NRM(x, y, z) MGFX_NRM(x, y, z);
+
 #define DEFINE_NORMAL_FLT_READ_FUNC(name, src_type) \
     static void name(int16_t *dst, const src_type *src, uint32_t count) \
     { \
         int16_t x = CLAMP(roundf(src[0] * 15.5f), -16.0f, 15.0f); \
         int16_t y = CLAMP(roundf(src[1] * 31.5f), -32.0f, 31.0f); \
         int16_t z = CLAMP(roundf(src[2] * 15.5f), -16.0f, 15.0f); \
-        *dst = MGFX_NRM(x, y, z); \
+        *dst = GLP_NRM(x, y, z); \
     }
 
 #define DEFINE_NORMAL_INT_READ_FUNC(name, src_type, shift) \
@@ -56,17 +61,19 @@ extern gl_state_t *state;
         int16_t x = src[0] >> shift; \
         int16_t y = src[0] >> (shift-1); \
         int16_t z = src[0] >> shift; \
-        *dst = MGFX_NRM(x, y, z); \
+        *dst = GLP_NRM(x, y, z); \
     }
 
 static const int16_t vtx_default[3] = {0, 0, 0};
 static const uint8_t col_default[4] = {0, 0, 0, 255};
 
-DEFINE_READ_FUNC(vtx_read_i8, int16_t, int8_t, MGFX_S10_5, 3, vtx_default)
-DEFINE_READ_FUNC(vtx_read_i16, int16_t, int16u_t, MGFX_S10_5, 3, vtx_default)
-DEFINE_READ_FUNC(vtx_read_i32, int16_t, int32u_t, MGFX_S10_5, 3, vtx_default)
-DEFINE_READ_FUNC(vtx_read_f32, int16_t, floatu, MGFX_S10_5, 3, vtx_default)
-DEFINE_READ_FUNC(vtx_read_f64, int16_t, doubleu, MGFX_S10_5, 3, vtx_default)
+#define POS_CONVERT(v)  MGFX_S10_5(v)
+
+DEFINE_READ_FUNC(vtx_read_i8,   int16_t, int8_t,    POS_CONVERT, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_i16,  int16_t, int16u_t,  POS_CONVERT, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_i32,  int16_t, int32u_t,  POS_CONVERT, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_f32,  int16_t, floatu,    POS_CONVERT, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_f64,  int16_t, doubleu,   POS_CONVERT, 3, vtx_default)
 DEFINE_FIXED_READ_FUNC(vtx_read_x16, int16_t, state->vertex_halfx_precision, 3, vtx_default)
 
 DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i8,  int8_t,    3)
@@ -89,20 +96,22 @@ static void nrm_read_packed565(int16_t *dst, const int16_t *src, uint32_t count)
 #define COL_CONVERT_F32(v) (FLOAT_TO_U8(v))
 #define COL_CONVERT_F64(v) (FLOAT_TO_U8(v))
 
-DEFINE_READ_FUNC(col_read_u8, uint8_t,  uint8_t,   COL_CONVERT_U8, 4, col_default)
-DEFINE_READ_FUNC(col_read_i8, uint8_t,  int8_t,    COL_CONVERT_I8, 4, col_default)
-DEFINE_READ_FUNC(col_read_u16, uint8_t, uint16u_t, COL_CONVERT_U16, 4, col_default)
-DEFINE_READ_FUNC(col_read_i16, uint8_t, int16u_t,  COL_CONVERT_I16, 4, col_default)
-DEFINE_READ_FUNC(col_read_u32, uint8_t, uint32u_t, COL_CONVERT_U32, 4, col_default)
-DEFINE_READ_FUNC(col_read_i32, uint8_t, int32u_t,  COL_CONVERT_I32, 4, col_default)
-DEFINE_READ_FUNC(col_read_f32, uint8_t, floatu,    COL_CONVERT_F32, 4, col_default)
-DEFINE_READ_FUNC(col_read_f64, uint8_t, doubleu,   COL_CONVERT_F64, 4, col_default)
+DEFINE_READ_FUNC(col_read_u8,   uint8_t,    uint8_t,   COL_CONVERT_U8,  4, col_default)
+DEFINE_READ_FUNC(col_read_i8,   uint8_t,    int8_t,    COL_CONVERT_I8,  4, col_default)
+DEFINE_READ_FUNC(col_read_u16,  uint8_t,    uint16u_t, COL_CONVERT_U16, 4, col_default)
+DEFINE_READ_FUNC(col_read_i16,  uint8_t,    int16u_t,  COL_CONVERT_I16, 4, col_default)
+DEFINE_READ_FUNC(col_read_u32,  uint8_t,    uint32u_t, COL_CONVERT_U32, 4, col_default)
+DEFINE_READ_FUNC(col_read_i32,  uint8_t,    int32u_t,  COL_CONVERT_I32, 4, col_default)
+DEFINE_READ_FUNC(col_read_f32,  uint8_t,    floatu,    COL_CONVERT_F32, 4, col_default)
+DEFINE_READ_FUNC(col_read_f64,  uint8_t,    doubleu,   COL_CONVERT_F64, 4, col_default)
 
-DEFINE_READ_FUNC(tex_read_i8, int16_t, int8_t, MGFX_S8_8, 2, vtx_default)
-DEFINE_READ_FUNC(tex_read_i16, int16_t, int16u_t, MGFX_S8_8, 2, vtx_default)
-DEFINE_READ_FUNC(tex_read_i32, int16_t, int32u_t, MGFX_S8_8, 2, vtx_default)
-DEFINE_READ_FUNC(tex_read_f32, int16_t, floatu, MGFX_S8_8, 2, vtx_default)
-DEFINE_READ_FUNC(tex_read_f64, int16_t, doubleu, MGFX_S8_8, 2, vtx_default)
+#define TEX_CONVERT(v)  MGFX_S8_8(v)
+
+DEFINE_READ_FUNC(tex_read_i8,   int16_t, int8_t,    TEX_CONVERT, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_i16,  int16_t, int16u_t,  TEX_CONVERT, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_i32,  int16_t, int32u_t,  TEX_CONVERT, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_f32,  int16_t, floatu,    TEX_CONVERT, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_f64,  int16_t, doubleu,   TEX_CONVERT, 2, vtx_default)
 DEFINE_FIXED_READ_FUNC(tex_read_x16, int16_t, state->texcoord_halfx_precision, 2, vtx_default)
 
 #define MTX_INDEX_CONVERT(v) (v)
@@ -288,6 +297,12 @@ static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout)
     return key;
 }
 
+static rsp_ucode_t *get_pipeline_ucode(uint32_t features)
+{
+    if (features & 1) return &rsp_gl_pipeline_env;
+    return &rsp_gl_pipeline;
+}
+
 static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
 {
     mg_pipeline_t **pipelines = calloc(PIPELINE_COUNT, sizeof(mg_pipeline_t*));
@@ -297,7 +312,7 @@ static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
     for (size_t i = 0; i < PIPELINE_COUNT; i++)
     {
         // This will iterate over all possible combinations of features
-        mgfx_features_t features = i & PIPELINE_FEATURES_MASK;
+        uint32_t features = i & PIPELINE_FEATURES_MASK;
 
         const vertex_layout *actual_layout = layout;
 
@@ -308,14 +323,14 @@ static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
             // To avoid having to re-configure the vertex array (which would involve re-converting data), We do this instead.
             // All other attributes will keep their original offsets, so we can use the existing data as-is.
             vertex_layout_init(&tmp_vl);
-            vertex_layout_copy_without(&tmp_vl, layout, MGFX_ATTRIBUTE_COLOR);
+            vertex_layout_copy_without(&tmp_vl, layout, GLP_ATTRIBUTE_COLOR);
             actual_layout = &tmp_vl;
         }
 
         // TODO: Currently, pipelines may get duplicated due to the above modification to the vertex layout.
         //       To fix this, cache individual pipelines as well.
         pipelines[i] = mg_pipeline_create(&(mg_pipeline_parms_t) {
-            .vertex_shader_ucode = mgfx_get_shader_ucode(features),
+            .vertex_shader_ucode = get_pipeline_ucode(features),
             .vertex_layout = actual_layout->vertex_layout
         });
     }
@@ -340,7 +355,7 @@ static void update_pipeline(const vertex_layout *layout)
     }
 
     if (state->matrices_uniform == NULL) {
-        state->matrices_uniform = mg_pipeline_get_uniform(pipelines[0], MGFX_BINDING_MATRICES);
+        state->matrices_uniform = mg_pipeline_get_uniform(pipelines[0], GLP_BINDING_MATRICES);
     }
 }
 

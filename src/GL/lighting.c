@@ -460,7 +460,7 @@ void glMaterialfv(GLenum face, GLenum pname, const GLfloat *params)
 uint32_t gl_get_light_offset(GLenum light)
 {
     uint32_t light_index = light - GL_LIGHT0;
-    return offsetof(gl_server_state_t, lights) + light_index * sizeof(mgfx_light_t);
+    return offsetof(gl_server_state_t, lights) + light_index * sizeof(gl_pipeline_light_t);
 }
 
 gl_light_t * gl_get_light(GLenum light)
@@ -485,8 +485,8 @@ void gl_light_set_diffuse(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat
     int16_t b_fx = FLOAT_TO_I16(b);
 
     uint64_t packed = ((uint32_t)r_fx << 16) | (uint32_t)g_fx;
-    gl_set_word(GL_UPDATE_NONE, offset + offsetof(mgfx_light_t, color), packed);
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(mgfx_light_t, color) + sizeof(int16_t)*2, b_fx);
+    gl_set_word(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, color), packed);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, color) + sizeof(int16_t)*2, b_fx);
     gl_set_color_cpu(light->diffuse, r, g, b, a);
 }
 
@@ -543,20 +543,32 @@ void gl_light_set_spot_cutoff(gl_light_t *light, uint32_t offset, float param)
 void gl_light_set_constant_attenuation(gl_light_t *light, uint32_t offset, float param)
 {
     light->constant_attenuation = param;
+    // Shifted right by 1 to compensate for vrcp
+    uint32_t fx = param * (1<<15);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, attenuation_int) + 0, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, attenuation_frac) + 0, fx & 0xFFFF);
 }
 
 void gl_light_set_linear_attenuation(gl_light_t *light, uint32_t offset, float param)
 {
     light->linear_attenuation = param;
+    // Shifted right by 4 to compensate for various precision shifts (see rsp_gl_lighting.inc)
+    // Shifted right by 1 to compensate for vrcp
+    // Result: Shifted right by 5
+    uint32_t fx = param * (1 << (16 - 5));
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, attenuation_int) + 2, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, attenuation_frac) + 2, fx & 0xFFFF);
 }
 
 void gl_light_set_quadratic_attenuation(gl_light_t *light, uint32_t offset, float param)
 {
     light->quadratic_attenuation = param;
-    // TODO: how to map constant and linear attenuation?
-    float intensity = fabsf(param) > FM_EPSILON ? 1.f / param : 1.f;
-    int16_t intensity_fx = sqrtf(intensity) * (1<<5);
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(mgfx_light_t, intensity), intensity_fx);
+    // Shifted left by 6 to compensate for various precision shifts (see rsp_gl_lighting.inc)
+    // Shifted right by 1 to compensate for vrcp
+    // Result: Shifted left by 5
+    uint32_t fx = param * (1 << (16 + 5));
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, attenuation_int) + 4, fx >> 16);
+    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, attenuation_frac) + 4, fx & 0xFFFF);
 }
 
 void glLightf(GLenum light, GLenum pname, GLfloat param)

@@ -5,6 +5,8 @@
 #ifndef __GL_CONSTANTS
 #define __GL_CONSTANTS
 
+#include "../../include/mgfx_constants.h"
+
 #define PIPELINE_FEATURE_COUNT          1
 #define PIPELINE_FEATURES_MASK          ((1<<PIPELINE_FEATURE_COUNT)-1)
 #define PIPELINE_COUNT                  (1<<(PIPELINE_FEATURE_COUNT+1))
@@ -162,5 +164,24 @@
 #define PALETTE_MATRIX_INDEX    3
 
 #define PALETTE_DIRTY_FLAGS_SIZE    ((MATRIX_PALETTE_SIZE+7)>>3)
+
+#define GLP_LIGHT_POSITION     0
+#define GLP_LIGHT_POSITIONW    6
+#define GLP_LIGHT_COLOR        8
+#define GLP_LIGHT_ATT_INT      14
+#define GLP_LIGHT_ATT_FRAC     20
+#define GLP_LIGHT_SIZE         26
+
+#define GLP_ATTRIBUTE_POS_NORM         MGFX_ATTRIBUTE_POS_NORM
+#define GLP_ATTRIBUTE_COLOR            MGFX_ATTRIBUTE_COLOR
+#define GLP_ATTRIBUTE_TEXCOORD         MGFX_ATTRIBUTE_TEXCOORD
+
+#define GLP_BINDING_MATRICES           0
+#define GLP_BINDING_TEXTURING          1
+#define GLP_BINDING_LIGHTING           2
+#define GLP_BINDING_FOG                3
+
+#define GLP_VTX_POS_SHIFT      MGFX_VTX_POS_SHIFT
+#define GLP_VTX_TEX_SHIFT      MGFX_VTX_TEX_SHIFT
 
 #endif

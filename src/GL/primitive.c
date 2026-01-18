@@ -41,20 +41,20 @@ void gl_primitive_init()
     glColor4f(1, 1, 1, 1);
     glTexCoord4f(0, 0, 0, 1);
 
-    state->vertex_halfx_precision.target_precision = MGFX_VTX_POS_SHIFT;
-    state->texcoord_halfx_precision.target_precision = MGFX_VTX_TEX_SHIFT;
+    state->vertex_halfx_precision.target_precision = GLP_VTX_POS_SHIFT;
+    state->texcoord_halfx_precision.target_precision = GLP_VTX_TEX_SHIFT;
 
-    glVertexHalfFixedPrecisionN64(MGFX_VTX_POS_SHIFT);
-    glTexCoordHalfFixedPrecisionN64(MGFX_VTX_TEX_SHIFT);
+    glVertexHalfFixedPrecisionN64(GLP_VTX_POS_SHIFT);
+    glTexCoordHalfFixedPrecisionN64(GLP_VTX_TEX_SHIFT);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     set_can_use_rsp_dirty();
 
     vertex_layout_init(&state->begin_end_layout);
-    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_POS_NORM, offsetof(native_vertex_t, position), sizeof(int16_t)*4);
-    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
-    vertex_layout_add(&state->begin_end_layout, MGFX_ATTRIBUTE_TEXCOORD, offsetof(native_vertex_t, texcoord), sizeof(int16_t)*2);
+    vertex_layout_add(&state->begin_end_layout, GLP_ATTRIBUTE_POS_NORM, offsetof(native_vertex_t, position), sizeof(int16_t)*4);
+    vertex_layout_add(&state->begin_end_layout, GLP_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
+    vertex_layout_add(&state->begin_end_layout, GLP_ATTRIBUTE_TEXCOORD, offsetof(native_vertex_t, texcoord), sizeof(int16_t)*2);
     state->begin_end_layout.vertex_layout.stride = sizeof(native_vertex_t);
 }
 
