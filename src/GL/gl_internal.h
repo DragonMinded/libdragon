@@ -17,7 +17,7 @@
 #include "../rdpq/rdpq_internal.h"
 #include "rdpq_tri.h"
 #include "vertex_layout.h"
-#include "hashtable_internal.h"
+#include "../hashtable_internal.h"
 #include "ringbuffer.h"
 
 #define MAX_PIPELINE_COUNT          (1<<4)
