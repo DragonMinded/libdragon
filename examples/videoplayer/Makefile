@@ -3,7 +3,7 @@ include $(N64_INST)/include/n64.mk
 
 MOVIE_FILE=caminandes.ogv
 MOVIE_URL=https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.ogv
-DFS_FILES=filesystem/movie.h264 filesystem/movie.wav64
+DFS_FILES=filesystem/caminandes.h264
 
 src = videoplayer.c
 
@@ -21,69 +21,25 @@ $(BUILD_DIR)/videoplayer.dfs: $(DFS_FILES)
 	$(N64_MKDFS) "$@" filesystem >/dev/null
 
 # Re-encode the movie's video stream if ffmpeg is available
-filesystem/movie.m1v: $(MOVIE_FILE)
+filesystem/caminandes.m1v: $(MOVIE_FILE)
 	@mkdir -p "$(dir $@)"
-	@echo "    [FFMPEG] $@"
+	@echo "    [VIDEO] $@"
 	if [ -s "$<" ]; then \
-		if command -v ffmpeg >/dev/null; then \
-			ffmpeg -hide_banner -loglevel error -y -i "$<" -vb 800K -vf 'scale=288x160' -r 24 "$@" ; \
-		else \
-			echo "videoplayer: Skipping video re-encoding because ffmpeg is not installed" ; \
-			touch "$@" ; \
-		fi ; \
+		$(N64_VIDEOCONV) -o filesystem --codec mpeg1 --quality 70 --quick --seek 5 "$<"; \
 	else \
 		echo "videoplayer: Skipping video re-encoding because the sample movie is missing" ; \
-		touch "$@" ; \
 	fi
 
 # Re-encode the movie's video stream if ffmpeg is available
-filesystem/movie.h264: $(MOVIE_FILE)
+filesystem/caminandes.h264: $(MOVIE_FILE)
 	@mkdir -p "$(dir $@)"
-	@echo "    [FFMPEG] $@"
+	@echo "    [VIDEO] $@"
 	if [ -s "$<" ]; then \
-		if command -v ffmpeg >/dev/null; then \
-			ffmpeg -hide_banner -loglevel error -y -i "$<" -f h264 -c:v libx264 \
-				-profile:v baseline -an \
-				-vf "scale=288x160" \
-				-x264-params no-deblock=1 \
-				-crf 24 -tune film \
-			 	"$@" ; \
-		else \
-			echo "videoplayer: Skipping video re-encoding because ffmpeg is not installed" ; \
-			touch "$@" ; \
-		fi ; \
+		$(N64_VIDEOCONV) -o filesystem --codec h264 --quality 70 --quick --seek 5 "$<"; \
 	else \
 		echo "videoplayer: Skipping video re-encoding because the sample movie is missing" ; \
-		touch "$@" ; \
 	fi
 
-
-# Convert the movie's audio if it was extracted to wav
-filesystem/movie.wav64: $(BUILD_DIR)/movie.wav
-	@mkdir -p "$(dir $@)"
-	@echo "    [AUDIO] $@"
-	if [ -s "$<" ]; then \
-		$(N64_AUDIOCONV) -o "$(dir $@)" "$<" ; \
-	else \
-		echo "videoplayer: Skipping audio conversion because the audio was not extracted" ; \
-		touch "$@" ; \
-	fi
-
-# Extract the movie's audio stream to wav if ffmpeg is available
-$(BUILD_DIR)/movie.wav: $(MOVIE_FILE)
-	@mkdir -p "$(dir $@)"
-	@echo "    [FFMPEG] $@"
-	if [ -s "$<" ]; then \
-		if command -v ffmpeg >/dev/null; then \
-			ffmpeg -hide_banner -loglevel error -y -i "$<" -vn -acodec pcm_s16le -ar 32000 -ac 1 "$@" ; \
-		else \
-			echo "videoplayer: Skipping audio extraction because ffmpeg is not installed" ; \
-			touch "$@" ; \
-		fi ; \
-	else \
-		echo "videoplayer: Skipping audio extraction because the sample movie is missing" ; \
-		touch "$@" ; \
-	fi
 
 # Download the movie file if wget or curl is available and it isn't already downloaded
 $(MOVIE_FILE):
@@ -99,7 +55,7 @@ $(MOVIE_FILE):
 	fi
 
 clean:
-	rm -rf $(BUILD_DIR) $(DFS_FILES) movie.wav videoplayer.z64
+	rm -rf $(BUILD_DIR) $(DFS_FILES) videoplayer.z64
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 

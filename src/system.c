@@ -59,6 +59,8 @@
 
 /** Total Size of the heap */
 int __heap_total_size = 0;
+/** Memory allocated via sbrk_top */
+int __heap_top_allocated_size = 0;
 /** End of the heap */
 char *__heap_end = 0;
 /** Top of the heap */
@@ -1158,6 +1160,8 @@ void* sbrk_top( int incr )
         return (void *)-1;
     }
 
+    __heap_top_allocated_size += incr;
+
     enable_interrupts();
 
     return __heap_top;
@@ -1448,14 +1452,14 @@ int dir_findfirst( const char * const path, dir_t *dir )
     if( fsm == 0 || mapping < 0 || dir == 0 )
     {
         errno = EINVAL;
-        return -1;
+        return -2;
     }
 
     if( fsm->fs->findfirst == 0 )
     {
         /* Filesystem doesn't support findfirst */
         errno = ENOSYS;
-        return -1;
+        return -2;
     }
 
     /* Initialize dir_t structure. Set size to -1 in case the filesystem
@@ -1477,14 +1481,14 @@ int dir_findnext( const char * const path, dir_t *dir )
     if( fsm == 0 || dir == 0 )
     {
         errno = EINVAL;
-        return -1;
+        return -2;
     }
 
     if( fsm->fs->findnext == 0 && fsm->fs->findnext2 == 0 )
     {
         /* Filesystem doesn't support findnext */
         errno = ENOSYS;
-        return -1;
+        return -2;
     }
 
     if (fsm->need_lock) kmutex_lock(&fsm->lock);

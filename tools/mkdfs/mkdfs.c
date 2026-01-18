@@ -260,17 +260,7 @@ uint32_t add_directory(const char * const base_path, const char * const path)
         }
         else if(S_ISDIR(stats.st_mode))
         {
-            /* First check if the subdirectory has any content before allocating an entry */
-            uint32_t new_directory = add_directory(base_path, file);
-
-            if(!new_directory)
-            {
-                fprintf(stderr, "Skipping empty directory: %s\n", file);
-                free(file);
-                continue;
-            }
-
-            /* Subdirectory is not empty, now allocate the entry */
+            /* Allocate the entry before children, even if empty */
             const char *bname = mybasename(file);
             uint32_t new_entry = new_blob(sizeof(directory_entry_t) + strlen(bname) + 1);
 
@@ -278,7 +268,7 @@ uint32_t add_directory(const char * const base_path, const char * const path)
             tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
             tmp_entry->next_entry = 0;
             strcpy(tmp_entry->path, bname);
-            tmp_entry->file_pointer = SWAPLONG(new_directory);
+            tmp_entry->file_pointer = 0;
 
             if(cur_entry)
             {
@@ -289,6 +279,13 @@ uint32_t add_directory(const char * const base_path, const char * const path)
 
             /* This is now the current working entry */
             cur_entry = new_entry;
+
+            /* Recursively add the contents of the directory. Notice that it
+               is fine for empty directories to have no entries. */
+            uint32_t new_directory = add_directory(base_path, file);
+
+            tmp_entry = sector_to_memory(new_entry);
+            tmp_entry->file_pointer = SWAPLONG(new_directory);
         }
 
         free(file);

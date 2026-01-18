@@ -368,8 +368,10 @@ typedef struct  {
     int header_size;
     void (*reset)(void *state);
     ssize_t (*read)(void *state, void *buf, size_t len);
-    uint8_t alignas(8) state[];
+    uint8_t alignas(16) state[];
 } cookie_cmp_t;
+
+_Static_assert(offsetof(cookie_cmp_t, state) % 16 == 0, "cookie_cmp_t.state must be 16-byte aligned");
 
 static int readfn_cmp(void *c, char *buf, int sz)
 {
@@ -448,7 +450,7 @@ FILE *asset_fdopen(int fd, int *sz)
             "asset: compression level %d not initialized. Call asset_init_compression(%d) at initialization time", algo, algo);
 
         int winsize = asset_winsize_from_flags(header.base.flags);
-        cookie = malloc(sizeof(cookie_cmp_t) + algos_stream[algo-1].state_size + winsize);
+        cookie = memalign(16, sizeof(cookie_cmp_t) + algos_stream[algo-1].state_size + winsize);
         assertf(cookie, "Out of memory");
         cookie->read = algos_stream[algo-1].decompress_read;
         cookie->reset = algos_stream[algo-1].decompress_reset;

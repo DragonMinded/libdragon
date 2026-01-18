@@ -111,3 +111,61 @@ void test_dfs_ioctl(TestContext *ctx) {
     ASSERT(ret >= 0, "DFS ioctl failed");
     ASSERT(rom_addr == (dfs_rom_addr("counter.dat") & 0x1FFFFFFF), "IODFS_GET_ROM_BASE ioctl returns wrong address");
 }
+
+typedef struct {
+	char path[256];
+	int type;
+} list_files_data_t;
+
+static int list_files(const char *path, list_files_data_t *files, int *count) {
+	*count = 0;
+	int list_files(const char *path, dir_t *dir, void *data) {
+		list_files_data_t *list = (list_files_data_t *)data;
+		strcpy(list[*count].path, path);
+		list[*count].type = dir->d_type;
+		(*count)++;
+		return DIR_WALK_CONTINUE;
+	}
+	return dir_walk(path, list_files, files);
+}
+
+static int list_files_compare(const void *a, const void *b) {
+	return strcmp(((list_files_data_t *)a)->path, ((list_files_data_t *)b)->path);
+}
+
+void test_dfs_directory(TestContext *ctx) {
+	list_files_data_t files[1024];
+	int count = 0; int err;
+
+	err = list_files("nofs", files, &count);
+	ASSERT(err == -1, "list_files should have failed (ret:%d, errno:%d - %s)", err, errno, strerror(errno));
+
+	err = list_files("nofs:/test_dir", files, &count);
+	ASSERT(err == -1, "list_files should have failed (ret:%d, errno:%d - %s)", err, errno, strerror(errno));
+
+	err = list_files("rom:/test_dir", files, &count);
+	ASSERT(err == 0, "list_files failed (ret:%d, errno:%d - %s)", err, errno, strerror(errno));
+
+	for (int i=0;i<count;i++) {
+		ERR("file %d: %s (type:%d)\n", i, files[i].path, files[i].type);
+	}
+
+	ASSERT_EQUAL_SIGNED(count, 7, "test_dir should have 7 files/dirs");
+	qsort(files, count, sizeof(list_files_data_t), list_files_compare);
+
+	ASSERT_EQUAL_STR(files[0].path, "rom:/test_dir/file1.txt", "file1.txt should be the first file");
+	ASSERT_EQUAL_SIGNED(files[0].type, DT_REG, "file1.txt should be a regular file");
+	ASSERT_EQUAL_STR(files[1].path, "rom:/test_dir/subdir", "subdir should be the second file");
+	ASSERT_EQUAL_SIGNED(files[1].type, DT_DIR, "subdir should be a directory");
+	ASSERT_EQUAL_STR(files[2].path, "rom:/test_dir/subdir/file2.txt", "file2.txt should be the third file");
+	ASSERT_EQUAL_SIGNED(files[2].type, DT_REG, "file2.txt should be a regular file");
+	ASSERT_EQUAL_STR(files[3].path, "rom:/test_dir/subdir/subempty1", "subempty1 should be the fourth file");
+	ASSERT_EQUAL_SIGNED(files[3].type, DT_DIR, "subempty1 should be a directory");
+	ASSERT_EQUAL_STR(files[4].path, "rom:/test_dir/subdir/subempty2", "subempty2 should be the fifth file");
+	ASSERT_EQUAL_SIGNED(files[4].type, DT_DIR, "subempty2 should be a directory");
+	ASSERT_EQUAL_STR(files[5].path, "rom:/test_dir/subdir/subsubdir", "subsubdir should be the sixth file");
+	ASSERT_EQUAL_SIGNED(files[3].type, DT_DIR, "subsubdir should be a directory");
+	ASSERT_EQUAL_STR(files[6].path, "rom:/test_dir/subdir/subsubdir/file3.txt", "file3.txt should be the seventh file");
+	ASSERT_EQUAL_SIGNED(files[6].type, DT_REG, "file3.txt should be a regular file");
+
+}

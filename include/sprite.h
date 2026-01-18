@@ -86,6 +86,7 @@ typedef struct sprite_detail_s
 
 #define SPRITE_FLAGS_TEXFORMAT      0x1F    ///< Pixel format of the sprite
 #define SPRITE_FLAGS_OWNEDBUFFER    0x20    ///< Flag specifying that the sprite buffer must be freed by sprite_free
+#define SPRITE_FLAGS_NODATA         0x40    ///< Sprite does not contain data in the base section; all data is in the extended section
 #define SPRITE_FLAGS_EXT            0x80    ///< Sprite contains extended information (new format)
 
 

@@ -417,6 +417,7 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
         "wav64: invalid state size for VADPCM: %d/%d\n", state_size, sizeof(wav64_state_vadpcm_t));
 
     // Set wave callback functions
+	wav->wave.start = NULL;
     wav->wave.read = waveform_vadpcm_read;
 
     // Init huffman

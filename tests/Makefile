@@ -10,7 +10,7 @@ MAIN_ELF_EXTERNS := $(BUILD_DIR)/testrom.externs
 DSO_MODULES = dl_test_syms.dso dl_test_relocs.dso dl_test_imports.dso dl_test_ctors.dso
 DSO_LIST = $(addprefix filesystem/, $(DSO_MODULES))
 
-$(BUILD_DIR)/testrom.dfs: $(wildcard filesystem/*) $(DSO_LIST)
+$(BUILD_DIR)/testrom.dfs: $(wildcard filesystem/*) $(DSO_LIST) filesystem/test_dir
 
 ASSETS = filesystem/grass1.ci8.sprite \
 		 filesystem/grass1.rgba32.sprite \
@@ -35,6 +35,20 @@ filesystem/materials.mdb: $(wildcard assets/*.mat)
 	@mkdir -p $(dir $@)
 	@echo "    [MDB] $@"
 	$(N64_MKMATERIAL) -o filesystem "$^"
+
+filesystem/test_dir:
+	@mkdir -p $(dir $@)
+	@echo "    [DIR] $@"
+	mkdir -p filesystem/aaaa-empty1
+	mkdir -p filesystem/aaaa-empty2
+	mkdir -p filesystem/test_dir/subdir
+	mkdir -p filesystem/test_dir/subdir/subempty1
+	mkdir -p filesystem/test_dir/subdir/subempty2
+	mkdir -p filesystem/test_dir/subdir/subsubdir
+	touch filesystem/test_dir/subdir/subsubdir/file3.txt
+	touch filesystem/test_dir/subdir/file2.txt
+	touch filesystem/test_dir/file1.txt
+
 
 $(BUILD_DIR)/testrom.elf: $(BUILD_DIR)/testrom.o $(OBJS) $(MAIN_ELF_EXTERNS) $(ASSETS)
 testrom.z64: N64_ROM_TITLE="Libdragon Test ROM"

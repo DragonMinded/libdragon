@@ -94,6 +94,8 @@ static void wav64_none_init(wav64_t *wav, int state_size) {
 	} else {
 		wav->wave.read = wav64_none_read_memcopy;
 	}
+	// Also clear start callback (needed in the preloading codepath)
+	wav->wave.start = NULL;
 }
 
 static int wav64_none_get_bitrate(wav64_t *wav) {
@@ -144,6 +146,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	bool preload = parms->streaming_mode == WAV64_STREAMING_NONE;
 	int preload_size = ROUND_UP(head.len * head.channels * (head.nbits >> 3), 16);
 	int preload_extra_alloc = ROUND_UP(head.format == WAV64_FORMAT_RAW ? 0 : 4096, 16);
+	int state_size = ROUND_UP(head.state_size, 16);
 
 	// Calculate required allocation
 	int heap_size = 0;
@@ -159,7 +162,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	if (preload) heap_size += preload_size;							// Preloaded samples
 
 	int heap_off_preload_end = heap_size;
-	if (preload) heap_size += preload_extra_alloc;					// Extra allocation for preload
+	if (preload) heap_size += preload_extra_alloc + state_size;		// Extra allocation for preload
 
 	int heap_off_ext = heap_size;
 	heap_size += ROUND_UP(ext_size, 16);							// Extended header data
@@ -199,14 +202,15 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	// Preload the samples if requested
 	if (preload) {
-		data_cache_hit_invalidate(heap + heap_off_samples, preload_size+preload_extra_alloc);
+		data_cache_hit_invalidate(heap + heap_off_samples, preload_size + preload_extra_alloc + state_size);
 		wav->st->samples = UncachedAddr(heap + heap_off_samples);
 
 		int wlen = wav->wave.len;
 		samplebuffer_t sbuf;
-		samplebuffer_init(&sbuf, wav->st->samples, preload_size + preload_extra_alloc, head.state_size);
+		samplebuffer_init(&sbuf, wav->st->samples, preload_size + preload_extra_alloc, state_size);
 		samplebuffer_set_bps(&sbuf, wav->wave.bits);
 		samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read);
+		if (wav->wave.start) wav->wave.start(wav->wave.ctx, &sbuf);
 		samplebuffer_get(&sbuf, 0, &wlen);
 		rspq_highpri_sync();
 		assertf(wlen == wav->wave.len, "wav64: preload failed for %s: wlen=%x/%x", wav->wave.name, wlen, wav->wave.len);

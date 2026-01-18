@@ -106,7 +106,7 @@ typedef struct {
 typedef struct {
     int state_size;     ///< Basic size of the decompression state (without ringbuffer)
 
-    /** @brief Initialize the decompression state */
+    /** @brief Initialize the decompression state. State is guaranteed to be 16-byte aligned */
     void (*decompress_init)(void *state, int fd, int winsize);
 
     /** @brief Partially read a decompressed file from a state */

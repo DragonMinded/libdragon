@@ -1522,8 +1522,8 @@ bool spritemaker_write(spritemaker_t *spr) {
         // Write extended sprite header after first image
         // See sprite_ext_t (sprite_internal.h)
         if (m == 0) { 
-            w16(out, 124);  // sizeof(sprite_ext_t)
-            w16(out, 4);    // version
+            w16(out, 128);  // sizeof(sprite_ext_t)
+            w16(out, 5);    // version
             w_palpos = w32_placeholder(out); // placeholder for position of palette
             int numlods = 0;
             for (int i=1; i<8; i++) {
@@ -1567,6 +1567,8 @@ bool spritemaker_write(spritemaker_t *spr) {
             w8(out, 0); // padding
             w8(out, 0); // padding
             w8(out, 0); // padding
+
+            w32(out, 0); // data_ptr (unused)
 
             walign(out, 8);
         }

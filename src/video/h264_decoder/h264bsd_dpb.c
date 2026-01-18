@@ -820,6 +820,13 @@ u32 h264bsdMarkDecRefPic(
      * picture immediately */
     if (dpb->noReordering)
     {
+        if (dpb->numOut >= dpb->dpbSize + 1 && dpb->outIndex) {
+            int left = dpb->numOut - dpb->outIndex;
+            for (int j = 0; j < left; j++)
+                dpb->outBuf[j] = dpb->outBuf[dpb->outIndex + j];
+            dpb->numOut = left;
+            dpb->outIndex = 0;
+        }
         ASSERT(dpb->numOut < dpb->dpbSize+1);
         dpb->outBuf[dpb->numOut].data  = dpb->currentOut->data;
         dpb->outBuf[dpb->numOut].isIdr = dpb->currentOut->isIdr;

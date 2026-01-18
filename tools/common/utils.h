@@ -33,10 +33,14 @@ static char* path_remove_trailing_slash(char *path)
 __attribute__((used))
 static char *change_ext(const char *fn, const char *ext)
 {
-    char *out = strdup(fn);
-    char *dot = strrchr(out, '.');
-    if (dot) *dot = 0;
-    strcat(out, ext);
+    size_t fn_len = strlen(fn);
+    size_t ext_len = strlen(ext);
+    const char *dot = strrchr(fn, '.');
+    size_t base_len = dot ? (size_t)(dot - fn) : fn_len;
+    char *out = (char *)malloc(base_len + ext_len + 1);
+    memcpy(out, fn, base_len);
+    memcpy(out + base_len, ext, ext_len);
+    out[base_len + ext_len] = 0;
     return out;
 }
 
