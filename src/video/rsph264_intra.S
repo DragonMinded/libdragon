@@ -1075,6 +1075,9 @@ IL16x16:
     jr sp; nop
     .endm
 
+    andi t0, availability, OMX_VC_UPPER
+    beqz t0, IL16x16_LoadLeft
+
     # Load UL byte into the corresponding register. We load
     # 8 pixels but we only care about first one.
     move s0, srcbuf_ul
@@ -1088,6 +1091,10 @@ IL16x16:
     li t0, DMA_SIZE(16,1)
     luv v_u0,0, 0*8,s4
     luv v_u1,0, 1*8,s4
+
+IL16x16_LoadLeft:
+    andi t0, availability, OMX_VC_LEFT
+    beqz t0, IL16x16_Execute
 
     # Read L. This will be a 8x16 block where the first column
     # is the L vector
@@ -1118,6 +1125,7 @@ IL16x16:
     lhv v_l0,0, 0*16,t0
     lhv v_l1,0, 1*16,t0
 
+IL16x16_Execute:
     sll t3, t3, 1
     lhu t3, %lo(INTRALUMA16_TABLE)(t3)
     jr t3
