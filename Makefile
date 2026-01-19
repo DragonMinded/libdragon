@@ -206,6 +206,7 @@ regen:
 test:
 	$(MAKE) -C tests
 	$(MAKE) -C tests/cpakfs test
+	$(MAKE) -C tests/hashtable test
 	python3 -m unittest discover tools/cpaktool/tests
 
 test-clean: install-mk

@@ -475,9 +475,21 @@ int dumpdfs_dir_findfirst(const char * const path, char *buf)
         return ret;
     }
 
+    if(!dirent)
+    {
+        /* Directory exists but has no entries */
+        return FLAGS_EOF;
+    }
+
     /* We now have the pointer to the first entry */
     directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
     grab_sector(dirent, t_node);
+
+    if(t_node->path[0] == '\0')
+    {
+        /* Empty directory: no valid entries */
+        return FLAGS_EOF;
+    }
 
     if(buf)
     {
@@ -724,6 +736,8 @@ void list_dir( char *directory, int depth )
     char path[512];
 
     int dir = dumpdfs_dir_findfirst( directory, path );
+    if (dir == FLAGS_EOF || dir < 0)
+        return;
 
     do
     {
@@ -870,10 +884,12 @@ int main( int argc, char *argv[] )
             }
             int sz = dfs_size( fl );
             assert( sz >= 0 );
-            uint8_t *data = malloc( sz );
-
-            dfs_read( data, 1, sz, fl );
-            fwrite( data, 1, sz, stdout );
+            uint8_t *data = NULL;
+            if (sz > 0) {
+                data = malloc( sz );
+                dfs_read( data, 1, sz, fl );
+                fwrite( data, 1, sz, stdout );
+            }
             dfs_close( fl );
 
             free( filesystem );
@@ -913,10 +929,12 @@ int main( int argc, char *argv[] )
             }
             int sz = dfs_size( fl );
             assert( sz >= 0 );
-            uint8_t *data = malloc( sz );
-
-            dfs_read( data, 1, sz, fl );
-            fwrite( data, 1, sz, stdout );
+            uint8_t *data = NULL;
+            if (sz > 0) {
+                data = malloc( sz );
+                dfs_read( data, 1, sz, fl );
+                fwrite( data, 1, sz, stdout );
+            }
             dfs_close( fl );
             dfs_close( nu );
 
