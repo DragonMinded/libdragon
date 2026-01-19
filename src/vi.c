@@ -798,6 +798,7 @@ void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg)
 
 void vi_set_timing_preset(const vi_timing_preset_t *p)
 {
+    assert(vi_initialized > 0);
     vi_write_begin();
 
     preset = p;
@@ -820,6 +821,7 @@ void vi_set_timing_preset(const vi_timing_preset_t *p)
 
 void vi_reset(void)
 {
+    assert(vi_initialized > 0);
     vi_write_begin();
 
     // Set the pending mask to all registers, so that the whole
