@@ -45,16 +45,15 @@ int sram_detect(void)
     assertf(__sram_inited, "sram accessed, but sram_init() hasn't been called yet");
 
     uint32_t test_pattern = 0x12345678;
-    // Convert to virtual address to attempt to perform direct I/O to SRAM.
-    volatile uint32_t* sram_ptr = VirtualUncachedAddr(SRAM_ADDRESS);
+
     // Test read, save the existing data to restore it later.
-    uint32_t data_old = *sram_ptr;
+    uint32_t data_old = io_read(SRAM_ADDRESS);
     // Write a test pattern to SRAM and check it.
-    *sram_ptr = test_pattern;
-    uint32_t data_new = *sram_ptr;
+    io_write(SRAM_ADDRESS, test_pattern);
+    uint32_t data_new = io_read(SRAM_ADDRESS);
     bool is_detected = (data_new == test_pattern);
     // Restore the old data.
-    *sram_ptr = data_old;
+    io_write(SRAM_ADDRESS, data_old);
 
     return (is_detected) ? SRAM_SIZE : 0;
 }
