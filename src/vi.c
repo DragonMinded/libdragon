@@ -799,6 +799,8 @@ void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg)
 void vi_set_timing_preset(const vi_timing_preset_t *p)
 {
     assert(vi_initialized > 0);
+    assertf(p->vi_v_total % 2 == 1, "invalid VI preset: VI_V_TOTAL must be odd (for progressive scan)");
+
     vi_write_begin();
 
     preset = p;
@@ -807,9 +809,12 @@ void vi_set_timing_preset(const vi_timing_preset_t *p)
     // at runtime as they are fixed by the TV standard.
     vi_write(VI_H_TOTAL,      preset->vi_h_total);
     vi_write(VI_H_TOTAL_LEAP, preset->vi_h_total_leap);
-    vi_write(VI_V_TOTAL,      preset->vi_v_total);
     vi_write(VI_BURST,        preset->vi_burst);
     vi_write(VI_V_BURST,      preset->vi_v_burst);
+
+    // Configure the total number of scanlines, but keep existing bit 0,
+    // which is the interlaced mode toggle (see #vi_set_interlaced).
+    vi_write_masked(VI_V_TOTAL, 0xFFFFFFFE, preset->vi_v_total & ~1);
 
     // Configure the default display area from the preset.
     __set_output(preset->display.x0, preset->display.y0,
@@ -830,6 +835,9 @@ void vi_reset(void)
 
     // Set the timing preset according to the current TV type
     vi_set_timing_preset(default_presets[get_tv_type()]);
+
+    // Start in progressive scan mode
+    vi_set_interlaced(false);
 
     // Turn on blank mode (disable framebuffer sampling)
     vi_write(VI_ORIGIN,       0);
