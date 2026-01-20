@@ -82,7 +82,8 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/hashtable.o \
 	$(BUILD_DIR)/string_hash.o \
 	$(BUILD_DIR)/model64.o \
-	$(BUILD_DIR)/a3d.o
+	$(BUILD_DIR)/a3d.o \
+	$(BUILD_DIR)/sram.o
 
 include $(SOURCE_DIR)/kernel/libdragon.mk
 include $(SOURCE_DIR)/audio/libdragon.mk
