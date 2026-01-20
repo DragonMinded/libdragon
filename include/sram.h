@@ -20,7 +20,6 @@ extern "C" {
 #endif
 
 #define SRAM_ADDRESS 0x08000000 ///< Base address of SRAM in PI address space.
-#define SRAM_SIZE    0x00008000 ///< Size of SRAM (32 KiB).
 
 /**
  * @brief Initialize the SRAM subsystem
@@ -35,16 +34,16 @@ void sram_init(void);
  * 
  * This function checks if the cartridge has SRAM available for use.
  * 
- * @return true if SRAM is detected, false otherwise.
+ * @return Size of available SRAM if is detected, -1 otherwise.
  */
-bool sram_detect(void);
+int sram_detect(void);
 
 /**
  * @brief Read data from SRAM
  * 
  * This function reads data from the SRAM in the cartridge and stores them into
  * the provided destination buffer. To read the entire content of the SRAM,
- * the length should be set to SRAM_SIZE (32 KiB).
+ * the length should be set to the size of the SRAM as detected by sram_detect().
  * 
  * @param dst Destination buffer to store the read data.
  * @param offset Offset in SRAM to read from. Allowed range is 0 to 0x7FFF.
@@ -58,7 +57,7 @@ int sram_read(void* dst, size_t offset, size_t len);
  * 
  * This function writes data to the SRAM in the cartridge from the provided
  * source buffer. To write the entire content of the SRAM, the length should
- * be set to SRAM_SIZE (32 KiB).
+ * be set to the size of the SRAM as detected by sram_detect().
  * 
  * @param src Source buffer containing the data to write.
  * @param offset Offset in SRAM to write to. Allowed range is 0 to 0x7FFF.

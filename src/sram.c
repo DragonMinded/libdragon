@@ -17,6 +17,9 @@
 #define PI_BSD_DOM2_PWD ((volatile uint32_t*) 0xA4600028)
 #define PI_BSD_DOM2_PGS ((volatile uint32_t*) 0xA460002C)
 #define PI_BSD_DOM2_RLS ((volatile uint32_t*) 0xA4600030)
+
+// TODO: Replace fixed size with detection of other SRAM sizes.
+#define SRAM_SIZE    0x00008000 ///< Size of standard SRAM in commercial cartridges (32 KiB).
 /// @endcond
 
 bool __sram_inited = false; ///< True if sram_init() was called
@@ -37,7 +40,7 @@ void sram_init(void)
     __sram_inited = true;
 }
 
-bool sram_detect(void)
+int sram_detect(void)
 {
     assertf(__sram_inited, "sram accessed, but sram_init() hasn't been called yet");
 
@@ -53,7 +56,7 @@ bool sram_detect(void)
     // Restore the old data.
     *sram_ptr = data_old;
 
-    return is_detected;
+    return (is_detected) ? SRAM_SIZE : 0;
 }
 
 int sram_read(void* dst, size_t offset, size_t len)
