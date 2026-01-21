@@ -1043,8 +1043,10 @@ void rspq_next_buffer(void) {
             volatile uint32_t *guard = next + next_size - 1;
             rspq_append1(guard, RSPQ_CMD_RET, 0);
 
-            // Chain current chunk to the new one
+            // Chain current chunk to the new one. Update also the last word
+            // that we use to find the chain.
             rspq_append1(rspq_cur_pointer, RSPQ_CMD_JUMP, PhysicalAddr(next));
+            rspq_append1(prev_guard, RSPQ_CMD_JUMP, PhysicalAddr(next));
         } else {
             assertf(0, "invalid terminator command in queue: %08lx\n", cmd);
         }
