@@ -157,14 +157,14 @@ const unsigned long rspq_timeout = 100;
     ASSERT_RSPQ_EPILOG_SP_STATUS((s)); \
 })
 
-void test_rspq_queue_single(TestContext *ctx)
+void test_rspq_cmd_single(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_rspq_queue_multiple(TestContext *ctx)
+void test_rspq_cmd_multiple(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
     
@@ -173,7 +173,7 @@ void test_rspq_queue_multiple(TestContext *ctx)
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_rspq_queue_rapid(TestContext *ctx)
+void test_rspq_cmd_rapid(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
     
@@ -867,4 +867,213 @@ void test_rspq_deferred_call(TestContext *ctx)
         return;
 
     ASSERT_EQUAL_UNSIGNED(num_call_found, num_call_expected, "invalid number of deferred calls");
+}
+
+void test_rspq_queue_basic(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    rspq_queue_t *q = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q));
+
+    const uint32_t count = 8;
+    uint64_t actual_sum[4] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, sizeof(actual_sum));
+
+    rspq_test_reset();
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < count; i++)
+        rspq_test_4(1);
+
+    rspq_test_output(actual_sum + 0);
+    rspq_queue_run(q);
+
+    for (uint32_t i = 0; i < count; i++)
+        rspq_test_4(1);
+    rspq_test_output(actual_sum + 2);
+    rspq_queue_run(q);
+
+    rspq_queue_switch(NULL);
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum[0], count, "queue sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[2], count*2, "queue sum is not correct");
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_queue_clear(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    rspq_queue_t *q = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q));
+
+    const uint32_t count_a = 32;
+    const uint32_t count_b = 5;
+
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < count_a; i++)
+        rspq_test_4(1);
+    rspq_queue_switch(NULL);
+
+    rspq_queue_clear(q);
+
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < count_b; i++)
+        rspq_test_4(1);
+    rspq_queue_switch(NULL);
+
+    rspq_test_reset();
+
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
+
+    rspq_queue_run(q);
+    rspq_test_output(actual_sum);
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, count_b, "queue clear did not discard old commands");
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_queue_growth(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    rspq_queue_t *q = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q));
+
+    const uint32_t count = RSPQ_BLOCK_MIN_SIZE * 8;
+
+    rspq_test_reset();
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < count; i++)
+        rspq_test_8(1);
+    rspq_queue_switch(NULL);
+
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
+
+    rspq_queue_run(q);
+    rspq_test_output(actual_sum);
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, count, "queue growth sum is not correct");
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_queue_order(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    rspq_queue_t *q1 = rspq_queue_create();
+    rspq_queue_t *q2 = rspq_queue_create();
+    rspq_queue_t *q3 = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q3));
+    DEFER(rspq_queue_destroy(q2));
+    DEFER(rspq_queue_destroy(q1));
+
+    const uint32_t count1 = 3;
+    const uint32_t count2 = 5;
+    const uint32_t count3 = 7;
+
+    rspq_queue_switch(q1);
+    for (uint32_t i = 0; i < count1; i++)
+        rspq_test_4(1);
+
+    rspq_queue_switch(q2);
+    for (uint32_t i = 0; i < count2; i++)
+        rspq_test_4(1);
+
+    rspq_queue_switch(q3);
+    for (uint32_t i = 0; i < count3; i++)
+        rspq_test_4(1);
+
+    uint64_t actual_sum[6] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, sizeof(actual_sum));
+
+    rspq_queue_switch(NULL);
+    rspq_test_reset();
+
+    rspq_queue_run(q2);
+    rspq_test_output(actual_sum + 0);
+
+    rspq_queue_run(q1);
+    rspq_test_output(actual_sum + 2);
+
+    rspq_queue_run(q3);
+    rspq_test_output(actual_sum + 4);
+
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum[0], count2, "queue order step 1 is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[2], count2 + count1, "queue order step 2 is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[4], count2 + count1 + count3, "queue order step 3 is not correct");
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_queue_block_nesting(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    const uint32_t b1_count = 4;
+    const uint32_t b2_extra = 2;
+    const uint32_t q_before = 3;
+    const uint32_t q_after = 5;
+
+    rspq_block_begin();
+    for (uint32_t i = 0; i < b1_count; i++)
+        rspq_test_4(1);
+    rspq_block_t *b1 = rspq_block_end();
+    DEFER(rspq_block_free(b1));
+
+    rspq_block_begin();
+    rspq_block_run(b1);
+    for (uint32_t i = 0; i < b2_extra; i++)
+        rspq_test_4(1);
+    rspq_block_t *b2 = rspq_block_end();
+    DEFER(rspq_block_free(b2));
+
+    rspq_queue_t *q = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q));
+
+    uint64_t actual_sum[6] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, sizeof(actual_sum));
+
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < q_before; i++)
+        rspq_test_4(1);
+    rspq_test_output(actual_sum + 0);
+    rspq_block_run(b2);
+    rspq_test_output(actual_sum + 2);
+    for (uint32_t i = 0; i < q_after; i++)
+        rspq_test_4(1);
+    rspq_test_output(actual_sum + 4);
+    rspq_queue_switch(NULL);
+
+    rspq_test_reset();
+    rspq_queue_run(q);
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum[0], q_before, "queue pre-block sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[2], q_before + b1_count + b2_extra, "queue block sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[4], q_before + b1_count + b2_extra + q_after, "queue post-block sum is not correct");
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }

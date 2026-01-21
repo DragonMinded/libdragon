@@ -96,6 +96,24 @@
  * Blocks must always be created at runtime once (eg: at init time) before
  * being used.
  * 
+ * ## Queues
+ * 
+ * A queue (#rspq_queue_t) is a buffered sequence of commands that can
+ * be recorded and executed later. Unlike blocks, queues can only be run
+ * once, but they can be cleared and re-recorded multiple times, with efficient
+ * memory usage.
+ *
+ * A typical use case can be to create different draw layers, eg: a layer for
+ * opaque objects and a layer for transparent objects. You can add commands to
+ * each of the queue at any time, and then at the end of the frame, run each
+ * queue once to draw the corresponding layer.
+ * 
+ * To create a queue, use #rspq_queue_create. Then, use #rspq_queue_switch to
+ * switch to the queue and add commands with #rspq_write. Use #rspq_queue_run to
+ * execute the queue. Use #rspq_queue_clear to clear the queue contents, keeping
+ * its memory for reuse. Use #rspq_queue_destroy to destroy the queue and free
+ * all its memory.
+ * 
  * ## Syncpoints
  * 
  * The RSP command queue is designed to be fully lockless, but sometimes it is
@@ -200,6 +218,15 @@ extern "C" {
  * block anymore, use #rspq_block_free to dispose it.
  */
 typedef struct rspq_block_s rspq_block_t;
+
+/**
+ * @brief A buffered queue of commands
+ *
+ * A queue (#rspq_queue_t) is a mutable, buffered sequence of commands that can
+ * be recorded and later executed. Unlike blocks, queues can be cleared and
+ * reused multiple times.
+ */
+typedef struct rspq_queue_s rspq_queue_t;
 
 /**
  * @brief A syncpoint in the queue
@@ -857,6 +884,65 @@ static inline bool rspq_block_is_recording(void) {
  */
 void rspq_block_atexit(void (*cb)(void*), void* ctx);
 
+/**
+ * @brief Create a new buffered queue.
+ *
+ * The queue is created empty and is not active by default. Use
+ * #rspq_queue_switch to start recording commands into it.
+ *
+ * @return A pointer to the newly created queue
+ */
+ rspq_queue_t* rspq_queue_create(void);
+
+ /**
+  * @brief Switch the current recording target to a queue.
+  *
+  * After this call, all #rspq_write commands will go into the specified queue,
+  * and they will not be executed immediately. Use #rspq_queue_run to execute
+  * the queue.
+  * 
+  * Passing NULL switches back to the default standard command ring buffer.
+  *
+  * @param q         The queue to switch to, or NULL to switch back to default
+  *                  command ring buffer.
+  */
+ void rspq_queue_switch(rspq_queue_t* q);
+ 
+ /**
+  * @brief Execute a queue from the first command to the last written one.
+  *
+  * The RSP will start executing the queue until it reaches the last written command.
+  * You can keep adding commands to the queue while it is running, and they will be
+  * executed on the next #rspq_queue_run call.
+  *
+  * @param q         The queue to execute
+  */
+ void rspq_queue_run(rspq_queue_t* q);
+ 
+ /**
+  * @brief Clear a queue contents, keeping its memory for reuse.
+  *
+  * This function clears the queue contents, basically resetting its internal
+  * write pointer to the start.
+  *
+  * Notice that this function cannot check if the RSP is still running the queue;
+  * given that the RSP is asynchronous, you must make sure that the RSP is not
+  * running the queue before calling this function. A good way to do this is
+  * to use a syncpoint, or double/triple buffer the queue(s).
+  *
+  * @param q         The queue to clear
+  */
+ void rspq_queue_clear(rspq_queue_t* q);
+ 
+ /**
+  * @brief Destroy a queue and free all its memory.
+  * 
+  * After this call, the queue is invalid and must not be used anymore.
+  *
+  * @param q Queue to destroy
+  */
+ void rspq_queue_destroy(rspq_queue_t* q);
+ 
 /**
  * @brief Start building a high-priority queue.
  * 

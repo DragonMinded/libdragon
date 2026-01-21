@@ -145,6 +145,20 @@
  * is then used as call slot in both all future calls to the block, and by
  * the RSPQ_CMD_RET command placed at the end of the block itself.
  * 
+ * ## Queues
+ * 
+ * Queues are mutable command chains built in RDRAM, similar to blocks but
+ * intended to be reused and cleared. Internally, a queue consists of one or
+ * more chunks linked by #RSPQ_CMD_JUMP guards at the end of each chunk, with
+ * the last chunk ending in #RSPQ_CMD_RET. Chunk growth reuses the same doubling
+ * strategy used by blocks.
+ * 
+ * Recording a queue redirects #rspq_write into the queue buffer, just like
+ * blocks. The main difference is that #rspq_queue_run enqueues a CALL in the
+ * lowpri queue and advances an internal run_start pointer. The current write
+ * pointer remains in the queue, so commands appended during execution will be
+ * picked up on the next #rspq_queue_run call.
+ * 
  * ## Highpri queue
  * 
  * The high priority queue is implemented as an alternative couple of buffers,
@@ -325,6 +339,20 @@ typedef struct {
     volatile uint32_t *sentinel;        ///< Current write sentinel within the active buffer
 } rspq_ctx_t;
 
+/**
+ * @brief A rspq queue: mutable buffered sequence of commands
+ */
+typedef struct rspq_queue_s {
+    uint32_t nesting_level;           ///< Nesting level of the queue
+    uint32_t *first_chunk;            ///< First chunk of the queue
+    volatile uint32_t *run_start;     ///< Start address for the next run
+    uint32_t *cur_chunk;              ///< Current chunk being written
+    int cur_chunk_size;               ///< Size of the current chunk (in 32-bit words)
+    volatile uint32_t *cur;           ///< Current write pointer within the chunk
+    volatile uint32_t *sentinel;      ///< Current write sentinel within the chunk
+    uint32_t cmds[];                  ///< First chunk contents
+} rspq_queue_t;
+
 static rspq_ctx_t lowpri;               ///< Lowpri queue context
 static rspq_ctx_t highpri;              ///< Highpri queue context
 
@@ -345,6 +373,8 @@ static bool rspq_initialized = 0;
 rspq_block_t *rspq_block;
 /** @brief Size of the current block memory buffer (in 32-bit words). */
 static int rspq_block_size;
+/** @brief Pointer to the current queue being recorded, or NULL. */
+static rspq_queue_t *rspq_queue_recording;
 
 /** @brief ID that will be used for the next syncpoint that will be created. */
 static int rspq_syncpoints_genid;
@@ -655,6 +685,7 @@ void rspq_init(void)
 
     // Init blocks
     rspq_block = NULL;
+    rspq_queue_recording = NULL;
     rspq_is_running = false;
 
     // Activate SP interrupt (used for syncpoints)
@@ -990,6 +1021,40 @@ void rspq_next_buffer(void) {
         return;
     }
 
+    // If we're recording a queue
+    if (rspq_queue_recording) {
+        volatile uint32_t *prev_guard = rspq_queue_recording->cur_chunk +
+            rspq_queue_recording->cur_chunk_size - 1;
+        uint32_t cmd = *prev_guard;
+        uint32_t *next = NULL;
+        int next_size = rspq_queue_recording->cur_chunk_size;
+
+        // Follow an existing jump to the next chunk
+        if (cmd >> 24 == RSPQ_CMD_JUMP) {
+            next = (uint32_t*)UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
+            if (next_size < RSPQ_BLOCK_MAX_SIZE) next_size *= 2;
+        } else if (cmd >> 24 == RSPQ_CMD_RET) {
+            // Allocate a new chunk and chain it
+            if (next_size < RSPQ_BLOCK_MAX_SIZE) next_size *= 2;
+            next = malloc_uncached(next_size * sizeof(uint32_t));
+            assertf(next, "Out of memory");
+
+            // Mark new chunk terminator for traversal
+            volatile uint32_t *guard = next + next_size - 1;
+            rspq_append1(guard, RSPQ_CMD_RET, 0);
+
+            // Chain current chunk to the new one
+            rspq_append1(rspq_cur_pointer, RSPQ_CMD_JUMP, PhysicalAddr(next));
+        } else {
+            assertf(0, "invalid terminator command in queue: %08lx\n", cmd);
+        }
+
+        rspq_queue_recording->cur_chunk = next;
+        rspq_queue_recording->cur_chunk_size = next_size;
+        rspq_switch_buffer(next, next_size, false);
+        return;
+    }
+
     // We are about to switch buffer. If the debugging engine is activate,
     // it is a good time to run it, so that it does not accumulate too many
     // commands.
@@ -1064,7 +1129,7 @@ static void rspq_flush_internal(void)
 void rspq_flush(void)
 {
     // If we are recording a block, flushes can be ignored.
-    if (rspq_block) return;
+    if (rspq_block || rspq_queue_recording) return;
 
     rspq_flush_internal();
     if (rdpq_trace) rdpq_trace();
@@ -1074,6 +1139,7 @@ void rspq_highpri_begin(void)
 {
     assertf(rspq_ctx != &highpri, "already in highpri mode");
     assertf(!rspq_block, "cannot switch to highpri mode while creating a block");
+    assertf(!rspq_queue_recording, "cannot switch to highpri mode while recording a queue");
 
     rspq_switch_context(&highpri);
 
@@ -1157,6 +1223,7 @@ void rspq_block_begin(void)
 {
     assertf(!rspq_block, "a block was already being created");
     assertf(rspq_ctx != &highpri, "cannot create a block in highpri mode");
+    assertf(!rspq_queue_recording, "cannot create a block while recording a queue");
 
     // Allocate a new block (at minimum size) and initialize it.
     rspq_block_size = RSPQ_BLOCK_MIN_SIZE;
@@ -1263,6 +1330,11 @@ void rspq_block_run(rspq_block_t *block)
         assertf(rspq_block->nesting_level < RSPQ_MAX_BLOCK_NESTING_LEVEL,
             "reached maximum number of nested block runs");
     }
+    if (rspq_queue_recording && rspq_queue_recording->nesting_level <= block->nesting_level) {
+        rspq_queue_recording->nesting_level = block->nesting_level + 1;
+        assertf(rspq_queue_recording->nesting_level < RSPQ_MAX_BLOCK_NESTING_LEVEL,
+            "reached maximum number of nested queue runs");
+    }
 
     // Notify rdpq engine we have run a block
     __rdpq_block_run(block->rdp_block);
@@ -1291,6 +1363,123 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx)
     rspq_block->atexit = new_cb;
 }
 
+rspq_queue_t* rspq_queue_create(void)
+{
+    rspq_queue_t *q = malloc_uncached(sizeof(rspq_queue_t) + RSPQ_BLOCK_MIN_SIZE * sizeof(uint32_t));
+    assertf(q, "Out of memory");
+
+    q->nesting_level = 0;
+    q->first_chunk = q->cmds;
+    q->run_start = q->first_chunk;
+    q->cur_chunk = q->first_chunk;
+    q->cur_chunk_size = RSPQ_BLOCK_MIN_SIZE;
+    q->cur = q->cur_chunk;
+    q->sentinel = q->cur_chunk + q->cur_chunk_size - (RSPQ_MAX_SHORT_COMMAND_SIZE + 2);
+
+    // Guard word at the end of the chunk (used for traversal on destroy).
+    volatile uint32_t *guard = q->cur_chunk + q->cur_chunk_size - 1;
+    rspq_append1(guard, RSPQ_CMD_RET, 0);
+
+    return q;
+}
+
+void rspq_queue_switch(rspq_queue_t* q)
+{
+    assertf(rspq_ctx != &highpri, "cannot switch queue in highpri mode");
+    assertf(!rspq_block, "cannot switch queue while creating a block");
+
+    if (q == rspq_queue_recording)
+        return;
+
+    if (rspq_queue_recording) {
+        rspq_queue_recording->cur = rspq_cur_pointer;
+        rspq_queue_recording->sentinel = rspq_cur_sentinel;
+    }
+
+    if (!q) {
+        rspq_queue_recording = NULL;
+        rspq_switch_context(&lowpri);
+        return;
+    }
+
+    rspq_queue_recording = q;
+    if (rspq_ctx != NULL)
+        rspq_switch_context(NULL);
+    rspq_cur_pointer = q->cur;
+    rspq_cur_sentinel = q->sentinel;
+}
+
+void rspq_queue_run(rspq_queue_t* q)
+{
+    assertf(q, "queue is NULL");
+    assertf(rspq_ctx != &highpri, "queue run is not supported in highpri mode");
+    assertf(!rspq_block, "queue run is not supported while creating a block");
+
+    // Switch to the lowpri context.
+    rspq_queue_t *prev_recording = rspq_queue_recording;
+    if (prev_recording)
+        rspq_queue_switch(NULL);
+
+    // Terminate the current chunk with a RET command.
+    rspq_append1(q->cur, RSPQ_CMD_RET, q->nesting_level << 2);
+
+    // Enqueue a CALL in the lowpri context to run the queue.
+    rspq_int_write(RSPQ_CMD_CALL, PhysicalAddr(q->run_start), q->nesting_level << 2);
+
+    // Update run_start so that the next call will start from the current position.
+    q->run_start = q->cur;
+
+    // Switch back to the recording context.
+    if (prev_recording)
+        rspq_queue_switch(prev_recording);
+}
+
+void rspq_queue_clear(rspq_queue_t* q)
+{
+    assertf(q, "queue is NULL");
+
+    q->cur_chunk = q->first_chunk;
+    q->cur_chunk_size = RSPQ_BLOCK_MIN_SIZE;
+    q->cur = q->cur_chunk;
+    q->sentinel = q->cur_chunk + q->cur_chunk_size - (RSPQ_MAX_SHORT_COMMAND_SIZE + 2);
+    q->nesting_level = 0;
+    q->run_start = q->first_chunk;
+
+    volatile uint32_t *term = q->cur;
+    rspq_append1(term, RSPQ_CMD_RET, q->nesting_level << 2);
+
+    if (q == rspq_queue_recording) {
+        rspq_cur_pointer = q->cur;
+        rspq_cur_sentinel = q->sentinel;
+    }
+}
+
+void rspq_queue_destroy(rspq_queue_t* q)
+{
+    assertf(q, "queue is NULL");
+    assertf(q != rspq_queue_recording, "cannot destroy queue while recording it");
+
+    int size = RSPQ_BLOCK_MIN_SIZE;
+    void *start = q;
+    uint32_t *ptr = q->first_chunk;
+    while (1) {
+        uint32_t cmd = ptr[size-1];
+
+        if (cmd >> 24 == RSPQ_CMD_JUMP) {
+            free_uncached(start);
+            start = UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
+            if (size < RSPQ_BLOCK_MAX_SIZE) size *= 2;
+            ptr = (uint32_t*)start;
+            continue;
+        }
+        if (cmd >> 24 == RSPQ_CMD_RET) {
+            free_uncached(start);
+            return;
+        }
+        assertf(0, "invalid terminator command in queue: %08lx\n", cmd);
+    }
+}
+
 void rspq_noop()
 {
     rspq_int_write(RSPQ_CMD_NOOP);
@@ -1300,6 +1489,7 @@ rspq_syncpoint_t rspq_syncpoint_new(void)
 {   
     assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
     assertf(!rspq_block, "cannot create syncpoint in a block");
+    assertf(!rspq_queue_recording, "cannot create syncpoint in a queue");
     assertf(rspq_ctx != &highpri, "cannot create syncpoint in highpri mode");
 
     // To create a syncpoint, schedule a CMD_TEST_WRITE_STATUS command that:
@@ -1405,6 +1595,7 @@ rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool wait
 {
     assertf(rspq_ctx != &highpri, "cannot defer in highpri mode");
     assertf(!rspq_block, "cannot defer in a block");
+    assertf(!rspq_queue_recording, "cannot defer in a queue");
 
     // Allocate a new deferred call
     rspq_deferred_call_t *call = malloc(sizeof(rspq_deferred_call_t));
@@ -1434,6 +1625,10 @@ rspq_syncpoint_t rspq_syncpoint_new_cb(void (*func)(void *), void *arg)
 
 void rspq_wait(void)
 {
+    assertf(!rspq_queue_recording, "cannot wait in a queue");
+    assertf(!rspq_block, "cannot wait in a block");
+    assertf(rspq_ctx != &highpri, "cannot wait in highpri mode");
+    
     // Check if the RDPQ module was initialized.
     if (__rdpq_inited) {
         // If so, a full sync requires also waiting for RDP to finish.
