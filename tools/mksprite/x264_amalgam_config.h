@@ -47,6 +47,17 @@ typedef struct x264_t x264_t;
 #define HAVE_BITDEPTH8 1
 #define HAVE_BITDEPTH10 0
 
+#if defined(_WIN32) || defined(__MINGW32__)
+#define SYS_WINDOWS 1
+#define SYS_LINUX 0
+#define SYS_FREEBSD 0
+#define SYS_NETBSD 0
+#define SYS_OPENBSD 0
+#define SYS_S 0
+#define SYS_BEOS 0
+#define SYS_CYGWIN 0
+#define SYS_MACOSX 0
+#elif defined(__APPLE__)
 #define SYS_WINDOWS 0
 #define SYS_LINUX 0
 #define SYS_FREEBSD 0
@@ -56,6 +67,27 @@ typedef struct x264_t x264_t;
 #define SYS_BEOS 0
 #define SYS_CYGWIN 0
 #define SYS_MACOSX 1
+#elif defined(__linux__)
+#define SYS_WINDOWS 0
+#define SYS_LINUX 1
+#define SYS_FREEBSD 0
+#define SYS_NETBSD 0
+#define SYS_OPENBSD 0
+#define SYS_S 0
+#define SYS_BEOS 0
+#define SYS_CYGWIN 0
+#define SYS_MACOSX 0
+#else
+#define SYS_WINDOWS 0
+#define SYS_LINUX 0
+#define SYS_FREEBSD 0
+#define SYS_NETBSD 0
+#define SYS_OPENBSD 0
+#define SYS_S 0
+#define SYS_BEOS 0
+#define SYS_CYGWIN 0
+#define SYS_MACOSX 0
+#endif
 
 #define ARCH_X86 0
 #define ARCH_X86_64 0

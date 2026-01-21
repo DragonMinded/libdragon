@@ -33,9 +33,10 @@
 // Compression library
 #include "../common/assetcomp.h"
 
-// Bring in tex_format_t definition
-#include "surface.h"
-#include "sprite.h"
+// Bring in tex_format_t definition and shared structs
+#include "../../include/surface.h"
+#include "../../include/sprite.h"
+#include "mksprite.h"
 
 #define FMT_ZBUF   (64 + 0)
 #define FMT_IHQ    (64 + 1)
@@ -108,39 +109,6 @@ const char *dither_algo_name(int algo) {
     }
 }
 
-typedef struct {
-    struct {
-        float translate;
-        int scale;
-        float repeats;
-        int mirror;
-    } s, t;
-    bool defined;
-} texparms_t;
-
-
-typedef struct {
-    tex_format_t outfmt;
-    int hslices;
-    int vslices;
-    int tilew;
-    int tileh;
-    int mipmap_algo;
-    int dither_algo;
-    int gamma_correct;
-    texparms_t texparms;
-    struct{
-        const char   *infn;       // Input file for detail texture
-        texparms_t   texparms;
-        tex_format_t outfmt;
-        float        blend_factor;
-        bool         use_main_tex;
-        bool         enabled;
-    } detail;
-
-} parms_t;
-
-
 bool flag_verbose = false;
 bool flag_debug = false;
 
@@ -153,32 +121,36 @@ void print_supported_mipmap(void) {
 }
 
 void print_supported_dithers(void) {
-    fprintf(stderr, "Supported dithering algorithms: NONE (disable), RANDOM, ORDERED. \nNote that dithering is only applied while quantizing an image.\n");
+    fprintf(stderr, "Supported dithering algorithms: NONE (disable), RANDOM, ORDERED. \n");
 }
 
 void print_args( char * name )
 {
     fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
     fprintf(stderr, "\n");
-    fprintf(stderr, "Command-line flags:\n");
-    fprintf(stderr, "   -v/--verbose          Verbose output\n");
-    fprintf(stderr, "   -o/--output <dir>     Specify output directory (default: .)\n");
-    fprintf(stderr, "   -f/--format <fmt>     Specify output format (default: AUTO)\n");
-    fprintf(stderr, "   -D/--dither <dither>  Dithering algorithm (default: NONE)\n");
-    fprintf(stderr, "   -c/--compress <level> Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
-    fprintf(stderr, "   -g/--gamma            Adjust colors for when VI gamma correction is enabled on console (convert to linear colors)\n");
-    fprintf(stderr, "   -d/--debug            Dump computed images (eg: mipmaps) as PNG files in output directory\n");
-    fprintf(stderr, "\nSampling flags:\n");
-    fprintf(stderr, "   --texparms <x,s,r,m>          Sampling parameters:\n");
-    fprintf(stderr, "                                 x=translation, s=scale, r=repetitions, m=mirror\n");
-    fprintf(stderr, "   --texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)\n");
-    fprintf(stderr, "\nMipmapping flags:\n");
-    fprintf(stderr, "   -m/--mipmap <algo>                    Calculate mipmap levels using the specified algorithm (default: NONE)\n");
-    fprintf(stderr, "   --detail [<image>[,<fmt>]][,<factor>] Activate detail texture:\n");
-    fprintf(stderr, "                                         <image> is the file to use as detail (default: reuse input image)\n");
-    fprintf(stderr, "                                         <fmt> is the output format (default: AUTO)\n");
-    fprintf(stderr, "                                         <factor> is the blend factor in range 0..1 (default: 0.5)\n");
-    fprintf(stderr, "   --detail-texparms <x,x,s,s,r,r,m,m>   Sampling parameters for the detail texture\n");
+    fprintf(stderr, "General flags:\n");
+    fprintf(stderr, "   -v/--verbose                            Verbose output\n");
+    fprintf(stderr, "   -o/--output <dir>                       Specify output directory (default: .)\n");
+    fprintf(stderr, "   -f/--format <fmt>                       Specify output RDP surface format (default: AUTO)\n");
+    fprintf(stderr, "   -g/--gamma                              Convert colors to linear scale (use with runtime\n");
+    fprintf(stderr, "                                            VI gamma correction enabled)\n");
+    fprintf(stderr, "   -d/--debug                              Dump computed images as PNGs (eg: mipmaps)\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Lossless sprite (default mode):\n");
+    fprintf(stderr, "   -c/--compress <level>                   Compress output files (default: level %d)\n", DEFAULT_COMPRESSION);
+    fprintf(stderr, "   -D/--dither <dither>                    Dithering algorithm (default: NONE)\n");
+    fprintf(stderr, "   -m/--mipmap <algo>                      Calculate mipmap levels using the specified algorithm (default: NONE)\n");
+    fprintf(stderr, "   --texparms <x,s,r,m>                    Runtime sampling parameters:\n");
+    fprintf(stderr, "                                            x=translation, s=scale, r=repetitions, m=mirror\n");
+    fprintf(stderr, "   --texparms <x,x,s,s,r,r,m,m>            Runtime sampling parameters (different for S/T)\n");
+    fprintf(stderr, "   --detail [<image>[,<fmt>]][,<factor>]   Use detail texture:\n");
+    fprintf(stderr, "                                            <image> is the file to use as detail (default: reuse input image)\n");
+    fprintf(stderr, "                                            <fmt> is the output format (default: AUTO)\n");
+    fprintf(stderr, "                                            <factor> is the blend factor in range 0..1 (default: 0.5)\n");
+    fprintf(stderr, "   --detail-texparms <x,x,s,s,r,r,m,m>     Runtime sampling parameters for the detail texture\n");
+    fprintf(stderr, "\nLossy sprite:\n");
+    fprintf(stderr, "   -L/--lossy <0..100>                     Activate lossy mode with the specified quality (0 disables)\n");
+    fprintf(stderr, "   -c/--compress <level>                   Select lossy compression algorithm (default: 3 - H264)\n");
     fprintf(stderr, "\n");
     print_supported_formats();
     print_supported_mipmap();
@@ -248,19 +220,6 @@ const char *colortype_to_string(LodePNGColorType ct) {
     default: assert(0); return "";
     }
 }
-
-typedef struct {
-    uint8_t *image;         // Pointer to image data (pixels)
-    int width, height;      // Image dimensions
-    tex_format_t fmt;       // Texture format
-    LodePNGColorType ct;    // PNG color type
-} image_t;
-
-typedef struct {
-    int num_colors;         // Number of colors in palette
-    int used_colors;        // Number of colors actually used in palette
-    uint8_t colors[256][4]; // Color palette (if num_colors != 0)
-} palette_t;
 
 #define MAX_IMAGES 8
 
@@ -1967,7 +1926,7 @@ int main(int argc, char *argv[])
             
             /* ---------------- MIPMAP console argument ------------------- */
             /* -m/--mipmap <algo>                    Calculate mipmap levels using the specified algorithm (default: NONE)             */
-             else if (!strcmp(argv[i], "-m") || !strcmp(argv[i], "--mipmap")) {
+            else if (!strcmp(argv[i], "-m") || !strcmp(argv[i], "--mipmap")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
@@ -2019,6 +1978,26 @@ int main(int argc, char *argv[])
             /* -g/--gamma  Adjust colors for when VI gamma correction is enabled on console (convert to linear colors)                          */
             else if (!strcmp(argv[i], "-g") || !strcmp(argv[i], "--gamma")) {
                 pm.gamma_correct = 1;
+            }
+
+            /* ---------------- LOSSY console argument ------------------- */
+            /* --lossy <quality>  Encode as lossy sprite (H.264 intra). 0 disables lossy */
+            else if (!strcmp(argv[i], "-L") || !strcmp(argv[i], "--lossy")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                char extra;
+                int q = 0;
+                if (sscanf(argv[i], "%d%c", &q, &extra) != 1) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i - 1], argv[i]);
+                    return 1;
+                }
+                if (q < 0 || q > 100) {
+                    fprintf(stderr, "invalid lossy quality (0..100): %d\n", q);
+                    return 1;
+                }
+                pm.lossy_quality = q;
             }
 
             /* ---------------- TEXTURE PARAMETERS console argument ------------------- */
@@ -2113,8 +2092,14 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
-        if (convert(infn, outfn, &pm, compression) != 0)
-            error = true;
+        if (pm.lossy_quality > 0) {
+            if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
+                error = true;
+            }
+        } else {
+            if (convert(infn, outfn, &pm, compression) != 0)
+                error = true;
+        }
 
         free(outfn);
     }
@@ -2138,8 +2123,14 @@ int main(int argc, char *argv[])
         setmode(1, _O_BINARY);
         #endif
 
-        if (convert(infn, outfn, &pm, compression) != 0) {
-            error = true;
+        if (pm.lossy_quality > 0) {
+            if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
+                error = true;
+            }
+        } else {
+            if (convert(infn, outfn, &pm, compression) != 0) {
+                error = true;
+            }
         }
     }
 

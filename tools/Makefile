@@ -65,6 +65,10 @@ common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
 mkfont/freetype/FreeTypeAmalgam.o: CFLAGS += -Wno-all -Wno-error
 mkfont/plutosvg/plutosvg-amalgam.o:CFLAGS += -Imkfont/plutosvg -Wno-unused-function -Wno-error
 mkfont/mkfont.o:              	   CXXFLAGS += -Imkfont/plutosvg -Imkfont/freetype
+mksprite/x264_amalgam.o:           CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand
+mksprite/x264_amalgam.o:           CFLAGS += -Imksprite/x264
+mksprite/x264_amalgam2.o:          CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand
+mksprite/x264_amalgam2.o:          CFLAGS += -Imksprite/x264
 
 
 common-clean:
@@ -87,7 +91,7 @@ $(DECOMP_STUBS):
 -include $(wildcard common/*.d)
 
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
-mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
+mksprite_OBJS = mksprite/mksprite.o mksprite/mksprite_lossy.o mksprite/x264_amalgam.o mksprite/x264_amalgam2.o common/assetcomp.a
 mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o mkfont/plutosvg/plutosvg-amalgam.o common/assetcomp.a
 mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a
 mkmaterial_OBJS = mkmaterial/mkmaterial.o mkmaterial/mkmaterial_parse.o mkmaterial/mkmaterial_export.o common/assetcomp.a 
