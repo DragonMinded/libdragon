@@ -1295,7 +1295,7 @@ inline void rdpq_load_block_linear(int32_t offset, void *buffer, uint16_t size)
     rdpq_set_texture_image_raw(0, PhysicalAddr(buffer), FMT_RGBA16, 8, size / 8);
     rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_RGBA16, offset, 0, NULL);
     uint32_t num_texels = size / 2;
-    rdpq_load_block(RDPQ_TILE_INTERNAL, 0, 0, num_texels, 16);
+    rdpq_load_block_fx(RDPQ_TILE_INTERNAL, 0, 0, num_texels, 0);
 }
 
 /**
