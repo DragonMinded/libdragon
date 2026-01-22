@@ -67,7 +67,7 @@ int main(void)
                 joypad_set_rumble_active(port, true);
             }
 
-            if (pressed.a)
+            if (pressed.b)
             {
                 joypad_set_rumble_active(port, false);
             }
