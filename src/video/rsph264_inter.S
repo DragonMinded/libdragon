@@ -1306,6 +1306,7 @@ LumaDiagLoop2:
     #define dc a3
     #define qp t9     // NOTE: this must match definition in rsph264_common.inc
     #define ac fp
+    #define tcmask s7
 
     #define npart s5
     #define dst_dma_width v1
@@ -1377,6 +1378,8 @@ OMX_DequantTransformResidual:
 
     jal UnpackNextDeltaBlock
     nop
+    move tcmask, ac
+
     jal CalcDequantFactors
     move t0, qp
     jal Dequant4x4
@@ -1473,10 +1476,6 @@ Task_ProcessLumaInterResidual:
     jal ResidualBootstrap
     li t0, DMA_SIZE(16,16)
 
-    # Check if we need to load the totalCoeff table
-    jal SetTotalCoeff
-    move s0, ac
-
     jal CalcDequantFactors
     move t0, qp
 
@@ -1484,8 +1483,9 @@ Task_ProcessLumaInterResidual:
     li npart, 0
 LumaResidualLoop:
     # See if there's residual data to process in this 4x4 partition
-    lbu ac, %lo(TCOEFF_TABLE)(npart)
-    beqz ac, LumaDequantSkip
+    srlv t0, ac, npart
+    andi t0, 1
+    beqz t0, LumaDequantSkip
     nop
 
     jal UnpackNextDeltaBlock
@@ -1524,9 +1524,7 @@ Task_ProcessChromaResidual:
     jal DMAIn
     li s4, %lo(MB_OUTPUT+64)
 
-    # Check if we need to load the totalCoeff table
-    jal SetTotalCoeff
-    move s0, ac
+    move tcmask, ac
 
     jal CalcDequantFactors
     move t0, qp
@@ -1538,7 +1536,8 @@ Task_ProcessChromaResidual:
 ChromaDC0:
     # Check if there are quantized/transformed DC factors for the
     # first chroma block. If so, dequantize/transform them.
-    lbu t0, %lo(TCOEFF_TABLE+25)
+    srl t0, tcmask, 25
+    andi t0, 1
     beqz t0, ChromaDC1
     nop
     jal UnpackNextDeltaBlock
@@ -1549,7 +1548,8 @@ ChromaDC0:
 ChromaDC1:
     # Check if there are quantized/transformed DC factors for the
     # second chroma block. If so, dequantize/transform them.
-    lbu t0, %lo(TCOEFF_TABLE+26)
+    srl t0, tcmask, 26
+    andi t0, 1
     beqz t0, ChromaResidualLoopStart
     nop
     jal UnpackNextDeltaBlock
@@ -1575,7 +1575,9 @@ ChromaResidualLoop:
     # AC=0 DC=1   => transform
     # AC=1 DC=1   => unpack, dequant, transform
 
-    lbu ac, %lo(TCOEFF_TABLE+16)(npart)
+    addi t1, npart, 16
+    srlv t0, tcmask, t1
+    andi ac, t0, 1
     beqz ac, ChromaResidualTransform
     nop
 
@@ -1689,6 +1691,7 @@ TransformResidual4x4CheckDC:
     #undef dc
     #undef qp
     #undef ac
+    #undef tcmask
     #undef npart
     #undef dst_dma_width
     #undef ac16

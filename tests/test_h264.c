@@ -6,6 +6,7 @@
 #include <string.h>
 #include "../src/video/fastcache.h"
 #include "../src/video/rsph264_internal.h"
+#include "../src/video/h264_decoder/h264bsd_macroblock_layer.h"
 #include "../src/video/h264_decoder/h264bsd_util.h"
 #include "../src/video/h264_decoder/h264bsd_stream.h"
 
@@ -380,7 +381,7 @@ bool intrapred_test(IntraPredictionTest *test, int verbose) {
                 csrc1);
             rsph264_queue_process_luma_intra4_residual(0,
                 src1, dst1, SRC_PITCH, DST_SIZE,
-                modeAvail, test->qp, test->ac);
+                modeAvail, test->qp, h264bsdTotalCoeffMask(test->ac));
             rsph264_sync();
         });
 
@@ -404,7 +405,7 @@ bool intrapred_test(IntraPredictionTest *test, int verbose) {
                 csrc1);
             rsph264_queue_process_luma_intra16_residual(0,
                 src1, dst1, SRC_PITCH, DST_SIZE,
-                test->mode[0], test->avail[0], test->qp, test->ac);
+                test->mode[0], test->avail[0], test->qp, h264bsdTotalCoeffMask(test->ac));
             rsph264_sync();
         });
 
@@ -695,7 +696,7 @@ bool dequant_test(DequantTest *test, int verbose) {
                 csrc1);
             rsph264_queue_process_luma_inter_residual(0,
                 dst1, DST_SIZE,
-                0, test->qp, test->ac);
+                0, test->qp, h264bsdTotalCoeffMask(test->ac));
             rsph264_sync();
         });
 
@@ -717,7 +718,7 @@ bool dequant_test(DequantTest *test, int verbose) {
                 csrc1);
             rsph264_queue_process_chroma_residual(0,
                 dst1, dst1+16, DST_SIZE,
-                test->qp, test->ac);
+                test->qp, h264bsdTotalCoeffMask(test->ac));
             rsph264_sync();
         });
 

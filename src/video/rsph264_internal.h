@@ -124,9 +124,6 @@ void rsph264_queue_set_packed_delta_buffer_if_changed(
 
 void rsph264_queue_reset_packed_delta_buffer(void);
 
-void rsph264_queue_set_total_coeff(int cache_flags, const uint8_t *totalCoeff);
-void rsph264_queue_reset_total_coeff(void);
-
 const uint8_t* rsph264_cur_delta_buffer(const uint8_t *buf);
 
 void rsph264_queue_dequant_transform_residual(
@@ -145,26 +142,26 @@ void rsph264_queue_transform_dequant_chromadc(
 void rsph264_queue_process_luma_inter_residual(
 	int cache_flags,
 	uint8_t *dst, uint32_t dst_pitch,
-	const int16_t *dc, uint32_t qp, const uint8_t* totalCoeff);
+	const int16_t *dc, uint32_t qp, uint32_t totalCoeffMask);
 
 void rsph264_queue_process_chroma_residual(
 	int cache_flags,
 	uint8_t *dst1, uint8_t *dst2, uint32_t dst_pitch,
-	uint32_t qp, const uint8_t *totalCoeff);
+	uint32_t qp, uint32_t totalCoeffMask);
 
 void rsph264_queue_process_luma_intra4_residual(
     int cache_flags,
     const uint8_t *src, uint8_t *dst,
     uint32_t src_pitch, uint32_t dst_pitch,
     const uint8_t *modeAvail,
-    uint32_t qp, const uint8_t *totalCoeff);
+    uint32_t qp, uint32_t totalCoeffMask);
 
 void rsph264_queue_process_luma_intra16_residual(
     int cache_flags,
     const uint8_t *src, uint8_t *dst,
     uint32_t src_pitch, uint32_t dst_pitch,
     const uint32_t mode, const uint32_t availability,
-    uint32_t qp, const uint8_t *totalCoeff);
+    uint32_t qp, uint32_t totalCoeffMask);
 
 void rsph264_queue_write_macroblock(
 	int cache_flags,

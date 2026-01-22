@@ -987,9 +987,7 @@ u32 h264bsdDecodeMacroblock(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
             H264SwDecMemcpy(pMb->totalCoeff,
                             pMbLayer->residual.totalCoeff,
                             27*sizeof(*pMb->totalCoeff));
-            #ifdef H264BSD_N64
-            fast_data_cache_hit_writeback(pMb->totalCoeff, 27);
-            #endif
+            pMb->totalCoeffMask = h264bsdTotalCoeffMask(pMb->totalCoeff);
             #endif
 
             /* update qpY */
@@ -1050,9 +1048,7 @@ u32 h264bsdDecodeMacroblock(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
         else
         {
             H264SwDecMemset(pMb->totalCoeff, 0, 27*sizeof(*pMb->totalCoeff));
-            #ifdef H264BSD_N64
-            fast_data_cache_hit_writeback(pMb->totalCoeff, 27);
-            #endif
+            pMb->totalCoeffMask = 0;
             pMb->qpY = (u32)*qpY;
         }
 
