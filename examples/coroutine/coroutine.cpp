@@ -5,22 +5,21 @@ void worker(void* arg) {
     u_int32_t a = 42;
     u_int32_t b = 100;
     float c = 4.0f;
-    //for(int i=0; i<5; ++i) 
+    float c2 = 4.0f;
+    for(int i=0; i<5; ++i) 
     {
-        printf("Hello from coroutine: %f\n", c);
-        /*uint64_t end = get_ticks() + TICKS_FROM_MS(1000);
-        while(get_ticks() < end) {
-          corot_yield();
-        }*/
-        corot_sleep(TICKS_FROM_MS(1000));
-      
-
+        printf("Hello from coroutine: %f %f\n", c, c2);
+        corot_yield();
+    
         printf("Hello from coroutine 2: %ld\n", a + b);
         corot_yield();
         ++a;
         b *= 2;
         c += 1;
+        c2 +=2;
     }
+
+    corot_sleep(TICKS_FROM_MS(1000));
 }
 
 int main()
