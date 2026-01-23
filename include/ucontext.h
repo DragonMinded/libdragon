@@ -17,6 +17,8 @@ typedef struct mcontext_s {
   uint32_t s[8]; // $s0-$s7
   uint32_t ra;
   uint32_t a[1]; // $a0 (initial entry argument)
+  uint32_t f[12];
+  uint32_t fc32;
 } mcontext_t;
 
 typedef struct ucontext_s {
@@ -29,6 +31,7 @@ typedef struct ucontext_s {
 static_assert(offsetof(ucontext_t, uc_stack) == 4);
 static_assert(offsetof(ucontext_t, uc_mcontext) == 16);
 static_assert(offsetof(mcontext_t, ra) == 32);
+static_assert(offsetof(mcontext_t, f) == 40);
 
 // @TODO: allow proper varargs (is that even needed in practice?)
 void makecontext(
