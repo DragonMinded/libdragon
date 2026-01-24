@@ -85,6 +85,18 @@ inline static bool corot_finished(coroutine_t *co)
   return co ? co->finished : true;
 }
 
+/**
+ * @brief Returns the currently active coroutine
+ * If currently inside a coroutine, it will return the handle.
+ * When outside, it returns NULL.
+ * 
+ * This can also be used to detect and change behaviour of a function
+ * depending on if it's running in a coroutine or not.
+ * 
+ * @return coroutine_t* active coroutine, NULL if in main context
+ */
+coroutine_t* corot_get_current(void);
+
 #ifdef __cplusplus
 }
 #endif
