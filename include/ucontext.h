@@ -1,19 +1,24 @@
 #ifndef LIBDRAGON_UCONTEXT_H
 #define LIBDRAGON_UCONTEXT_H
 
-#include <stdint.h>
-#include <stddef.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/**
+ * Defines the stack used for a context.
+ */
 typedef struct stack_s {
   void     *ss_sp;    // stack base or pointer
   size_t    ss_size;  // stack size
   int       ss_flags; // flags
 } stack_t;
 
+/**
+ * Hardware specific data that needs backing up.
+ * This contains relevant register that are not baked up by
+ * the compiler itself during a function call.
+ */
 typedef struct mcontext_s {
   uint64_t s[8]; // $s0-$s7
   uint32_t ra;
@@ -22,20 +27,28 @@ typedef struct mcontext_s {
   uint32_t fc32;
 } mcontext_t;
 
+/**
+ * System-V compatible struct that defines a context.
+ * This includes an allocated stack, as well as currently used registers.
+ * 
+ * It can be created via makecontext, and later switched to with swapcontext.
+ */
 typedef struct ucontext_s {
     struct ucontext_s *uc_link;  // pointer to the context that will be resumed when this context returns
-    stack_t uc_stack; // the stack used by this context
+    stack_t uc_stack;
     mcontext_t uc_mcontext;
 } ucontext_t;
 
-// @TODO: sync with offsets in ASM
-/*
-_Static_assert(offsetof(ucontext_t, uc_stack) == 4);
-_Static_assert(offsetof(ucontext_t, uc_mcontext) == 16);
-_Static_assert(offsetof(mcontext_t, ra) == 64);
-_Static_assert(offsetof(mcontext_t, f) == 76);
-*/
 // @TODO: allow proper varargs (is that even needed in practice?)
+
+/**
+ * @brief creates a new context to be used with swapcontext.
+ * 
+ * @param ctx context to write data to
+ * @param entry entry point when first switched to
+ * @param argc number of arguments to pass into the initial entry
+ * @param arg0 arguments for the initial entry
+ */
 void makecontext(
   ucontext_t *ctx,
   void (*entry)(void),

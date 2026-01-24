@@ -7,7 +7,7 @@ static void corot_entry(uintptr_t corot_ptr)
 {
     coroutine_t *co = (coroutine_t *)corot_ptr;
     co->fn(co->arg);
-    co->finished = 1;
+    co->finished = true;
 
     // Yield back to the caller forever to avoid returning on a dead stack.
     for (;;) {
