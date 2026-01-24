@@ -20,7 +20,7 @@ typedef struct coroutine_s {
 
 /**
  * @brief Creates a new coroutine
- * This create new execution context for the specified function.
+ * This creates a new execution context for the specified function.
  * After creation, the coroutine can be executed with corot_resume.
  * 
  * @param fn function to use for the coroutine
@@ -54,7 +54,7 @@ void corot_yield(void);
  * 
  * This function will yield, and prevent execution of the current coroutine until
  * the given time as passed.
- * Note that that time is a minimum, and the actual time depends on how often you
+ * Note that the time is a minimum, and the actual time depends on how often you
  * try to execute the function via corot_resume.
  * 
  * This function should be preferred over spin-waiting inside the coroutine,
@@ -87,6 +87,7 @@ inline static bool corot_finished(coroutine_t *co)
 
 /**
  * @brief Returns the currently active coroutine
+ * 
  * If currently inside a coroutine, it will return the handle.
  * When outside, it returns NULL.
  * 

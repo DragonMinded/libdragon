@@ -21,6 +21,7 @@ typedef struct stack_s {
  */
 typedef struct mcontext_s {
   uint64_t s[8]; // $s0-$s7
+  uint64_t fp;
   uint32_t ra;
   uint32_t a[1]; // $a0 (initial entry argument)
   uint64_t f[12];
