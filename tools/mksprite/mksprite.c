@@ -152,7 +152,7 @@ void print_args( char * name )
     fprintf(stderr, "                                            <factor> is the blend factor in range 0..1 (default: 0.5)\n");
     fprintf(stderr, "   --detail-texparms <x,x,s,s,r,r,m,m>     Runtime sampling parameters for the detail texture\n");
     fprintf(stderr, "\nLossy sprite:\n");
-    fprintf(stderr, "   -L/--lossy <0..100>                     Activate lossy mode with the specified quality (0 disables)\n");
+    fprintf(stderr, "   -L/--lossy <0..100>                     Activate lossy mode with the specified quality (default: 100 - lossless)\n");
     fprintf(stderr, "   -c/--compress <level>                   Select lossy compression algorithm (default: 3 - H264)\n");
     fprintf(stderr, "\n");
     print_supported_formats();
@@ -1943,7 +1943,7 @@ int main(int argc, char *argv[])
 {
     winconsole_utf8();
     char *infn = NULL, *outdir = ".", *outfn = NULL;
-    parms_t pm = {0}; int compression = -1;
+    parms_t pm = {.lossy_quality = 100}; int compression = -1;
     bool at_least_one_file = false;
 
     if (argc < 2) {
@@ -2195,7 +2195,7 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
-        if (pm.lossy_quality > 0) {
+        if (pm.lossy_quality < 100) {
             if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
                 error = true;
             }
@@ -2226,7 +2226,7 @@ int main(int argc, char *argv[])
         setmode(1, _O_BINARY);
         #endif
 
-        if (pm.lossy_quality > 0) {
+        if (pm.lossy_quality < 100) {
             if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
                 error = true;
             }
