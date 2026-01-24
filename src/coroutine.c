@@ -90,3 +90,8 @@ void corot_destroy(coroutine_t *co)
     free(co->stack);
     free(co);
 }
+
+coroutine_t* corot_get_current(void) 
+{
+  return corot_current;
+}
