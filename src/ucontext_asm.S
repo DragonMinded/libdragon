@@ -7,19 +7,19 @@
 
 #define OFFSET_STACK 4
 #define OFFSET_REGS 16
-#define OFFSET_FPR OFFSET_REGS+40
+#define OFFSET_FPR OFFSET_REGS+72
 
 swapcontext:
     # Save callee-saved registers
-    sw  $s0,  0 + OFFSET_REGS($a0)
-    sw  $s1,  4 + OFFSET_REGS($a0)
-    sw  $s2,  8 + OFFSET_REGS($a0)
-    sw  $s3, 12 + OFFSET_REGS($a0)
-    sw  $s4, 16 + OFFSET_REGS($a0)
-    sw  $s5, 20 + OFFSET_REGS($a0)
-    sw  $s6, 24 + OFFSET_REGS($a0)
-    sw  $s7, 28 + OFFSET_REGS($a0)
-    sw  $ra, 32 + OFFSET_REGS($a0)
+    sd  $s0, OFFSET_REGS + 0*8($a0)
+    sd  $s1, OFFSET_REGS + 1*8($a0)
+    sd  $s2, OFFSET_REGS + 2*8($a0)
+    sd  $s3, OFFSET_REGS + 3*8($a0)
+    sd  $s4, OFFSET_REGS + 4*8($a0)
+    sd  $s5, OFFSET_REGS + 5*8($a0)
+    sd  $s6, OFFSET_REGS + 6*8($a0)
+    sd  $s7, OFFSET_REGS + 7*8($a0)
+    sw  $ra, OFFSET_REGS + 8*8($a0)
     sw  $sp, OFFSET_STACK($a0)
 
     # FPU
@@ -39,15 +39,15 @@ swapcontext:
     sw $1, (OFFSET_FPR + 12*8)($a0)
 
     # Restore new context
-    lw  $s0,  0 + OFFSET_REGS($a1)
-    lw  $s1,  4 + OFFSET_REGS($a1)
-    lw  $s2,  8 + OFFSET_REGS($a1)
-    lw  $s3, 12 + OFFSET_REGS($a1)
-    lw  $s4, 16 + OFFSET_REGS($a1)
-    lw  $s5, 20 + OFFSET_REGS($a1)
-    lw  $s6, 24 + OFFSET_REGS($a1)
-    lw  $s7, 28 + OFFSET_REGS($a1)
-    lw  $ra, 32 + OFFSET_REGS($a1)
+    ld  $s0, OFFSET_REGS + 0*8($a1)
+    ld  $s1, OFFSET_REGS + 1*8($a1)
+    ld  $s2, OFFSET_REGS + 2*8($a1)
+    ld  $s3, OFFSET_REGS + 3*8($a1)
+    ld  $s4, OFFSET_REGS + 4*8($a1)
+    ld  $s5, OFFSET_REGS + 5*8($a1)
+    ld  $s6, OFFSET_REGS + 6*8($a1)
+    ld  $s7, OFFSET_REGS + 7*8($a1)
+    lw  $ra, OFFSET_REGS + 8*8($a1)
     lw  $sp, OFFSET_STACK($a1)
 
     # FPU
@@ -68,35 +68,6 @@ swapcontext:
 	  ctc1 $at, $f31
 
     jr  $ra
-    lw  $a0, 36 + OFFSET_REGS($a1)
+    lw  $a0, OFFSET_REGS + 8*8 + 4($a1)
     nop
-.endfunc
-
-
-.section .text.getcontext
-.p2align 5
-.globl getcontext
-.func getcontext
-.set at
-.set noreorder
-
-getcontext:
-    /* Save callee-saved registers */
-    sw  $s0,  0 + OFFSET_REGS($a0)
-    sw  $s1,  4 + OFFSET_REGS($a0)
-    sw  $s2,  8 + OFFSET_REGS($a0)
-    sw  $s3, 12 + OFFSET_REGS($a0)
-    sw  $s4, 16 + OFFSET_REGS($a0)
-    sw  $s5, 20 + OFFSET_REGS($a0)
-    sw  $s6, 24 + OFFSET_REGS($a0)
-    sw  $s7, 28 + OFFSET_REGS($a0)
-
-    /* Save return address so swapcontext can resume here */
-    sw  $ra, 32 + OFFSET_REGS($a0)
-    sw  $sp, OFFSET_STACK($a0)
-
-    /* Return 0 */
-    jr $ra
-    or $v0, $zero, $zero
-
 .endfunc

@@ -105,5 +105,6 @@
 #include "ioctl.h"
 #include "a3d.h"
 #include "profile.h"
+#include "coroutine.h"
 
 #endif
