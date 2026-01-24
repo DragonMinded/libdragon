@@ -1,4 +1,4 @@
-#include "coroutine.h"
+#include <libdragon.h>
 
 static coroutine_t *corot_current = NULL;
 static ucontext_t sched_ctx;
@@ -19,8 +19,10 @@ coroutine_t *corot_create(void (*fn)(void *), void *arg, size_t stack_size)
 {
     if (!fn || stack_size == 0) return NULL;
 
-    coroutine_t *co = (coroutine_t *)calloc(1, sizeof(*co));
+    coroutine_t *co = (coroutine_t *)aligned_alloc(8, sizeof(*co));
     if (!co) return NULL;
+
+    memset(co, 0, sizeof(*co));
 
     co->stack = malloc(stack_size);
     if (!co->stack) {
@@ -32,7 +34,6 @@ coroutine_t *corot_create(void (*fn)(void *), void *arg, size_t stack_size)
     co->arg = arg;
     co->stack_size = stack_size;
 
-    getcontext(&co->ctx);
     co->ctx.uc_stack.ss_sp = co->stack;
     co->ctx.uc_stack.ss_size = stack_size;
     co->ctx.uc_link = NULL;
@@ -80,7 +81,7 @@ void corot_yield(void)
         swapcontext(&cur->ctx, &caller->ctx);
     } else {
         swapcontext(&cur->ctx, &sched_ctx);
-    }
+    }    
 }
 
 void corot_destroy(coroutine_t *co)

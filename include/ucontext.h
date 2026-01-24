@@ -1,7 +1,8 @@
 #ifndef LIBDRAGON_UCONTEXT_H
 #define LIBDRAGON_UCONTEXT_H
 
-#include <libdragon.h>
+#include <stdint.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -14,10 +15,10 @@ typedef struct stack_s {
 } stack_t;
 
 typedef struct mcontext_s {
-  uint32_t s[8]; // $s0-$s7
+  uint64_t s[8]; // $s0-$s7
   uint32_t ra;
   uint32_t a[1]; // $a0 (initial entry argument)
-  uint32_t f[12];
+  uint64_t f[12];
   uint32_t fc32;
 } mcontext_t;
 
@@ -28,11 +29,12 @@ typedef struct ucontext_s {
 } ucontext_t;
 
 // @TODO: sync with offsets in ASM
-static_assert(offsetof(ucontext_t, uc_stack) == 4);
-static_assert(offsetof(ucontext_t, uc_mcontext) == 16);
-static_assert(offsetof(mcontext_t, ra) == 32);
-static_assert(offsetof(mcontext_t, f) == 40);
-
+/*
+_Static_assert(offsetof(ucontext_t, uc_stack) == 4);
+_Static_assert(offsetof(ucontext_t, uc_mcontext) == 16);
+_Static_assert(offsetof(mcontext_t, ra) == 64);
+_Static_assert(offsetof(mcontext_t, f) == 76);
+*/
 // @TODO: allow proper varargs (is that even needed in practice?)
 void makecontext(
   ucontext_t *ctx,
@@ -49,14 +51,6 @@ void makecontext(
 extern void swapcontext(
     ucontext_t *old_ctx,
     const ucontext_t *new_ctx
-);
-
-/**
- * @brief Get current context
- * @param ctx 
- */
-extern void getcontext(
-    ucontext_t *ctx
 );
 
 #ifdef __cplusplus

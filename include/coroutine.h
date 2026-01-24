@@ -1,8 +1,7 @@
 #ifndef LIBDRAGON_COROUTINE_H
 #define LIBDRAGON_COROUTINE_H
 
-#include <libdragon.h>
-#include <ucontext.h>
+#include "ucontext.h"
 
 #ifdef __cplusplus
 extern "C" {
