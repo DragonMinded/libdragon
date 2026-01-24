@@ -49,12 +49,14 @@
 })
 #define MIN(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
 #define MAX(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
+#define CLAMP(x, min, max) MIN(MAX((x), (min)), (max))
 
 const char* tex_format_name(tex_format_t fmt) {
     switch ((int)fmt) {
     case FMT_NONE: return "AUTO";
     case FMT_RGBA32: return "RGBA32";
     case FMT_RGBA16: return "RGBA16";
+    case FMT_YUV16: return "YUV16";
     case FMT_CI8: return "CI8";
     case FMT_CI4: return "CI4";
     case FMT_I8: return "I8";
@@ -72,6 +74,7 @@ const char* tex_format_name(tex_format_t fmt) {
 tex_format_t tex_format_from_name(const char *name) {
     if (!strcasecmp(name, "RGBA32")) return FMT_RGBA32;
     if (!strcasecmp(name, "RGBA16")) return FMT_RGBA16;
+    if (!strcasecmp(name, "YUV16"))  return FMT_YUV16;
     if (!strcasecmp(name, "IA16"))   return FMT_IA16;
     if (!strcasecmp(name, "CI8"))    return FMT_CI8;
     if (!strcasecmp(name, "I8"))     return FMT_I8;
@@ -113,7 +116,7 @@ bool flag_verbose = false;
 bool flag_debug = false;
 
 void print_supported_formats(void) {
-    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, IA16, CI8, I8, IA8, CI4, I4, IA4, ZBUF, IHQ\n");
+    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, YUV16, IA16, CI8, I8, IA8, CI4, I4, IA4, ZBUF, IHQ\n");
 }
 
 void print_supported_mipmap(void) {
@@ -165,29 +168,45 @@ uint16_t conv_rgb5551(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8) {
 /*dither matrix*/
 unsigned int dith[4][4] = {{0, 6, 1, 7}, {4, 2, 5, 3}, {3, 5, 2, 4}, {7, 1, 6, 0}};
 
-int check_color(int val){
-    if(val > 255) val = 255;
-    if(val < 0) val = 0;
-    return val;
+static int dither_value(unsigned int x, unsigned int y, int dither) {
+    switch(dither){
+        case DITHER_ALGO_ORDERED: return dith[x & 0x3][y & 0x3];
+        case DITHER_ALGO_RANDOM:  return rand() & 0x7;
+        case DITHER_ALGO_NONE:    return 0;
+        default:
+            fprintf(stderr, "ERROR: unimplemented dithering mode %s\n", dither_algo_name(dither));
+            assert(0);
+    }
 }
 
-uint16_t conv_rgb5551_dither(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8, unsigned int x, unsigned int y, int dither ) {
-    int value = 0;
-    switch(dither){
-        case DITHER_ALGO_ORDERED: value = dith[x & 0x3][y & 0x3]; break;
-        case DITHER_ALGO_RANDOM:  value = rand() & 0x7; break;
-        case DITHER_ALGO_NONE: return conv_rgb5551(r8, g8, b8, a8); break;
-        default: fprintf(stderr, "ERROR: conv RGBA5551 unimplemented dithering mode %s\n", dither_algo_name(dither)); assert(0);
-    }
+static void apply_rgb_dither(uint8_t *r8, uint8_t *g8, uint8_t *b8, unsigned int x, unsigned int y, int dither) {
+    if (dither == DITHER_ALGO_NONE)
+        return;
+    int value = dither_value(x, y, dither);
 
-    int r = r8 + value - 4;
-    int g = g8 + value - 4;
-    int b = b8 + value - 4;
-    r = check_color(r);
-    g = check_color(g);
-    b = check_color(b);
+    int r = *r8 + value - 4;
+    int g = *g8 + value - 4;
+    int b = *b8 + value - 4;
+    *r8 = CLAMP(r, 0, 255);
+    *g8 = CLAMP(g, 0, 255);
+    *b8 = CLAMP(b, 0, 255);
+}
 
-    return conv_rgb5551(r,g,b,a8);
+static void apply_i_dither(uint8_t *i8, unsigned int x, unsigned int y, int dither) {
+    if (dither == DITHER_ALGO_NONE)
+        return;
+    int value = dither_value(x, y, dither);
+    int i = *i8 + value - 4;
+    *i8 = CLAMP(i, 0, 255);
+}
+
+static inline void rgb_to_yuv_bt601full(uint8_t r, uint8_t g, uint8_t b, uint8_t *y, uint8_t *u, uint8_t *v) {
+    int yv = (77 * r + 150 * g + 29 * b + 128) >> 8;
+    int uv = ((-43 * r - 85 * g + 128 * b + 128) >> 8) + 128;
+    int vv = ((128 * r - 107 * g - 21 * b + 128) >> 8) + 128;
+    *y = CLAMP(yv, 0, 255);
+    *u = CLAMP(uv, 0, 255);
+    *v = CLAMP(vv, 0, 255);
 }
 
 // Convert a 18-bit fixed point 0.15.3 into floating point 14-bit.
@@ -353,7 +372,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     // Setup the info_raw structure with the desired pixel conversion,
     // depending on the output format.
     switch ((int)fmt) {
-    case FMT_RGBA32: case FMT_RGBA16: case FMT_IHQ: case FMT_SHQ:
+    case FMT_RGBA32: case FMT_RGBA16: case FMT_YUV16: case FMT_IHQ: case FMT_SHQ:
         // PNG does not support RGBA555 (aka RGBA16), so just convert
         // to 32-bit version we will downscale later.
         state.info_raw.colortype = LCT_RGBA;
@@ -890,7 +909,7 @@ bool spritemaker_gamma_correct(spritemaker_t *spr) {
         if (image->fmt == FMT_CI4 || image->fmt == FMT_CI8) {
             // gamma correct the pallete
             continue;
-        } else if (image->fmt == FMT_RGBA32 || image->fmt == FMT_RGBA16) {
+        } else if (image->fmt == FMT_RGBA32 || image->fmt == FMT_RGBA16 || image->fmt == FMT_YUV16) {
             uint8_t *img = image->image;
             for (int i=0;i<image->width*image->height;i++) {
                 img[0] = gamma_correct_value(img[0]);
@@ -1355,6 +1374,55 @@ bool spritemaker_convert_shq(spritemaker_t *spr)
     return true;
 }
 
+bool spritemaker_apply_dither(spritemaker_t *spr) {
+    for (int m=0; m<MAX_IMAGES; m++) {
+        image_t *image = &spr->images[m];
+        if (image->image == NULL)
+            continue;
+        uint8_t *img = image->image;
+
+        switch (image->ct) {
+        case LCT_RGBA: {
+            for (int y=0; y<image->height; y++) {
+                for (int x=0; x<image->width; x++) {
+                    apply_rgb_dither(&img[0], &img[1], &img[2], x, y, spr->ditheralgo);
+                    img += 4;
+                }
+            }
+            break;
+        }
+
+        case LCT_GREY: {
+            for (int y=0; y<image->height; y++) {
+                for (int x=0; x<image->width; x++) {
+                    apply_i_dither(img, x, y, spr->ditheralgo);
+                    img += 1;
+                }
+            }
+            break;
+        }
+
+        case LCT_GREY_ALPHA: {
+            for (int y=0; y<image->height; y++) {
+                for (int x=0; x<image->width; x++) {
+                    apply_i_dither(img, x, y, spr->ditheralgo);
+                    img += 2;
+                }
+            }
+            break;
+        }
+
+        case LCT_PALETTE:
+            assert(0); // should not get here -- dithering should be applied during quantization
+        default:
+            fprintf(stderr, "ERROR: dithering not supported for color type %s\n", colortype_to_string(image->ct));
+            return false;
+        }
+    }
+    return true;
+}
+
+
 bool spritemaker_write(spritemaker_t *spr) {
     FILE *out = spr->out;
 
@@ -1390,8 +1458,34 @@ bool spritemaker_write(spritemaker_t *spr) {
             // Convert to 16-bit RGB5551 format.
             uint8_t *img = image->image;
             for (int i=0;i<image->width*image->height;i++) {
-                w16(out, conv_rgb5551_dither(img[0], img[1], img[2], img[3], i % image->width, i / image->height, spr->ditheralgo));
+                w16(out, conv_rgb5551(img[0], img[1], img[2], img[3]));
                 img += 4;
+            }
+            break;
+        }
+
+        case FMT_YUV16: {
+            assert(image->ct == LCT_RGBA);
+            if (image->width % 2) {
+                fprintf(stderr, "ERROR: YUV16 requires even width (got %d)\n", image->width);
+                return false;
+            }
+            uint8_t *img = image->image;
+            for (int y=0; y<image->height; y++) {
+                uint8_t *row = img + y * image->width * 4;
+                for (int x=0; x<image->width; x+=2) {
+                    uint8_t y0, u0, v0;
+                    uint8_t y1, u1, v1;
+                    rgb_to_yuv_bt601full(row[x*4 + 0], row[x*4 + 1], row[x*4 + 2], &y0, &u0, &v0);
+                    rgb_to_yuv_bt601full(row[x*4 + 4], row[x*4 + 5], row[x*4 + 6], &y1, &u1, &v1);
+
+                    uint8_t u = (uint8_t)(((int)u0 + (int)u1 + 1) / 2);
+                    uint8_t v = (uint8_t)(((int)v0 + (int)v1 + 1) / 2);
+                    w8(out, y0);
+                    w8(out, u);
+                    w8(out, y1);
+                    w8(out, v);
+                }
             }
             break;
         }
@@ -1708,8 +1802,9 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
             break;
         case LCT_PALETTE:
             // When the source image is already palettized, we quantize only if
-            // the requested number of colors is less than the actually used colors.
-            if (expected_colors < spr.palette.used_colors) {
+            // the requested number of colors is less than the actually used colors,
+            // or if dithering is enabled.
+            if (expected_colors < spr.palette.used_colors || pm->dither_algo != DITHER_ALGO_NONE) {
                 if (!spritemaker_expand_rgba(&spr) || 
                     !spritemaker_quantize(&spr, NULL, expected_colors, pm->dither_algo))
                     goto error;
@@ -1718,6 +1813,14 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
         default:
             assert(0); // should not get here
         }
+    }
+
+    // Apply dithering to the sprite. Don't apply on palettes because it was
+    // already done in the preivous step (iether during quantization, or also
+    // re-quantizing an already paletted image).
+    if (spr.ditheralgo != DITHER_ALGO_NONE && spr.images[0].ct != LCT_PALETTE) {
+        if (!spritemaker_apply_dither(&spr))
+            goto error;
     }
 
     // Dump TMEM usage
