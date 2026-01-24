@@ -7,7 +7,7 @@
 
 #define OFFSET_STACK 4
 #define OFFSET_REGS 16
-#define OFFSET_FPR OFFSET_REGS+72
+#define OFFSET_FPR OFFSET_REGS+80
 
 swapcontext:
     # Save callee-saved registers
@@ -19,7 +19,8 @@ swapcontext:
     sd  $s5, OFFSET_REGS + 5*8($a0)
     sd  $s6, OFFSET_REGS + 6*8($a0)
     sd  $s7, OFFSET_REGS + 7*8($a0)
-    sw  $ra, OFFSET_REGS + 8*8($a0)
+    sd  $fp, OFFSET_REGS + 8*8($a0)
+    sw  $ra, OFFSET_REGS + 9*8($a0)
     sw  $sp, OFFSET_STACK($a0)
 
     # FPU
@@ -47,7 +48,8 @@ swapcontext:
     ld  $s5, OFFSET_REGS + 5*8($a1)
     ld  $s6, OFFSET_REGS + 6*8($a1)
     ld  $s7, OFFSET_REGS + 7*8($a1)
-    lw  $ra, OFFSET_REGS + 8*8($a1)
+    ld  $fp, OFFSET_REGS + 8*8($a1)
+    lw  $ra, OFFSET_REGS + 9*8($a1)
     lw  $sp, OFFSET_STACK($a1)
 
     # FPU
@@ -68,6 +70,6 @@ swapcontext:
 	  ctc1 $at, $f31
 
     jr  $ra
-    lw  $a0, OFFSET_REGS + 8*8 + 4($a1)
+    lw  $a0, OFFSET_REGS + 9*8 + 4($a1)
     nop
 .endfunc
