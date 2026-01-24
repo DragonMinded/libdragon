@@ -121,9 +121,11 @@ void rdpq_set_mode_yuv(bool bilinear) {
         som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV;
         cc = RDPQ_COMBINER1((TEX0, K4, K5, TEX0), (ZERO, ZERO, ZERO, ONE));
     } else {
-        som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_SAMPLE_BILINEAR | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
-        cc = RDPQ_COMBINER2((TEX1, K4, K5, TEX1), (ZERO, ZERO, ZERO, ONE),
-                            (ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED));
+        // SOM_TF0_RGB sets TF0 to perform texture interpolation.
+        // SOM_TF1_YUVTEX0 pipes that filtered YUV result to TF2, and puts an RGB converted color in TEX1
+        som = SOM_CYCLE_2 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_SAMPLE_BILINEAR | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
+        cc = RDPQ_COMBINER2((TEX0, K4, K5, TEX0), (ZERO, ZERO, ZERO, ONE),
+                            (ZERO, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, COMBINED));
     }
     __rdpq_reset_render_mode(
         cc >> 32,   cc & 0xFFFFFFFF,
