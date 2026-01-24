@@ -325,9 +325,7 @@ extern "C" int mksprite_convert_lossy(
     }
 
     if (!alpha_is_opaque(&img)) {
-        fprintf(stderr, "mksprite: lossy does not support alpha (found alpha != 255)\n");
-        free(img.image);
-        return 1;
+        fprintf(stderr, "WARNING: lossy does not support alpha, will be dropped\n");
     }
 
     if (img.width > 0xFFFF || img.height > 0xFFFF) {
