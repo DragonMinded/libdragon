@@ -1481,10 +1481,10 @@ bool spritemaker_write(spritemaker_t *spr) {
 
                     uint8_t u = (uint8_t)(((int)u0 + (int)u1 + 1) / 2);
                     uint8_t v = (uint8_t)(((int)v0 + (int)v1 + 1) / 2);
-                    w8(out, y0);
                     w8(out, u);
-                    w8(out, y1);
+                    w8(out, y0);
                     w8(out, v);
+                    w8(out, y1);
                 }
             }
             break;
