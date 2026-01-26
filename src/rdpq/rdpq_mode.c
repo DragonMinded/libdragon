@@ -8,6 +8,7 @@
 #include "rdpq_mode.h"
 #include "rspq.h"
 #include "rdpq_internal.h"
+#include "yuv.h"
 
 /** 
  * @brief Like #rdpq_write, but for mode commands.
@@ -134,7 +135,9 @@ void rdpq_set_mode_yuv(bool bilinear) {
     else
         rdpq_tracking.cycle_type_frozen = 1;
 
-    rdpq_set_yuv_parms(179,-44,-91,227,111,43);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
+    // Set the YUV coefficients (FIXME: make this configurable)
+    const yuv_colorspace_t *cs = &YUV_BT601_TV;
+    rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
 }
 
 void rdpq_mode_begin(void)
