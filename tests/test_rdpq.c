@@ -1330,6 +1330,17 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=2pass, blender=1pass)");
 
+    // Set 1pass combiner with TEX1
+    rdpq_debug_log_msg("1pass combiner w/ TEX1 => 2 cycle");
+    surface_clear(&fb, 0xFF);
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)));
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+    rspq_wait();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (comb=1pass w/ TEX1)");
+
     // Set simple combiner => 1 cycle
     rdpq_debug_log_msg("1pass combiner => 1 cycle");
     surface_clear(&fb, 0xFF);

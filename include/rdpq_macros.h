@@ -274,6 +274,38 @@ typedef uint32_t rdpq_blender_t;
  */
 #define RDPQ_COMBINER_2PASS   (cast64(1)<<63)
 
+///@cond
+#define __RDPQ_PP_CAT(a,b) __RDPQ_PP_CAT_I(a,b)
+#define __RDPQ_PP_CAT_I(a,b) a##b
+#define __RDPQ_PP_PROBE() ~,1
+#define __RDPQ_PP_CHECK(...) __RDPQ_PP_CHECK_N(__VA_ARGS__,0)
+#define __RDPQ_PP_CHECK_N(x,n,...) n
+#define __RDPQ_PP_IS_TEX1(x) __RDPQ_PP_CHECK(__RDPQ_PP_CAT(__RDPQ_PP_TEX1_PROBE_,x))
+#define __RDPQ_PP_TEX1_PROBE_TEX1 __RDPQ_PP_PROBE()
+
+#define __RDPQ_PP_TUPLE_ELEM_0(a,b,c,d) a
+#define __RDPQ_PP_TUPLE_ELEM_1(a,b,c,d) b
+#define __RDPQ_PP_TUPLE_ELEM_2(a,b,c,d) c
+#define __RDPQ_PP_TUPLE_ELEM_3(a,b,c,d) d
+
+#define __RDPQ_PP_OR(a,b) __RDPQ_PP_CAT(__RDPQ_PP_OR_,a)(b)
+#define __RDPQ_PP_OR_0(b) b
+#define __RDPQ_PP_OR_1(b) 1
+
+#define __RDPQ_PP_HAS_TEX1_TUPLE(t) \
+  __RDPQ_PP_OR(__RDPQ_PP_IS_TEX1(__RDPQ_PP_TUPLE_ELEM_0 t), \
+  __RDPQ_PP_OR(__RDPQ_PP_IS_TEX1(__RDPQ_PP_TUPLE_ELEM_1 t), \
+  __RDPQ_PP_OR(__RDPQ_PP_IS_TEX1(__RDPQ_PP_TUPLE_ELEM_2 t), \
+               __RDPQ_PP_IS_TEX1(__RDPQ_PP_TUPLE_ELEM_3 t))))
+
+#define __RDPQ_PP_HAS_TEX1(rgb, alpha) \
+  __RDPQ_PP_OR(__RDPQ_PP_HAS_TEX1_TUPLE(rgb), __RDPQ_PP_HAS_TEX1_TUPLE(alpha))
+
+#define __RDPQ_PP_IIF(c) __RDPQ_PP_CAT(__RDPQ_PP_IIF_,c)
+#define __RDPQ_PP_IIF_0(t,f) f
+#define __RDPQ_PP_IIF_1(t,f) t
+///@endcond
+
 /**
  * @brief Build a 1-pass combiner formula
  * 
@@ -403,7 +435,7 @@ typedef uint32_t rdpq_blender_t;
  *      
  *      // Set a combiner to sample TEX0 as-is in RGB channels, and put a fixed value
  *      // as alpha channel, coming from the ENV register.
- *      rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX0), (ZERO, ZERO, ZERO, ENV)));
+ *      rdpq_mode_combiner(RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, ENV)));
  * 
  *      // Set the fixed value in the ENV register. RGB components are ignored as the slot
  *      // ENV is not used in the RGB combiner formula, so we just put zero there.
@@ -432,7 +464,11 @@ typedef uint32_t rdpq_blender_t;
  * @hideinitializer
  */
 #define RDPQ_COMBINER1(rgb, alpha) \
-    castcc(__rdpq_1cyc_comb_rgb rgb   | __rdpq_1cyc_comb_alpha alpha)
+    __RDPQ_PP_IIF(__RDPQ_PP_HAS_TEX1(rgb, alpha))( \
+        RDPQ_COMBINER2(rgb, alpha, (0,0,0,COMBINED), (0,0,0,COMBINED)), \
+        castcc(__rdpq_1cyc_comb_rgb rgb | __rdpq_1cyc_comb_alpha alpha) \
+    )
+
 
 /**
  * @brief Build a 2-pass combiner formula
