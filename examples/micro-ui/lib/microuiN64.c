@@ -62,7 +62,7 @@ void mu64_init(joypad_port_t joypad_idx, uint8_t font_idx)
   mu_ctx._style.colors[MU_COLOR_BORDER]  = (mu_Color){0x10, 0x10, 0x10, 0xFF};
 
   cursor_active = true;
-  is_n64_mouse = joypad_get_identifier(joypad_index) == JOYBUS_IDENTIFIER_N64_MOUSE;
+  is_n64_mouse = joybus_get_identifier(joypad_index, NULL) == JOYBUS_IDENTIFIER_N64_MOUSE;
 }
 
 void mu64_start_frame()
