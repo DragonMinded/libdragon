@@ -560,21 +560,6 @@ private:
         bool alpha2 = channels[ALPHA].two_steps();
         bool two = rgb2 || alpha2;
 
-        // Check if any slot uses tex1 or tex1: that would require two steps
-        if (!two) {
-            for (int ch=0; ch<2 && !two; ch++) {
-                for (int s=0; s<2 && !two; s++) {
-                    auto &step = channels[ch].step[s];
-                    for (int j=0; j<4; j++) {
-                        if (step.slot('a' + j) == "tex1" || step.slot('a' + j) == "tex1.a") {
-                            two = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
         // Make sure both channels are two steps if two steps is required
         if (two && !rgb2) {
             channels[RGB].set(1, 'a', "0");
