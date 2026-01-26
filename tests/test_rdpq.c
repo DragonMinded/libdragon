@@ -473,12 +473,14 @@ void test_rdpq_block_nested(TestContext *ctx)
         rdpq_set_blend_color(RGBA32(0x22,0x22,0x22,0x22));
         rdpq_set_prim_color(RGBA32(0x11,0x11,0x11,0x11));
     rspq_block_t *block1 = rspq_block_end();
+    DEFER(rspq_block_free(block1));
 
     rspq_block_begin();
         rdpq_set_fog_color(RGBA32(0x33,0x33,0x33,0x33));
         rspq_block_run(block1);
         rdpq_set_env_color(RGBA32(0x44,0x44,0x44,0x44));
     rspq_block_t *block2 = rspq_block_end();
+    DEFER(rspq_block_free(block2));
 
     rspq_block_run(block2);
     rspq_wait();
