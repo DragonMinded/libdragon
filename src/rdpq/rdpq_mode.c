@@ -118,14 +118,14 @@ void rdpq_set_mode_yuv(bool bilinear) {
     uint64_t cc, som;
 
     som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV | SOM_TF1_YUV;
-    cc = RDPQ_COMBINER_TEX;
+    cc = RDPQ_COMBINER1((TEX0, K4, K5, TEX0), (0, 0, 0, 1));
 
     __rdpq_reset_render_mode(
         cc >> 32,   cc & 0xFFFFFFFF,
         som >> 32, som & 0xFFFFFFFF);
     if (bilinear) {
         rdpq_mode_filter(FILTER_BILINEAR);
-        cc = RDPQ_COMBINER1((0,0,0,TEX1), (0,0,0,TEX1));
+        cc = RDPQ_COMBINER1((TEX1, K4, K5, TEX1), (0, 0, 0, 1));
     }
     rdpq_mode_combiner(cc); // FIXME: this should not be required, but we need it for the mipmap mask
 
