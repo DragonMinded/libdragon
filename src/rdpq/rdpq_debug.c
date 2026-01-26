@@ -620,21 +620,29 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         fprintf(out, "\n");
     }; return;
     case 0x3C: { fprintf(out, "SET_COMBINE_MODE ");
-        static const char* rgb_suba[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "noise", "0","0","0","0","0","0","0","0"};
-        static const char* rgb_subb[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keycenter", "k4", "0","0","0","0","0","0","0","0"};
-        static const char* rgb_mul[32] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keyscale", "comb.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
-        static const char* rgb_add[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
-        static const char* alpha_addsub[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
-        static const char* alpha_mul[8] = {"lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0"};
+        static const char* cyc0_rgb_suba[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "noise", "0","0","0","0","0","0","0","0"};
+        static const char* cyc0_rgb_subb[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keycenter", "k4", "0","0","0","0","0","0","0","0"};
+        static const char* cyc0_rgb_mul[32] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keyscale", "comb.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
+        static const char* cyc0_rgb_add[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
+        static const char* cyc0_alpha_addsub[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
+        static const char* cyc0_alpha_mul[8] = {"lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0"};
+
+        static const char* cyc1_rgb_suba[16] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "1", "noise", "0","0","0","0","0","0","0","0"};
+        static const char* cyc1_rgb_subb[16] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "keycenter", "k4", "0","0","0","0","0","0","0","0"};
+        static const char* cyc1_rgb_mul[32] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "keyscale", "comb.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
+        static const char* cyc1_rgb_add[8] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "1", "0"};
+        static const char* cyc1_alpha_addsub[8] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "1", "0"};
+        static const char* cyc1_alpha_mul[8] = {"lod_frac", "tex1", "tex0_bug", "prim", "shade", "env", "prim_lod_frac", "0"};
+
         colorcombiner_t cc = decode_cc(buf[0]);
         fprintf(out, "cyc0=[(%s-%s)*%s+%s, (%s-%s)*%s+%s], ",
-            rgb_suba[cc.cyc[0].rgb.suba], rgb_subb[cc.cyc[0].rgb.subb], rgb_mul[cc.cyc[0].rgb.mul], rgb_add[cc.cyc[0].rgb.add],
-            alpha_addsub[cc.cyc[0].alpha.suba], alpha_addsub[cc.cyc[0].alpha.subb], alpha_mul[cc.cyc[0].alpha.mul], alpha_addsub[cc.cyc[0].alpha.add]);
+            cyc0_rgb_suba[cc.cyc[0].rgb.suba], cyc0_rgb_subb[cc.cyc[0].rgb.subb], cyc0_rgb_mul[cc.cyc[0].rgb.mul], cyc0_rgb_add[cc.cyc[0].rgb.add],
+            cyc0_alpha_addsub[cc.cyc[0].alpha.suba], cyc0_alpha_addsub[cc.cyc[0].alpha.subb], cyc0_alpha_mul[cc.cyc[0].alpha.mul], cyc0_alpha_addsub[cc.cyc[0].alpha.add]);
         const struct cc_cycle_s passthrough = {0};
         if (!__builtin_memcmp(&cc.cyc[1], &passthrough, sizeof(struct cc_cycle_s))) fprintf(out, "cyc1=[<passthrough>]\n");
         else fprintf(out, "cyc1=[(%s-%s)*%s+%s, (%s-%s)*%s+%s]\n",
-            rgb_suba[cc.cyc[1].rgb.suba], rgb_subb[cc.cyc[1].rgb.subb], rgb_mul[cc.cyc[1].rgb.mul], rgb_add[cc.cyc[1].rgb.add],
-            alpha_addsub[cc.cyc[1].alpha.suba], alpha_addsub[cc.cyc[1].alpha.subb],   alpha_mul[cc.cyc[1].alpha.mul], alpha_addsub[cc.cyc[1].alpha.add]);
+            cyc1_rgb_suba[cc.cyc[1].rgb.suba], cyc1_rgb_subb[cc.cyc[1].rgb.subb], cyc1_rgb_mul[cc.cyc[1].rgb.mul], cyc1_rgb_add[cc.cyc[1].rgb.add],
+            cyc1_alpha_addsub[cc.cyc[1].alpha.suba], cyc1_alpha_addsub[cc.cyc[1].alpha.subb],   cyc1_alpha_mul[cc.cyc[1].alpha.mul], cyc1_alpha_addsub[cc.cyc[1].alpha.add]);
     } return;
     case 0x35: { fprintf(out, "SET_TILE         ");
         uint8_t f = BITS(buf[0], 53, 55);
