@@ -461,7 +461,7 @@ static uint32_t* rspq_chain_next(rspq_cmd_chain_t *ch)
     ch->cur_chunk = next;
     ch->cur_chunk_size = next_size;
 
-    rspq_switch_buffer(next, ch->cur_chunk_size, false);
+    rspq_switch_buffer(next, next_size, false);
     ch->cur = rspq_cur_pointer;
     ch->sentinel = rspq_cur_sentinel;
 
@@ -1334,6 +1334,8 @@ void rspq_block_free(rspq_block_t *block)
         free(cb);
         cb = next;
     }
+
+    free_uncached(block);
 }
 
 void rspq_block_run(rspq_block_t *block)
