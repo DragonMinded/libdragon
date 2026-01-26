@@ -1545,8 +1545,6 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id)
  */ 
 bool __rspq_deferred_poll(void)
 {
-    int init_count = defcalls_count;
-
     rspq_deferred_call_t *prev = NULL, *cur =  defcalls_head;
     while (cur != NULL) {
         rspq_deferred_call_t *next = cur->next;
