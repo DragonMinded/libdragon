@@ -589,7 +589,7 @@ static void rspq_assert_invalid_command(rsp_snapshot_t *state)
 /** @brief Special RSP assert handler for ASSERT_INVALID_OVERLAY */
 static void rspq_assert_invalid_overlay(rsp_snapshot_t *state)
 {
-    printf("Invalid overlay\nOverlay 0x%01lx not registered\n", state->gpr[8]);
+    printf("Invalid overlay\nOverlay 0x%01lx not registered\n", state->gpr[15]);
 }
 
 /** @brief RSP assert handler for rspq */
