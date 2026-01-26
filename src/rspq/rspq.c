@@ -1476,6 +1476,7 @@ void rspq_queue_destroy(rspq_queue_t* q)
     assertf(q != rspq_queue_recording, "cannot destroy queue while recording it");
 
     rspq_chain_free(q->chain.first_chunk, RSPQ_BLOCK_MIN_SIZE);
+    free_uncached(q);
 }
 
 void rspq_noop()
