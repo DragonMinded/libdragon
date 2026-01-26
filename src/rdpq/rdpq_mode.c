@@ -117,19 +117,18 @@ void rdpq_set_mode_standard(void) {
 void rdpq_set_mode_yuv(bool bilinear) {
     uint64_t cc, som;
 
-    if (!bilinear) {
-        som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV;
-        cc = RDPQ_COMBINER1((TEX0, K4, K5, TEX0), (ZERO, ZERO, ZERO, ONE));
-    } else {
-        // SOM_TF0_RGB sets TF0 to perform texture interpolation.
-        // SOM_TF1_YUVTEX0 pipes that filtered YUV result to TF2, and puts an RGB converted color in TEX1
-        som = SOM_CYCLE_2 | SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_SAMPLE_BILINEAR | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
-        cc = RDPQ_COMBINER2((TEX0, K4, K5, TEX0), (ZERO, ZERO, ZERO, ONE),
-                            (ZERO, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, COMBINED));
-    }
+    som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV | SOM_TF1_YUV;
+    cc = RDPQ_COMBINER_TEX;
+
     __rdpq_reset_render_mode(
         cc >> 32,   cc & 0xFFFFFFFF,
         som >> 32, som & 0xFFFFFFFF);
+    if (bilinear) {
+        rdpq_mode_filter(FILTER_BILINEAR);
+        cc = RDPQ_COMBINER1((0,0,0,TEX1), (0,0,0,TEX1));
+    }
+    rdpq_mode_combiner(cc); // FIXME: this should not be required, but we need it for the mipmap mask
+
     if (!rdpq_tracking.mode_freeze)
         rdpq_tracking.cycle_type_known = 1;
     else
