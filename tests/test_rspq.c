@@ -525,11 +525,13 @@ void test_rspq_wait_sync_in_block(TestContext *ctx)
     rspq_syncpoint_t syncpoint = rspq_syncpoint_new();
 
     rspq_block_begin();
-    DEFER(rspq_block_end());
-
     rspq_syncpoint_wait(syncpoint);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
 
-    // Test will cause an RSP crash (timeout) if it fails.
+    rspq_wait();
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
 // Test the basic working of highpri queue.
