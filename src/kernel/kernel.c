@@ -125,6 +125,8 @@ void __kthread_check_overflow(kthread_t *th)
 static void kthread_free(kthread_t *th)
 {
 	if (DEBUG_KERNEL) debugf("[kernel] freeing %s[%p]\n", th->name, th);
+	// Get the start of the heap-allocated block (the stack)
+	void *mem = th->stack;
 	#ifndef NDEBUG
 	// Clear memory to avoid dangling pointers
 	memset(th, 0, sizeof(kthread_t));
@@ -134,8 +136,8 @@ static void kthread_free(kthread_t *th)
 		p = &((*p)->all_next);
 	if (*p) *p = th->all_next;
 	#endif
-	// Free the thread memory (the start of the heap-allocated block is the stack)
-	free(th->stack);
+	// Free the thread memory
+	free(mem);
 }
 
 /** @brief Add a thread to a linked list */
@@ -439,11 +441,18 @@ void kernel_close(void)
 	assert(__kernel);
 	assertf(th_cur == &th_main, "kthread_close can only be called from main thread");
 
-	// Kill the idle thread to release the memory
+	// Kill the idle thread to release the memory. We can free it brutally like this
+	// because we now the idle thread is never blocked in any way.
+	disable_interrupts();
 	kthread_kill(th_idle, 0);
+	kthread_free(th_idle);
 	th_idle = NULL;
+	enable_interrupts();
 
 	assertf(th_count == 1, "not all threads were killed");
+	#ifndef NDEBUG
+	assertf(__kernel_all_threads == NULL, "all threads list not empty");
+	#endif
 
 	th_cur = NULL;
 	__kernel = false;
