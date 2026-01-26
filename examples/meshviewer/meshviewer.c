@@ -201,9 +201,39 @@ int main(void)
         glLoadIdentity();
         glTranslatef(0.0f, 0.0f, -3.0f);
         glRotatef(rotation, 0.0f, 1.0f, 0.0f);
-        glColor4f(0.2313f, 0.427f, 0.384f, 1.0f); // Mesh color
+
+        // Shadow-Pass
+        glPushMatrix();
+        glTranslatef(0.0f, -0.7f, 0.0f);
+        glScalef(1.1f, 0.02f, 1.1f);
+        glDisable(GL_CULL_FACE);
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+        glColor4f(0.0f, 0.0f, 0.0f, 0.35f);
+        model64_draw(model);
+        glDisable(GL_BLEND);
+        glEnable(GL_CULL_FACE);
+        glPopMatrix();
 
         if (model) {
+            // Outline pass
+            glPushMatrix();
+            glScalef(1.03f, 1.03f, 1.03f);
+            glCullFace(GL_FRONT);
+            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+            glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
+            model64_draw(model);
+            glCullFace(GL_BACK);
+            glPopMatrix();
+
+            // Normal pass
+            // Mesh color based on source location
+            if (active_is_sd) {
+                glColor4f(0.30f, 0.454f, 0.6f, 1.0f);
+            } else {
+                glColor4f(0.2313f, 0.427f, 0.384f, 1.0f);
+            }
             model64_draw(model);
         }
 
