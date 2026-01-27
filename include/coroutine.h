@@ -21,33 +21,33 @@ typedef struct coroutine_s {
 /**
  * @brief Creates a new coroutine
  * This creates a new execution context for the specified function.
- * After creation, the coroutine can be executed with corot_resume.
+ * After creation, the coroutine can be executed with coro_resume.
  * 
  * @param fn function to use for the coroutine
  * @param arg argument to pass into the function
  * @param stack_size stack size to be allocated
  * @return coroutine_t* created coroutine
  */
-coroutine_t *corot_create(void (*fn)(void *), void *arg, size_t stack_size);
+coroutine_t *coro_create(void (*fn)(void *), void *arg, size_t stack_size);
 
 /**
  * @brief Resumes execution
  * 
  * Continues to execute the coroutine until the next yield.
  * If the function reached the end, it will no longer be called.
- * To check if a coroutine is done, use corot_finished.
+ * To check if a coroutine is done, use coro_finished.
  * 
  * @param co coroutine to resume
  */
-void corot_resume(coroutine_t *co);
+void coro_resume(coroutine_t *co);
 
 /**
  * @brief Yields and gives back control to the caller context.
  * 
  * This can be used within the context of a coroutine to pause execution.
- * When doing so, it gives back control to the code that called corot_resume.
+ * When doing so, it gives back control to the code that called coro_resume.
  */
-void corot_yield(void);
+void coro_yield(void);
 
 /**
  * @brief Puts the current coroutine to sleep.
@@ -55,14 +55,14 @@ void corot_yield(void);
  * This function will yield, and prevent execution of the current coroutine until
  * the given time as passed.
  * Note that the time is a minimum, and the actual time depends on how often you
- * try to execute the function via corot_resume.
+ * try to execute the function via coro_resume.
  * 
  * This function should be preferred over spin-waiting inside the coroutine,
  * since it avoids a context switch alltogether if the time has not passed yet.
  * 
  * @param ticks minimum time to wait in ticks
  */
-void corot_sleep(uint64_t ticks);
+void coro_sleep(uint64_t ticks);
 
 /**
  * @brief Frees all resources associated with a coroutine.
@@ -72,7 +72,7 @@ void corot_sleep(uint64_t ticks);
  * 
  * @param co coroutine to free
  */
-void corot_destroy(coroutine_t *co);
+void coro_destroy(coroutine_t *co);
 
 /**
  * @brief Checks if a coroutine has finished execution.
@@ -80,7 +80,7 @@ void corot_destroy(coroutine_t *co);
  * @param co coroutine to check
  * @return bool true if finished
  */
-inline static bool corot_finished(coroutine_t *co)
+inline static bool coro_finished(coroutine_t *co)
 {
   return co ? co->finished : true;
 }
@@ -96,7 +96,7 @@ inline static bool corot_finished(coroutine_t *co)
  * 
  * @return coroutine_t* active coroutine, NULL if in main context
  */
-coroutine_t* corot_get_current(void);
+coroutine_t* coro_get_current(void);
 
 #ifdef __cplusplus
 }

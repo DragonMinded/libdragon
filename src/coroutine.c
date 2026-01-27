@@ -1,21 +1,21 @@
 #include <libdragon.h>
 
-static coroutine_t *corot_current = NULL;
+static coroutine_t *coro_current = NULL;
 static ucontext_t sched_ctx;
 
-static void corot_entry(uintptr_t corot_ptr)
+static void coro_entry(uintptr_t coro_ptr)
 {
-    coroutine_t *co = (coroutine_t *)corot_ptr;
+    coroutine_t *co = (coroutine_t *)coro_ptr;
     co->fn(co->arg);
     co->finished = true;
 
     // Yield back to the caller forever to avoid returning on a dead stack.
     for (;;) {
-      corot_yield();
+      coro_yield();
     }
 }
 
-coroutine_t *corot_create(void (*fn)(void *), void *arg, size_t stack_size)
+coroutine_t *coro_create(void (*fn)(void *), void *arg, size_t stack_size)
 {
     if (!fn || stack_size == 0) return NULL;
 
@@ -37,11 +37,11 @@ coroutine_t *corot_create(void (*fn)(void *), void *arg, size_t stack_size)
     co->ctx.uc_stack.ss_sp = co->stack;
     co->ctx.uc_stack.ss_size = stack_size;
     co->ctx.uc_link = NULL;
-    makecontext(&co->ctx, (void (*) (void))corot_entry, 1, (uintptr_t)co);
+    makecontext(&co->ctx, (void (*) (void))coro_entry, 1, (uintptr_t)co);
     return co;
 }
 
-void corot_resume(coroutine_t *co)
+void coro_resume(coroutine_t *co)
 {
     if (!co || co->finished) return;
 
@@ -49,9 +49,9 @@ void corot_resume(coroutine_t *co)
     if(get_ticks() < co->wakeup_ticks)return;
     co->wakeup_ticks = 0;
 
-    coroutine_t *prev = corot_current;
+    coroutine_t *prev = coro_current;
     co->caller = prev;
-    corot_current = co;
+    coro_current = co;
 
     if (prev) {
         swapcontext(&prev->ctx, &co->ctx);
@@ -59,23 +59,23 @@ void corot_resume(coroutine_t *co)
         swapcontext(&sched_ctx, &co->ctx);
     }
 
-    corot_current = prev;
+    coro_current = prev;
 }
 
-void corot_sleep(uint64_t ticks)
+void coro_sleep(uint64_t ticks)
 {
-  assert(corot_current);
-  corot_current->wakeup_ticks = get_ticks() + ticks;
-  corot_yield();
+  assert(coro_current);
+  coro_current->wakeup_ticks = get_ticks() + ticks;
+  coro_yield();
 }
 
-void corot_yield(void)
+void coro_yield(void)
 {
-    if (!corot_current) return;
+    if (!coro_current) return;
 
-    coroutine_t *cur = corot_current;
+    coroutine_t *cur = coro_current;
     coroutine_t *caller = cur->caller;
-    corot_current = caller;
+    coro_current = caller;
 
     if (caller) {
         swapcontext(&cur->ctx, &caller->ctx);
@@ -84,14 +84,14 @@ void corot_yield(void)
     }    
 }
 
-void corot_destroy(coroutine_t *co)
+void coro_destroy(coroutine_t *co)
 {
     if (!co) return;
     free(co->stack);
     free(co);
 }
 
-coroutine_t* corot_get_current(void) 
+coroutine_t* coro_get_current(void) 
 {
-  return corot_current;
+  return coro_current;
 }
