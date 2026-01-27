@@ -12,6 +12,7 @@ typedef struct
     const char *sd_path;
     const char *anims[4];
     int anim_count;
+    bool tint_mesh;
 } model_entry_t;
 
 // clang-format off
@@ -21,21 +22,32 @@ static const model_entry_t models[] = {
         "rom:/models/animated_cylinder.model64",
         "sd:/models/animated_cylinder.model64",
         { "Rotate", "Pulse" },
-        2
+        2,
+        true
     },
     {
         "Animated Cube",
         "rom:/models/animated_cube.model64",
         "sd:/models/animated_cube.model64",
         { "Bounce", "Pulse" },
-        2
+        2,
+        true
     },
     {
         "Animated Pyramid",
         "rom:/models/animated_pyramid.model64",
         "sd:/models/animated_pyramid.model64",
         { "Slide", "Pulse" },
-        2
+        2,
+        true
+    },
+    {
+        "Matt's Coffee Cup",
+        "rom:/models/coffeecup.model64",
+        "sd:/models/coffeecup.model64",
+        { "Slide" },
+        1,
+        false
     },
 };
 // clang-format on
@@ -229,10 +241,15 @@ int main(void)
 
             // Normal pass
             // Mesh color based on source location
-            if (active_is_sd) {
-                glColor4f(0.30f, 0.454f, 0.6f, 1.0f);
+            glTexEnvi(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+            if (models[model_index].tint_mesh) {
+                if (active_is_sd) {
+                    glColor4f(0.30f, 0.454f, 0.6f, 1.0f);
+                } else {
+                    glColor4f(0.2313f, 0.427f, 0.384f, 1.0f);
+                }
             } else {
-                glColor4f(0.2313f, 0.427f, 0.384f, 1.0f);
+                glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
             }
             model64_draw(model);
         }
