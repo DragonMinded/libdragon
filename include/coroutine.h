@@ -1,22 +1,25 @@
+/**
+ * @file coroutine.h
+ * @author Max Bebök <beboek.max@gmail.com>
+ * @brief Cooperative coroutines API
+ * @ingroup lowlevel
+ */
+
 #ifndef LIBDRAGON_COROUTINE_H
 #define LIBDRAGON_COROUTINE_H
 
 #include "ucontext.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct coroutine_s {
-    ucontext_t ctx;
-    void (*fn)(void *);
-    void *arg;
-    void *stack;
-    size_t stack_size;
-    bool finished;
-    uint64_t wakeup_ticks;
-    struct coroutine_s *caller;
-} coroutine_t;
+///@cond
+typedef struct coroutine_s coroutine_t;
+///@endcond
 
 /**
  * @brief Creates a new coroutine
@@ -80,10 +83,7 @@ void coro_destroy(coroutine_t *co);
  * @param co coroutine to check
  * @return bool true if finished
  */
-inline static bool coro_finished(coroutine_t *co)
-{
-  return co ? co->finished : true;
-}
+bool coro_finished(coroutine_t *co);
 
 /**
  * @brief Returns the currently active coroutine

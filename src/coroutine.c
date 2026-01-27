@@ -1,4 +1,32 @@
-#include <libdragon.h>
+/**
+ * @file coroutine.c
+ * @author Max Bebök <beboek.max@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Cooperative coroutines implementation
+ * @ingroup lowlevel
+ */
+
+#include "coroutine.h"
+#include "utils.h"
+#include "n64sys.h"
+#include "debug.h"
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+#include <stddef.h>
+#include <stdbool.h>
+
+/** @brief Coroutine */
+typedef struct coroutine_s {
+    ucontext_t ctx;                 ///< Context for the coroutine
+    void (*fn)(void *);             ///< Function to execute in the coroutine
+    void *arg;                      ///< Argument to pass to the function
+    void *stack;                    ///< Stack for the coroutine
+    size_t stack_size;              ///< Size of the stack
+    bool finished;                  ///< Whether the coroutine has finished
+    uint64_t wakeup_ticks;          ///< Time to wake up the coroutine
+    struct coroutine_s *caller;     ///< Caller of the coroutine
+} coroutine_t;
 
 static coroutine_t *coro_current = NULL;
 static ucontext_t sched_ctx;
@@ -89,6 +117,11 @@ void coro_destroy(coroutine_t *co)
     if (!co) return;
     free(co->stack);
     free(co);
+}
+
+bool coro_finished(coroutine_t *co)
+{
+    return co->finished;
 }
 
 coroutine_t* coro_get_current(void) 

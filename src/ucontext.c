@@ -1,4 +1,14 @@
-#include <libdragon.h>
+/**
+ * @file ucontext.c
+ * @author Max Bebök <beboek.max@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief ucontext implementation
+ * @ingroup lowlevel
+ */
+
+#include "ucontext.h"
+#include <assert.h>
+#include <string.h>
 
 void makecontext(
     ucontext_t *ctx,
@@ -12,4 +22,4 @@ void makecontext(
   ctx->uc_mcontext.ra = (uint32_t)entry;
   ctx->uc_stack.ss_sp = (char*)ctx->uc_stack.ss_sp + ctx->uc_stack.ss_size;
   ctx->uc_mcontext.a[0] = (uint32_t)arg0;
-} 
+}
