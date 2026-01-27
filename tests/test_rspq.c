@@ -916,17 +916,15 @@ void test_rspq_queue_clear(TestContext *ctx)
     rspq_queue_t *q = rspq_queue_create();
     DEFER(rspq_queue_destroy(q));
 
-    const uint32_t count_a = 32;
-    const uint32_t count_b = 5;
+    const uint32_t count_a = 32*8;
+    const uint32_t count_b = 5*8;
 
     rspq_queue_switch(q);
     for (uint32_t i = 0; i < count_a; i++)
         rspq_test_4(1);
-    rspq_queue_switch(NULL);
 
     rspq_queue_clear(q);
 
-    rspq_queue_switch(q);
     for (uint32_t i = 0; i < count_b; i++)
         rspq_test_4(1);
     rspq_queue_switch(NULL);

@@ -416,14 +416,20 @@ static uint32_t defcalls_run_threshold;
 static void rspq_flush_internal(void);
 static volatile uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear);
 
-/* @brief Initialize a command chain */
-static void rspq_chain_init(rspq_cmd_chain_t *ch, uint32_t *first, int size)
+/** @brief Reset a command chain to the initial state. */
+static void rspq_chain_reset(rspq_cmd_chain_t *ch, uint32_t *first, int size)
 {
     ch->first_chunk = first;
     ch->cur_chunk = first;
     ch->cur_chunk_size = size;
     ch->cur = ch->cur_chunk;
     ch->sentinel = ch->cur_chunk + size - (RSPQ_MAX_SHORT_COMMAND_SIZE + 2);
+}
+
+/* @brief Initialize a command chain */
+static void rspq_chain_init(rspq_cmd_chain_t *ch, uint32_t *first, int size)
+{
+    rspq_chain_reset(ch, first, size);
 
     // Guard word at the end of the chunk (used for traversal on destroy).
     volatile uint32_t *guard = first + size - 1;
@@ -440,7 +446,7 @@ static uint32_t* rspq_chain_next(rspq_cmd_chain_t *ch)
     int next_size = ch->cur_chunk_size;
 
     if (cmd >> 24 == RSPQ_CMD_JUMP) {
-        next = (uint32_t*)UncachedAddr(0x80000000 | (cmd & 0xFFFFFF));
+        next = VirtualUncachedAddr(cmd & 0xFFFFFF);
         if (next_size < RSPQ_BLOCK_MAX_SIZE) next_size *= 2;
     } else if (cmd >> 24 == RSPQ_CMD_RET) {
         if (next_size < RSPQ_BLOCK_MAX_SIZE) next_size *= 2;
@@ -1460,7 +1466,7 @@ void rspq_queue_clear(rspq_queue_t* q)
 {
     assertf(q, "queue is NULL");
 
-    rspq_chain_init(&q->chain, q->chain.first_chunk, RSPQ_BLOCK_MIN_SIZE);
+    rspq_chain_reset(&q->chain, q->chain.first_chunk, RSPQ_BLOCK_MIN_SIZE);
     q->nesting_level = 0;
     q->run_start = q->chain.first_chunk;
 
