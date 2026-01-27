@@ -4,6 +4,8 @@ all: controllertest.z64
 BUILD_DIR = build
 include $(N64_INST)/include/n64.mk
 
+CFLAGS += -Wno-deprecated-declarations
+
 OBJS = $(BUILD_DIR)/controllertest.o
 
 controllertest.z64: N64_ROM_TITLE = "Controller Test"
