@@ -1054,7 +1054,7 @@ static int bleedfix_adjust_palette(spritemaker_t *spr) {
         // We actually have one more spot than num_free_colors available: 
         // the existing transparent color.
         int edge_pal_len = num_free_colors + 1;
-        uint8_t edge_pal[edge_pal_len * 4] = {};
+        uint8_t edge_pal[edge_pal_len * 4];
 
         // Can we fit all unique edge colors into the remaining palette space?
         if (num_unique_edge_colors <= edge_pal_len) {
@@ -1142,7 +1142,7 @@ static void bleedfix_silhouette(spritemaker_t *spr, image_t *image, int bytes_pe
             // If this pixel is transparent, look for opaque neighbors and
             // average their colors.
             if (img[idx_center + color_components] == 0) {
-                int sums[color_components] = {}; 
+                int sums[3] = {};
                 int num_opaque_neighbors = 0;
 
                 for (int k = 0; k < 8; k++) {
