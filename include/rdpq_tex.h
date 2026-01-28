@@ -39,7 +39,7 @@ extern "C" {
  */
 typedef struct rdpq_texparms_s {
     int tmem_addr;           ///< TMEM address where to load the texture (default: 0)
-    int palette;             ///< Palette number where TLUT is stored (used only for CI4 textures)
+    int palette;             ///< Palette number where TLUT is stored (used only for CI4 textures, or Ci8 textures with less than 256 colors)
 
     struct {
         float   translate;    ///< Translation of the texture (in pixels)
