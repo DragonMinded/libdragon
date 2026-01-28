@@ -814,16 +814,15 @@ bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, i
         // Extract the generate palette
         exq_get_palette(exq, spr->palette.colors[0], num_colors);
         spr->palette.num_colors = num_colors;
-        spr->palette.used_colors = num_colors;
     } else {
         // Force the input palette
         exq_set_palette(exq, colors, num_colors);
         memcpy(spr->palette.colors[0], colors, num_colors * 4);
         spr->palette.num_colors = num_colors;
-        spr->palette.used_colors = num_colors;
     }
 
     // Remap the images to the new palette
+    int max_index = -1;
     for (int i=0; i<MAX_IMAGES; i++) {
         image_t *img = &spr->images[i];
         if (spr->images[i].image == NULL)
@@ -846,7 +845,15 @@ bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, i
         free(img->image);
         img->image = ci_image;
         img->ct = LCT_PALETTE;
+
+        for (int p=0; p<img->width * img->height; p++) {
+            if (ci_image[p] > max_index)
+                max_index = ci_image[p];
+        }
     }
+
+    assert(max_index >= 0);
+    spr->palette.used_colors = max_index + 1;
 
     exq_free(exq);
     return true;
@@ -1576,7 +1583,7 @@ bool spritemaker_write(spritemaker_t *spr) {
         // See sprite_ext_t (sprite_internal.h)
         if (m == 0) { 
             w16(out, 128);  // sizeof(sprite_ext_t)
-            w16(out, 5);    // version
+            w16(out, 6);    // version
             w_palpos = w32_placeholder(out); // placeholder for position of palette
             int numlods = 0;
             for (int i=1; i<8; i++) {
@@ -1592,7 +1599,15 @@ bool spritemaker_write(spritemaker_t *spr) {
             if (spr->detail.enabled) flags |= 0x10;
             if (spritemaker_fit_tmem(spr, NULL)) flags |= 0x20;
             w16(out, flags);
-            w16(out, 0); // padding
+            uint8_t pal_used_colors = 0;
+            if (spr->images[0].fmt == FMT_CI4 || spr->images[0].fmt == FMT_CI8) {
+                int max_colors = (spr->images[0].fmt == FMT_CI4) ? 16 : 256;
+                assert(spr->palette.used_colors > 0);
+                assert(spr->palette.used_colors <= max_colors);
+                pal_used_colors = (uint8_t)spr->palette.used_colors;
+            }
+            w8(out, pal_used_colors);
+            w8(out, 0); // padding
             wf32(out, spr->texparms.s.translate);
             wf32(out, spr->texparms.s.repeats);
             w16(out, spr->texparms.s.scale);

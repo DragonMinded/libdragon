@@ -31,7 +31,8 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
         // this today, but it could in the future (eg: sharing a palette across
         // multiple sprites).
         uint16_t *pal = sprite_get_palette(sprite);
-        if (pal) rdpq_tex_upload_tlut(pal, palidx*16, fmt == FMT_CI4 ? 16 : 256);
+        int num_colors = sprite_get_palette_used_colors(sprite);
+        if (pal) rdpq_tex_upload_tlut(pal, palidx*16, num_colors);
     }
 }
 

@@ -177,6 +177,11 @@ uint16_t* sprite_get_palette(sprite_t *sprite) {
     return (void*)sprite + sx->pal_file_pos;
 }
 
+int sprite_get_palette_used_colors(sprite_t *sprite) {
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    return sx->pal_used_colors;
+}
+
 surface_t sprite_get_tile(sprite_t *sprite, int h, int v) {
     static int tile_width = 0, tile_height = 0;
 

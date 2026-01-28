@@ -225,6 +225,14 @@ surface_t sprite_get_tile(sprite_t *sprite, int h, int v);
 uint16_t* sprite_get_palette(sprite_t *sprite);
 
 /**
+ * @brief Get number of colors actually used in palette
+ *
+ * @param   sprite      The sprite to access
+ * @return              Number of used palette colors
+ */
+int sprite_get_palette_used_colors(sprite_t *sprite);
+
+/**
  * @brief Get a copy of the RDP texparms, optionally stored within the sprite.
  * 
  * This function allows to obtain the RDP texparms structure stored within the

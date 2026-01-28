@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <surface.h>
 
-#define SPRITE_EXT_VERSION                  5        ///< Current version of the sprite extended structure
+#define SPRITE_EXT_VERSION                  6        ///< Current version of the sprite extended structure
 
 #define SPRITE_FLAG_NUMLODS                 0x0007   ///< Number of LODs, including detail texture if any (0 = no LODs)
 #define SPRITE_FLAG_HAS_TEXPARMS            0x0008   ///< Sprite contains texture parameters
@@ -37,7 +37,8 @@ typedef struct sprite_ext_s {
     } lods[7];                  ///< Information on the available LODs (if detail is present, it's always at position 6)
     struct {
         uint16_t flags;             ///< Generic Flags for the sprite
-        uint16_t padding;           ///< Padding
+        uint8_t  pal_used_colors;   ///< Number of colors actually used in palette
+        uint8_t  padding;           ///< Padding
     };
     /// @brief RDP texture parameters
     struct texparms_s {
