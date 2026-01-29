@@ -89,6 +89,7 @@ N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER1),--controller1 $(N64_ROM_CO
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER2),--controller2 $(N64_ROM_CONTROLLER2))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER3),--controller3 $(N64_ROM_CONTROLLER3))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER4),--controller4 $(N64_ROM_CONTROLLER4))
+N64_METADATAFLAGS = $(if $(V),-v) 
 
 # If metadata is used, disable padding to avoid double padding (n64tool + n64metadata).
 # n64metadata will handle the final 16 KiB padding.
@@ -140,7 +141,7 @@ RSPASFLAGS+=-MMD
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $(BUILD_DIR)/$@.tmp; \
 	fi
 	if [ ! -z "$(N64_ROM_METADATA)" ]; then \
-		$(N64_METADATA) $(if $(V),-v) $(BUILD_DIR)/$@.tmp $(N64_ROM_METADATA); \
+		$(N64_METADATA) $(N64_METADATAFLAGS) $(BUILD_DIR)/$@.tmp $(N64_ROM_METADATA); \
 	fi
 	@mv $(BUILD_DIR)/$@.tmp $@
 
