@@ -22,42 +22,64 @@
 		{
 			"channels":[
 				{
-					"sampler":3,
+					"sampler":0,
 					"target":{
 						"node":0,
 						"path":"translation"
 					}
 				},
 				{
-					"sampler":4,
+					"sampler":1,
 					"target":{
 						"node":0,
 						"path":"rotation"
 					}
 				},
 				{
-					"sampler":5,
+					"sampler":2,
 					"target":{
 						"node":0,
 						"path":"scale"
 					}
+				}
+			],
+			"name":"Pulse",
+			"samplers":[
+				{
+					"input":4,
+					"interpolation":"STEP",
+					"output":5
 				},
 				{
-					"sampler":3,
+					"input":4,
+					"interpolation":"STEP",
+					"output":6
+				},
+				{
+					"input":7,
+					"interpolation":"LINEAR",
+					"output":8
+				}
+			]
+		},
+		{
+			"channels":[
+				{
+					"sampler":0,
 					"target":{
 						"node":0,
 						"path":"translation"
 					}
 				},
 				{
-					"sampler":4,
+					"sampler":1,
 					"target":{
 						"node":0,
 						"path":"rotation"
 					}
 				},
 				{
-					"sampler":5,
+					"sampler":2,
 					"target":{
 						"node":0,
 						"path":"scale"
@@ -67,34 +89,19 @@
 			"name":"Slide",
 			"samplers":[
 				{
-					"input":4,
+					"input":9,
 					"interpolation":"LINEAR",
-					"output":5
+					"output":10
 				},
 				{
-					"input":6,
+					"input":11,
 					"interpolation":"STEP",
-					"output":7
+					"output":6
 				},
 				{
-					"input":6,
+					"input":11,
 					"interpolation":"STEP",
-					"output":8
-				},
-				{
-					"input":4,
-					"interpolation":"LINEAR",
-					"output":5
-				},
-				{
-					"input":6,
-					"interpolation":"STEP",
-					"output":7
-				},
-				{
-					"input":6,
-					"interpolation":"STEP",
-					"output":8
+					"output":12
 				}
 			]
 		}
@@ -179,9 +186,9 @@
 		{
 			"bufferView":4,
 			"componentType":5126,
-			"count":25,
+			"count":2,
 			"max":[
-				1
+				1.0833333333333333
 			],
 			"min":[
 				0
@@ -191,11 +198,53 @@
 		{
 			"bufferView":5,
 			"componentType":5126,
-			"count":25,
+			"count":2,
 			"type":"VEC3"
 		},
 		{
 			"bufferView":6,
+			"componentType":5126,
+			"count":2,
+			"type":"VEC4"
+		},
+		{
+			"bufferView":7,
+			"componentType":5126,
+			"count":27,
+			"max":[
+				1.0833333333333333
+			],
+			"min":[
+				0
+			],
+			"type":"SCALAR"
+		},
+		{
+			"bufferView":8,
+			"componentType":5126,
+			"count":27,
+			"type":"VEC3"
+		},
+		{
+			"bufferView":9,
+			"componentType":5126,
+			"count":25,
+			"max":[
+				1
+			],
+			"min":[
+				0
+			],
+			"type":"SCALAR"
+		},
+		{
+			"bufferView":10,
+			"componentType":5126,
+			"count":25,
+			"type":"VEC3"
+		},
+		{
+			"bufferView":11,
 			"componentType":5126,
 			"count":2,
 			"max":[
@@ -207,13 +256,7 @@
 			"type":"SCALAR"
 		},
 		{
-			"bufferView":7,
-			"componentType":5126,
-			"count":2,
-			"type":"VEC4"
-		},
-		{
-			"bufferView":8,
+			"bufferView":12,
 			"componentType":5126,
 			"count":2,
 			"type":"VEC3"
@@ -246,28 +289,48 @@
 		},
 		{
 			"buffer":0,
-			"byteLength":100,
+			"byteLength":8,
 			"byteOffset":14768
 		},
 		{
 			"buffer":0,
-			"byteLength":300,
-			"byteOffset":14868
-		},
-		{
-			"buffer":0,
-			"byteLength":8,
-			"byteOffset":15168
+			"byteLength":24,
+			"byteOffset":14776
 		},
 		{
 			"buffer":0,
 			"byteLength":32,
-			"byteOffset":15176
+			"byteOffset":14800
+		},
+		{
+			"buffer":0,
+			"byteLength":108,
+			"byteOffset":14832
+		},
+		{
+			"buffer":0,
+			"byteLength":324,
+			"byteOffset":14940
+		},
+		{
+			"buffer":0,
+			"byteLength":100,
+			"byteOffset":15264
+		},
+		{
+			"buffer":0,
+			"byteLength":300,
+			"byteOffset":15364
+		},
+		{
+			"buffer":0,
+			"byteLength":8,
+			"byteOffset":15664
 		},
 		{
 			"buffer":0,
 			"byteLength":24,
-			"byteOffset":15208
+			"byteOffset":15672
 		}
 	],
 	"samplers":[
@@ -278,7 +341,7 @@
 	],
 	"buffers":[
 		{
-			"byteLength":15232,
+			"byteLength":15696,
 			"uri":"coffeecup.bin"
 		}
 	]
