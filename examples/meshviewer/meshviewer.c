@@ -45,8 +45,8 @@ static const model_entry_t models[] = {
         "Matt's Coffee Cup",
         "rom:/models/coffeecup.model64",
         "sd:/models/coffeecup.model64",
-        { "Slide" },
-        1,
+        { "Pulse", "Slide" },
+        2,
         false
     },
 };
