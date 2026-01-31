@@ -710,5 +710,5 @@ int rdpq_tex_multi_end(void)
     rdpq_set_tile_autotmem(-1);
     --multi_upload.used;
     assert(multi_upload.used >= 0);
-    return 0;
+    return multi_upload.bytes;
 }
