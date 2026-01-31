@@ -107,6 +107,10 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1);
  * use #rdpq_tex_upload_sub, or alternatively create a sub-surface using
  * #surface_make_sub and pass it to #rdpq_tex_upload. See #rdpq_tex_upload_sub
  * for an example of both techniques.
+ *
+ * @note This function might corrupt the next tile descriptor (tile+1) to
+ *       speed up the upload. Loading tile descriptors in increasing order
+ *       will avoid issues.
  * 
  * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
@@ -168,6 +172,9 @@ int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_
  * be 8-byte aligned (like all RDP textures), so it can only be used if the
  * rectangle that needs to be loaded respects such constraint as well.
  * 
+ * @note This function might corrupt the next tile descriptor (tile+1) to
+ *       speed up the upload. Loading tile descriptors in increasing order
+ *       will avoid issues.
  * 
  * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
