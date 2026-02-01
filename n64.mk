@@ -141,6 +141,7 @@ RSPASFLAGS+=-MMD
 		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $(BUILD_DIR)/$@.tmp; \
 	fi
 	if [ ! -z "$(N64_ROM_METADATA)" ]; then \
+		echo "    [METADATA] $@"; \
 		$(N64_METADATA) $(N64_METADATAFLAGS) $(BUILD_DIR)/$@.tmp $(N64_ROM_METADATA); \
 	fi
 	@mv $(BUILD_DIR)/$@.tmp $@
