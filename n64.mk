@@ -27,6 +27,13 @@ N64_BACKTRACE_FILE_PREFIX=
 
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
+
+# Convert backslashes in N64_INST and N64_GCCPREFIX to forward slashes on Windows systems.
+ifneq ($(filter MSYS% MINGW%,$(shell uname)),)
+	N64_INST := $(shell cygpath -m "$(N64_INST)")
+	N64_GCCPREFIX := $(shell cygpath -m "$(N64_GCCPREFIX)")
+endif
+
 N64_TARGET ?= mips64-elf
 N64_ROOTDIR = $(N64_INST)
 N64_BINDIR = $(N64_ROOTDIR)/bin
