@@ -8,6 +8,8 @@ It demonstrates ROM/SD asset loading, model switching, and animation playback.
 
 - L/R: switch model
 - C-Left/C-Right: switch animation
+- C-Up: toggle Shadow
+- C-Down: toggle Outline
 - Z: toggle ROM/SD source
 
 **SD usage**
