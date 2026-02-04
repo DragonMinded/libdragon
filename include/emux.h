@@ -130,7 +130,7 @@ inline uint64_t emux_detect(void)
     /*
      * GCC can't easily feed the destination register number into a raw `.word`
      * encoding. A simple MIPS64-friendly pattern is:
-     *  1) encode the instruction to write into a fixed scratch GPR (here: $t0)
+     *  1) encode the instruction to write into a fixed scratch GPR (here: t0)
      *  2) copy the scratch GPR into a GCC output register
      */
     const int REG_T0 = 8;
@@ -170,7 +170,7 @@ inline void emux_break(void)
 inline void emux_log(const char *ut8_str)
 {
     const int REG_T0 = 8;
-    register const char *__ut8_str asm("$t0") = ut8_str;
+    register const char *__ut8_str asm("t0") = ut8_str;
     __asm__ __volatile__(
         " .word %1\n"
         :: "r"(__ut8_str), "i"(EMUX_XLOG(REG_T0, 0)) : "memory");
@@ -194,8 +194,8 @@ inline void emux_logn(const char *utf8_str, int len)
 {
     const int REG_T0 = 8;
     const int REG_T1 = 9;
-    register const char *__utf8_str asm("$t0") = utf8_str;
-    register int __len asm("$t1") = len;
+    register const char *__utf8_str asm("t0") = utf8_str;
+    register int __len asm("t1") = len;
     __asm__ __volatile__(
         " .word %2\n"
         :: "r"(__utf8_str), "r"(__len), "i"(EMUX_XLOG(REG_T0, REG_T1)) : "memory");
@@ -215,8 +215,8 @@ inline void emux_hexdump(const uint8_t *buffer, int len)
 {
     const int REG_T0 = 8;
     const int REG_T1 = 9;
-    register const uint8_t *__buffer asm("$t0") = buffer;
-    register int __len asm("$t1") = len;
+    register const uint8_t *__buffer asm("t0") = buffer;
+    register int __len asm("t1") = len;
     __asm__ __volatile__(
         " .word %2\n"
         :: "r"(__buffer), "r"(__len), "i"(EMUX_XHEXDUMP(REG_T0, REG_T1)) : "memory");
@@ -287,7 +287,7 @@ inline void emux_ioctl_pause(void)
 inline void emux_prof_start(int slot)
 {
     const int REG_T0 = 8;
-    register int __slot asm("$t0") = slot;
+    register int __slot asm("t0") = slot;
     __asm__ __volatile__(" .word %1\n" :: 
         "r"(__slot), "i"(EMUX_XPROF(REG_T0, EMUX_PROF_START)) : "memory");
 }
@@ -303,7 +303,7 @@ inline void emux_prof_start(int slot)
 inline void emux_prof_stop(int slot)
 {
     const int REG_T0 = 8;
-    register int __slot asm("$t0") = slot;
+    register int __slot asm("t0") = slot;
     __asm__ __volatile__(" .word %1\n" :: 
         "r"(__slot), "i"(EMUX_XPROF(REG_T0, EMUX_PROF_STOP)) : "memory");
 }
@@ -319,7 +319,7 @@ inline void emux_prof_stop(int slot)
 inline void emux_prof_clear(int slot)
 {
     const int REG_T0 = 8;
-    register int __slot asm("$t0") = slot;
+    register int __slot asm("t0") = slot;
     __asm__ __volatile__(" .word %1\n" :: 
         "r"(__slot), "i"(EMUX_XPROF(REG_T0, EMUX_PROF_CLEAR)) : "memory");
 }
@@ -353,8 +353,8 @@ inline uint64_t emux_prof_read(int slot, uint32_t metric)
 {
     const int REG_T0 = 8;
     const int REG_T1 = 9;
-    register int __slot asm("$t0") = slot;
-    register uint64_t __metric asm("$t1") = metric;
+    register int __slot asm("t0") = slot;
+    register uint64_t __metric asm("t1") = metric;
 
     __asm__ __volatile__(
         " .word %2\n"
