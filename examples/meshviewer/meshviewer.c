@@ -50,6 +50,39 @@ static model_list_t sd_models = {0};
 
 static const int font_id = 10;
 
+static const GLfloat light_ambient[] = {0.12f, 0.12f, 0.12f, 1.0f};
+static const GLfloat key_diffuse[] = {1.00f, 0.95f, 0.85f, 1.0f};
+static const GLfloat fill_diffuse[] = {0.35f, 0.40f, 0.50f, 1.0f};
+static const GLfloat rim_diffuse[] = {0.60f, 0.60f, 0.70f, 1.0f};
+
+static void setup_lighting(void)
+{
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, light_ambient);
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+    glEnable(GL_LIGHT1);
+    glEnable(GL_LIGHT2);
+
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, key_diffuse);
+    glLightfv(GL_LIGHT1, GL_DIFFUSE, fill_diffuse);
+    glLightfv(GL_LIGHT2, GL_DIFFUSE, rim_diffuse);
+
+    glEnable(GL_NORMALIZE);
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
+    glEnable(GL_COLOR_MATERIAL);
+}
+
+static void update_light_positions(void)
+{
+    static const GLfloat key_pos[] = {2.5f, 2.0f, 2.5f, 1.0f};
+    static const GLfloat fill_pos[] = {-2.5f, 1.0f, 2.0f, 1.0f};
+    static const GLfloat rim_pos[] = {0.0f, 2.5f, -2.5f, 1.0f};
+
+    glLightfv(GL_LIGHT0, GL_POSITION, key_pos);
+    glLightfv(GL_LIGHT1, GL_POSITION, fill_pos);
+    glLightfv(GL_LIGHT2, GL_POSITION, rim_pos);
+}
+
 static bool str_ends_with(const char *str, const char *suffix)
 {
     size_t str_len = strlen(str);
@@ -193,7 +226,7 @@ static void setup_gl(void)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    glDisable(GL_LIGHTING);
+    setup_lighting();
     glDisable(GL_TEXTURE_2D);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_CULL_FACE);
@@ -295,10 +328,12 @@ int main(void)
         glMatrixMode(GL_MODELVIEW);
         glLoadIdentity();
         glTranslatef(0.0f, -0.5f, -3.0f);
+        update_light_positions();
         glRotatef(rotation, 0.0f, 1.0f, 0.0f);
 
         if (model) {
             if (use_shadowpass) {
+                glDisable(GL_LIGHTING);
                 glPushMatrix();
                 glTranslatef(0.0f, -0.7f, 0.0f);
                 glScalef(1.1f, 0.02f, 1.1f);
@@ -306,9 +341,11 @@ int main(void)
                 glColor4f(0.0f, 0.0f, 0.0f, 0.35f);
                 model64_draw(model);
                 glPopMatrix();
+                glEnable(GL_LIGHTING);
             }
 
             if (use_outlinepass) {
+                glDisable(GL_LIGHTING);
                 glPushMatrix();
                 glScalef(1.03f, 1.03f, 1.03f);
                 glCullFace(GL_FRONT);
@@ -316,6 +353,7 @@ int main(void)
                 model64_draw(model);
                 glCullFace(GL_BACK);
                 glPopMatrix();
+                glEnable(GL_LIGHTING);
             }
 
             // Normal pass
