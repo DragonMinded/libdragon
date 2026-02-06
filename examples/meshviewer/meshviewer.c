@@ -1,10 +1,7 @@
 #include <GL/gl.h>
 #include <GL/gl_integration.h>
 #include <libdragon.h>
-
-// Using model64_internal.h to access animation names and texture counts after
-// loading because they are currently not exposed in public API for models64.h
-#include "../../src/model64_internal.h"
+#include <model64.h>
 
 // Limits to avoid dynamic allocation
 #define MAX_MODELS 128
@@ -35,6 +32,7 @@ static bool tint_mesh = true;
 static bool use_shadowpass = false;
 static bool use_outlinepass = false;
 
+static char anim_name_buf[MAX_ANIMS][MAX_MODEL_NAME];
 static const char *anim_names[MAX_ANIMS] = {0};
 static int anim_count = 0;
 
@@ -144,20 +142,40 @@ static void reset_root_transform(void)
     model64_set_node_rot_quat(model, node, 0.0f, 0.0f, 0.0f, 1.0f);
 }
 
-static void build_anim_list(void)
+static void build_anim_list(const char *model_path)
 {
     anim_count = 0;
+    memset(anim_name_buf, 0, sizeof(anim_name_buf));
+    memset((void *)anim_names, 0, sizeof(anim_names));
 
-    if (!model || !model->data || model->data->num_anims == 0)
+    if (!model_path || !model_path[0])
         return;
 
-    for (uint32_t i = 0; i < model->data->num_anims; i++) {
-        if (anim_count >= MAX_ANIMS)
-            break;
-        if (!model->data->anims[i].name)
+    char anims_path[MAX_MODEL_PATH];
+    snprintf(anims_path, sizeof(anims_path), "%s", model_path);
+
+    char *ext = strrchr(anims_path, '.');
+    if (!ext)
+        return;
+    snprintf(ext, anims_path + sizeof(anims_path) - ext, ".anims");
+
+    FILE *fp = fopen(anims_path, "r");
+    if (!fp)
+        return;
+
+    char line[MAX_MODEL_NAME];
+    while (anim_count < MAX_ANIMS && fgets(line, sizeof(line), fp)) {
+        size_t end = strcspn(line, "\r\n");
+        line[end] = '\0';
+        if (line[0] == '\0')
             continue;
-        anim_names[anim_count++] = model->data->anims[i].name;
+        snprintf(anim_name_buf[anim_count], sizeof(anim_name_buf[anim_count]),
+                 "%s", line);
+        anim_names[anim_count] = anim_name_buf[anim_count];
+        anim_count++;
     }
+
+    fclose(fp);
 }
 
 static void play_current_anim(void)
@@ -204,10 +222,7 @@ static void load_current_model(void)
     if (!model)
         return;
 
-    if (model->data && model->data->num_textures > 0)
-        tint_mesh = false;
-
-    build_anim_list();
+    build_anim_list(path);
     anim_index = 0;
     play_current_anim();
 }
@@ -295,7 +310,6 @@ int main(void)
             anim_index = (anim_index + 1) % anim_count;
             play_current_anim();
         }
-
         // Optional additonal render passes
         if (pressed.c_up) {
             use_shadowpass = !use_shadowpass;
