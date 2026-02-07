@@ -34,8 +34,8 @@ uniform<GLP_BINDING_MATRICES> MATRICES
 
 uniform<GLP_BINDING_TEXTURING> TEXTURING
 {
-    s16 TEXTURING_SCALE[2];
-    s16 TEXTURING_OFFSET[2];
+    s16 TEXTURING_SCALE[4];
+    s16 TEXTURING_OFFSET[4];
 }
 
 uniform<GLP_BINDING_LIGHTING> LIGHTING
@@ -500,15 +500,19 @@ shader gl_pipeline()
         }
         #endif
 
-        vec16 vtexscale, vtexoffset;
-        vtexscale.xy = load(TEXTURING_SCALE).xy;
-        vtexscale.XY = load(TEXTURING_SCALE).xy;
-        vtexoffset.xy = load(TEXTURING_OFFSET).xy;
-        vtexoffset.XY = load(TEXTURING_OFFSET).xy;
+        vec32 vtexscale, vtexoffset;
+        vtexscale:sint.xy = load(TEXTURING_SCALE).xy;
+        vtexscale:ufract.xy = load(TEXTURING_SCALE).zw;
+        vtexscale:sint.XY = load(TEXTURING_SCALE).xy;
+        vtexscale:ufract.XY = load(TEXTURING_SCALE).zw;
+        vtexoffset:sint.xy = load(TEXTURING_OFFSET).xy;
+        vtexoffset:ufract.xy = load(TEXTURING_OFFSET).zw;
+        vtexoffset:sint.XY = load(TEXTURING_OFFSET).xy;
+        vtexoffset:ufract.XY = load(TEXTURING_OFFSET).zw;
 
         // Texture coords
-        VTEMP = vtexoffset:sint * 1;
-        vtex:sint = vtex:sint +* vtexscale;
+        VTEMP = vtexoffset * 1;
+        vtex = vtex +* vtexscale;
 
         prev_out0 = vtx_out0_ptr;
         prev_out1 = vtx_out1_ptr;
