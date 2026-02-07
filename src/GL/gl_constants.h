@@ -167,10 +167,11 @@
 
 #define GLP_LIGHT_POSITION     0
 #define GLP_LIGHT_POSITIONW    6
-#define GLP_LIGHT_COLOR        8
-#define GLP_LIGHT_ATT_INT      14
-#define GLP_LIGHT_ATT_FRAC     20
-#define GLP_LIGHT_SIZE         26
+#define GLP_LIGHT_DIFFUSE      8
+#define GLP_LIGHT_AMBIENT      14
+#define GLP_LIGHT_ATT_INT      20
+#define GLP_LIGHT_ATT_FRAC     26
+#define GLP_LIGHT_SIZE         32
 
 #define GLP_ATTRIBUTE_POS_NORM         MGFX_ATTRIBUTE_POS_NORM
 #define GLP_ATTRIBUTE_COLOR            MGFX_ATTRIBUTE_COLOR

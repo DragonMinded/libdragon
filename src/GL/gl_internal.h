@@ -367,13 +367,15 @@ _Static_assert(offsetof(gl_tex_gen_soa_t, mode) == TEX_GEN_MODE_OFFSET);
 
 typedef struct {
     int16_t position[4];
-    int16_t color[3];
+    int16_t diffuse[3];
+    int16_t ambient[3];
     int16_t attenuation_int[3];
     uint16_t attenuation_frac[3];
 } gl_pipeline_light_t;
 _Static_assert(sizeof(gl_pipeline_light_t) == GLP_LIGHT_SIZE);
 _Static_assert(offsetof(gl_pipeline_light_t, position) == GLP_LIGHT_POSITION);
-_Static_assert(offsetof(gl_pipeline_light_t, color) == GLP_LIGHT_COLOR);
+_Static_assert(offsetof(gl_pipeline_light_t, diffuse) == GLP_LIGHT_DIFFUSE);
+_Static_assert(offsetof(gl_pipeline_light_t, ambient) == GLP_LIGHT_AMBIENT);
 _Static_assert(offsetof(gl_pipeline_light_t, attenuation_int) == GLP_LIGHT_ATT_INT);
 _Static_assert(offsetof(gl_pipeline_light_t, attenuation_frac) == GLP_LIGHT_ATT_FRAC);
 

@@ -473,20 +473,26 @@ gl_light_t * gl_get_light(GLenum light)
     return &state->lights[light - GL_LIGHT0];
 }
 
-void gl_light_set_ambient(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
-{
-    gl_set_color_cpu(light->ambient, r, g, b, a);
-}
-
-void gl_light_set_diffuse(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+static void set_rsp_light_color(uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
 {
     int16_t r_fx = FLOAT_TO_I16(r);
     int16_t g_fx = FLOAT_TO_I16(g);
     int16_t b_fx = FLOAT_TO_I16(b);
 
     uint64_t packed = ((uint32_t)r_fx << 16) | (uint32_t)g_fx;
-    gl_set_word(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, color), packed);
-    gl_set_short(GL_UPDATE_NONE, offset + offsetof(gl_pipeline_light_t, color) + sizeof(int16_t)*2, b_fx);
+    gl_set_word(GL_UPDATE_NONE, offset, packed);
+    gl_set_short(GL_UPDATE_NONE, offset + sizeof(int16_t)*2, b_fx);
+}
+
+void gl_light_set_ambient(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    set_rsp_light_color(offset + offsetof(gl_pipeline_light_t, ambient), r, g, b, a);
+    gl_set_color_cpu(light->ambient, r, g, b, a);
+}
+
+void gl_light_set_diffuse(gl_light_t *light, uint32_t offset, GLfloat r, GLfloat g, GLfloat b, GLfloat a)
+{
+    set_rsp_light_color(offset + offsetof(gl_pipeline_light_t, diffuse), r, g, b, a);
     gl_set_color_cpu(light->diffuse, r, g, b, a);
 }
 

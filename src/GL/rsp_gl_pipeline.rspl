@@ -39,6 +39,10 @@ uniform<GLP_BINDING_LIGHTING> LIGHTING
     s16 LIGHTING_AMBIENT[3];
     u8 LIGHTING_HAS_POINTS;
     u8 LIGHTING_COUNT;
+    s16 MATERIAL_DIFFUSE[4];
+    s16 MATERIAL_AMBIENT[3];
+    u16 MATERIAL_FLAGS;
+    s16 MATERIAL_EMISSIVE[3];
 }
 
 uniform<GLP_BINDING_FOG> FOG
@@ -162,15 +166,6 @@ shader gl_pipeline()
     vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
 
     #ifndef ENABLE_ENV_MAP
-    vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
-    vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
-
-    vec16 vtexscale, vtexoffset;
-    vtexscale.xy = load(TEXTURING_SCALE).xy;
-    vtexscale.XY = load(TEXTURING_SCALE).xy;
-    vtexoffset.xy = load(TEXTURING_OFFSET).xy;
-    vtexoffset.XY = load(TEXTURING_OFFSET).xy;
-
     u8 has_points = load(LIGHTING_HAS_POINTS);
     #endif
 
@@ -233,24 +228,17 @@ shader gl_pipeline()
         
         // Eye space normals
         vnorm = vnormmask & vnorm.wwwwWWWW;
-
-        vpos.w = 0x20;
-        vpos.W = 0x20;
-
         vnorm *= vnormfactor;
 
         // Clip space position
         VTEMP = vmvp0  * vpos.xxxxXXXX;
         VTEMP = vmvp2 +* vpos.zzzzZZZZ;
         VTEMP = vmvp1 +* vpos.yyyyYYYY;
-        vpos_clip = vmvp3 +* vpos.wwwwWWWW;
+        vpos_clip = vmvp3 +* 0x20;
 
         VTEMP = vmn0:sfract  * vnorm:sfract.xxxxXXXX;
         VTEMP = vmn1:sfract +* vnorm:sfract.yyyyYYYY;
         vnorm = vmn2:sfract +* vnorm:sfract.zzzzZZZZ;
-
-        vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
-        u8 light_count = load(LIGHTING_COUNT);
 
         #ifdef ENABLE_NORMALIZE
         {
@@ -291,10 +279,8 @@ shader gl_pipeline()
             vfog = max(VZERO, vfog.zzzzZZZZ);
         }   
 
-        #ifdef ENABLE_ENV_MAP
         vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
         vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
-        #endif
 
         vpos_clip *= vviewscale:sfract.wwwwWWWW;
         
@@ -316,10 +302,8 @@ shader gl_pipeline()
         VTEMP = vviewoff:sint * 1;
         vpos_clip = vpos_clip +* vviewscale;
 
-        #ifdef ENABLE_ENV_MAP
         undef vviewscale;
         undef vviewoff;
-        #endif
 
         #ifndef ENABLE_ENV_MAP
         if (has_points != 0)
@@ -331,15 +315,34 @@ shader gl_pipeline()
             VTEMP = vmvp0  * vpos.xxxxXXXX;
             VTEMP = vmvp1 +* vpos.yyyyYYYY;
             VTEMP = vmvp2 +* vpos.zzzzZZZZ;
-            vpos = vmvp3 +* vpos.wwwwWWWW;
+            vpos = vmvp3 +* 0x20;
         }
         
+        vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
+
+        // TODO: GL_COLOR_MATERIAL
+
+        vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
+        vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
+        vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
+
+        VTEMP = vemissive:sint * 1;
+        vrgba:sfract = vrgba:sfract +* vambient:sfract;
+
+        undef vemissive;
+
+        u8 light_count = load(LIGHTING_COUNT);
+
         u16 light_ptr = LIGHTING_LIGHTS;
         if (light_count == 0) goto LIGHT_END;
         {
         LIGHT_LOOP:
-            vec16 vlcol = load(light_ptr, GLP_LIGHT_COLOR).xyzwxyzw;
+            u16 amb_ptr = light_ptr + GLP_LIGHT_AMBIENT;
+            vec16 vlambient = load(amb_ptr, 0).xyzwxyzw;
+            vec16 vlcol = load(light_ptr, GLP_LIGHT_DIFFUSE).xyzwxyzw;
             vec16 vlpos = load(light_ptr, GLP_LIGHT_POSITION).xyzwxyzw;
+
+            vlcol:sfract *= vdiffuse;
             
             s16 light_w = load(light_ptr, GLP_LIGHT_POSITIONW);
             if (light_w != 0)
@@ -390,7 +393,8 @@ shader gl_pipeline()
             }
             
             vlpos *= vnorm:sfract;
-            VTEMP = vlcol:sfract  * vlpos:sfract.xxxxXXXX;
+            VTEMP = vlambient * vambient;
+            VTEMP = vlcol:sfract +* vlpos:sfract.xxxxXXXX;
             VTEMP = vlcol:sfract +* vlpos:sfract.yyyyYYYY;
             vlcol = vlcol:sfract +* vlpos:sfract.zzzzZZZZ;
             vlcol = max(vlcol, VZERO);
@@ -403,9 +407,11 @@ shader gl_pipeline()
         }
         
     LIGHT_END:
-        vrgba.w = vnormmask.w;
-        vrgba.W = vnormmask.w;
-        @AttrPatch("COLOR:vnop") vrgba:sfract *= vrgba_in:sfract;
+        vrgba.w = vdiffuse.w;
+        vrgba.W = vdiffuse.W;
+
+        undef vambient;
+        undef vdiffuse;
 
         set_vcc(fog_mask);
         vrgba = select(vrgba, vfog.zzzzZZZZ);
@@ -457,13 +463,13 @@ shader gl_pipeline()
             VTEMP = vtex:sint * 1;
             vtex:sint = vrefl +* vtmp.xxxxXXXX;
         }
+        #endif
 
         vec16 vtexscale, vtexoffset;
         vtexscale.xy = load(TEXTURING_SCALE).xy;
         vtexscale.XY = load(TEXTURING_SCALE).xy;
         vtexoffset.xy = load(TEXTURING_OFFSET).xy;
         vtexoffset.XY = load(TEXTURING_OFFSET).xy;
-        #endif
 
         // Texture coords
         VTEMP = vtexoffset:sint * 1;

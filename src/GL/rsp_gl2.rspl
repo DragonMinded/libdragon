@@ -14,7 +14,9 @@ state {
     extern u16 GL_VIEWPORT_SCALE[4];
     extern u8 GL_PIPELINES;
     extern s16 GL_STATE_LIGHT_AMBIENT[4];
+    extern s16 GL_MAT_AMBIENT[4];
     extern s16 GL_MAT_DIFFUSE[4];
+    extern s16 GL_MAT_EMISSIVE[4];
     extern u16 GL_MAT_COLOR_TARGET;
     extern u32 GL_STATE_FLAGS;
     extern u16 GL_STATE_FOG_PARAMS[4];
@@ -51,6 +53,10 @@ temp_state {
     s16 LIGHTING_AMBIENT[3];
     u8 LIGHTING_HAS_POINTS;
     u8 LIGHTING_COUNT;
+    s16 MATERIAL_DIFFUSE[4];
+    s16 MATERIAL_AMBIENT[3];
+    u16 MATERIAL_FLAGS;
+    s16 MATERIAL_EMISSIVE[3];
 
     s16 FOG_PARAMS[3];
     u8 FOG_MASK;
@@ -77,19 +83,7 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
 {
     u32<$k0> flags = load(GL_STATE_FLAGS, 0);
 
-    u32<$k1> diffuse_tracking_color = 0;
-    {
-        u32 tmp = flags & 0x800; // FLAG_COLOR_MATERIAL
-        if (tmp != 0) {
-            u16 color_material = load(GL_MAT_COLOR_TARGET);
-            if (color_material == GL_DIFFUSE) {
-                diffuse_tracking_color = 1;
-            }
-            if (color_material == GL_AMBIENT_AND_DIFFUSE) {
-                diffuse_tracking_color = 1;
-            }
-        }
-    }
+    u32<$k1> color_material_enabled = flags & 0x800; // FLAG_COLOR_MATERIAL;
 
     // Pipeline
     {
@@ -114,7 +108,7 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
         tmp = flags & 0x400; // FLAG_LIGHTING
         if (tmp != 0)
         {
-            if (diffuse_tracking_color == 0) {
+            if (color_material_enabled == 0) {
                 features |= 2;
             }
         }
@@ -307,24 +301,41 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
             color_constant = 1;
         }
 
+        vec16 light_ambient;
         vec16 ambient;
+        vec16 diffuse;
+        vec16 emissive;
         u8 light_count = 0;
         u8 point_count = 0;
+
+        u16 color_material = 0;
 
         u32 enabled = flags & 0x400; // FLAG_LIGHTING
         if (enabled != 0)
         {
-            vec16 color;
-            if (diffuse_tracking_color == 0) {
-                color_constant = 1;
-                color = load(GL_MAT_DIFFUSE).xyzw;
-            } else {
-                color = load(GL_CUR_COLOR).xyzw;
-            }
+            light_ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
+            ambient.xyzw = load(GL_MAT_AMBIENT, 0);
+            diffuse.xyzw = load(GL_MAT_DIFFUSE, 0);
+            emissive.xyzw = load(GL_MAT_EMISSIVE, 0);
 
-            ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
-            if (color_constant != 0) {
-                ambient = ambient:sfract * color:sfract;
+            vec16 color;
+            if (color_material_enabled != 0) {
+                color_material = load(GL_MAT_COLOR_TARGET);
+                if (client_flags == 0) {
+                    vec16 color = load(GL_CUR_COLOR).xyzw;
+                    if (color_material == GL_AMBIENT_AND_DIFFUSE) {
+                        ambient = color;
+                        diffuse = color;
+                    } else if (color_material == GL_AMBIENT) {
+                        ambient = color;
+                    } else if (color_material == GL_DIFFUSE) {
+                        diffuse = color;
+                    } else if (color_material == GL_EMISSION) {
+                        emissive = color;
+                    }
+
+                    color_material = 0;
+                }
             }
 
             u32 light_flag = 0x100000; // FLAG_LIGHT0
@@ -335,24 +346,13 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
             {
                 u32 light_enabled = flags & light_flag;
                 if (light_enabled != 0) {
-                    vec16 light_position = load(light_ptr, 0).xyzw;
-                    vec16 light_color = load(light_ptr, 8).xyzw;
+                    vec16 light_props0 = load(light_ptr, 0x00);
+                    vec16 light_props1 = load(light_ptr, 0x10);
 
-                    u16 att_ptr = light_ptr + GLP_LIGHT_ATT_INT;
-                    vec16 attenuation;
-                    attenuation = load(att_ptr).xyzw;
-                    attenuation.XY = load(att_ptr).XY;
-
-                    if (color_constant != 0) {
-                        light_color = light_color:sfract * color:sfract;
-                    }
-
-                    store(light_position.xyzw, out_ptr, 0);
-                    store(light_color.xyzw, out_ptr, 8);
-
-                    att_ptr = out_ptr + GLP_LIGHT_ATT_INT;
-                    store(attenuation.xyzw, att_ptr, 0);
-                    store(attenuation.XY, att_ptr, 8);
+                    store(light_props0.xyzw, out_ptr, 0x00);
+                    store(light_props0.XYZW, out_ptr, 0x08);
+                    store(light_props1.xyzw, out_ptr, 0x10);
+                    store(light_props1.XYZW, out_ptr, 0x18);
 
                     s16 w = load(light_ptr, GLP_LIGHT_POSITIONW);
                     if (w != 0) {
@@ -365,16 +365,29 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
                 light_ptr += GLP_LIGHT_SIZE;
                 light_flag = light_flag << 1;
             }
-        } else if (color_constant == 0) {
-            ambient.x = 0x7FFF;
-            ambient = ambient.x;
         } else {
-            ambient = load(GL_CUR_COLOR).xyzw;
+            emissive = VZERO;
+            light_ambient.x = 0x7FFF;
+            light_ambient = light_ambient.x;
+
+            if (client_flags != 0) {
+                color_material = GL_AMBIENT_AND_DIFFUSE;
+            } else {
+                ambient = load(GL_CUR_COLOR).xyzw;
+                diffuse = ambient;
+            }
         }
 
-        @Barrier("store_lighting") store(ambient.xyzw, LIGHTING_AMBIENT, 0);
+        u16 mat_flags = 0;
+        // TODO: from color_material
+
+        @Barrier("store_lighting") store(light_ambient.xyzw, LIGHTING_AMBIENT, 0);
         @Barrier("store_lighting") store(point_count, LIGHTING_HAS_POINTS, 0);
         @Barrier("store_lighting") store(light_count, LIGHTING_COUNT, 0);
+        @Barrier("store_lighting") store(diffuse.xyzw, MATERIAL_DIFFUSE, 0);
+        @Barrier("store_lighting") store(ambient.xyzw, MATERIAL_AMBIENT, 0);
+        @Barrier("store_lighting") store(mat_flags, MATERIAL_FLAGS, 0);
+        @Barrier("store_lighting") store(emissive.xyzw, MATERIAL_EMISSIVE, 0);
     }
 
     // Fog
