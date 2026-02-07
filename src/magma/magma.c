@@ -933,6 +933,22 @@ void mg_draw_indexed(const mg_input_assembly_parms_t *input_assembly_parms, cons
     }
 }
 
+/* TODO: Index buffers
+    Instead of emitting one command for each triangle, store vertex indices in a buffer
+    and emit command a command that reads n indices from this buffer and then draws those triangles.
+    Tiny3D has shown that this improves performance.
+    Possible API:
+
+    // Binds the index buffer used by mg_draw_indices
+    void mg_bind_index_buffer(const uint16_t *buffer);
+
+    // Loads indices from the buffer bound using mg_bind_index_buffer.
+    // It starts loading from first_index and loads index_count indices.
+    // TODO: which topologies are supported? Only triangle list?
+    // TODO: naming
+    void mg_draw_indices(uint32_t index_count, uint32_t first_index);
+*/
+
 /* TODO: Instanced draw calls?
     There is probably no real benefit other than having a fancy API.
     On modern hardware, instancing is a technique to reduce the number of draw calls,
@@ -940,7 +956,7 @@ void mg_draw_indexed(const mg_input_assembly_parms_t *input_assembly_parms, cons
 
     On N64, this doesn't really apply
     unless the RSP would drive the input assembly. We could investigate that possibility,
-    but it is questionably how much performance this could realistically save, since this workload
+    but it is questionable how much performance this could realistically save, since this workload
     can't really be vectorized and the vertex/index data still needs to be transferred from RDRAM anyway.
 
     As it stands, the assembly of vertex loading and triangle drawing commands is
