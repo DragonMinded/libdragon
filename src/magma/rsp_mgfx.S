@@ -153,7 +153,7 @@ MgBeginShader
   ori $t0, $zero, %lo(MATRICES_MVP)
   ori $at, $zero, %lo(MATRICES_NORMAL)
   ldv $v11, 0, 16, $at
-  ori $t4, $zero, %lo(MG_CLIP_CACHE)
+  ori $t4, $zero, %lo(MG_SCRATCH_MEM)
   LOAD_POS_NORM300: ldv $v19, 0, 0, $s4
   ldv $v04, 0, 40, $t0
   lhu $t8, %lo(MG_VERTEX_SIZE + 0)
@@ -184,7 +184,7 @@ MgBeginShader
   ori $at, $zero, %lo(MG_VIEWPORT)
   ldv $v02, 8, 32, $t0
   ldv $v14, 0, 0, $at
-  ori $t5, $zero, %lo(MG_CLIP_CACHE)
+  ori $t5, $zero, %lo(MG_SCRATCH_MEM)
   LOAD_POS_NORM299: ldv $v20, 8, 0, $t2
   ldv $v14, 8, 0, $at
   ldv $v15, 0, 8, $at

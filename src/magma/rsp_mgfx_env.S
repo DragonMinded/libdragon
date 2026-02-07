@@ -224,10 +224,10 @@ MgBeginShader
   ldv $v08, 0, 56, $t0                               ## L:199  |     62 | m3:ufract = load(address, 0x38).xyzwxyzw;
   LOAD_COLOR303: llv $v19, 4, 0, $t1                 ## L:303  |     63 | @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
   ldv $v01, 8, 0, $t0                                ## L:192  |     64 | m0:sint   = load(address, 0x00).xyzwxyzw;
-  ori $t3, $zero, %lo(MG_CLIP_CACHE)                 ## L:286  |     65 | u16 prev_out0 = MG_CLIP_CACHE;
+  ori $t3, $zero, %lo(MG_SCRATCH_MEM)                ## L:286  |     65 | u16 prev_out0 = MG_SCRATCH_MEM;
   ldv $v05, 0, 16, $t0                               ## L:196  |     66 | m2:sint   = load(address, 0x10).xyzwxyzw;
   ldv $v05, 8, 16, $t0                               ## L:196  |     67 | m2:sint   = load(address, 0x10).xyzwxyzw;
-  ori $t4, $zero, %lo(MG_CLIP_CACHE)                 ## L:287  |     68 | u16 prev_out1 = MG_CLIP_CACHE;
+  ori $t4, $zero, %lo(MG_SCRATCH_MEM)                ## L:287  |     68 | u16 prev_out1 = MG_SCRATCH_MEM;
   ldv $v08, 8, 56, $t0                               ## L:199  |     69 | m3:ufract = load(address, 0x38).xyzwxyzw;
   ldv $v06, 8, 48, $t0                               ## L:197  |     70 | m2:ufract = load(address, 0x30).xyzwxyzw;
   ldv $v13, 8, 8, $at                                ## L:264  |     71 | vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;

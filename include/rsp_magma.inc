@@ -207,9 +207,8 @@ MG_CLIPPING_TEXT_SIZE:          .word   0
 
     .bss
     .align 4
+MG_SCRATCH_MEM:
 MG_CLIP_CACHE_USED:             .dcb.w  16
-    .align 3
-MG_OUTPUT_BUFFER:               .dcb.b  TRIANGLE_SIZE * 2
 
 MG_CLIP_CACHE:                  .dcb.b  MG_VTX_SIZE * MG_CLIP_CACHE_SIZE
 MG_CLIP_CACHE_END:
@@ -217,6 +216,8 @@ MG_CLIP_CACHE_END:
 MG_CLIP_LIST0:                  .dcb.w  MG_CLIP_CACHE_SIZE
 MG_CLIP_LIST1:                  .dcb.w  MG_CLIP_CACHE_SIZE
 
+    .align 3
+MG_OUTPUT_BUFFER:               .dcb.b  TRIANGLE_SIZE * 2
     .text
 
     #############################################################

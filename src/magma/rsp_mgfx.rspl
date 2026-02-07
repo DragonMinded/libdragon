@@ -7,7 +7,7 @@ include "rsp_magma.inc"
 state
 {
     extern u16    RSPQ_SCRATCH_MEM;
-    extern u16    MG_CLIP_CACHE;
+    extern u16    MG_SCRATCH_MEM;
     
     extern vec16  MG_NORMAL_MASK[8];
     
@@ -181,8 +181,8 @@ shader mgfx()
     u16 vtx_in1_ptr = vtx_in0_ptr + vtx_size;
     u16 vtx_out1_ptr = vtx_out0_ptr + MG_VTX_SIZE;
 
-    u16 prev_out0 = MG_CLIP_CACHE;
-    u16 prev_out1 = MG_CLIP_CACHE;
+    u16 prev_out0 = MG_SCRATCH_MEM;
+    u16 prev_out1 = MG_SCRATCH_MEM;
 
     u8 c0, c1, tr0, tr1;
     
