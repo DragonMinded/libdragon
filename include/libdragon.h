@@ -105,6 +105,7 @@
 #include "ioctl.h"
 #include "a3d.h"
 #include "profile.h"
+#include "coroutine.h"
 #include "magma.h"
 #include "magma_math.h"
 #include "mgfx.h"

@@ -21,7 +21,8 @@ typedef struct mpeg1_s {
 	video_t video;
 	plm_buffer_t *buf;
 	plm_video_t *v;
-	void *f;
+	plm_frame_t *f;
+	int buffered_pics;
 } mpeg1_t;
 
 typedef enum {
@@ -151,6 +152,10 @@ static video_t *mpeg1_open(const char *fn, const video_parms_t *parms) {
 	mp1->v = plm_video_create_with_buffer(mp1->buf, true);
 	assert(mp1->v);
 
+	mp1->buffered_pics = parms ? parms->buffered_pics : 1;
+	if (mp1->buffered_pics < 1) mp1->buffered_pics = 1;
+	plm_video_set_buffered_pics(mp1->v, mp1->buffered_pics);
+
 	// Force decoding of header. This would be done lazily but better do it
 	// now to catch any errors early.
 	if (!plm_video_has_header(mp1->v)) {
@@ -171,8 +176,23 @@ static video_t *mpeg1_open(const char *fn, const video_parms_t *parms) {
 	return &mp1->video;
 }
 
+static int mpeg1_poll(video_t *v) {
+	mpeg1_t *mp1 = (mpeg1_t *)v;
+	if (mp1->buffered_pics <= 0)
+		return 0;
+	return plm_video_poll(mp1->v) ? 1 : 0;
+}
+
 static bool mpeg1_next_frame(video_t *v) {
 	mpeg1_t *mp1 = (mpeg1_t *)v;
+
+	// Release previous frame (if any). Frames extracted from the output queue stay
+	// locked until explicitly released.
+	if (mp1->f) {
+		plm_video_release_output(mp1->v, (plm_frame_t *)mp1->f);
+		mp1->f = NULL;
+	}
+
 	PROFILE_START(PS_MPEG);
 	mp1->f = plm_video_decode(mp1->v);
 	PROFILE_STOP(PS_MPEG);
@@ -181,12 +201,16 @@ static bool mpeg1_next_frame(video_t *v) {
 
 static void mpeg1_rewind(video_t *v) {
 	mpeg1_t *mp1 = (mpeg1_t *)v;
+	if (mp1->f) {
+		plm_video_release_output(mp1->v, (plm_frame_t *)mp1->f);
+		mp1->f = NULL;
+	}
 	plm_video_rewind(mp1->v);
 }
 
 static yuv_frame_t mpeg1_get_frame(video_t *v) {
 	mpeg1_t *mp1 = (mpeg1_t *)v;
-	plm_frame_t *frame = mp1->f;
+	plm_frame_t *frame = (plm_frame_t*)mp1->f;
 	surface_t yp  = surface_make_linear(frame->y.data,  FMT_I8, frame->width,   frame->height);
 	surface_t cbp = surface_make_linear(frame->cb.data, FMT_I8, frame->width/2, frame->height/2);
 	surface_t crp = surface_make_linear(frame->cr.data, FMT_I8, frame->width/2, frame->height/2);
@@ -195,6 +219,10 @@ static yuv_frame_t mpeg1_get_frame(video_t *v) {
 
 static void mpeg1_close(video_t *v) {
 	mpeg1_t *mp1 = (mpeg1_t *)v;
+	if (mp1->f) {
+		plm_video_release_output(mp1->v, (plm_frame_t *)mp1->f);
+		mp1->f = NULL;
+	}
 	plm_video_destroy(mp1->v);
 	free(mp1);
 }
@@ -221,6 +249,7 @@ video_codec_t mpeg1_codec = {
 	.extension = ".m1v",
 	.open = mpeg1_open,
 	.close = mpeg1_close,
+	.poll = mpeg1_poll,
 	.next_frame = mpeg1_next_frame,
 	.get_frame = mpeg1_get_frame,
 	.rewind = mpeg1_rewind,

@@ -636,6 +636,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
 
     // Reset the VI to default state, so that we don't inherit any weird
     // configuration from the crashed program.
+    vi_init();
     vi_reset();
 	
     // Try to allocate two framebuffers. We might be out of memory though,

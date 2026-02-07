@@ -196,50 +196,12 @@ CHROMA_DC_1:        .half 0,0,0,0
 V_0:    .quad 0,0
 V_1:    .quad 0,0
 
-#if 0
-    # Task function table. Notice that we're using .half here for compactness, 
-    # which is not supported by GAS/ELF, and it works with some bugs: we need to
-    # add 16-bit of padding at the end, and there's an additional 16-bit at the start.
-
-#define DECLARE_OMXDL_TABLE(...) \
-    .half 0, \
-          Task_BeginFrame - _start, \
-          Task_EndFrame - _start, \
-          Task_LoadOverlay - _start, \
-          Task_SetPackedDeltaBuffer - _start, \
-          Task_ResetPackedDeltaBuffer - _start, \
-          Task_SetTotalCoeff - _start, \
-          Task_ResetTotalCoeff - _start, \
-          Task_WriteMacroblock - _start, \
-          __VA_ARGS__, \
-          0
-
-        .align 3
-OMXDL_TABLE:
-DATA_OVERLAY_START:
-#endif
-
 ################################################################################
 # TEXT
 ################################################################################
 
     .text
 
-#if 0
-    .func AssertDeltaBufferTooSmall
-AssertDeltaBufferTooSmall:
-    li t0, ASSERT_DELTA_BUFFER_TOO_SMALL
-    j AssertDeltaBufferTooSmall
-    sw t0, %lo(TQ_SKIP)
-    .endfunc
-
-    .func AssertCAVLCBufferTooSmall
-AssertCAVLCBufferTooSmall:
-    li t0, ASSERT_CAVLC_BUFFER_TOO_SMALL
-    j AssertCAVLCBufferTooSmall
-    sw t0, %lo(TQ_SKIP)
-    .endfunc
-#endif
 
 #if 0
 ####################################################################
@@ -435,41 +397,6 @@ UpdateDeltaBlockPointer:
     jr ra
      nop
     .endfunc
-
-
-####################################################################
-# Task_ResetTotalCoeff
-#
-# Reset the totalCoeff table (fill with zeros)
-####################################################################
-#if 0
-    .func Task_ResetTotalCoeff
-Task_ResetTotalCoeff:
-    vxor $v00, $v00, $v00,0
-    li s4, %lo(TCOEFF_TABLE)
-    sqv $v00,0, 0*16,s4
-    sqv $v00,0, 1*16,s4
-    jr ra
-    spv $v00,0, 4*8,s4
-    .endfunc
-#endif
-
-####################################################################
-# Task_SetTotalCoeff
-#
-# Load the totalCoeff table from RDRAM via DMA
-####################################################################
-
-    .func Task_SetTotalCoeff
-Task_SetTotalCoeff:
-    move s0, a0
-SetTotalCoeff:
-    beqz s0, JrRa
-    li t0, DMA_SIZE(27,1)
-    j DMAIn
-    li s4, %lo(TCOEFF_TABLE)
-    .endfunc
-
 
 ####################################################################
 # CalcDequantFactors

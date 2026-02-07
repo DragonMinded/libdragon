@@ -132,8 +132,8 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
         if (width != tload->rect.width) {
             // Calculate he new pitch in TMEM (in bytes). Notice that RGBA32 is special
             // as texture data is split in two halves, so the pitch can be halved.
-            int pitch_shift = fmt == FMT_RGBA32 ? 1 : 0;
-            int stride_mask = fmt == FMT_RGBA32 ? 15 : 7;
+            int pitch_shift = (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? 1 : 0;
+            int stride_mask = (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? 15 : 7;
             tload->rect.tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width) >> pitch_shift, 8);
 
             // Verify whether we can use LOAD_BLOCK. The conditions we can verify just by looking at the
@@ -185,7 +185,7 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 
         // If the height changed, complete filling the rect structure,
         // and calculate whether we can really use LOAD_BLOCK or not.
-        int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
+        int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_YUV16) ? 2048 : 4096;
         assertf(height * tload->rect.tmem_pitch <= tmem_size,
             "A rectangle of size %dx%d format %s is too big to fit in TMEM", width, height, tex_format_name(fmt));
         tload->rect.width = width;
@@ -259,7 +259,7 @@ static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
-    rdpq_load_block(tile_internal, s0, t0, tload->rect.num_texels, (fmt == FMT_RGBA32) ? tload->rect.tmem_pitch*2 : tload->rect.tmem_pitch);
+    rdpq_load_block(tile_internal, s0, t0, tload->rect.num_texels, (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? tload->rect.tmem_pitch*2 : tload->rect.tmem_pitch);
 
     s0 = s0*4 + tload->rect.s0fx;
     t0 = t0*4 + tload->rect.t0fx;
@@ -362,7 +362,7 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1)
     texload_set_rect(tload, s0, 0, s1, 1);
 
     tex_format_t fmt = surface_get_format(tload->tex);
-    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
+    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_YUV16) ? 2048 : 4096;
     return tmem_size / tload->rect.tmem_pitch;
 }
 
@@ -710,5 +710,5 @@ int rdpq_tex_multi_end(void)
     rdpq_set_tile_autotmem(-1);
     --multi_upload.used;
     assert(multi_upload.used >= 0);
-    return 0;
+    return multi_upload.bytes;
 }

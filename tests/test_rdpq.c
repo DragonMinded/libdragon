@@ -473,12 +473,14 @@ void test_rdpq_block_nested(TestContext *ctx)
         rdpq_set_blend_color(RGBA32(0x22,0x22,0x22,0x22));
         rdpq_set_prim_color(RGBA32(0x11,0x11,0x11,0x11));
     rspq_block_t *block1 = rspq_block_end();
+    DEFER(rspq_block_free(block1));
 
     rspq_block_begin();
         rdpq_set_fog_color(RGBA32(0x33,0x33,0x33,0x33));
         rspq_block_run(block1);
         rdpq_set_env_color(RGBA32(0x44,0x44,0x44,0x44));
     rspq_block_t *block2 = rspq_block_end();
+    DEFER(rspq_block_free(block2));
 
     rspq_block_run(block2);
     rspq_wait();
@@ -1329,6 +1331,17 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_HEX(som & 0xCCCC0000, 0, "invalid blender formula in first cycle");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=2pass, blender=1pass)");
+
+    // Set 1pass combiner with TEX1
+    rdpq_debug_log_msg("1pass combiner w/ TEX1 => 2 cycle");
+    surface_clear(&fb, 0xFF);
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)));
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+    rspq_wait();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (comb=1pass w/ TEX1)");
 
     // Set simple combiner => 1 cycle
     rdpq_debug_log_msg("1pass combiner => 1 cycle");

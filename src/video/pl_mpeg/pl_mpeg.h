@@ -686,6 +686,28 @@ double plm_video_get_aspect_ratio(plm_video_t *self);
 
 void plm_video_set_no_delay(plm_video_t *self, int no_delay);
 
+// -----------------------------------------------------------------------------
+// libdragon extension: buffered output + incremental polling
+//
+// These APIs allow decoding video in small chunks (eg: one slice at a time)
+// while keeping up to N fully decoded frames in an internal output queue.
+// This avoids copying full YUV frames while enabling background decoding.
+
+// Configure how many fully decoded pictures can be buffered in the output queue.
+// Must be called before the sequence header is decoded (before frames_data alloc).
+void plm_video_set_buffered_pics(plm_video_t *self, int buffered_pics);
+
+// Do a small chunk of decoding work. Returns 1 if work was done, 0 if no work
+// could be done (eg: need more input data, output queue full, or EOF).
+int plm_video_poll(plm_video_t *self);
+
+// Extract next picture from output queue (presentation order). Returned pointer
+// stays valid until released or the decoder is destroyed.
+plm_frame_t *plm_video_next_output(plm_video_t *self);
+
+// Release a picture previously obtained via plm_video_next_output().
+void plm_video_release_output(plm_video_t *self, const plm_frame_t *frame);
+
 
 // Get the current internal time in seconds.
 
@@ -806,6 +828,12 @@ plm_samples_t *plm_audio_decode(plm_audio_t *self);
 
 #include <string.h>
 #include <stdlib.h>
+#include <stddef.h>
+#include <assert.h>
+
+#ifndef ASSERT
+#define ASSERT(x) assert(x)
+#endif
 
 #ifndef TRUE
 #define TRUE 1
@@ -2587,6 +2615,12 @@ typedef struct {
 	int v;
 } plm_video_motion_t;
 
+typedef enum {
+	PLM_POLL_STATE_IDLE = 0,      // no active picture; seek next picture start
+	PLM_POLL_STATE_HEADER_PARSED, // header parsed; waiting for a free decode buffer
+	PLM_POLL_STATE_IN_PICTURE,    // decoding slices for the current picture
+} plm_video_poll_state_t;
+
 typedef struct plm_video_t {
 	double framerate;
 	double time;
@@ -2639,6 +2673,24 @@ typedef struct plm_video_t {
 	plm_frame_t frame_backward;
 
 	uint8_t *frames_data;
+	size_t frame_data_size;
+	int num_frame_buffers;
+	uint8_t *frame_locked; // [num_frame_buffers] 1 if underlying buffer is locked (queued or held)
+
+	// libdragon extension: output buffering + incremental polling
+	int buffered_pics; // requested output queue capacity (>=1)
+	plm_frame_t *out_queue; // [buffered_pics] frames (by value, pointers into frames_data)
+	int out_q_head;
+	int out_q_tail;
+	int out_q_count;
+	int out_current_in_use;
+	plm_frame_t out_current_frame; // returned by plm_video_next_output()
+
+	// Incremental picture decode state (poll)
+	plm_video_poll_state_t poll_state;
+	plm_frame_t poll_frame_temp;      // saved from picture start (old frame_forward)
+	int poll_saved_current_valid;     // for B pictures only
+	plm_frame_t poll_saved_current;   // original frame_current to restore after B decode
 
 	int16_t block_data[64];
 	uint8_t intra_quant_matrix[64];
@@ -2660,7 +2712,6 @@ static inline uint8_t plm_clamp(int n) {
 
 int plm_video_decode_sequence_header(plm_video_t *self);
 void plm_video_init_frame(plm_video_t *self, plm_frame_t *frame, uint8_t *base);
-void plm_video_decode_picture(plm_video_t *self);
 void plm_video_decode_slice(plm_video_t *self, int slice);
 void plm_video_decode_macroblock(plm_video_t *self);
 void plm_video_decode_motion_vectors(plm_video_t *self);
@@ -2727,6 +2778,7 @@ plm_video_t * plm_video_create_with_buffer(plm_buffer_t *buffer, int destroy_whe
 	self->sar_den = 1;
 	self->sar_parsed = FALSE;
 	self->aspect_ratio_code = 1;
+	self->buffered_pics = 1;
 
 	// Do not scan/decode here: avoid triggering I/O during object creation.
 	self->start_code = -1;
@@ -2739,6 +2791,8 @@ void plm_video_destroy(plm_video_t *self) {
 	}
 
 	if (self->has_sequence_header) {
+		free(self->frame_locked);
+		free(self->out_queue);
 		if (RSP_MODE >= 2)
 			free_uncached(self->frames_data);
 		else
@@ -2806,6 +2860,23 @@ void plm_video_rewind(plm_video_t *self) {
 	self->frames_decoded = 0;
 	self->has_reference_frame = FALSE;
 	self->start_code = -1;
+
+	// Reset libdragon extension state
+	self->out_q_head = self->out_q_tail = self->out_q_count = 0;
+	self->out_current_in_use = 0;
+	self->poll_state = PLM_POLL_STATE_IDLE;
+	self->poll_saved_current_valid = 0;
+	if (self->frame_locked && self->num_frame_buffers > 0) {
+		memset(self->frame_locked, 0, (size_t)self->num_frame_buffers);
+	}
+}
+
+void plm_video_set_buffered_pics(plm_video_t *self, int buffered_pics) {
+	if (!self) return;
+	// Must be set before sequence header is decoded (before frames_data allocation).
+	ASSERT(!self->has_sequence_header);
+	if (buffered_pics < 1) buffered_pics = 1;
+	self->buffered_pics = buffered_pics;
 }
 
 int plm_video_has_ended(plm_video_t *self) {
@@ -2813,20 +2884,193 @@ int plm_video_has_ended(plm_video_t *self) {
 }
 
 plm_frame_t *plm_video_decode(plm_video_t *self) {
-	if (!plm_video_has_header(self)) {
-		return NULL;
+	if (!self) return NULL;
+	for (;;) {
+		plm_frame_t *out = plm_video_next_output(self);
+		if (out) {
+			return out;
+		}
+		if (!plm_video_poll(self)) {
+			return NULL;
+		}
 	}
-	
-	plm_frame_t *frame = NULL;
+}
+
+static inline int plm_video_out_full(plm_video_t *self) {
+	return self->buffered_pics > 0 &&
+		(self->out_q_count + (self->out_current_in_use ? 1 : 0)) >= self->buffered_pics;
+}
+
+static inline int plm_video_buf_index_from_y(plm_video_t *self, uint8_t *y) {
+	if (!self->frames_data || self->frame_data_size == 0) return -1;
+	ptrdiff_t off = (ptrdiff_t)(y - self->frames_data);
+	if (off < 0) return -1;
+	int idx = (int)(off / (ptrdiff_t)self->frame_data_size);
+	if (idx < 0 || idx >= self->num_frame_buffers) return -1;
+	return idx;
+}
+
+static inline int plm_video_is_reference_index(plm_video_t *self, int idx) {
+	int cur = plm_video_buf_index_from_y(self, self->frame_current.y.data);
+	int fwd = plm_video_buf_index_from_y(self, self->frame_forward.y.data);
+	int bwd = plm_video_buf_index_from_y(self, self->frame_backward.y.data);
+	return idx == cur || idx == fwd || idx == bwd;
+}
+
+static inline int plm_video_is_frame_locked(plm_video_t *self, const plm_frame_t *frame) {
+	int idx = plm_video_buf_index_from_y(self, frame->y.data);
+	if (idx < 0 || !self->frame_locked) return 0;
+	return self->frame_locked[idx] != 0;
+}
+
+static inline int plm_video_parse_picture_header(plm_video_t *self) {
+	plm_buffer_skip(self->buffer, 10); // temporalReference
+	self->picture_type = plm_buffer_read(self->buffer, 3);
+	plm_buffer_skip(self->buffer, 16); // vbv_delay
+
+	if (self->picture_type <= 0 || self->picture_type > PLM_VIDEO_PICTURE_TYPE_B) {
+		return 0;
+	}
+
+	if (
+		self->picture_type == PLM_VIDEO_PICTURE_TYPE_PREDICTIVE ||
+		self->picture_type == PLM_VIDEO_PICTURE_TYPE_B
+	) {
+		self->motion_forward.full_px = plm_buffer_read(self->buffer, 1);
+		int f_code = plm_buffer_read(self->buffer, 3);
+		if (f_code == 0) {
+			return 0;
+		}
+		self->motion_forward.r_size = f_code - 1;
+	}
+
+	if (self->picture_type == PLM_VIDEO_PICTURE_TYPE_B) {
+		self->motion_backward.full_px = plm_buffer_read(self->buffer, 1);
+		int f_code = plm_buffer_read(self->buffer, 3);
+		if (f_code == 0) {
+			return 0;
+		}
+		self->motion_backward.r_size = f_code - 1;
+	}
+
+	return 1;
+}
+
+static inline plm_frame_t plm_video_begin_picture(plm_video_t *self) {
+	plm_frame_t frame_temp = self->frame_forward;
+	if (
+		self->picture_type == PLM_VIDEO_PICTURE_TYPE_INTRA ||
+		self->picture_type == PLM_VIDEO_PICTURE_TYPE_PREDICTIVE
+	) {
+		self->frame_forward = self->frame_backward;
+	}
+
+	// Find first slice start code; skip extension and user data
 	do {
+		self->start_code = plm_buffer_next_start_code(self->buffer);
+	} while (
+		self->start_code == PLM_START_EXTENSION ||
+		self->start_code == PLM_START_USER_DATA
+	);
+
+	return frame_temp;
+}
+
+static inline void plm_video_finish_picture(plm_video_t *self, plm_frame_t frame_temp) {
+	if (
+		self->picture_type == PLM_VIDEO_PICTURE_TYPE_INTRA ||
+		self->picture_type == PLM_VIDEO_PICTURE_TYPE_PREDICTIVE
+	) {
+		self->frame_backward = self->frame_current;
+		self->frame_current = frame_temp;
+	}
+}
+
+static void plm_video_lock_frame(plm_video_t *self, const plm_frame_t *frame) {
+	int idx = plm_video_buf_index_from_y(self, frame->y.data);
+	if (idx >= 0) {
+		ASSERT(self->frame_locked);
+		ASSERT(self->frame_locked[idx] == 0);
+		self->frame_locked[idx] = 1;
+	}
+}
+
+static void plm_video_unlock_frame(plm_video_t *self, const plm_frame_t *frame) {
+	int idx = plm_video_buf_index_from_y(self, frame->y.data);
+	if (idx >= 0) {
+		ASSERT(self->frame_locked);
+		ASSERT(self->frame_locked[idx] == 1);
+		self->frame_locked[idx] = 0;
+	}
+}
+
+static int plm_video_find_free_b_buffer(plm_video_t *self) {
+	if (self->buffered_pics <= 0) return -1;
+	// Extra buffers are appended after the 3 reference buffers.
+	for (int i = 3; i < self->num_frame_buffers; i++) {
+		if (self->frame_locked[i] == 0 && !plm_video_is_reference_index(self, i))
+			return i;
+	}
+	return -1;
+}
+
+static void plm_video_enqueue_output(plm_video_t *self, const plm_frame_t *frame) {
+	ASSERT(self->buffered_pics > 0);
+	ASSERT(self->out_queue);
+	ASSERT(self->out_q_count < self->buffered_pics);
+	self->out_queue[self->out_q_tail] = *frame;
+	self->out_q_tail = (self->out_q_tail + 1) % self->buffered_pics;
+	self->out_q_count++;
+	plm_video_lock_frame(self, frame);
+}
+
+static inline void plm_video_emit_output(plm_video_t *self, const plm_frame_t *frame) {
+	plm_video_enqueue_output(self, frame);
+	self->out_queue[(self->out_q_tail + self->buffered_pics - 1) % self->buffered_pics].time = self->time;
+	self->frames_decoded++;
+	self->time = (double)self->frames_decoded / self->framerate;
+}
+
+plm_frame_t *plm_video_next_output(plm_video_t *self) {
+	if (!self || self->buffered_pics <= 0) return NULL;
+	if (self->out_q_count == 0) return NULL;
+	ASSERT(!self->out_current_in_use);
+
+	self->out_current_frame = self->out_queue[self->out_q_head];
+	self->out_q_head = (self->out_q_head + 1) % self->buffered_pics;
+	self->out_q_count--;
+	self->out_current_in_use = 1;
+	return &self->out_current_frame;
+}
+
+void plm_video_release_output(plm_video_t *self, const plm_frame_t *frame) {
+	if (!self || !frame) return;
+	// We currently support releasing only the last extracted output frame.
+	ASSERT(self->out_current_in_use);
+	ASSERT(frame == &self->out_current_frame);
+	plm_video_unlock_frame(self, frame);
+	self->out_current_in_use = 0;
+}
+
+int plm_video_poll(plm_video_t *self) {
+	if (!self) return 0;
+	if (self->buffered_pics <= 0) return 0;
+	if (!plm_video_has_header(self)) return 0;
+	if (plm_video_out_full(self)) return 0;
+
+	int redirect_b = 0;
+	int redirect_ip = 0;
+	int redirect_idx = -1;
+
+	// If not currently decoding a picture, advance to the next picture start.
+	if (self->poll_state == PLM_POLL_STATE_IDLE) {
 		if (self->start_code != PLM_START_PICTURE) {
 			PROFILE_START(PS_MPEG_FINDSTART);
 			self->start_code = plm_buffer_find_start_code(self->buffer, PLM_START_PICTURE);
 			PROFILE_STOP(PS_MPEG_FINDSTART);
-			
+
 			if (self->start_code == -1) {
-				// If we reached the end of the file and the previously decoded
-				// frame was a reference frame, we still have to return it.
+				// End-of-stream flush: return last reference frame once, same as plm_video_decode().
 				if (
 					self->has_reference_frame &&
 					!self->assume_no_b_frames &&
@@ -2836,49 +3080,120 @@ plm_frame_t *plm_video_decode(plm_video_t *self) {
 					)
 				) {
 					self->has_reference_frame = FALSE;
-					frame = &self->frame_backward;
-					break;
+					plm_video_emit_output(self, &self->frame_backward);
+					return 1;
 				}
-
-				return NULL;
+				return 0;
 			}
 		}
 
-		// Make sure we have a full picture in the buffer before attempting to
-		// decode it. Sadly, this can only be done by seeking for the start code
-		// of the next picture. Also, if we didn't find the start code for the
-		// next picture, but the source has ended, we assume that this last
-		// picture is in the buffer.
+		// Ensure we have a full picture in the buffer (same strategy as plm_video_decode()).
 		PROFILE_START(PS_MPEG_HASSTART);
 		if (
 			plm_buffer_has_start_code(self->buffer, PLM_START_PICTURE) == -1 &&
 			!plm_buffer_has_ended(self->buffer)
 		) {
-			return NULL;
+			PROFILE_STOP(PS_MPEG_HASSTART);
+			return 0;
 		}
 		PROFILE_STOP(PS_MPEG_HASSTART);
-		
-		plm_video_decode_picture(self);
 
+		if (!plm_video_parse_picture_header(self)) {
+			// Skip unsupported picture types
+			self->start_code = -1;
+			return 1;
+		}
+		self->poll_state = PLM_POLL_STATE_HEADER_PARSED;
+	}
+
+	if (self->poll_state == PLM_POLL_STATE_HEADER_PARSED) {
+		// Check buffer availability before consuming/committing picture state.
+		redirect_b = 0;
+		redirect_ip = 0;
+		redirect_idx = -1;
+		if (!self->assume_no_b_frames && self->picture_type == PLM_VIDEO_PICTURE_TYPE_B) {
+			redirect_b = 1;
+			redirect_idx = plm_video_find_free_b_buffer(self);
+			if (redirect_idx < 0) {
+				return 0; // no free output buffers
+			}
+		} else {
+			int dst = plm_video_buf_index_from_y(self, self->frame_current.y.data);
+			if (dst >= 0 && self->frame_locked && self->frame_locked[dst]) {
+				redirect_ip = 1;
+				redirect_idx = plm_video_find_free_b_buffer(self);
+				if (redirect_idx < 0) {
+					return 0;
+				}
+			}
+		}
+
+		// Begin picture: shuffle references and find first slice.
+		self->poll_frame_temp = plm_video_begin_picture(self);
+
+		// If this is a B picture, redirect frame_current to a free extra buffer.
+		self->poll_saved_current_valid = 0;
+		if (redirect_b) {
+			self->poll_saved_current = self->frame_current;
+			self->poll_saved_current_valid = 1;
+			plm_video_init_frame(self, &self->frame_current,
+				self->frames_data + self->frame_data_size * (size_t)redirect_idx);
+		} else if (redirect_ip) {
+			plm_video_init_frame(self, &self->frame_current,
+				self->frames_data + self->frame_data_size * (size_t)redirect_idx);
+		}
+
+		self->poll_state = PLM_POLL_STATE_IN_PICTURE;
+	}
+
+	// Decode one slice if available.
+	if (self->poll_state == PLM_POLL_STATE_IN_PICTURE && PLM_START_IS_SLICE(self->start_code)) {
+		PROFILE_START(PS_MPEG_DECODESLICE);
+		plm_video_decode_slice(self, self->start_code & 0x000000FF);
+		self->start_code = plm_buffer_next_start_code(self->buffer);
+		PROFILE_STOP(PS_MPEG_DECODESLICE);
+		// If there are more slices, keep the picture open and return after one slice.
+		if (PLM_START_IS_SLICE(self->start_code)) {
+			return 1;
+		}
+	}
+
+	// Picture completed: restore frame_current if we redirected it for a B picture.
+	if (self->poll_saved_current_valid) {
+		plm_frame_t decoded_b = self->frame_current;
+		self->frame_current = self->poll_saved_current;
+		self->poll_saved_current_valid = 0;
+
+		// B picture output is the decoded buffer.
+		plm_video_emit_output(self, &decoded_b);
+	} else {
+		// Non-B picture: apply original reference rotation semantics.
+		plm_video_finish_picture(self, self->poll_frame_temp);
+
+		plm_frame_t *out = NULL;
 		if (self->assume_no_b_frames) {
-			frame = &self->frame_backward;
+			out = &self->frame_backward;
 		}
 		else if (self->picture_type == PLM_VIDEO_PICTURE_TYPE_B) {
-			frame = &self->frame_current;
+			// Should not happen here (handled above)
+			out = &self->frame_current;
 		}
 		else if (self->has_reference_frame) {
-			frame = &self->frame_forward;
+			out = &self->frame_forward;
 		}
 		else {
 			self->has_reference_frame = TRUE;
 		}
-	} while (!frame);
-	
-	frame->time = self->time;
-	self->frames_decoded++;
-	self->time = (double)self->frames_decoded / self->framerate;
-	
-	return frame;
+
+		if (out && !plm_video_out_full(self)) {
+			if (!plm_video_is_frame_locked(self, out)) {
+				plm_video_emit_output(self, out);
+			}
+		}
+	}
+
+	self->poll_state = PLM_POLL_STATE_IDLE;
+	return 1;
 }
 
 int plm_video_has_header(plm_video_t *self) {
@@ -2964,15 +3279,28 @@ int plm_video_decode_sequence_header(plm_video_t *self) {
 	size_t luma_plane_size = self->luma_width * self->luma_height;
 	size_t chroma_plane_size = self->chroma_width * self->chroma_height;
 	size_t frame_data_size = (luma_plane_size + 2 * chroma_plane_size);
+	self->frame_data_size = frame_data_size;
+	self->num_frame_buffers = 3 + (self->buffered_pics > 0 ? self->buffered_pics : 0);
 
 	if (RSP_MODE >= 2)
-		self->frames_data = (uint8_t*)malloc_uncached(frame_data_size * 3);
+		self->frames_data = (uint8_t*)malloc_uncached(frame_data_size * (size_t)self->num_frame_buffers);
 	else
-		self->frames_data = (uint8_t*)memalign(16, frame_data_size * 3);
+		self->frames_data = (uint8_t*)memalign(16, frame_data_size * (size_t)self->num_frame_buffers);
 	assertf(self->frames_data, "Out of memory");
 	plm_video_init_frame(self, &self->frame_current, self->frames_data + frame_data_size * 0);
 	plm_video_init_frame(self, &self->frame_forward, self->frames_data + frame_data_size * 1);
 	plm_video_init_frame(self, &self->frame_backward, self->frames_data + frame_data_size * 2);
+
+	self->frame_locked = (uint8_t*)calloc((size_t)self->num_frame_buffers, 1);
+	assertf(self->frame_locked, "Out of memory");
+	if (self->buffered_pics > 0) {
+		self->out_queue = (plm_frame_t*)calloc((size_t)self->buffered_pics, sizeof(plm_frame_t));
+		assertf(self->out_queue, "Out of memory");
+	}
+	self->out_q_head = self->out_q_tail = self->out_q_count = 0;
+	self->out_current_in_use = 0;
+	self->poll_state = PLM_POLL_STATE_IDLE;
+	self->poll_saved_current_valid = 0;
 
 	self->has_sequence_header = TRUE;
 	return TRUE;
@@ -2995,79 +3323,6 @@ void plm_video_init_frame(plm_video_t *self, plm_frame_t *frame, uint8_t *base) 
 	frame->cb.width = self->chroma_width;
 	frame->cb.height = self->chroma_height;
 	frame->cb.data = base + luma_plane_size + chroma_plane_size;
-}
-
-void plm_video_decode_picture(plm_video_t *self) {
-	plm_buffer_skip(self->buffer, 10); // skip temporalReference
-	self->picture_type = plm_buffer_read(self->buffer, 3);
-	plm_buffer_skip(self->buffer, 16); // skip vbv_delay
-
-	// D frames or unknown coding type
-	if (self->picture_type <= 0 || self->picture_type > PLM_VIDEO_PICTURE_TYPE_B) {
-		return;
-	}
-
-	// Forward full_px, f_code
-	if (
-		self->picture_type == PLM_VIDEO_PICTURE_TYPE_PREDICTIVE ||
-		self->picture_type == PLM_VIDEO_PICTURE_TYPE_B
-	) {
-		self->motion_forward.full_px = plm_buffer_read(self->buffer, 1);
-		int f_code = plm_buffer_read(self->buffer, 3);
-		if (f_code == 0) {
-			// Ignore picture with zero f_code
-			return;
-		}
-		self->motion_forward.r_size = f_code - 1;
-	}
-
-	// Backward full_px, f_code
-	if (self->picture_type == PLM_VIDEO_PICTURE_TYPE_B) {
-		self->motion_backward.full_px = plm_buffer_read(self->buffer, 1);
-		int f_code = plm_buffer_read(self->buffer, 3);
-		if (f_code == 0) {
-			// Ignore picture with zero f_code
-			return;
-		}
-		self->motion_backward.r_size = f_code - 1;
-	}
-
-	plm_frame_t frame_temp = self->frame_forward;
-	if (
-		self->picture_type == PLM_VIDEO_PICTURE_TYPE_INTRA ||
-		self->picture_type == PLM_VIDEO_PICTURE_TYPE_PREDICTIVE
-	) {
-		self->frame_forward = self->frame_backward;
-	}
-
-
-	// Find first slice start code; skip extension and user data
-	do {
-		self->start_code = plm_buffer_next_start_code(self->buffer);
-	} while (
-		self->start_code == PLM_START_EXTENSION || 
-		self->start_code == PLM_START_USER_DATA
-	);
-
-	// Decode all slices
-	PROFILE_START(PS_MPEG_DECODESLICE);
-	while (PLM_START_IS_SLICE(self->start_code)) {
-		plm_video_decode_slice(self, self->start_code & 0x000000FF);
-		if (self->macroblock_address >= self->mb_size - 2) {
-			break;
-		}
-		self->start_code = plm_buffer_next_start_code(self->buffer);
-	}
-	PROFILE_STOP(PS_MPEG_DECODESLICE);
-
-	// If this is a reference picture rotate the prediction pointers
-	if (
-		self->picture_type == PLM_VIDEO_PICTURE_TYPE_INTRA ||
-		self->picture_type == PLM_VIDEO_PICTURE_TYPE_PREDICTIVE
-	) {
-		self->frame_backward = self->frame_current;
-		self->frame_current = frame_temp;
-	}
 }
 
 void plm_video_decode_slice(plm_video_t *self, int slice) {

@@ -189,6 +189,13 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 	} \
 })
 
+// Return the amount of memory used in the heap.
+#define MEMORY_USED() ({ \
+	heap_stats_t heap_stats; \
+	sys_get_heap_stats(&heap_stats); \
+	heap_stats.used; \
+})
+
 /**********************************************************************
  * TEST FILES
  **********************************************************************/
@@ -279,9 +286,9 @@ static const struct Testsuite
 	TEST_FUNC(test_backtrace_exception_leaf,   			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_backtrace_exception_fp,     			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_backtrace_invalidptr,       			0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rspq_queue_single,          			0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rspq_queue_multiple,        			0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_rspq_queue_rapid,           			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_cmd_single,          			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_cmd_multiple,        			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_cmd_rapid,           			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_wrap,                  			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_high_load,             			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_load_overlay,          			0, TEST_FLAGS_NO_BENCHMARK),
@@ -300,6 +307,11 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_rdp_dynamic,           			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_rdp_dynamic_switch,    			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_deferred_call,         			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_queue_basic,           			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_queue_clear,           			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_queue_growth,          			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_queue_order,           			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_queue_block_nesting,   			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_rspqwait,              			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_clear,                 			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_dynamic,               			0, TEST_FLAGS_NO_BENCHMARK),
@@ -438,6 +450,7 @@ int main() {
 		data_cache_writeback_invalidate_all();
 		inst_cache_invalidate_all();
 
+		uint32_t test_start_mem = MEMORY_USED();
 		uint32_t test_start = TICKS_READ();
 
 		// Run the test!
@@ -445,6 +458,15 @@ int main() {
 
 		// Compute the test duration
 		uint32_t test_stop = TICKS_READ();
+		uint32_t test_stop_mem = MEMORY_USED();
+
+		if (test_stop_mem > test_start_mem) {
+			// If the test didn't release the memory, run it again to make sure
+			// it's not a spurious long-running libdragon allocations.
+			test_start_mem = test_stop_mem;
+			tests[i].fn(&ctx);
+			test_stop_mem = MEMORY_USED();
+		}
 
 		// If the test reset the hardware counter, just consider its timing
 		// as relative to 0, so move test_stop to realign, and update the
@@ -489,6 +511,12 @@ int main() {
 
 			printf("Duration changed by %.1f%%\n", (float)test_diff * 100.0 / (float)test_duration);
 			printf("(expected: %ldK, measured: %ldK)\n\n", tests[i].duration, test_duration);
+		} else if (test_stop_mem > test_start_mem) {
+			failures++;
+			printf("FAIL\n\n");
+			debugf("MEMORY LEAK\n");
+			printf("Memory leaked by %ld bytes\n", test_stop_mem - test_start_mem);
+			debugf("Memory leaked by %ld bytes\n", test_stop_mem - test_start_mem);
 		} else {
 			successes++;
 			printf("PASS\n");

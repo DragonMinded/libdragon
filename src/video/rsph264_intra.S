@@ -1381,7 +1381,7 @@ VAddLanes:
 #    6: modeAvail bits (8-11)
 #    7: modeAvail bits (12-15)
 #    8: qp
-#    9: totalCoeff pointer (can be NULL)
+#    9: totalCoeffMask (bit i=1 if totalCoeff[i] != 0)
 
     #define src a0
     #define dst a1
@@ -1389,13 +1389,11 @@ VAddLanes:
     #define dst_dma_width a3
 
     #define npart t8
+    #define tcmask s5
 
     .func Task_ProcessLumaIntra4x4Residual
 Task_ProcessLumaIntra4x4Residual:
-    # Load TotalCoeff table (if asked to do so). Otherwise,
-    # it's already loaded correctly and we can just use it.
-    jal SetTotalCoeff
-    lw s0, CMD_ADDR(36, 40)
+    lw tcmask, CMD_ADDR(36, 40)
 
 LoadBlocks:
     # We will treat MB_INPUT as a 33x17 buffer, where the first line
@@ -1447,7 +1445,8 @@ LumaBlockLoop:
     li t4, INTRA4RES_MBINPUT_WIDTH   # dest pitch
 
     # Check whether we need to apply residual to this block.
-    lbu t0, %lo(TCOEFF_TABLE)(npart)
+    srlv t0, tcmask, npart
+    andi t0, 1
     beqz t0, LumaBlockLoopEnd
     nop
 
@@ -1510,6 +1509,7 @@ Intra4Res_CopyLoop:
     #undef dst_dma_width
 
     #undef npart
+    #undef tcmask
 
 
 ###################################################################
@@ -1524,7 +1524,7 @@ Intra4Res_CopyLoop:
 #    4: predMode
 #    5: availability
 #    6: qp
-#    7: totalCoeff pointer (can be NULL)
+#    7: totalCoeffMask (bit i=1 if totalCoeff[i] != 0)
 
     #define src a0
     #define dst a1
@@ -1535,6 +1535,7 @@ Intra4Res_CopyLoop:
     #define dc    t7
     #define npart t8
     #define qp    t9
+    #define tcmask s5
 
     .func Task_ProcessLumaIntra16x16Residual
 Task_ProcessLumaIntra16x16Residual:
@@ -1548,8 +1549,7 @@ Task_ProcessLumaIntra16x16Residual:
 
     # Load TotalCoeff table (if asked to do so). Otherwise,
     # it's already loaded correctly and we can just use it.
-    jal SetTotalCoeff
-    lw s0, CMD_ADDR(28, 32)
+    lw tcmask, CMD_ADDR(28, 32)
 
     # Reset LUMA_DC to zero
     li s4, %lo(LUMA_DC)
@@ -1559,7 +1559,8 @@ Task_ProcessLumaIntra16x16Residual:
 
     # Check whether totalCoeff[24] != 0, which means that
     # there are DC data to unpack and transform.
-    lbu t0, %lo(TCOEFF_TABLE+24)
+    srl t0, tcmask, 24
+    andi t0, 1
     beqz t0, Luma16Predict
     nop
 
@@ -1581,7 +1582,8 @@ Luma16ResidualLoop:
     # Read AC for the current block from TCOEFF_TABLE
     # Read DC for the current block from LUMA_DC
     lbu t1, %lo(DC_DEQUANT_INDEX)(npart)
-    lbu t0, %lo(TCOEFF_TABLE)(npart)
+    srlv t0, tcmask, npart
+    andi t0, 1
     lh dc, %lo(LUMA_DC)(t1)
 
     # If AC/DC are both 0, just skip this block, there's no residual.

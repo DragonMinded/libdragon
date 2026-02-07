@@ -23,6 +23,7 @@
 
 #ifdef H264BSD_N64
 #include "../../rsph264_internal.h"
+#include "../h264bsd_macroblock_layer.h"
 #endif
 
 /**
@@ -417,14 +418,12 @@ OMXResult HIGHFUNC_PredictIntraTransform_4x4(
      OMX_U32 qpY
 ) {
 #if H264BSD_N64_INTRA
-    #if H264BSD_N64_CAVLC
-    totalCoeff = NULL;
-    #endif
+    uint32_t totalCoeffMask = totalCoeff ? h264bsdTotalCoeffMask(totalCoeff) : 0;
 
     rsph264_queue_set_packed_delta_buffer_if_changed(0, *pCoeff);
     rsph264_queue_process_luma_intra4_residual(0,
         pFrame, pDst, frameStep, dstStep,
-        modeAvail, qpY, totalCoeff);
+        modeAvail, qpY, totalCoeffMask);
     // rsph264_sync();
     return OMX_Sts_NoErr;
 #else

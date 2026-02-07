@@ -100,7 +100,7 @@ void yuv_close(void);
  * have more color fidelity when displayed on a CRT TV. For PC-only playback
  * through emulators, "Full Range" colorspaces offer more color precision.
  */
-typedef struct {
+typedef struct yuv_colorspace_s {
     float c0, c1, c2, c3, c4; int y0;
     int k0, k1, k2, k3, k4, k5;
 } yuv_colorspace_t;

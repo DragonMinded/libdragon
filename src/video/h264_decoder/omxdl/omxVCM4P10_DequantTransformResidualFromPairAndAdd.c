@@ -25,6 +25,7 @@
 #include <libdragon.h>
 #include "../../fastcache.h"
 #include "../../rsph264_internal.h"
+#include "../h264bsd_macroblock_layer.h"
 #endif
 
 /*
@@ -301,13 +302,11 @@ OMXResult HIGHFUNC_ProcessLumaInterResidual (
 #ifdef H264BSD_N64
     assert(pPred == pDst);
     assert(predStep == dstStep);
-    #if H264BSD_N64_CAVLC
-    AC = NULL;
-    #endif
+    uint32_t totalCoeffMask = AC ? h264bsdTotalCoeffMask(AC) : 0;
 
     rsph264_queue_set_packed_delta_buffer_if_changed(0, *ppSrc);
     rsph264_queue_process_luma_inter_residual(RSPH264_CACHE_SKIP_ALL,
-        pDst, dstStep, 0, QP, AC);
+        pDst, dstStep, 0, QP, totalCoeffMask);
 #else
     static const OMX_U32 offset[16][2] = {
         {0,0},  {4,0},  {0,4},  {4,4},
@@ -347,14 +346,12 @@ OMXResult HIGHFUNC_ProcessLumaIntra16x16Residual (
     OMX_INT QP
 ) {
 #if H264BSD_N64_INTRA
-    #if H264BSD_N64_CAVLC
-    totalCoeff = NULL;
-    #endif
+    uint32_t totalCoeffMask = totalCoeff ? h264bsdTotalCoeffMask(totalCoeff) : 0;
     rsph264_queue_set_packed_delta_buffer_if_changed(0, *pCoeff);
     rsph264_queue_process_luma_intra16_residual(RSPH264_CACHE_SKIP_ALL,
         pSrc, pDst, srcStep, dstStep,
         predMode, availability,
-        QP, totalCoeff);
+        QP, totalCoeffMask);
 #else
     static const OMX_U32 dcCoeffIndex[16] =
         {0, 1, 4, 5, 2, 3, 6, 7, 8, 9, 12, 13, 10, 11, 14, 15};
@@ -424,13 +421,11 @@ OMXResult HIGHFUNC_ProcessChromaResidual (
 ) {
 #ifdef H264BSD_N64
     assert(dstStep1 == dstStep2);
-    #if H264BSD_N64_CAVLC
-    totalCoeff = NULL;
-    #endif
+    uint32_t totalCoeffMask = totalCoeff ? h264bsdTotalCoeffMask(totalCoeff) : 0;
 
     rsph264_queue_set_packed_delta_buffer_if_changed(0, *pSrc);
     rsph264_queue_process_chroma_residual(RSPH264_CACHE_SKIP_ALL,
-        pDst1, pDst2, dstStep1, chromaQp, totalCoeff);
+        pDst1, pDst2, dstStep1, chromaQp, totalCoeffMask);
 #else
     #define COMPARE_RSP 0
 
@@ -515,7 +510,8 @@ OMXResult HIGHFUNC_ProcessChromaResidual (
     rsph264_queue_set_packed_delta_buffer_if_changed(0, 0);
     rsph264_queue_set_packed_delta_buffer_if_changed(0, pOrigSrc);
     rsph264_queue_process_chroma_residual(0,
-        fakeDst, dstStep1, chromaQp, acflag);
+        fakeDst, fakeDst + 64, dstStep1, chromaQp,
+        h264bsdTotalCoeffMask(totalCoeff));
     rsph264_sync();
 
     static int counter = 0;

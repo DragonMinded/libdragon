@@ -163,14 +163,8 @@ typedef struct mbStorage
     i32 filterOffsetB;
     u32 qpY;
     i32 chromaQpIndexOffset;
-    #ifdef H264BSD_N64
-    // totalCoeff must be DMA'd to/from the RSP, so we need it to be
-    // 8-byte aligned and with padding up to a multiple of 8 bytes.
-    u8 totalCoeff[27] __attribute__((aligned(8)));
-    u8 _padding1[5];
-    #else
     u8 totalCoeff[27];
-    #endif
+    u32 totalCoeffMask;
     u8 intra4x4PredMode[16];
     u32 refPic[4];
     u8* refAddr[4];
@@ -183,6 +177,17 @@ typedef struct mbStorage
     struct mbStorage *mbC;
     struct mbStorage *mbD;
 } mbStorage_t;
+
+static inline u32 h264bsdTotalCoeffMask(const u8 *totalCoeff)
+{
+    u32 mask = 0;
+    for (u32 i = 0; i < 27; i++) {
+        if (totalCoeff[i]) {
+            mask |= 1u << i;
+        }
+    }
+    return mask;
+}
 
 /*------------------------------------------------------------------------------
     4. Function prototypes

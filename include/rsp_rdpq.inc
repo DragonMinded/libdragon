@@ -538,6 +538,22 @@ blender_1pass:
 
     ######################################
     #
+    # YUV BILINEAR FILTERING
+    #
+    ######################################
+
+    # Isolate the TF and sample bits
+    andi t0, som_hi, (SOM_TF_MASK | SOM_SAMPLE_MASK) >> 32
+    # Check if TF0=TF1=YUV and SAMPLE=BILINEAR
+    li t1, (SOM_SAMPLE_BILINEAR | SOM_TF0_YUV | SOM_TF1_YUV) >> 32
+    bne t0, t1, 1f
+     # If so, set TF1_YUVTEX0 and TF0_RGB
+     li t0, (SOM_TF1_YUVTEX0 | SOM_TF0_RGB) >> 32
+    or som_hi, t0
+1:
+
+    ######################################
+    #
     # 1 CYCLE / 2 CYCLE MODE SELECTION
     #
     ######################################
@@ -548,6 +564,8 @@ blender_1pass:
     # 2cycle mode:
     #   * Blender: bit 15 is set if 2cyc mode is required (SOMX_BLEND_2PASS)
     #   * Combiner: bit 63 is set if 2cyc mode is required (RDPQ_COMBINER_2PASS)
+    # NOTE: YUV bilinear filtering requires 2cycle mode, but that's not a special
+    # case here, as non-buggy uses of it must use TEX1.
     #
     # First, we align both bits in bit 31 and we OR them together.
     sll t2, blend_2cyc, 16

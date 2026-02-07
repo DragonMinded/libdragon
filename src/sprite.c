@@ -68,6 +68,7 @@ sprite_t *sprite_load_buf(void *buf, int sz)
 {
     sprite_t *s = buf;
     assertf(sz >= sizeof(sprite_t), "Sprite buffer too small (sz=%d)", sz);
+    assertf(memcmp(buf, "LSPR", 4) != 0, "lossy sprite support not implemented yet");
     __sprite_upgrade(s);
     (void)__sprite_ext(s); // just check if the sprite is valid (the version is checked in __sprite_ext)
     data_cache_hit_writeback(s, sz);
@@ -174,6 +175,11 @@ uint16_t* sprite_get_palette(sprite_t *sprite) {
     if(!sx || !sx->pal_file_pos)
         return NULL;
     return (void*)sprite + sx->pal_file_pos;
+}
+
+int sprite_get_palette_used_colors(sprite_t *sprite) {
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    return sx->pal_used_colors;
 }
 
 surface_t sprite_get_tile(sprite_t *sprite, int h, int v) {

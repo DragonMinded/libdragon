@@ -132,6 +132,7 @@ void test_rdpq_tex_upload(TestContext *ctx) {
     surface_clear(&fb, 0);
 
     uint16_t* tlut = malloc_uncached(256*2);
+    DEFER(free_uncached(tlut));
     for (int i=0;i<256;i++) {
         tlut[i] = color_to_packed16(palette_debug_color(i));
     }
@@ -289,6 +290,7 @@ void test_rdpq_tex_upload_multi(TestContext *ctx) {
             rdpq_tex_upload(TILE2, &tex2, NULL);
         rdpq_tex_multi_end();
     rspq_block_t *tex1_tex2_loader = rspq_block_end();
+    DEFER(rspq_block_free(tex1_tex2_loader));
 
     // Load them both via block loading
     rdpq_tex_upload(TILE0, &empty, NULL);

@@ -212,6 +212,7 @@ u32 h264bsdDecodeSliceData(strmData_t *pStrmData, storage_t *pStorage,
             H264SwDecMemcpy(pMb->totalCoeff,
                             mbLayer->residual.totalCoeff,
                             27*sizeof(*pMb->totalCoeff));
+            pMb->totalCoeffMask = h264bsdTotalCoeffMask(pMb->totalCoeff);
             #endif
 
             // Update the stream buffer read bits counter.
