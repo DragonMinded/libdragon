@@ -323,14 +323,16 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
                 color_material = load(GL_MAT_COLOR_TARGET);
                 if (client_flags == 0) {
                     vec16 color = load(GL_CUR_COLOR).xyzw;
-                    if (color_material == GL_AMBIENT_AND_DIFFUSE) {
-                        ambient = color;
+                    u16 tmp = color_material & GLP_MATERIAL_FLAG_DIFFUSE;
+                    if (tmp != 0) {
                         diffuse = color;
-                    } else if (color_material == GL_AMBIENT) {
+                    }
+                    tmp = color_material & GLP_MATERIAL_FLAG_AMBIENT;
+                    if (tmp != 0) {
                         ambient = color;
-                    } else if (color_material == GL_DIFFUSE) {
-                        diffuse = color;
-                    } else if (color_material == GL_EMISSION) {
+                    } 
+                    tmp = color_material & GLP_MATERIAL_FLAG_EMISSIVE;
+                    if (tmp != 0) {
                         emissive = color;
                     }
 
@@ -371,22 +373,19 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
             light_ambient = light_ambient.x;
 
             if (client_flags != 0) {
-                color_material = GL_AMBIENT_AND_DIFFUSE;
+                color_material = GLP_MATERIAL_FLAG_DIFFUSE | GLP_MATERIAL_FLAG_AMBIENT;
             } else {
                 ambient = load(GL_CUR_COLOR).xyzw;
                 diffuse = ambient;
             }
         }
 
-        u16 mat_flags = 0;
-        // TODO: from color_material
-
         @Barrier("store_lighting") store(light_ambient.xyzw, LIGHTING_AMBIENT, 0);
         @Barrier("store_lighting") store(point_count, LIGHTING_HAS_POINTS, 0);
         @Barrier("store_lighting") store(light_count, LIGHTING_COUNT, 0);
         @Barrier("store_lighting") store(diffuse.xyzw, MATERIAL_DIFFUSE, 0);
         @Barrier("store_lighting") store(ambient.xyzw, MATERIAL_AMBIENT, 0);
-        @Barrier("store_lighting") store(mat_flags, MATERIAL_FLAGS, 0);
+        @Barrier("store_lighting") store(color_material, MATERIAL_FLAGS, 0);
         @Barrier("store_lighting") store(emissive.xyzw, MATERIAL_EMISSIVE, 0);
     }
 

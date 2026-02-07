@@ -63,6 +63,8 @@ void gl_lighting_init()
     state->light_model_ambient[2] = 0.2f;
     state->light_model_ambient[3] = 1.0f;
     state->light_model_local_viewer = false;
+
+    glColorMaterial(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE);
 }
 
 float gl_mag2(const GLfloat *v)
@@ -819,19 +821,29 @@ void glColorMaterial(GLenum face, GLenum mode)
         return;
     }
 
+    uint16_t flags = 0;
+
     switch (mode) {
     case GL_AMBIENT:
+        flags = GLP_MATERIAL_FLAG_AMBIENT;
+        break;
     case GL_DIFFUSE:
-    case GL_SPECULAR:
+        flags = GLP_MATERIAL_FLAG_DIFFUSE;
+        break;
     case GL_EMISSION:
+        flags = GLP_MATERIAL_FLAG_EMISSIVE;
+        break;
     case GL_AMBIENT_AND_DIFFUSE:
+        flags = GLP_MATERIAL_FLAG_AMBIENT | GLP_MATERIAL_FLAG_DIFFUSE;
+        break;
+    case GL_SPECULAR:
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid color material mode", mode);
         return;
     }
 
-    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_color_target), mode);
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, mat_color_target), flags);
     state->material.color_target = mode;
 }
 

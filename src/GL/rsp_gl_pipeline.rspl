@@ -4,10 +4,15 @@ include "rsp_magma.inc"
 
 //#define TRACE_VTX_LOOP          1
 
+#define SCRATCH_MAT_DIFFUSE  0x30
+#define SCRATCH_MAT_AMBIENT  0x40
+#define SCRATCH_MAT_EMISSIVE 0x50
+#define SCRATCH_RGBA_IN      0x60
+
 state
 {
     extern u16    RSPQ_SCRATCH_MEM;
-    extern u16    MG_CLIP_CACHE;
+    extern u16    MG_SCRATCH_MEM;
     
     extern vec16  MG_NORMAL_MASK[8];
     
@@ -171,13 +176,12 @@ shader gl_pipeline()
 
     vec16 vfog_parms;
     vfog_parms = load(FOG_PARAMS).xyzwxyzw;
-    u8 fog_mask = load(FOG_MASK);
 
     u16 vtx_in1_ptr = vtx_in0_ptr + vtx_size;
     u16 vtx_out1_ptr = vtx_out0_ptr + MG_VTX_SIZE;
 
-    u16 prev_out0 = MG_CLIP_CACHE;
-    u16 prev_out1 = MG_CLIP_CACHE;
+    u16 prev_out0 = MG_SCRATCH_MEM;
+    u16 prev_out1 = MG_SCRATCH_MEM;
 
     u8 c0, c1, tr0, tr1;
     
@@ -187,6 +191,34 @@ shader gl_pipeline()
     vec16 vrgba;
     vec16 vrgba_in;
     vec32 vpos_clip;
+
+    u16 mat_ptr_diffuse  = SCRATCH_MAT_DIFFUSE;
+    u16 mat_ptr_ambient  = SCRATCH_MAT_AMBIENT;
+    u16 mat_ptr_emissive = SCRATCH_MAT_EMISSIVE;
+
+    {
+        vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
+        vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
+        vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
+
+        store(vdiffuse, MG_SCRATCH_MEM, SCRATCH_MAT_DIFFUSE);
+        store(vambient, MG_SCRATCH_MEM, SCRATCH_MAT_AMBIENT);
+        store(vemissive, MG_SCRATCH_MEM, SCRATCH_MAT_EMISSIVE);
+
+        u16 mat_flags = load(MATERIAL_FLAGS);
+        u16 tmp = mat_flags & GLP_MATERIAL_FLAG_DIFFUSE;
+        if (tmp != 0) {
+            mat_ptr_diffuse = SCRATCH_RGBA_IN;
+        }
+        tmp = mat_flags & GLP_MATERIAL_FLAG_AMBIENT;
+        if (tmp != 0 ) {
+            mat_ptr_ambient = SCRATCH_RGBA_IN;
+        }
+        tmp = mat_flags & GLP_MATERIAL_FLAG_EMISSIVE;
+        if (tmp != 0) {
+            mat_ptr_emissive = SCRATCH_RGBA_IN;
+        }
+    }
 
     @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
     @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
@@ -217,6 +249,7 @@ shader gl_pipeline()
 
         @Barrier("unpack_col") store(vrgba_in.xyzw, RSPQ_SCRATCH_MEM);
         @Barrier("unpack_col") vrgba_in = load_vec_u8(RSPQ_SCRATCH_MEM);
+        store(vrgba_in, MG_SCRATCH_MEM, SCRATCH_RGBA_IN);
 
         #ifndef ENABLE_ENV_MAP
         @Barrier("st_cp0") @Barrier("st_cp1") @Barrier("st_w0") @Barrier("st_w1") @Barrier("st_iw0") @Barrier("st_iw1") 
@@ -320,11 +353,9 @@ shader gl_pipeline()
         
         vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
 
-        // TODO: GL_COLOR_MATERIAL
-
-        vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
-        vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
-        vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
+        vec16 vdiffuse = load(mat_ptr_diffuse, MG_SCRATCH_MEM);
+        vec16 vambient = load(mat_ptr_ambient, MG_SCRATCH_MEM);
+        vec16 vemissive = load(mat_ptr_emissive, MG_SCRATCH_MEM);
 
         VTEMP = vemissive:sint * 1;
         vrgba:sfract = vrgba:sfract +* vambient:sfract;
@@ -413,8 +444,12 @@ shader gl_pipeline()
         undef vambient;
         undef vdiffuse;
 
-        set_vcc(fog_mask);
-        vrgba = select(vrgba, vfog.zzzzZZZZ);
+        {
+            u8 fog_mask = load(FOG_MASK);
+            set_vcc(fog_mask);
+            vrgba = select(vrgba, vfog.zzzzZZZZ);
+        }
+        
         undef vfog;
         
         #ifdef ENABLE_ENV_MAP
