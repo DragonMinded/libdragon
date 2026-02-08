@@ -123,6 +123,20 @@ bool gl_can_use_rsp_pipeline(GLenum mode)
         }
     }
 
+    for (size_t i = 0; i < TEX_GEN_COUNT; i++)
+    {
+        if (state->tex_gen[i].enabled) {
+            if (state->tex_gen[i].mode == GL_OBJECT_LINEAR) {
+                WARN_CPU_REQUIRED("tex gen object linear");
+                return false;
+            }
+            if (state->tex_gen[i].mode == GL_EYE_LINEAR) {
+                WARN_CPU_REQUIRED("tex gen eye linear");
+                return false;
+            }
+        }
+    }
+
     return true;
 
     #undef WARN_CPU_REQUIRED
