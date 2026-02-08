@@ -46,8 +46,9 @@ temp_state {
     vec16 MATRICES_MV[4];
     vec16 MATRICES_NORMAL[2];
 
-    s16 TEXTURING_SCALE[4];
-    s16 TEXTURING_OFFSET[4];
+    vec16 TEXTURE_MATRIX[3];
+    s16 TEXTURE_SIZE[2];
+    s16 TEXTURE_OFFSET[2];
 
     u8 LIGHTING_LIGHTS[GLP_LIGHT_SIZE][LIGHT_COUNT];
     s16 LIGHTING_AMBIENT[3];
@@ -264,39 +265,32 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
     // Texturing
     {
         vec32 tm0;
-        tm0:sint   = load(GL_MATRIX_TEXTURE, 0x00);
-        tm0:ufract = load(GL_MATRIX_TEXTURE, 0x20);
-
+        vec32 tm1;
         vec32 tm3;
-        tm3:sint   = load(GL_MATRIX_TEXTURE, 0x18).xy;
-        tm3:ufract = load(GL_MATRIX_TEXTURE, 0x38).xy;
+        tm0:sint   = load(GL_MATRIX_TEXTURE, 0x00).xyzw;
+        tm0:ufract = load(GL_MATRIX_TEXTURE, 0x20).xyzw;
+        tm1:sint   = load(GL_MATRIX_TEXTURE, 0x08).xyzw;
+        tm1:ufract = load(GL_MATRIX_TEXTURE, 0x28).xyzw;
+        tm3:sint   = load(GL_MATRIX_TEXTURE, 0x18).xyzw;
+        tm3:ufract = load(GL_MATRIX_TEXTURE, 0x38).xyzw;
 
-        vec32 tmp = tm0 * tm0;
-        vec32 tmp2 = tmp + tmp.yyyyYYYY;
-        tmp = tmp2 + tmp.zzzzZZZZ;
-        tmp2.x = invert_half_sqrt(tmp).x;
-        tmp2.X = invert_half_sqrt(tmp).X;
-        tm0.x = invert_half(tmp2).x;
-        tm0.y = invert_half(tmp2).X;
-        tm0 = tm0 << 5;
+        vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+        vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
 
-        vec32 tex_size;
-        tex_size:sint = load(GL_STATE_TEX_SIZE, 0).xy;
-        tex_size:ufract = VZERO;
+        store(tm0:sint.xyzw,    TEXTURE_MATRIX, 0x00);
+        store(tm0:ufract.xyzw,  TEXTURE_MATRIX, 0x18);
+        store(tm1:sint.xyzw,    TEXTURE_MATRIX, 0x08);
+        store(tm1:ufract.xyzw,  TEXTURE_MATRIX, 0x20);
+        store(tm3:sint.xyzw,    TEXTURE_MATRIX, 0x10);
+        store(tm3:ufract.xyzw,  TEXTURE_MATRIX, 0x28);
 
-        tm3 = tm3 * tex_size;
-        tm3 = tm3 << RDP_TEX_SHIFT;
+        vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+        vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
 
-        tex_size = tex_size * tm0;
+        tex_size = tex_size << TEX_SIZE_SHIFT;
 
-        vec16 tex_offset;
-        tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
-        tex_offset += tm3:sint;
-
-        store(tex_size:sint.xy, TEXTURING_SCALE, 0);
-        store(tex_size:ufract.xy, TEXTURING_SCALE, 4);
-        store(tex_offset.xy, TEXTURING_OFFSET, 0);
-        store(tm3:ufract.xy, TEXTURING_OFFSET, 4);
+        store(tex_size.xy, TEXTURE_SIZE);
+        store(tex_offset.xy, TEXTURE_OFFSET);
     }
 
     // Lighting

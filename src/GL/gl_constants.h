@@ -42,7 +42,7 @@
 #define TEX_GEN_MODE_T_OFFSET   130
 #define TEX_GEN_CONST_SIZE      (4*2)
 
-#define RDP_TEX_SHIFT       5
+#define TEX_SIZE_SHIFT       6
 
 #define LIGHT_COUNT           8
 

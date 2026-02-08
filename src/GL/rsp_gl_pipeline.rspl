@@ -34,8 +34,9 @@ uniform<GLP_BINDING_MATRICES> MATRICES
 
 uniform<GLP_BINDING_TEXTURING> TEXTURING
 {
-    s16 TEXTURING_SCALE[4];
-    s16 TEXTURING_OFFSET[4];
+    vec16 TEXTURE_MATRIX[3];
+    s16 TEXTURE_SIZE[2];
+    s16 TEXTURE_OFFSET[2];
 }
 
 uniform<GLP_BINDING_LIGHTING> LIGHTING
@@ -174,9 +175,6 @@ shader gl_pipeline()
     u8 has_points = load(LIGHTING_HAS_POINTS);
     #endif
 
-    vec16 vfog_parms;
-    vfog_parms = load(FOG_PARAMS).xyzwxyzw;
-
     u16 vtx_in1_ptr = vtx_in0_ptr + vtx_size;
     u16 vtx_out1_ptr = vtx_out0_ptr + MG_VTX_SIZE;
 
@@ -265,8 +263,8 @@ shader gl_pipeline()
 
         // Clip space position
         VTEMP = vmvp0  * vpos.xxxxXXXX;
-        VTEMP = vmvp2 +* vpos.zzzzZZZZ;
         VTEMP = vmvp1 +* vpos.yyyyYYYY;
+        VTEMP = vmvp2 +* vpos.zzzzZZZZ;
         vpos_clip = vmvp3 +* 0x20;
 
         VTEMP = vmn0:sfract  * vnorm:sfract.xxxxXXXX;
@@ -304,6 +302,7 @@ shader gl_pipeline()
 
         vec16 vfog;
         {   // Fog
+            vec16 vfog_parms = load(FOG_PARAMS).xyzwxyzw;
             vec16 vtmp:ufract = vpos_clip:ufract + vfog_parms:ufract.yyyyYYYY;
             vfog:sint = vpos_clip:sint + vfog_parms:sint.xxxxXXXX;
             
@@ -500,19 +499,41 @@ shader gl_pipeline()
         }
         #endif
 
-        vec32 vtexscale, vtexoffset;
-        vtexscale:sint.xy = load(TEXTURING_SCALE).xy;
-        vtexscale:ufract.xy = load(TEXTURING_SCALE).zw;
-        vtexscale:sint.XY = load(TEXTURING_SCALE).xy;
-        vtexscale:ufract.XY = load(TEXTURING_SCALE).zw;
-        vtexoffset:sint.xy = load(TEXTURING_OFFSET).xy;
-        vtexoffset:ufract.xy = load(TEXTURING_OFFSET).zw;
-        vtexoffset:sint.XY = load(TEXTURING_OFFSET).xy;
-        vtexoffset:ufract.XY = load(TEXTURING_OFFSET).zw;
+        vec32 vtex_transformed;
 
-        // Texture coords
-        VTEMP = vtexoffset * 1;
-        vtex = vtex +* vtexscale;
+        {
+            vec32 vmt0;
+            vec32 vmt1;
+            vec32 vmt3;
+
+            vmt0:sint   = load(TEXTURE_MATRIX, 0x00).xyzwxyzw;
+            vmt0:ufract = load(TEXTURE_MATRIX, 0x18).xyzwxyzw;
+            vmt1:sint   = load(TEXTURE_MATRIX, 0x08).xyzwxyzw;
+            vmt1:ufract = load(TEXTURE_MATRIX, 0x20).xyzwxyzw;
+            vmt3:sint   = load(TEXTURE_MATRIX, 0x10).xyzwxyzw;
+            vmt3:ufract = load(TEXTURE_MATRIX, 0x28).xyzwxyzw;
+
+            VTEMP = vmt0  * vtex.xxxxXXXX;
+            VTEMP = vmt1 +* vtex.yyyyYYYY;
+            vtex_transformed = vmt3 +* 0x100;
+        }
+
+        {
+            vec32 vinv_tex;
+            vinv_tex.x = invert_half(vtex_transformed).w;
+            vinv_tex.X = invert_half(vtex_transformed).W;
+
+            vtex_transformed *= vinv_tex.xxxxXXXX;
+        }
+
+        vec16 vtex_size, vtex_offset;
+        vtex_size.xy = load(TEXTURE_SIZE).xy;
+        vtex_size.XY = load(TEXTURE_SIZE).xy;
+        vtex_offset.xy = load(TEXTURE_OFFSET).xy;
+        vtex_offset.XY = load(TEXTURE_OFFSET).xy;
+
+        VTEMP = vtex_offset:sint * 1;
+        vtex = vtex_transformed +* vtex_size;
 
         prev_out0 = vtx_out0_ptr;
         prev_out1 = vtx_out1_ptr;
