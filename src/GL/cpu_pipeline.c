@@ -1043,6 +1043,8 @@ static void gl_cpu_array_element(uint32_t index)
 
 static void gl_cpu_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
 {
+    gl_cpu_begin(mode);
+
     gl_fill_all_attrib_defaults(state->array_object->arrays);
 
     if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
@@ -1055,6 +1057,8 @@ static void gl_cpu_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
         // So in effect, we just need to load the last set of attributes.
         gl_load_attribs(state->array_object->arrays, first + count - 1);
     }
+
+    gl_cpu_end();
 }
 
 uint32_t read_index_8(const uint8_t *src, uint32_t i)
@@ -1095,6 +1099,8 @@ static void gl_cpu_draw_elements(GLenum mode, uint32_t count, const void* indice
         indices = state->array_object->element_array_buffer->storage.data + (uint32_t)indices;
     }
 
+    gl_cpu_begin(mode);
+
     gl_fill_all_attrib_defaults(state->array_object->arrays);
 
     if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
@@ -1108,6 +1114,8 @@ static void gl_cpu_draw_elements(GLenum mode, uint32_t count, const void* indice
         // So in effect, we just need to load the last set of attributes.
         gl_load_attribs(state->array_object->arrays, read_index(indices, count - 1));
     }
+
+    gl_cpu_end();
 }
 
 const gl_pipeline_t gl_cpu_pipeline = (gl_pipeline_t) {
