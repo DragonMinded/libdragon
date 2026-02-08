@@ -314,24 +314,9 @@ static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
         // This will iterate over all possible combinations of features
         uint32_t features = i & PIPELINE_FEATURES_MASK;
 
-        const vertex_layout *actual_layout = layout;
-
-        if (i & PIPELINE_PSEUDO_FEATURE_FLAG) {
-            // For every combination of features, add an extra variant of the pipeline that "hides" the color attribute from the vertex
-            // shader by copying the vertex layout and omitting the color attribute. This is for the special case where the color vertex 
-            // array is enabled, but the current material configuration ignores it (instead using the material color). 
-            // To avoid having to re-configure the vertex array (which would involve re-converting data), We do this instead.
-            // All other attributes will keep their original offsets, so we can use the existing data as-is.
-            vertex_layout_init(&tmp_vl);
-            vertex_layout_copy_without(&tmp_vl, layout, GLP_ATTRIBUTE_COLOR);
-            actual_layout = &tmp_vl;
-        }
-
-        // TODO: Currently, pipelines may get duplicated due to the above modification to the vertex layout.
-        //       To fix this, cache individual pipelines as well.
         pipelines[i] = mg_pipeline_create(&(mg_pipeline_parms_t) {
             .vertex_shader_ucode = get_pipeline_ucode(features),
-            .vertex_layout = actual_layout->vertex_layout
+            .vertex_layout = layout->vertex_layout
         });
     }
 

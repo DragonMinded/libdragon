@@ -563,295 +563,287 @@ GLCmd_SetPipeline:
 #define vce 2
 
 GLCmd_PreInitMagma:
-  lw $k0, %lo(GL_STATE_FLAGS + 0)                    ## L:1107 |      ^ | u32<$k0> flags = load(GL_STATE_FLAGS, 0);
-  or $s7, $zero, $zero                               ## L:1113 |      2 | u32 features = 0;
-  lui $s6, 0x3000                                    ## L:1115 |      3 | u32 env_mask = 0x30000000;
-  and $s5, $k0, $s6                                  ## L:1116 |      4 | u32 tmp = flags & env_mask;
-  bne $s5, $s6, LABEL_GLCmd_PreInitMagma_0001        ## L:1117 |      5 | if (tmp == env_mask)
-  andi $k1, $k0, 2048                                ## L:1109 |     *7 | u32<$k1> color_material_enabled = flags & 0x800;
-  lhu $s3, %lo(GL_TEX_GEN + 128)                     ## L:1120 |      8 | u16 mode_s = load(GL_TEX_GEN, 128);
-  addiu $s4, $zero, 9218                             ## L:1119 |      9 | u16 sphere_map = 0x2402;
-  lhu $s2, %lo(GL_TEX_GEN + 130)                     ## L:1121 |     10 | u16 mode_t = load(GL_TEX_GEN, 130);
-  bne $s3, $s4, LABEL_GLCmd_PreInitMagma_0001        ## L:1122 |     11 | if (mode_s == sphere_map)
-  nop                                                ## L:1239 |    *13 | dma_in(dmem_ptr, rdram_ptr, 160);
-  bne $s2, $s4, LABEL_GLCmd_PreInitMagma_0001        ## L:1124 |     14 | if (mode_t == sphere_map)
-  nop                                                ## L:1124 |    *16 | if (mode_t == sphere_map)
-  ori $s7, $s7, 1                                    ## L:1126 |     17 | features |= 1;
+  lw $k0, %lo(GL_STATE_FLAGS + 0)                    ## L:1106 |      ^ | u32<$k0> flags = load(GL_STATE_FLAGS, 0);
+  lui $s6, 0x3000                                    ## L:1112 |      2 | u32 env_mask = 0x30000000;
+  and $s5, $k0, $s6                                  ## L:1113 |     *4 | u32 tmp = flags & env_mask;
+  bne $s5, $s6, LABEL_GLCmd_PreInitMagma_0001        ## L:1114 |      5 | if (tmp == env_mask)
+  or $s7, $zero, $zero                               ## L:1110 |     *7 | u32 features = 0;
+  lhu $s3, %lo(GL_TEX_GEN + 128)                     ## L:1117 |      8 | u16 mode_s = load(GL_TEX_GEN, 128);
+  lhu $s2, %lo(GL_TEX_GEN + 130)                     ## L:1118 |      9 | u16 mode_t = load(GL_TEX_GEN, 130);
+  addiu $s4, $zero, 9218                             ## L:1116 |     10 | u16 sphere_map = 0x2402;
+  bne $s3, $s4, LABEL_GLCmd_PreInitMagma_0001        ## L:1119 |     11 | if (mode_s == sphere_map)
+  nop                                                ## L:1119 |    *13 | if (mode_s == sphere_map)
+  bne $s2, $s4, LABEL_GLCmd_PreInitMagma_0001        ## L:1121 |     14 | if (mode_t == sphere_map)
+  nop                                                ## L:1121 |    *16 | if (mode_t == sphere_map)
+  ori $s7, $s7, 1                                    ## L:1123 |     17 | features |= 1;
   LABEL_GLCmd_PreInitMagma_0001:
-  andi $s5, $k0, 1024                                ## L:1131 |     18 | tmp = flags & 0x400;
-  beq $s5, $zero, LABEL_GLCmd_PreInitMagma_0004      ## L:1132 |     19 | if (tmp != 0)
-  nop                                                ## L:1132 |    *21 | if (tmp != 0)
-  bne $k1, $zero, LABEL_GLCmd_PreInitMagma_0004      ## L:1134 |     22 | if (color_material_enabled == 0) {
-  nop                                                ## L:1134 |    *24 | if (color_material_enabled == 0) {
-  ori $s7, $s7, 2                                    ## L:1135 |     25 | features |= 2;
+  sll $s7, $s7, 3                                    ## L:1128 |     18 | features = features << 3;
+  addiu $at, $s7, GL_PIPELINES                       ## L:1130 |     19 | vec16 pipeline = load(features, GL_PIPELINES).xyzw;
+  ldv $v28, 0, 0, $at                                ## L:1130 |     20 | vec16 pipeline = load(features, GL_PIPELINES).xyzw;
+  lhu $s6, %lo(GL_MATRIX_PROJECTION + 54)            ## L:1144 |     21 | u16 m23f = load(GL_MATRIX_PROJECTION, 0x36);
+  ori $at, $zero, %lo(MG_SHADER_TEXT)                ## L:1131 |     22 | store(pipeline.xyzw, MG_SHADER_TEXT);
+  lh $s7, %lo(GL_MATRIX_PROJECTION + 22)             ## L:1143 |     23 | s16 m23i = load(GL_MATRIX_PROJECTION, 0x16);
+  sdv $v28, 0, 0, $at                                ## L:1131 |     24 | store(pipeline.xyzw, MG_SHADER_TEXT);
+  ori $at, $zero, %lo(GL_VIEWPORT_SCALE)             ## L:1136 |     25 | vec16 viewport = load(GL_VIEWPORT_SCALE, 0);
+  lqv $v28, 0, 0, $at                                ## L:1136 |     26 | vec16 viewport = load(GL_VIEWPORT_SCALE, 0);
+  or $s5, $s7, $s6                                   ## L:1145 |     27 | u16 m23 = m23i | m23f;
+  ori $at, $zero, %lo(MG_VIEWPORT)                   ## L:1137 |     28 | store(viewport, MG_VIEWPORT, 0);
+  bne $s5, $zero, LABEL_GLCmd_PreInitMagma_0004      ## L:1146 |     29 | if (m23 == 0)
+  sqv $v28, 0, 0, $at                                ## L:1137 |    *31 | store(viewport, MG_VIEWPORT, 0);
+  ori $s4, $zero, 0xFFFF                             ## L:1150 |     32 | u16 norm_factor = 0xFFFF;
+  beq $zero, $zero, LABEL_GLCmd_PreInitMagma_0005    ## L:1151 |     33 | store(norm_factor, MG_VIEWPORT, 0x6);
+  sh $s4, %lo(6 + MG_VIEWPORT)($zero)                ## L:1151 |    *35 | store(norm_factor, MG_VIEWPORT, 0x6);
   LABEL_GLCmd_PreInitMagma_0004:
-  sll $s7, $s7, 3                                    ## L:1139 |     26 | features = features << 3;
-  addiu $at, $s7, GL_PIPELINES                       ## L:1141 |     27 | vec16 pipeline = load(features, GL_PIPELINES).xyzw;
-  ldv $v28, 0, 0, $at                                ## L:1141 |     28 | vec16 pipeline = load(features, GL_PIPELINES).xyzw;
-  lh $s7, %lo(GL_MATRIX_PROJECTION + 22)             ## L:1154 |     29 | s16 m23i = load(GL_MATRIX_PROJECTION, 0x16);
-  ori $at, $zero, %lo(MG_SHADER_TEXT)                ## L:1142 |     30 | store(pipeline.xyzw, MG_SHADER_TEXT);
-  lhu $s6, %lo(GL_MATRIX_PROJECTION + 54)            ## L:1155 |     31 | u16 m23f = load(GL_MATRIX_PROJECTION, 0x36);
-  sdv $v28, 0, 0, $at                                ## L:1142 |     32 | store(pipeline.xyzw, MG_SHADER_TEXT);
-  ori $at, $zero, %lo(GL_VIEWPORT_SCALE)             ## L:1147 |     33 | vec16 viewport = load(GL_VIEWPORT_SCALE, 0);
-  lqv $v28, 0, 0, $at                                ## L:1147 |     34 | vec16 viewport = load(GL_VIEWPORT_SCALE, 0);
-  ori $at, $zero, %lo(MG_VIEWPORT)                   ## L:1148 |     35 | store(viewport, MG_VIEWPORT, 0);
-  or $s5, $s7, $s6                                   ## L:1156 |     36 | u16 m23 = m23i | m23f;
-  bne $s5, $zero, LABEL_GLCmd_PreInitMagma_0006      ## L:1157 |     37 | if (m23 == 0)
-  sqv $v28, 0, 0, $at                                ## L:1148 |    *39 | store(viewport, MG_VIEWPORT, 0);
-  ori $s4, $zero, 0xFFFF                             ## L:1161 |     40 | u16 norm_factor = 0xFFFF;
-  beq $zero, $zero, LABEL_GLCmd_PreInitMagma_0007    ## L:1162 |     41 | store(norm_factor, MG_VIEWPORT, 0x6);
-  sh $s4, %lo(6 + MG_VIEWPORT)($zero)                ## L:1162 |    *43 | store(norm_factor, MG_VIEWPORT, 0x6);
-  LABEL_GLCmd_PreInitMagma_0006:
-  ori $at, $zero, %lo(GL_MATRIX_PROJECTION)          ## L:1184 |     44 | m:sint = load(GL_MATRIX_PROJECTION, 0x10);
-  lqv $v28, 0, 48, $at                               ## L:1185 |     45 | m:ufract = load(GL_MATRIX_PROJECTION, 0x30);
-  lqv $v27, 0, 16, $at                               ## L:1184 |     46 | m:sint = load(GL_MATRIX_PROJECTION, 0x10);
-  ori $at, $zero, %lo(MG_VIEWPORT)                   ## L:1197 |   **49 | store(a:sfract.x, MG_VIEWPORT, 0x6);
-  vmudl $v29, $v28, $v28.e2                          ## L:1188 |      ^ | vec32 a = m * m.z;
-  vmadm $v29, $v27, $v28.e2                          ## L:1188 |     50 | vec32 a = m * m.z;
-  vmadn $v26, $v28, $v27.e2                          ## L:1188 |     51 | vec32 a = m * m.z;
-  vmadh $v25, $v27, $v27.e2                          ## L:1188 |     52 | vec32 a = m * m.z;
-  vsubc $v24, $v26, $v00.e7                          ## L:1190 |   **55 | vec32 b = a - 1;
-  vsub $v23, $v25, $v30.e7                           ## L:1190 |     56 | vec32 b = a - 1;
-  vrcph $v25.e0, $v25.e6                             ## L:1192 |     57 | a.x = invert_half(a).Z;
-  vrcpl $v26.e0, $v26.e6                             ## L:1192 |     58 | a.x = invert_half(a).Z;
-  vrcph $v25.e0, $v00.e6                             ## L:1192 |     59 | a.x = invert_half(a).Z;
-  vmudl $v29, $v26, $v24.e2                          ## L:1194 |   **62 | a *= b.z;
-  vmadm $v29, $v25, $v24.e2                          ## L:1194 |     63 | a *= b.z;
-  vmadn $v26, $v26, $v23.e2                          ## L:1194 |     64 | a *= b.z;
-  vmadh $v25, $v25, $v23.e2                          ## L:1194 |     65 | a *= b.z;
-  vmudn $v26, $v26, $v30.e6                          ## L:1195 |   **68 | a *= 2;
-  ssv $v26, 0, 6, $at                                ## L:1197 |  ***72 | store(a:sfract.x, MG_VIEWPORT, 0x6);
-  vmadh $v25, $v25, $v30.e6                          ## L:1195 |      ^ | a *= 2;
-  LABEL_GLCmd_PreInitMagma_0007:
-  lhu $s7, %lo(GL_TRI_CMD + 0)                       ## L:1203 |     73 | u16 tri_cmd = load(GL_TRI_CMD, 0);
-  andi $s3, $k0, 16384                               ## L:1224 |     74 | u32 palette_enabled = flags & 0x4000;
-  sh $s7, %lo(0 + MG_TRI_CMD)($zero)                 ## L:1204 |    *76 | store(tri_cmd, MG_TRI_CMD, 0);
-  lbu $s7, %lo(GL_TRI_CULL + 0)                      ## L:1209 |     77 | u8 cull = load(GL_TRI_CULL, 0);
-  ori $s5, $zero, %lo(GL_MATRIX_PROJECTION)          ## L:1221 |     78 | mtx_lhs = GL_MATRIX_PROJECTION;
-  sb $s7, %lo(0 + MG_CULL_MODE)($zero)               ## L:1210 |    *80 | store(cull, MG_CULL_MODE, 0);
-  beq $s3, $zero, LABEL_GLCmd_PreInitMagma_0008      ## L:1225 |     81 | if (palette_enabled != 0)
-  ori $s7, $zero, %lo(MATRICES_MVP)                  ## L:1222 |    *83 | mtx_dst = MATRICES_MVP;
-  lw $s0, %lo(GL_PALETTE_PTR + 0)                    ## L:1228 |     84 | rdram_ptr = load(GL_PALETTE_PTR);
-  lw $s2, %lo(GL_STATE_PALETTE_INDEX + 0)            ## L:1227 |     85 | u32 palette_index = load(GL_STATE_PALETTE_INDEX);
-  addiu $t2, $zero, -32768                           ## L:1231 |     86 | dma_out_async(dmem_ptr, rdram_ptr, 64);
-  ori $t0, $zero, 63                                 ## L:1231 |     87 | dma_out_async(dmem_ptr, rdram_ptr, 64);
-  addu $s0, $s0, $s2                                 ## L:1229 |     88 | rdram_ptr += palette_index;
-  jal DMAExec                                        ## L:1231 |     89 | dma_out_async(dmem_ptr, rdram_ptr, 64); ## Args: $t0, $t1, $s0, $s4, $t2
-  ori $s4, $zero, %lo(GL_MATRIX_PALETTE)             ## L:1230 |    *91 | dmem_ptr = GL_MATRIX_PALETTE;
-  lw $s0, %lo(GL_PALETTE_PTR + 0)                    ## L:1236 |     92 | rdram_ptr = load(GL_PALETTE_PTR);
-  or $s1, $zero, $zero                               ## L:1237 |     93 | u16 i = 0;
-  ori $s4, $zero, %lo(MATRICES_MVP)                  ## L:1235 |     94 | dmem_ptr = MATRICES_MVP;
-  ori $s6, $zero, %lo(MATRICES_MV)                   ## L:1233 |     95 | mtx_rhs = MATRICES_MV;
-  LABEL_GLCmd_PreInitMagma_000A:
-  sltiu $at, $s1, 32                                 ## L:1238 |     96 | while (i < 32) {
-  beq $at, $zero, LABEL_GLCmd_PreInitMagma_000B      ## L:1238 |     97 | while (i < 32) {
-  nop                                                ## L:1238 |    *99 | while (i < 32) {
-  addiu $t2, $zero, 12                               ## L:1239 |    100 | dma_in(dmem_ptr, rdram_ptr, 160);
-  jal DMAExec                                        ## L:1239 |    101 | dma_in(dmem_ptr, rdram_ptr, 160); ## Args: $t0, $t1, $s0, $s4, $t2
-  ori $t0, $zero, 159                                ## L:1239 |   *103 | dma_in(dmem_ptr, rdram_ptr, 160);
-  ori $at, $zero, %lo(MATRICES_MV)                   ## L:1243 |    104 | m0:sint   = load(MATRICES_MV, 0x00);
-  lqv $v25, 0, 16, $at                               ## L:1244 |    105 | m1:sint   = load(MATRICES_MV, 0x10);
-  lqv $v26, 0, 48, $at                               ## L:1246 |    106 | m1:ufract = load(MATRICES_MV, 0x30);
-  lqv $v28, 0, 32, $at                               ## L:1245 |    107 | m0:ufract = load(MATRICES_MV, 0x20);
-  lqv $v27, 0, 0, $at                                ## L:1243 |    108 | m0:sint   = load(MATRICES_MV, 0x00);
-  addiu $at, $zero, 32767                            ## L:1097 |    109 | c.x = 0x7FFF;
-  mtc2 $at, $v24.e0                                  ## L:1097 |   *111 | c.x = 0x7FFF;
-  vmudn $v28, $v28, $v24.e0                          ## L:1098 | ***115 | m0 = m0 * c.x;
-  vmadh $v27, $v27, $v24.e0                          ## L:1098 |    116 | m0 = m0 * c.x;
-  vmudn $v26, $v26, $v24.e0                          ## L:1099 |    117 | m1 = m1 * c.x;
-  vmadh $v25, $v25, $v24.e0                          ## L:1099 |    118 | m1 = m1 * c.x;
-  ori $at, $zero, %lo(MATRICES_NORMAL)               ## L:1101 |      ^ | store(m0:sint, MATRICES_NORMAL, 0x00);
-  sqv $v27, 0, 0, $at                                ## L:1101 |   *120 | store(m0:sint, MATRICES_NORMAL, 0x00);
-  sqv $v25, 0, 16, $at                               ## L:1102 |   *122 | store(m1:sint, MATRICES_NORMAL, 0x10);
-  jal GL_MtxMult                                     ## L:1251 |    123 | GL_MtxMult();
-  nop                                                ## L:1229 |   *125 | rdram_ptr += palette_index;
-  addiu $t2, $zero, -32768                           ## L:1252 |    126 | dma_out_async(dmem_ptr, rdram_ptr, 160);
-  jal DMAExec                                        ## L:1252 |    127 | dma_out_async(dmem_ptr, rdram_ptr, 160); ## Args: $t0, $t1, $s0, $s4, $t2
-  ori $t0, $zero, 159                                ## L:1252 |   *129 | dma_out_async(dmem_ptr, rdram_ptr, 160);
-  addiu $s0, $s0, 160                                ## L:1253 |    130 | rdram_ptr += 160;
-  j LABEL_GLCmd_PreInitMagma_000A                    ## L:1254 |    131 | i += 1;
-  addiu $s1, $s1, 1                                  ## L:1254 |   *133 | i += 1;
-  LABEL_GLCmd_PreInitMagma_000B:
-  addiu $t2, $zero, 12                               ## L:1264 |    134 | dma_in(dmem_ptr, rdram_ptr, 160);
-  lbu $fp, %lo(GL_CUR_MTX_INDEX + 0)                 ## L:1257 |    135 | u8 cur_mtx_index = load(GL_CUR_MTX_INDEX);
-  lw $s0, %lo(GL_PALETTE_PTR + 0)                    ## L:1262 |    136 | rdram_ptr = load(GL_PALETTE_PTR);
-  ori $t0, $zero, 159                                ## L:1264 |    137 | dma_in(dmem_ptr, rdram_ptr, 160);
-  sll $sp, $fp, 7                                    ## L:1258 |    138 | u32 tmp = cur_mtx_index << 7;
-  sll $s2, $fp, 5                                    ## L:1259 |    139 | palette_index = cur_mtx_index << 5;
-  addu $s2, $s2, $sp                                 ## L:1260 |    140 | palette_index += tmp;
-  jal DMAExec                                        ## L:1264 |    141 | dma_in(dmem_ptr, rdram_ptr, 160); ## Args: $t0, $t1, $s0, $s4, $t2
-  addu $s0, $s0, $s2                                 ## L:1263 |   *143 | rdram_ptr += palette_index;
-  beq $zero, $zero, LABEL_GLCmd_PreInitMagma_0009    ## L:1264 |    144 | dma_in(dmem_ptr, rdram_ptr, 160);
-  nop                                                ## L:1264 |   *146 | dma_in(dmem_ptr, rdram_ptr, 160);
+  ori $at, $zero, %lo(GL_MATRIX_PROJECTION)          ## L:1173 |     36 | m:sint = load(GL_MATRIX_PROJECTION, 0x10);
+  lqv $v28, 0, 48, $at                               ## L:1174 |     37 | m:ufract = load(GL_MATRIX_PROJECTION, 0x30);
+  lqv $v27, 0, 16, $at                               ## L:1173 |     38 | m:sint = load(GL_MATRIX_PROJECTION, 0x10);
+  ori $at, $zero, %lo(MG_VIEWPORT)                   ## L:1186 |   **41 | store(a:sfract.x, MG_VIEWPORT, 0x6);
+  vmudl $v29, $v28, $v28.e2                          ## L:1177 |      ^ | vec32 a = m * m.z;
+  vmadm $v29, $v27, $v28.e2                          ## L:1177 |     42 | vec32 a = m * m.z;
+  vmadn $v26, $v28, $v27.e2                          ## L:1177 |     43 | vec32 a = m * m.z;
+  vmadh $v25, $v27, $v27.e2                          ## L:1177 |     44 | vec32 a = m * m.z;
+  vsubc $v24, $v26, $v00.e7                          ## L:1179 |   **47 | vec32 b = a - 1;
+  vsub $v23, $v25, $v30.e7                           ## L:1179 |     48 | vec32 b = a - 1;
+  vrcph $v25.e0, $v25.e6                             ## L:1181 |     49 | a.x = invert_half(a).Z;
+  vrcpl $v26.e0, $v26.e6                             ## L:1181 |     50 | a.x = invert_half(a).Z;
+  vrcph $v25.e0, $v00.e6                             ## L:1181 |     51 | a.x = invert_half(a).Z;
+  vmudl $v29, $v26, $v24.e2                          ## L:1183 |   **54 | a *= b.z;
+  vmadm $v29, $v25, $v24.e2                          ## L:1183 |     55 | a *= b.z;
+  vmadn $v26, $v26, $v23.e2                          ## L:1183 |     56 | a *= b.z;
+  vmadh $v25, $v25, $v23.e2                          ## L:1183 |     57 | a *= b.z;
+  vmudn $v26, $v26, $v30.e6                          ## L:1184 |   **60 | a *= 2;
+  ssv $v26, 0, 6, $at                                ## L:1186 |  ***64 | store(a:sfract.x, MG_VIEWPORT, 0x6);
+  vmadh $v25, $v25, $v30.e6                          ## L:1184 |      ^ | a *= 2;
+  LABEL_GLCmd_PreInitMagma_0005:
+  lhu $s7, %lo(GL_TRI_CMD + 0)                       ## L:1192 |     65 | u16 tri_cmd = load(GL_TRI_CMD, 0);
+  ori $s5, $zero, %lo(GL_MATRIX_PROJECTION)          ## L:1210 |     66 | mtx_lhs = GL_MATRIX_PROJECTION;
+  sh $s7, %lo(0 + MG_TRI_CMD)($zero)                 ## L:1193 |    *68 | store(tri_cmd, MG_TRI_CMD, 0);
+  lbu $s7, %lo(GL_TRI_CULL + 0)                      ## L:1198 |     69 | u8 cull = load(GL_TRI_CULL, 0);
+  andi $s3, $k0, 16384                               ## L:1213 |     70 | u32 palette_enabled = flags & 0x4000;
+  sb $s7, %lo(0 + MG_CULL_MODE)($zero)               ## L:1199 |    *72 | store(cull, MG_CULL_MODE, 0);
+  beq $s3, $zero, LABEL_GLCmd_PreInitMagma_0006      ## L:1214 |     73 | if (palette_enabled != 0)
+  ori $s7, $zero, %lo(MATRICES_MVP)                  ## L:1211 |    *75 | mtx_dst = MATRICES_MVP;
+  lw $s2, %lo(GL_STATE_PALETTE_INDEX + 0)            ## L:1216 |     76 | u32 palette_index = load(GL_STATE_PALETTE_INDEX);
+  lw $s0, %lo(GL_PALETTE_PTR + 0)                    ## L:1217 |     77 | rdram_ptr = load(GL_PALETTE_PTR);
+  ori $s4, $zero, %lo(GL_MATRIX_PALETTE)             ## L:1219 |     78 | dmem_ptr = GL_MATRIX_PALETTE;
+  ori $t0, $zero, 63                                 ## L:1220 |     79 | dma_out_async(dmem_ptr, rdram_ptr, 64);
+  addu $s0, $s0, $s2                                 ## L:1218 |     80 | rdram_ptr += palette_index;
+  jal DMAExec                                        ## L:1220 |     81 | dma_out_async(dmem_ptr, rdram_ptr, 64); ## Args: $t0, $t1, $s0, $s4, $t2
+  addiu $t2, $zero, -32768                           ## L:1220 |    *83 | dma_out_async(dmem_ptr, rdram_ptr, 64);
+  ori $s6, $zero, %lo(MATRICES_MV)                   ## L:1222 |     84 | mtx_rhs = MATRICES_MV;
+  ori $s4, $zero, %lo(MATRICES_MVP)                  ## L:1224 |     85 | dmem_ptr = MATRICES_MVP;
+  lw $s0, %lo(GL_PALETTE_PTR + 0)                    ## L:1225 |     86 | rdram_ptr = load(GL_PALETTE_PTR);
+  or $s1, $zero, $zero                               ## L:1226 |     87 | u16 i = 0;
   LABEL_GLCmd_PreInitMagma_0008:
-  jal GL_MtxMult                                     ## L:1269 |    147 | GL_MtxMult();
-  ori $s6, $zero, %lo(GL_MATRIX_MODELVIEW)           ## L:1268 |   *149 | mtx_rhs = GL_MATRIX_MODELVIEW;
-  ori $at, $zero, %lo(GL_MATRIX_MODELVIEW)           ## L:1273 |    150 | m0:sint   = load(GL_MATRIX_MODELVIEW, 0x00);
-  lqv $v26, 0, 48, $at                               ## L:1276 |    151 | m1:ufract = load(GL_MATRIX_MODELVIEW, 0x30);
-  lqv $v28, 0, 32, $at                               ## L:1275 |    152 | m0:ufract = load(GL_MATRIX_MODELVIEW, 0x20);
-  lqv $v27, 0, 0, $at                                ## L:1273 |    153 | m0:sint   = load(GL_MATRIX_MODELVIEW, 0x00);
-  lqv $v25, 0, 16, $at                               ## L:1274 |    154 | m1:sint   = load(GL_MATRIX_MODELVIEW, 0x10);
-  ori $at, $zero, %lo(MATRICES_MV)                   ## L:1278 |    155 | store(m0:sint, MATRICES_MV, 0x00);
-  sqv $v28, 0, 32, $at                               ## L:1280 |   *157 | store(m0:ufract, MATRICES_MV, 0x20);
-  sqv $v26, 0, 48, $at                               ## L:1281 |    158 | store(m1:ufract, MATRICES_MV, 0x30);
-  sqv $v25, 0, 16, $at                               ## L:1279 |    159 | store(m1:sint, MATRICES_MV, 0x10);
-  sqv $v27, 0, 0, $at                                ## L:1278 |    160 | store(m0:sint, MATRICES_MV, 0x00);
-  addiu $at, $zero, 32767                            ## L:1097 |    161 | c.x = 0x7FFF;
-  mtc2 $at, $v24.e0                                  ## L:1097 |    162 | c.x = 0x7FFF;
-  vmudn $v28, $v28, $v24.e0                          ## L:1098 | ***166 | m0 = m0 * c.x;
-  vmadh $v27, $v27, $v24.e0                          ## L:1098 |    167 | m0 = m0 * c.x;
-  vmudn $v26, $v26, $v24.e0                          ## L:1099 |    168 | m1 = m1 * c.x;
-  vmadh $v25, $v25, $v24.e0                          ## L:1099 |    169 | m1 = m1 * c.x;
-  ori $at, $zero, %lo(MATRICES_NORMAL)               ## L:1101 |      ^ | store(m0:sint, MATRICES_NORMAL, 0x00);
-  sqv $v27, 0, 0, $at                                ## L:1101 |   *171 | store(m0:sint, MATRICES_NORMAL, 0x00);
-  sqv $v25, 0, 16, $at                               ## L:1102 |   *173 | store(m1:sint, MATRICES_NORMAL, 0x10);
+  sltiu $at, $s1, 32                                 ## L:1227 |     88 | while (i < 32) {
+  beq $at, $zero, LABEL_GLCmd_PreInitMagma_0009      ## L:1227 |     89 | while (i < 32) {
+  nop                                                ## L:1227 |    *91 | while (i < 32) {
+  ori $t0, $zero, 159                                ## L:1228 |     92 | dma_in(dmem_ptr, rdram_ptr, 160);
+  jal DMAExec                                        ## L:1228 |     93 | dma_in(dmem_ptr, rdram_ptr, 160); ## Args: $t0, $t1, $s0, $s4, $t2
+  addiu $t2, $zero, 12                               ## L:1228 |    *95 | dma_in(dmem_ptr, rdram_ptr, 160);
+  ori $at, $zero, %lo(MATRICES_MV)                   ## L:1232 |     96 | m0:sint   = load(MATRICES_MV, 0x00);
+  lqv $v28, 0, 32, $at                               ## L:1234 |     97 | m0:ufract = load(MATRICES_MV, 0x20);
+  lqv $v26, 0, 48, $at                               ## L:1235 |     98 | m1:ufract = load(MATRICES_MV, 0x30);
+  lqv $v25, 0, 16, $at                               ## L:1233 |     99 | m1:sint   = load(MATRICES_MV, 0x10);
+  lqv $v27, 0, 0, $at                                ## L:1232 |    100 | m0:sint   = load(MATRICES_MV, 0x00);
+  addiu $at, $zero, 32767                            ## L:1096 |    101 | c.x = 0x7FFF;
+  mtc2 $at, $v24.e0                                  ## L:1096 |   *103 | c.x = 0x7FFF;
+  vmudn $v28, $v28, $v24.e0                          ## L:1097 | ***107 | m0 = m0 * c.x;
+  vmadh $v27, $v27, $v24.e0                          ## L:1097 |    108 | m0 = m0 * c.x;
+  vmudn $v26, $v26, $v24.e0                          ## L:1098 |    109 | m1 = m1 * c.x;
+  vmadh $v25, $v25, $v24.e0                          ## L:1098 |    110 | m1 = m1 * c.x;
+  ori $at, $zero, %lo(MATRICES_NORMAL)               ## L:1100 |      ^ | store(m0:sint, MATRICES_NORMAL, 0x00);
+  sqv $v25, 0, 16, $at                               ## L:1101 | ***114 | store(m1:sint, MATRICES_NORMAL, 0x10);
+  jal GL_MtxMult                                     ## L:1240 |    115 | GL_MtxMult();
+  sqv $v27, 0, 0, $at                                ## L:1100 |   *117 | store(m0:sint, MATRICES_NORMAL, 0x00);
+  addiu $t2, $zero, -32768                           ## L:1241 |    118 | dma_out_async(dmem_ptr, rdram_ptr, 160);
+  jal DMAExec                                        ## L:1241 |    119 | dma_out_async(dmem_ptr, rdram_ptr, 160); ## Args: $t0, $t1, $s0, $s4, $t2
+  ori $t0, $zero, 159                                ## L:1241 |   *121 | dma_out_async(dmem_ptr, rdram_ptr, 160);
+  addiu $s1, $s1, 1                                  ## L:1243 |    122 | i += 1;
+  j LABEL_GLCmd_PreInitMagma_0008                    ## L:1243 |    123 | i += 1;
+  addiu $s0, $s0, 160                                ## L:1242 |   *125 | rdram_ptr += 160;
   LABEL_GLCmd_PreInitMagma_0009:
-  ori $at, $zero, %lo(GL_MATRIX_TEXTURE)             ## L:1292 |    174 | tm0:sint   = load(GL_MATRIX_TEXTURE, 0x00).xyzw;
-  ldv $v28, 0, 32, $at                               ## L:1293 |    175 | tm0:ufract = load(GL_MATRIX_TEXTURE, 0x20).xyzw;
-  ldv $v25, 0, 8, $at                                ## L:1294 |    176 | tm1:sint   = load(GL_MATRIX_TEXTURE, 0x08).xyzw;
-  ldv $v23, 0, 24, $at                               ## L:1296 |    177 | tm3:sint   = load(GL_MATRIX_TEXTURE, 0x18).xyzw;
-  ldv $v26, 0, 40, $at                               ## L:1295 |    178 | tm1:ufract = load(GL_MATRIX_TEXTURE, 0x28).xyzw;
-  ldv $v27, 0, 0, $at                                ## L:1292 |    179 | tm0:sint   = load(GL_MATRIX_TEXTURE, 0x00).xyzw;
-  ldv $v24, 0, 56, $at                               ## L:1297 |    180 | tm3:ufract = load(GL_MATRIX_TEXTURE, 0x38).xyzw;
-  ori $at, $zero, %lo(GL_STATE_TEX_SIZE)             ## L:1299 |    181 | vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
-  llv $v21, 0, 4, $at                                ## L:1300 |    182 | vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
-  llv $v22, 0, 0, $at                                ## L:1299 |    183 | vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
-  ori $at, $zero, %lo(TEXTURE_MATRIX)                ## L:1302 |    184 | store(tm0:sint.xyzw,    TEXTURE_MATRIX, 0x00);
-  sdv $v25, 0, 8, $at                                ## L:1304 |   *186 | store(tm1:sint.xyzw,    TEXTURE_MATRIX, 0x08);
-  sdv $v27, 0, 0, $at                                ## L:1302 |    187 | store(tm0:sint.xyzw,    TEXTURE_MATRIX, 0x00);
-  sdv $v28, 0, 24, $at                               ## L:1303 |    188 | store(tm0:ufract.xyzw,  TEXTURE_MATRIX, 0x18);
-  sdv $v24, 0, 40, $at                               ## L:1307 |    189 | store(tm3:ufract.xyzw,  TEXTURE_MATRIX, 0x28);
-  sdv $v26, 0, 32, $at                               ## L:1305 |    190 | store(tm1:ufract.xyzw,  TEXTURE_MATRIX, 0x20);
-  sdv $v23, 0, 16, $at                               ## L:1306 |    191 | store(tm3:sint.xyzw,    TEXTURE_MATRIX, 0x10);
-  ori $at, $zero, %lo(GL_STATE_TEX_SIZE)             ## L:1309 |    192 | vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
-  llv $v20, 0, 0, $at                                ## L:1309 |    193 | vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
-  or $s7, $zero, $zero                               ## L:1320 |    194 | u32 color_constant = 0;
-  llv $v19, 0, 4, $at                                ## L:1310 |  **197 | vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
-  vmudn $v20, $v20, $v30.e1                          ## L:1312 |      ^ | tex_size = tex_size << 6;
-  ori $at, $zero, %lo(TEXTURE_SIZE)                  ## L:1314 |    198 | store(tex_size.xy, TEXTURE_SIZE);
-  slv $v20, 0, 0, $at                                ## L:1314 |  **201 | store(tex_size.xy, TEXTURE_SIZE);
-  ori $at, $zero, %lo(TEXTURE_OFFSET)                ## L:1315 |    202 | store(tex_offset.xy, TEXTURE_OFFSET);
-  bne $a1, $zero, LABEL_GLCmd_PreInitMagma_000C      ## L:1321 |    203 | if (client_flags == 0) {
-  slv $v19, 0, 0, $at                                ## L:1315 |   *205 | store(tex_offset.xy, TEXTURE_OFFSET);
-  addiu $s7, $zero, 1                                ## L:1322 |    206 | color_constant = 1;
-  LABEL_GLCmd_PreInitMagma_000C:
-  andi $s3, $k0, 1024                                ## L:1334 |    207 | u32 enabled = flags & 0x400;
-  or $s5, $zero, $zero                               ## L:1330 |    208 | u8 point_count = 0;
-  or $s4, $zero, $zero                               ## L:1332 |    209 | u16 color_material = 0;
-  beq $s3, $zero, LABEL_GLCmd_PreInitMagma_000D      ## L:1335 |    210 | if (enabled != 0)
-  or $s6, $zero, $zero                               ## L:1329 |   *212 | u8 light_count = 0;
-  ori $at, $zero, %lo(GL_STATE_LIGHT_AMBIENT)        ## L:1337 |    213 | light_ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
-  lqv $v28, 0, 0, $at                                ## L:1337 |    214 | light_ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
-  ori $at, $zero, %lo(GL_MAT_AMBIENT)                ## L:1338 |    215 | ambient.xyzw = load(GL_MAT_AMBIENT, 0);
-  lqv $v27, 0, 0, $at                                ## L:1338 |    216 | ambient.xyzw = load(GL_MAT_AMBIENT, 0);
-  ori $at, $zero, %lo(GL_MAT_DIFFUSE)                ## L:1339 |    217 | diffuse.xyzw = load(GL_MAT_DIFFUSE, 0);
-  lqv $v26, 0, 0, $at                                ## L:1339 |    218 | diffuse.xyzw = load(GL_MAT_DIFFUSE, 0);
-  ori $at, $zero, %lo(GL_MAT_EMISSIVE)               ## L:1340 |    219 | emissive.xyzw = load(GL_MAT_EMISSIVE, 0);
-  beq $k1, $zero, LABEL_GLCmd_PreInitMagma_000F      ## L:1343 |    220 | if (color_material_enabled != 0) {
-  lqv $v25, 0, 0, $at                                ## L:1340 |   *222 | emissive.xyzw = load(GL_MAT_EMISSIVE, 0);
-  bne $a1, $zero, LABEL_GLCmd_PreInitMagma_000F      ## L:1345 |    223 | if (client_flags == 0) {
-  lhu $s4, %lo(GL_MAT_COLOR_TARGET + 0)              ## L:1344 |   *225 | color_material = load(GL_MAT_COLOR_TARGET);
-  ori $at, $zero, %lo(GL_CUR_COLOR)                  ## L:1346 |    226 | vec16 color = load(GL_CUR_COLOR).xyzw;
-  ldv $v23, 0, 0, $at                                ## L:1346 |    227 | vec16 color = load(GL_CUR_COLOR).xyzw;
-  andi $s2, $s4, 1                                   ## L:1347 |    228 | u16 tmp = color_material & 0x1;
-  beq $s2, $zero, LABEL_GLCmd_PreInitMagma_0011      ## L:1348 |    229 | if (tmp != 0) {
-  nop                                                ## L:1348 |   *231 | if (tmp != 0) {
-  vor $v26, $v00, $v23                               ## L:1349 |    232 | diffuse = color;
-  LABEL_GLCmd_PreInitMagma_0011:
-  andi $s2, $s4, 2                                   ## L:1351 |      ^ | tmp = color_material & 0x2;
-  beq $s2, $zero, LABEL_GLCmd_PreInitMagma_0012      ## L:1352 |    233 | if (tmp != 0) {
-  nop                                                ## L:1352 |   *235 | if (tmp != 0) {
-  vor $v27, $v00, $v23                               ## L:1353 |    236 | ambient = color;
-  LABEL_GLCmd_PreInitMagma_0012:
-  andi $s2, $s4, 4                                   ## L:1355 |      ^ | tmp = color_material & 0x4;
-  beq $s2, $zero, LABEL_GLCmd_PreInitMagma_0013      ## L:1356 |    237 | if (tmp != 0) {
-  nop                                                ## L:1356 |   *239 | if (tmp != 0) {
-  vor $v25, $v00, $v23                               ## L:1357 |    240 | emissive = color;
-  LABEL_GLCmd_PreInitMagma_0013:
-  or $s4, $zero, $zero                               ## L:1360 |      ^ | color_material = 0;
+  lbu $fp, %lo(GL_CUR_MTX_INDEX + 0)                 ## L:1246 |    126 | u8 cur_mtx_index = load(GL_CUR_MTX_INDEX);
+  lw $s0, %lo(GL_PALETTE_PTR + 0)                    ## L:1251 |    127 | rdram_ptr = load(GL_PALETTE_PTR);
+  ori $t0, $zero, 159                                ## L:1253 |    128 | dma_in(dmem_ptr, rdram_ptr, 160);
+  sll $sp, $fp, 7                                    ## L:1247 |    129 | u32 tmp = cur_mtx_index << 7;
+  sll $s2, $fp, 5                                    ## L:1248 |    130 | palette_index = cur_mtx_index << 5;
+  addiu $t2, $zero, 12                               ## L:1253 |    131 | dma_in(dmem_ptr, rdram_ptr, 160);
+  addu $s2, $s2, $sp                                 ## L:1249 |    132 | palette_index += tmp;
+  jal DMAExec                                        ## L:1253 |    133 | dma_in(dmem_ptr, rdram_ptr, 160); ## Args: $t0, $t1, $s0, $s4, $t2
+  addu $s0, $s0, $s2                                 ## L:1252 |   *135 | rdram_ptr += palette_index;
+  beq $zero, $zero, LABEL_GLCmd_PreInitMagma_0007    ## L:1253 |    136 | dma_in(dmem_ptr, rdram_ptr, 160);
+  nop                                                ## L:1253 |   *138 | dma_in(dmem_ptr, rdram_ptr, 160);
+  LABEL_GLCmd_PreInitMagma_0006:
+  jal GL_MtxMult                                     ## L:1258 |    139 | GL_MtxMult();
+  ori $s6, $zero, %lo(GL_MATRIX_MODELVIEW)           ## L:1257 |   *141 | mtx_rhs = GL_MATRIX_MODELVIEW;
+  ori $at, $zero, %lo(GL_MATRIX_MODELVIEW)           ## L:1262 |    142 | m0:sint   = load(GL_MATRIX_MODELVIEW, 0x00);
+  lqv $v28, 0, 32, $at                               ## L:1264 |    143 | m0:ufract = load(GL_MATRIX_MODELVIEW, 0x20);
+  lqv $v26, 0, 48, $at                               ## L:1265 |    144 | m1:ufract = load(GL_MATRIX_MODELVIEW, 0x30);
+  lqv $v25, 0, 16, $at                               ## L:1263 |    145 | m1:sint   = load(GL_MATRIX_MODELVIEW, 0x10);
+  lqv $v27, 0, 0, $at                                ## L:1262 |    146 | m0:sint   = load(GL_MATRIX_MODELVIEW, 0x00);
+  ori $at, $zero, %lo(MATRICES_MV)                   ## L:1267 |    147 | store(m0:sint, MATRICES_MV, 0x00);
+  sqv $v26, 0, 48, $at                               ## L:1270 |   *149 | store(m1:ufract, MATRICES_MV, 0x30);
+  sqv $v28, 0, 32, $at                               ## L:1269 |    150 | store(m0:ufract, MATRICES_MV, 0x20);
+  sqv $v25, 0, 16, $at                               ## L:1268 |    151 | store(m1:sint, MATRICES_MV, 0x10);
+  sqv $v27, 0, 0, $at                                ## L:1267 |    152 | store(m0:sint, MATRICES_MV, 0x00);
+  addiu $at, $zero, 32767                            ## L:1096 |    153 | c.x = 0x7FFF;
+  mtc2 $at, $v24.e0                                  ## L:1096 |    154 | c.x = 0x7FFF;
+  vmudn $v28, $v28, $v24.e0                          ## L:1097 | ***158 | m0 = m0 * c.x;
+  vmadh $v27, $v27, $v24.e0                          ## L:1097 |    159 | m0 = m0 * c.x;
+  vmudn $v26, $v26, $v24.e0                          ## L:1098 |    160 | m1 = m1 * c.x;
+  vmadh $v25, $v25, $v24.e0                          ## L:1098 |    161 | m1 = m1 * c.x;
+  ori $at, $zero, %lo(MATRICES_NORMAL)               ## L:1100 |      ^ | store(m0:sint, MATRICES_NORMAL, 0x00);
+  sqv $v27, 0, 0, $at                                ## L:1100 |   *163 | store(m0:sint, MATRICES_NORMAL, 0x00);
+  sqv $v25, 0, 16, $at                               ## L:1101 |   *165 | store(m1:sint, MATRICES_NORMAL, 0x10);
+  LABEL_GLCmd_PreInitMagma_0007:
+  ori $at, $zero, %lo(GL_MATRIX_TEXTURE)             ## L:1281 |    166 | tm0:sint   = load(GL_MATRIX_TEXTURE, 0x00).xyzw;
+  ldv $v26, 0, 40, $at                               ## L:1284 |    167 | tm1:ufract = load(GL_MATRIX_TEXTURE, 0x28).xyzw;
+  ldv $v27, 0, 0, $at                                ## L:1281 |    168 | tm0:sint   = load(GL_MATRIX_TEXTURE, 0x00).xyzw;
+  ldv $v28, 0, 32, $at                               ## L:1282 |    169 | tm0:ufract = load(GL_MATRIX_TEXTURE, 0x20).xyzw;
+  ldv $v25, 0, 8, $at                                ## L:1283 |    170 | tm1:sint   = load(GL_MATRIX_TEXTURE, 0x08).xyzw;
+  ldv $v24, 0, 56, $at                               ## L:1286 |    171 | tm3:ufract = load(GL_MATRIX_TEXTURE, 0x38).xyzw;
+  ldv $v23, 0, 24, $at                               ## L:1285 |    172 | tm3:sint   = load(GL_MATRIX_TEXTURE, 0x18).xyzw;
+  ori $at, $zero, %lo(GL_STATE_TEX_SIZE)             ## L:1288 |    173 | vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+  llv $v21, 0, 4, $at                                ## L:1289 |    174 | vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
+  llv $v22, 0, 0, $at                                ## L:1288 |    175 | vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+  or $s7, $zero, $zero                               ## L:1309 |    176 | u32 color_constant = 0;
+  ori $at, $zero, %lo(TEXTURE_MATRIX)                ## L:1291 |    177 | store(tm0:sint.xyzw,    TEXTURE_MATRIX, 0x00);
+  sdv $v24, 0, 40, $at                               ## L:1296 |    178 | store(tm3:ufract.xyzw,  TEXTURE_MATRIX, 0x28);
+  sdv $v26, 0, 32, $at                               ## L:1294 |    179 | store(tm1:ufract.xyzw,  TEXTURE_MATRIX, 0x20);
+  sdv $v28, 0, 24, $at                               ## L:1292 |    180 | store(tm0:ufract.xyzw,  TEXTURE_MATRIX, 0x18);
+  sdv $v25, 0, 8, $at                                ## L:1293 |    181 | store(tm1:sint.xyzw,    TEXTURE_MATRIX, 0x08);
+  sdv $v23, 0, 16, $at                               ## L:1295 |    182 | store(tm3:sint.xyzw,    TEXTURE_MATRIX, 0x10);
+  sdv $v27, 0, 0, $at                                ## L:1291 |    183 | store(tm0:sint.xyzw,    TEXTURE_MATRIX, 0x00);
+  ori $at, $zero, %lo(GL_STATE_TEX_SIZE)             ## L:1298 |    184 | vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+  llv $v20, 0, 0, $at                                ## L:1298 |    185 | vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+  llv $v19, 0, 4, $at                                ## L:1299 | ***189 | vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
+  vmudn $v20, $v20, $v30.e1                          ## L:1301 |      ^ | tex_size = tex_size << 6;
+  ori $at, $zero, %lo(TEXTURE_SIZE)                  ## L:1303 |    190 | store(tex_size.xy, TEXTURE_SIZE);
+  slv $v20, 0, 0, $at                                ## L:1303 |  **193 | store(tex_size.xy, TEXTURE_SIZE);
+  ori $at, $zero, %lo(TEXTURE_OFFSET)                ## L:1304 |    194 | store(tex_offset.xy, TEXTURE_OFFSET);
+  bne $a1, $zero, LABEL_GLCmd_PreInitMagma_000A      ## L:1310 |    195 | if (client_flags == 0) {
+  slv $v19, 0, 0, $at                                ## L:1304 |   *197 | store(tex_offset.xy, TEXTURE_OFFSET);
+  addiu $s7, $zero, 1                                ## L:1311 |    198 | color_constant = 1;
+  LABEL_GLCmd_PreInitMagma_000A:
+  andi $s3, $k0, 1024                                ## L:1323 |    199 | u32 enabled = flags & 0x400;
+  or $s5, $zero, $zero                               ## L:1319 |    200 | u8 point_count = 0;
+  or $s6, $zero, $zero                               ## L:1318 |    201 | u8 light_count = 0;
+  beq $s3, $zero, LABEL_GLCmd_PreInitMagma_000B      ## L:1324 |    202 | if (enabled != 0)
+  or $s4, $zero, $zero                               ## L:1321 |   *204 | u16 color_material = 0;
+  ori $at, $zero, %lo(GL_STATE_LIGHT_AMBIENT)        ## L:1326 |    205 | light_ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
+  lqv $v28, 0, 0, $at                                ## L:1326 |    206 | light_ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
+  ori $at, $zero, %lo(GL_MAT_AMBIENT)                ## L:1327 |    207 | ambient.xyzw = load(GL_MAT_AMBIENT, 0);
+  lqv $v27, 0, 0, $at                                ## L:1327 |    208 | ambient.xyzw = load(GL_MAT_AMBIENT, 0);
+  andi $s2, $k0, 2048                                ## L:1332 |    209 | u32 color_material_enabled = flags & 0x800;
+  ori $at, $zero, %lo(GL_MAT_DIFFUSE)                ## L:1328 |    210 | diffuse.xyzw = load(GL_MAT_DIFFUSE, 0);
+  lqv $v26, 0, 0, $at                                ## L:1328 |    211 | diffuse.xyzw = load(GL_MAT_DIFFUSE, 0);
+  ori $at, $zero, %lo(GL_MAT_EMISSIVE)               ## L:1329 |    212 | emissive.xyzw = load(GL_MAT_EMISSIVE, 0);
+  beq $s2, $zero, LABEL_GLCmd_PreInitMagma_000D      ## L:1333 |    213 | if (color_material_enabled != 0) {
+  lqv $v25, 0, 0, $at                                ## L:1329 |   *215 | emissive.xyzw = load(GL_MAT_EMISSIVE, 0);
+  bne $a1, $zero, LABEL_GLCmd_PreInitMagma_000D      ## L:1335 |    216 | if (client_flags == 0) {
+  lhu $s4, %lo(GL_MAT_COLOR_TARGET + 0)              ## L:1334 |   *218 | color_material = load(GL_MAT_COLOR_TARGET);
+  ori $at, $zero, %lo(GL_CUR_COLOR)                  ## L:1336 |    219 | vec16 color = load(GL_CUR_COLOR).xyzw;
+  ldv $v23, 0, 0, $at                                ## L:1336 |    220 | vec16 color = load(GL_CUR_COLOR).xyzw;
+  andi $s1, $s4, 1                                   ## L:1337 |    221 | u16 tmp = color_material & 0x1;
+  beq $s1, $zero, LABEL_GLCmd_PreInitMagma_000F      ## L:1338 |    222 | if (tmp != 0) {
+  nop                                                ## L:1338 |   *224 | if (tmp != 0) {
+  vor $v26, $v00, $v23                               ## L:1339 |    225 | diffuse = color;
   LABEL_GLCmd_PreInitMagma_000F:
-  ori $s1, $zero, %lo(GL_LIGHTS)                     ## L:1365 |    241 | u16 light_ptr = GL_LIGHTS;
-  ori $s0, $zero, %lo(GL_TEX_GEN)                    ## L:1366 |    242 | u16 light_end = GL_TEX_GEN;
-  ori $fp, $zero, %lo(LIGHTING_LIGHTS)               ## L:1367 |    243 | u16 out_ptr = LIGHTING_LIGHTS;
-  lui $s2, 0x10                                      ## L:1364 |    244 | u32 light_flag = 0x100000;
-  LABEL_GLCmd_PreInitMagma_0014:
-  sltu $at, $s1, $s0                                 ## L:1368 |    245 | while (light_ptr < light_end)
-  beq $at, $zero, LABEL_GLCmd_PreInitMagma_0015      ## L:1368 |    246 | while (light_ptr < light_end)
-  nop                                                ## L:1368 |   *248 | while (light_ptr < light_end)
-  and $sp, $k0, $s2                                  ## L:1370 |    249 | u32 light_enabled = flags & light_flag;
-  beq $sp, $zero, LABEL_GLCmd_PreInitMagma_0016      ## L:1371 |    250 | if (light_enabled != 0) {
-  nop                                                ## L:1371 |   *252 | if (light_enabled != 0) {
-  lh $t9, 6($s1)                                     ## L:1380 |    253 | s16 w = load(light_ptr, 6);
-  lqv $v23, 0, 0, $s1                                ## L:1372 |    254 | vec16 light_props0 = load(light_ptr, 0x00);
-  lqv $v22, 0, 16, $s1                               ## L:1373 |    255 | vec16 light_props1 = load(light_ptr, 0x10);
-  sdv $v23, 8, 8, $fp                                ## L:1376 |  **258 | store(light_props0.XYZW, out_ptr, 0x08);
-  sdv $v23, 0, 0, $fp                                ## L:1375 |    259 | store(light_props0.xyzw, out_ptr, 0x00);
-  sdv $v22, 0, 16, $fp                               ## L:1377 |    260 | store(light_props1.xyzw, out_ptr, 0x10);
-  beq $t9, $zero, LABEL_GLCmd_PreInitMagma_0017      ## L:1381 |    261 | if (w != 0) {
-  sdv $v22, 8, 24, $fp                               ## L:1378 |   *263 | store(light_props1.XYZW, out_ptr, 0x18);
-  addiu $s5, $s5, 1                                  ## L:1382 |    264 | point_count += 1;
-  LABEL_GLCmd_PreInitMagma_0017:
-  addiu $fp, $fp, 32                                 ## L:1386 |    265 | out_ptr += 32;
-  addiu $s6, $s6, 1                                  ## L:1385 |    266 | light_count += 1;
-  LABEL_GLCmd_PreInitMagma_0016:
-  addiu $s1, $s1, 32                                 ## L:1388 |    267 | light_ptr += 32;
-  j LABEL_GLCmd_PreInitMagma_0014                    ## L:1389 |    268 | light_flag = light_flag << 1;
-  sll $s2, $s2, 1                                    ## L:1389 |   *270 | light_flag = light_flag << 1;
-  LABEL_GLCmd_PreInitMagma_0015:
-  beq $zero, $zero, LABEL_GLCmd_PreInitMagma_000E    ## L:1389 |    271 | light_flag = light_flag << 1;
-  nop                                                ## L:1389 |   *273 | light_flag = light_flag << 1;
+  andi $s1, $s4, 2                                   ## L:1341 |      ^ | tmp = color_material & 0x2;
+  beq $s1, $zero, LABEL_GLCmd_PreInitMagma_0010      ## L:1342 |    226 | if (tmp != 0) {
+  nop                                                ## L:1342 |   *228 | if (tmp != 0) {
+  vor $v27, $v00, $v23                               ## L:1343 |    229 | ambient = color;
+  LABEL_GLCmd_PreInitMagma_0010:
+  andi $s1, $s4, 4                                   ## L:1345 |      ^ | tmp = color_material & 0x4;
+  beq $s1, $zero, LABEL_GLCmd_PreInitMagma_0011      ## L:1346 |    230 | if (tmp != 0) {
+  nop                                                ## L:1346 |   *232 | if (tmp != 0) {
+  vor $v25, $v00, $v23                               ## L:1347 |    233 | emissive = color;
+  LABEL_GLCmd_PreInitMagma_0011:
+  or $s4, $zero, $zero                               ## L:1350 |      ^ | color_material = 0;
   LABEL_GLCmd_PreInitMagma_000D:
-  addiu $at, $zero, 32767                            ## L:1393 |    274 | light_ambient.x = 0x7FFF;
-  mtc2 $at, $v28.e0                                  ## L:1393 |    275 | light_ambient.x = 0x7FFF;
-  vor $v25, $v00, $v00                               ## L:1392 |      ^ | emissive = VZERO;
-  beq $a1, $zero, LABEL_GLCmd_PreInitMagma_0018      ## L:1396 |    276 | if (client_flags != 0) {
-  vor $v28, $v00, $v28.e0                            ## L:1394 | ***280 | light_ambient = light_ambient.x;
-  beq $zero, $zero, LABEL_GLCmd_PreInitMagma_000E    ## L:1397 |    281 | color_material = 0x1 | 0x2;
-  addiu $s4, $zero, 3                                ## L:1397 |   *283 | color_material = 0x1 | 0x2;
+  ori $sp, $zero, %lo(LIGHTING_LIGHTS)               ## L:1357 |    234 | u16 out_ptr = LIGHTING_LIGHTS;
+  ori $s0, $zero, %lo(GL_LIGHTS)                     ## L:1355 |    235 | u16 light_ptr = GL_LIGHTS;
+  lui $s1, 0x10                                      ## L:1354 |    236 | u32 light_flag = 0x100000;
+  ori $fp, $zero, %lo(GL_TEX_GEN)                    ## L:1356 |    237 | u16 light_end = GL_TEX_GEN;
+  LABEL_GLCmd_PreInitMagma_0012:
+  sltu $at, $s0, $fp                                 ## L:1358 |    238 | while (light_ptr < light_end)
+  beq $at, $zero, LABEL_GLCmd_PreInitMagma_0013      ## L:1358 |    239 | while (light_ptr < light_end)
+  nop                                                ## L:1358 |   *241 | while (light_ptr < light_end)
+  and $k1, $k0, $s1                                  ## L:1360 |    242 | u32 light_enabled = flags & light_flag;
+  beq $k1, $zero, LABEL_GLCmd_PreInitMagma_0014      ## L:1361 |    243 | if (light_enabled != 0) {
+  nop                                                ## L:1361 |   *245 | if (light_enabled != 0) {
+  lqv $v23, 0, 0, $s0                                ## L:1362 |    246 | vec16 light_props0 = load(light_ptr, 0x00);
+  lh $t9, 6($s0)                                     ## L:1370 |    247 | s16 w = load(light_ptr, 6);
+  lqv $v22, 0, 16, $s0                               ## L:1363 |    248 | vec16 light_props1 = load(light_ptr, 0x10);
+  sdv $v23, 0, 0, $sp                                ## L:1365 |  **251 | store(light_props0.xyzw, out_ptr, 0x00);
+  sdv $v23, 8, 8, $sp                                ## L:1366 |    252 | store(light_props0.XYZW, out_ptr, 0x08);
+  sdv $v22, 0, 16, $sp                               ## L:1367 |    253 | store(light_props1.xyzw, out_ptr, 0x10);
+  beq $t9, $zero, LABEL_GLCmd_PreInitMagma_0015      ## L:1371 |    254 | if (w != 0) {
+  sdv $v22, 8, 24, $sp                               ## L:1368 |   *256 | store(light_props1.XYZW, out_ptr, 0x18);
+  addiu $s5, $s5, 1                                  ## L:1372 |    257 | point_count += 1;
+  LABEL_GLCmd_PreInitMagma_0015:
+  addiu $s6, $s6, 1                                  ## L:1375 |    258 | light_count += 1;
+  addiu $sp, $sp, 32                                 ## L:1376 |    259 | out_ptr += 32;
+  LABEL_GLCmd_PreInitMagma_0014:
+  sll $s1, $s1, 1                                    ## L:1379 |    260 | light_flag = light_flag << 1;
+  j LABEL_GLCmd_PreInitMagma_0012                    ## L:1379 |    261 | light_flag = light_flag << 1;
+  addiu $s0, $s0, 32                                 ## L:1378 |   *263 | light_ptr += 32;
+  LABEL_GLCmd_PreInitMagma_0013:
+  beq $zero, $zero, LABEL_GLCmd_PreInitMagma_000C    ## L:1379 |    264 | light_flag = light_flag << 1;
+  nop                                                ## L:1379 |   *266 | light_flag = light_flag << 1;
+  LABEL_GLCmd_PreInitMagma_000B:
+  addiu $at, $zero, 32767                            ## L:1383 |    267 | light_ambient.x = 0x7FFF;
+  mtc2 $at, $v28.e0                                  ## L:1383 |    268 | light_ambient.x = 0x7FFF;
+  vor $v25, $v00, $v00                               ## L:1382 |      ^ | emissive = VZERO;
+  beq $a1, $zero, LABEL_GLCmd_PreInitMagma_0016      ## L:1386 |    269 | if (client_flags != 0) {
+  vor $v28, $v00, $v28.e0                            ## L:1384 | ***273 | light_ambient = light_ambient.x;
+  beq $zero, $zero, LABEL_GLCmd_PreInitMagma_000C    ## L:1387 |    274 | color_material = 0x1 | 0x2;
+  addiu $s4, $zero, 3                                ## L:1387 |   *276 | color_material = 0x1 | 0x2;
+  LABEL_GLCmd_PreInitMagma_0016:
+  ori $at, $zero, %lo(GL_CUR_COLOR)                  ## L:1389 |    277 | ambient = load(GL_CUR_COLOR).xyzw;
+  ldv $v27, 0, 0, $at                                ## L:1389 |    278 | ambient = load(GL_CUR_COLOR).xyzw;
+  vor $v26, $v00, $v27                               ## L:1390 | ***282 | diffuse = ambient;
+  LABEL_GLCmd_PreInitMagma_000C:
+  ori $at, $zero, %lo(LIGHTING_AMBIENT)              ## L:1394 |      ^ | @Barrier("store_lighting") store(light_ambient.xyzw, LIGHTING_AMBIENT, 0); ## Barrier: 0x1
+  sdv $v28, 0, 0, $at                                ## L:1394 |    283 | @Barrier("store_lighting") store(light_ambient.xyzw, LIGHTING_AMBIENT, 0); ## Barrier: 0x1
+  sb $s5, %lo(0 + LIGHTING_HAS_POINTS)($zero)        ## L:1395 |    284 | @Barrier("store_lighting") store(point_count, LIGHTING_HAS_POINTS, 0); ## Barrier: 0x1
+  sb $s6, %lo(0 + LIGHTING_COUNT)($zero)             ## L:1396 |    285 | @Barrier("store_lighting") store(light_count, LIGHTING_COUNT, 0); ## Barrier: 0x1
+  ori $at, $zero, %lo(MATERIAL_DIFFUSE)              ## L:1397 |    286 | @Barrier("store_lighting") store(diffuse.xyzw, MATERIAL_DIFFUSE, 0); ## Barrier: 0x1
+  sdv $v26, 0, 0, $at                                ## L:1397 |    287 | @Barrier("store_lighting") store(diffuse.xyzw, MATERIAL_DIFFUSE, 0); ## Barrier: 0x1
+  ori $at, $zero, %lo(MATERIAL_AMBIENT)              ## L:1398 |    288 | @Barrier("store_lighting") store(ambient.xyzw, MATERIAL_AMBIENT, 0); ## Barrier: 0x1
+  sdv $v27, 0, 0, $at                                ## L:1398 |    289 | @Barrier("store_lighting") store(ambient.xyzw, MATERIAL_AMBIENT, 0); ## Barrier: 0x1
+  sh $s4, %lo(0 + MATERIAL_FLAGS)($zero)             ## L:1399 |    290 | @Barrier("store_lighting") store(color_material, MATERIAL_FLAGS, 0); ## Barrier: 0x1
+  ori $at, $zero, %lo(MATERIAL_EMISSIVE)             ## L:1400 |    291 | @Barrier("store_lighting") store(emissive.xyzw, MATERIAL_EMISSIVE, 0); ## Barrier: 0x1
+  sdv $v25, 0, 0, $at                                ## L:1400 |    292 | @Barrier("store_lighting") store(emissive.xyzw, MATERIAL_EMISSIVE, 0); ## Barrier: 0x1
+  ori $at, $zero, %lo(GL_STATE_FOG_PARAMS)           ## L:1405 |    293 | vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
+  llv $v28, 0, 4, $at                                ## L:1405 |    294 | vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
+  llv $v27, 0, 0, $at                                ## L:1405 |    295 | vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
+  andi $s7, $k0, 8                                   ## L:1413 |  **298 | u32 enabled = flags & 0x8;
+  vsubc $v26, $v28, $v28.e0                          ## L:1406 |      ^ | vec32 diff = fog_parms - fog_parms.x;
+  addiu $s6, $zero, 119                              ## L:1414 |    299 | u8 mask = 0x77;
+  vsub $v25, $v27, $v27.e0                           ## L:1406 |      ^ | vec32 diff = fog_parms - fog_parms.x;
+  vrcph $v23.e0, $v25.e1                             ## L:1408 | ***303 | factor.x = invert_half(diff).y;
+  vrcpl $v24.e0, $v26.e1                             ## L:1408 |    304 | factor.x = invert_half(diff).y;
+  vrcph $v23.e0, $v00.e1                             ## L:1408 |    305 | factor.x = invert_half(diff).y;
+  vmudl $v22, $v24, $v31.e4                          ## L:1409 |  **308 | vec16 factor_f = factor << 11;
+  vmadn $v22, $v23, $v31.e4                          ## L:1409 |    309 | vec16 factor_f = factor << 11;
+  vsubc $v21, $v00, $v28.e0                          ## L:1410 |    310 | vec32 offset = VZERO - fog_parms.x;
+  vsub $v20, $v00, $v27.e0                           ## L:1410 |    311 | vec32 offset = VZERO - fog_parms.x;
+  vmudl $v29, $v21, $v30.e2                          ## L:1411 |  **314 | offset = offset << 5;
+  vmadn $v20, $v20, $v30.e2                          ## L:1411 |    315 | offset = offset << 5;
+  bne $s7, $zero, LABEL_GLCmd_PreInitMagma_0018      ## L:1415 |      ^ | if (enabled == 0) {
+  vmudn $v21, $v21, $v30.e2                          ## L:1411 |   *317 | offset = offset << 5;
+  addiu $s6, $zero, 255                              ## L:1416 |    318 | mask = 0xFF;
   LABEL_GLCmd_PreInitMagma_0018:
-  ori $at, $zero, %lo(GL_CUR_COLOR)                  ## L:1399 |    284 | ambient = load(GL_CUR_COLOR).xyzw;
-  ldv $v27, 0, 0, $at                                ## L:1399 |    285 | ambient = load(GL_CUR_COLOR).xyzw;
-  vor $v26, $v00, $v27                               ## L:1400 | ***289 | diffuse = ambient;
-  LABEL_GLCmd_PreInitMagma_000E:
-  ori $at, $zero, %lo(LIGHTING_AMBIENT)              ## L:1404 |      ^ | @Barrier("store_lighting") store(light_ambient.xyzw, LIGHTING_AMBIENT, 0); ## Barrier: 0x1
-  sdv $v28, 0, 0, $at                                ## L:1404 |    290 | @Barrier("store_lighting") store(light_ambient.xyzw, LIGHTING_AMBIENT, 0); ## Barrier: 0x1
-  sb $s5, %lo(0 + LIGHTING_HAS_POINTS)($zero)        ## L:1405 |    291 | @Barrier("store_lighting") store(point_count, LIGHTING_HAS_POINTS, 0); ## Barrier: 0x1
-  sb $s6, %lo(0 + LIGHTING_COUNT)($zero)             ## L:1406 |    292 | @Barrier("store_lighting") store(light_count, LIGHTING_COUNT, 0); ## Barrier: 0x1
-  ori $at, $zero, %lo(MATERIAL_DIFFUSE)              ## L:1407 |    293 | @Barrier("store_lighting") store(diffuse.xyzw, MATERIAL_DIFFUSE, 0); ## Barrier: 0x1
-  sdv $v26, 0, 0, $at                                ## L:1407 |    294 | @Barrier("store_lighting") store(diffuse.xyzw, MATERIAL_DIFFUSE, 0); ## Barrier: 0x1
-  ori $at, $zero, %lo(MATERIAL_AMBIENT)              ## L:1408 |    295 | @Barrier("store_lighting") store(ambient.xyzw, MATERIAL_AMBIENT, 0); ## Barrier: 0x1
-  sdv $v27, 0, 0, $at                                ## L:1408 |    296 | @Barrier("store_lighting") store(ambient.xyzw, MATERIAL_AMBIENT, 0); ## Barrier: 0x1
-  sh $s4, %lo(0 + MATERIAL_FLAGS)($zero)             ## L:1409 |    297 | @Barrier("store_lighting") store(color_material, MATERIAL_FLAGS, 0); ## Barrier: 0x1
-  ori $at, $zero, %lo(MATERIAL_EMISSIVE)             ## L:1410 |    298 | @Barrier("store_lighting") store(emissive.xyzw, MATERIAL_EMISSIVE, 0); ## Barrier: 0x1
-  sdv $v25, 0, 0, $at                                ## L:1410 |    299 | @Barrier("store_lighting") store(emissive.xyzw, MATERIAL_EMISSIVE, 0); ## Barrier: 0x1
-  ori $at, $zero, %lo(GL_STATE_FOG_PARAMS)           ## L:1415 |    300 | vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
-  llv $v28, 0, 4, $at                                ## L:1415 |    301 | vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
-  llv $v27, 0, 0, $at                                ## L:1415 |    302 | vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
-  addiu $s6, $zero, 119                              ## L:1424 |  **305 | u8 mask = 0x77;
-  vsubc $v26, $v28, $v28.e0                          ## L:1416 |      ^ | vec32 diff = fog_parms - fog_parms.x;
-  vsub $v25, $v27, $v27.e0                           ## L:1416 |    306 | vec32 diff = fog_parms - fog_parms.x;
-  andi $s7, $k0, 8                                   ## L:1423 |      ^ | u32 enabled = flags & 0x8;
-  vrcph $v23.e0, $v25.e1                             ## L:1418 | ***310 | factor.x = invert_half(diff).y;
-  vrcpl $v24.e0, $v26.e1                             ## L:1418 |    311 | factor.x = invert_half(diff).y;
-  vrcph $v23.e0, $v00.e1                             ## L:1418 |    312 | factor.x = invert_half(diff).y;
-  vmudl $v22, $v24, $v31.e4                          ## L:1419 |  **315 | vec16 factor_f = factor << 11;
-  vmadn $v22, $v23, $v31.e4                          ## L:1419 |    316 | vec16 factor_f = factor << 11;
-  vsubc $v21, $v00, $v28.e0                          ## L:1420 |    317 | vec32 offset = VZERO - fog_parms.x;
-  vsub $v20, $v00, $v27.e0                           ## L:1420 |    318 | vec32 offset = VZERO - fog_parms.x;
-  vmudl $v29, $v21, $v30.e2                          ## L:1421 |  **321 | offset = offset << 5;
-  vmadn $v20, $v20, $v30.e2                          ## L:1421 |    322 | offset = offset << 5;
-  bne $s7, $zero, LABEL_GLCmd_PreInitMagma_001A      ## L:1425 |      ^ | if (enabled == 0) {
-  vmudn $v21, $v21, $v30.e2                          ## L:1421 |   *324 | offset = offset << 5;
-  addiu $s6, $zero, 255                              ## L:1426 |    325 | mask = 0xFF;
-  LABEL_GLCmd_PreInitMagma_001A:
-  sb $s6, %lo(0 + FOG_MASK)($zero)                   ## L:1432 |    326 | store(mask, FOG_MASK, 0);
-  ori $at, $zero, %lo(FOG_PARAMS)                    ## L:1429 |    327 | store(offset:sint.x, FOG_PARAMS, 0x0);
-  ssv $v21, 0, 2, $at                                ## L:1430 |    328 | store(offset:ufract.x, FOG_PARAMS, 0x2);
-  ssv $v20, 0, 0, $at                                ## L:1429 |    329 | store(offset:sint.x, FOG_PARAMS, 0x0);
-  jal DmaMagmaState                                  ## L:1435 |    330 | DmaMagmaState();
-  ssv $v22, 0, 4, $at                                ## L:1431 |   *332 | store(factor_f.x, FOG_PARAMS, 0x4);
-  j RSPQ_Loop                                        ## L:1436 |    333 | }
-  nop                                                ## L:1436 |   *335 | }
+  ori $at, $zero, %lo(FOG_PARAMS)                    ## L:1419 |    319 | store(offset:sint.x, FOG_PARAMS, 0x0);
+  ssv $v20, 0, 0, $at                                ## L:1419 |    320 | store(offset:sint.x, FOG_PARAMS, 0x0);
+  sb $s6, %lo(0 + FOG_MASK)($zero)                   ## L:1422 |    321 | store(mask, FOG_MASK, 0);
+  ssv $v21, 0, 2, $at                                ## L:1420 |    322 | store(offset:ufract.x, FOG_PARAMS, 0x2);
+  jal DmaMagmaState                                  ## L:1425 |    323 | DmaMagmaState();
+  ssv $v22, 0, 4, $at                                ## L:1421 |   *325 | store(factor_f.x, FOG_PARAMS, 0x4);
+  j RSPQ_Loop                                        ## L:1426 |    326 | }
+  nop                                                ## L:1426 |   *328 | }
 
 GLCmd_PreInitMagma_end:
 

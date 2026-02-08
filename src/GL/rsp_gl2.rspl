@@ -84,8 +84,6 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
 {
     u32<$k0> flags = load(GL_STATE_FLAGS, 0);
 
-    u32<$k1> color_material_enabled = flags & 0x800; // FLAG_COLOR_MATERIAL;
-
     // Pipeline
     {
         u32 features = 0;
@@ -103,14 +101,6 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
                 {
                     features |= 1;
                 }
-            }
-        }
-
-        tmp = flags & 0x400; // FLAG_LIGHTING
-        if (tmp != 0)
-        {
-            if (color_material_enabled == 0) {
-                features |= 2;
             }
         }
 
@@ -318,6 +308,7 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
             emissive.xyzw = load(GL_MAT_EMISSIVE, 0);
 
             vec16 color;
+            u32 color_material_enabled = flags & 0x800; // FLAG_COLOR_MATERIAL;
             if (color_material_enabled != 0) {
                 color_material = load(GL_MAT_COLOR_TARGET);
                 if (client_flags == 0) {
