@@ -1,0 +1,2 @@
+# *.bin file is part of the gltf file
+!*.bin
