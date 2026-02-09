@@ -202,6 +202,8 @@ static model_list_t *active_model_list(void)
 static void load_current_model(void)
 {
     if (model) {
+        // Ensure previous frame rendering is done before freeing the model.
+        rspq_wait();
         model64_free(model);
         model = NULL;
     }
@@ -247,14 +249,14 @@ static void setup_gl(void)
     glEnable(GL_CULL_FACE);
 }
 
-int main(void)
+static void init(void)
 {
     debug_init_isviewer();
     debug_init_usblog();
 
     dfs_init(DFS_DEFAULT_LOCATION);
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 2, GAMMA_NONE,
-                 FILTERS_DISABLED);
+                 FILTERS_RESAMPLE);
     rdpq_init();
     gl_init();
     joypad_init();
@@ -270,6 +272,168 @@ int main(void)
     if (sd_available)
         scan_models("sd:/models", &sd_models);
     load_current_model();
+}
+
+static void handle_input(joypad_buttons_t pressed)
+{
+    if (pressed.l) {
+        if (current_source != MODEL_SOURCE_ROM) {
+            current_source = MODEL_SOURCE_ROM;
+            model_index = 0;
+            load_current_model();
+        }
+    }
+    if (pressed.r) {
+        if (current_source != MODEL_SOURCE_SD) {
+            current_source = MODEL_SOURCE_SD;
+            model_index = 0;
+            load_current_model();
+        }
+    }
+
+    model_list_t *list = active_model_list();
+    if (pressed.d_left && list && list->count > 0) {
+        model_index = (model_index - 1 + list->count) % list->count;
+        load_current_model();
+    }
+    if (pressed.d_right && list && list->count > 0) {
+        model_index = (model_index + 1) % list->count;
+        load_current_model();
+    }
+    if (pressed.c_left && anim_count > 0) {
+        anim_index = (anim_index - 1 + anim_count) % anim_count;
+        play_current_anim();
+    }
+    if (pressed.c_right && anim_count > 0) {
+        anim_index = (anim_index + 1) % anim_count;
+        play_current_anim();
+    }
+
+    // Optional additonal render passes
+    if (pressed.c_up) {
+        use_shadowpass = !use_shadowpass;
+    }
+    if (pressed.c_down) {
+        use_outlinepass = !use_outlinepass;
+    }
+}
+
+static void update(uint32_t *last_ms, float *rotation)
+{
+    uint32_t now_ms = get_ticks_ms();
+    float dt = (now_ms - *last_ms) / 1000.0f;
+    *last_ms = now_ms;
+
+    *rotation += dt * 30.0f;
+    if (*rotation >= 360.0f)
+        *rotation -= 360.0f;
+
+    if (model) {
+        model64_update(model, dt);
+    }
+}
+
+static void draw_model(void)
+{
+    if (!model)
+        return;
+
+    if (use_shadowpass) {
+        glDisable(GL_LIGHTING);
+        glPushMatrix();
+        glTranslatef(0.0f, -0.7f, 0.0f);
+        glScalef(1.1f, 0.02f, 1.1f);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glColor4f(0.0f, 0.0f, 0.0f, 0.35f);
+        model64_draw(model);
+        glPopMatrix();
+        glEnable(GL_LIGHTING);
+    }
+
+    if (use_outlinepass) {
+        glDisable(GL_LIGHTING);
+        glPushMatrix();
+        glScalef(1.03f, 1.03f, 1.03f);
+        glCullFace(GL_FRONT);
+        glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
+        model64_draw(model);
+        glCullFace(GL_BACK);
+        glPopMatrix();
+        glEnable(GL_LIGHTING);
+    }
+
+    // Mesh color based on source location
+    if (tint_mesh) {
+        if (active_is_sd) {
+            glColor4f(0.30f, 0.454f, 0.6f, 1.0f);
+        } else {
+            glColor4f(0.2313f, 0.427f, 0.384f, 1.0f);
+        }
+    } else {
+        glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+    model64_draw(model);
+}
+
+static void render(float rotation)
+{
+    model_list_t *list = active_model_list();
+
+    surface_t *disp = display_get();
+    surface_t *zbuf = display_get_zbuf();
+
+    rdpq_attach(disp, zbuf);
+    gl_context_begin();
+
+    glClearColor(0.243f, 0.25f, 0.33f, 1.0f); // BG color
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glTranslatef(0.0f, -0.5f, -3.0f);
+    update_light_positions();
+    glRotatef(rotation, 0.0f, 1.0f, 0.0f);
+
+    draw_model();
+
+    gl_context_end();
+
+    rdpq_set_mode_standard();
+    const char *source = active_is_sd ? "SD" : "ROM";
+    const char *anim = (anim_count > 0 && anim_names[anim_index])
+                           ? anim_names[anim_index]
+                           : "None";
+    const char *model_name =
+        (list && list->count > 0) ? list->entries[model_index].name : "None";
+
+    const char *no_models_msg = "";
+    if (rom_models.count + sd_models.count == 0) {
+        no_models_msg = sd_available
+                            ? "\nNo models found in ROM or SD."
+                            : "\nNo models found in ROM. SD not mounted.";
+    } else if (!list || list->count == 0) {
+        if (active_is_sd && !sd_available) {
+            no_models_msg = "\nSD not mounted.";
+        } else {
+            no_models_msg = (active_is_sd) ? "\nNo models found on SD."
+                                           : "\nNo models found in ROM.";
+        }
+    }
+
+    rdpq_text_printf(NULL, font_id, 8, 8,
+                     "\nModel: %s\nAnim: %s\nSource: %s%s\nD-Left/Right: "
+                     "model  C-Left/Right: anim\nC-Up: shadow  C-Down: "
+                     "outline\nL: ROM  R: SD%s",
+                     model_name, anim, source,
+                     (!sd_available && active_is_sd) ? " (SD not mounted)" : "",
+                     no_models_msg);
+
+    rdpq_detach_show();
+}
+
+int main(void)
+{
+    init();
 
     uint32_t last_ms = get_ticks_ms();
     float rotation = 0.0f;
@@ -277,147 +441,8 @@ int main(void)
     while (1) {
         joypad_poll();
         joypad_buttons_t pressed = joypad_get_buttons_pressed(JOYPAD_PORT_1);
-
-        if (pressed.l) {
-            if (current_source != MODEL_SOURCE_ROM) {
-                current_source = MODEL_SOURCE_ROM;
-                model_index = 0;
-                load_current_model();
-            }
-        }
-        if (pressed.r) {
-            if (current_source != MODEL_SOURCE_SD) {
-                current_source = MODEL_SOURCE_SD;
-                model_index = 0;
-                load_current_model();
-            }
-        }
-
-        model_list_t *list = active_model_list();
-        if (pressed.d_left && list && list->count > 0) {
-            model_index = (model_index - 1 + list->count) % list->count;
-            load_current_model();
-        }
-        if (pressed.d_right && list && list->count > 0) {
-            model_index = (model_index + 1) % list->count;
-            load_current_model();
-        }
-        if (pressed.c_left && anim_count > 0) {
-            anim_index = (anim_index - 1 + anim_count) % anim_count;
-            play_current_anim();
-        }
-        if (pressed.c_right && anim_count > 0) {
-            anim_index = (anim_index + 1) % anim_count;
-            play_current_anim();
-        }
-        // Optional additonal render passes
-        if (pressed.c_up) {
-            use_shadowpass = !use_shadowpass;
-        }
-        if (pressed.c_down) {
-            use_outlinepass = !use_outlinepass;
-        }
-
-        uint32_t now_ms = get_ticks_ms();
-        float dt = (now_ms - last_ms) / 1000.0f;
-        last_ms = now_ms;
-
-        rotation += dt * 30.0f;
-        if (rotation >= 360.0f)
-            rotation -= 360.0f;
-
-        if (model) {
-            model64_update(model, dt);
-        }
-
-        surface_t *disp = display_get();
-        surface_t *zbuf = display_get_zbuf();
-
-        rdpq_attach(disp, zbuf);
-        gl_context_begin();
-
-        glClearColor(0.243f, 0.25f, 0.33f, 1.0f); // BG color
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        glMatrixMode(GL_MODELVIEW);
-        glLoadIdentity();
-        glTranslatef(0.0f, -0.5f, -3.0f);
-        update_light_positions();
-        glRotatef(rotation, 0.0f, 1.0f, 0.0f);
-
-        if (model) {
-            if (use_shadowpass) {
-                glDisable(GL_LIGHTING);
-                glPushMatrix();
-                glTranslatef(0.0f, -0.7f, 0.0f);
-                glScalef(1.1f, 0.02f, 1.1f);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-                glColor4f(0.0f, 0.0f, 0.0f, 0.35f);
-                model64_draw(model);
-                glPopMatrix();
-                glEnable(GL_LIGHTING);
-            }
-
-            if (use_outlinepass) {
-                glDisable(GL_LIGHTING);
-                glPushMatrix();
-                glScalef(1.03f, 1.03f, 1.03f);
-                glCullFace(GL_FRONT);
-                glColor4f(0.0f, 0.0f, 0.0f, 1.0f);
-                model64_draw(model);
-                glCullFace(GL_BACK);
-                glPopMatrix();
-                glEnable(GL_LIGHTING);
-            }
-
-            // Normal pass
-            // Mesh color based on source location
-            if (tint_mesh) {
-                if (active_is_sd) {
-                    glColor4f(0.30f, 0.454f, 0.6f, 1.0f);
-                } else {
-                    glColor4f(0.2313f, 0.427f, 0.384f, 1.0f);
-                }
-            } else {
-                glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-            }
-            model64_draw(model);
-        }
-
-        gl_context_end();
-
-        rdpq_set_mode_standard();
-        const char *source = active_is_sd ? "SD" : "ROM";
-        const char *anim = (anim_count > 0 && anim_names[anim_index])
-                               ? anim_names[anim_index]
-                               : "None";
-        const char *model_name = (list && list->count > 0)
-                                     ? list->entries[model_index].name
-                                     : "None";
-
-        const char *no_models_msg = "";
-        if (rom_models.count + sd_models.count == 0) {
-            no_models_msg = sd_available
-                                ? "\nNo models found in ROM or SD."
-                                : "\nNo models found in ROM. SD not mounted.";
-        } else if (!list || list->count == 0) {
-            if (active_is_sd && !sd_available) {
-                no_models_msg = "\nSD not mounted.";
-            } else {
-                no_models_msg = (active_is_sd) ? "\nNo models found on SD."
-                                               : "\nNo models found in ROM.";
-            }
-        }
-
-        rdpq_text_printf(NULL, font_id, 8, 8,
-                         "\nModel: %s\nAnim: %s\nSource: %s%s\nD-Left/Right: "
-                         "model  C-Left/Right: anim\nC-Up: shadow  C-Down: "
-                         "outline\nL: ROM  R: SD%s",
-                         model_name, anim, source,
-                         (!sd_available && active_is_sd) ? " (SD not mounted)"
-                                                         : "",
-                         no_models_msg);
-
-        rdpq_detach_show();
+        handle_input(pressed);
+        update(&last_ms, &rotation);
+        render(rotation);
     }
 }
