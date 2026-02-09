@@ -15,7 +15,7 @@
 
 static GLuint sphere_buffers[2];
 static GLuint sphere_array;
-//static GLuint sphere_list;
+static GLuint sphere_list;
 static uint32_t sphere_rings;
 static uint32_t sphere_segments;
 static uint32_t sphere_vertex_count;
@@ -46,7 +46,7 @@ void setup_sphere()
 
     glBindVertexArray(0);
 
-    //sphere_list = glGenLists(1);
+    sphere_list = glGenLists(1);
 }
 
 void make_sphere_vertex(vertex_t *dst, uint32_t ring, uint32_t segment)
@@ -155,15 +155,15 @@ void make_sphere_mesh()
     glUnmapBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB);
     glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 
-    //glNewList(sphere_list, GL_COMPILE);
-    //draw_sphere_internal();
-    //glEndList();
+    glNewList(sphere_list, GL_COMPILE);
+    draw_sphere_internal();
+    glEndList();
 }
 
 void draw_sphere()
 {
     // This is an example of using display lists
-    //glCallList(sphere_list);
+    glCallList(sphere_list);
 }
 
 void render_sphere(float rotation)
@@ -177,7 +177,7 @@ void render_sphere(float rotation)
 
     // We want to see back faces instead of front faces, because the camera will be inside the sphere
     glCullFace(GL_FRONT);
-    draw_sphere_internal();
+    draw_sphere();
     glCullFace(GL_BACK);
 
     glPopMatrix();
