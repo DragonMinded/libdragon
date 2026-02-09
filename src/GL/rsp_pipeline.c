@@ -18,6 +18,15 @@ extern gl_state_t *state;
 
 DEFINE_RSP_UCODE(rsp_gl_pipeline);
 DEFINE_RSP_UCODE(rsp_gl_pipeline_env);
+DEFINE_RSP_UCODE(rsp_gl_pipeline_nrm);
+DEFINE_RSP_UCODE(rsp_gl_pipeline_env_nrm);
+
+static rsp_ucode_t *pipeline_ucodes[] = {
+    &rsp_gl_pipeline,
+    &rsp_gl_pipeline_env,
+    &rsp_gl_pipeline_nrm,
+    &rsp_gl_pipeline_env_nrm
+};
 
 #define DEFINE_READ_FUNC(name, dst_type, src_type, convert, max_size, default) \
     static void name(dst_type *dst, const src_type *src, uint32_t count) \
@@ -299,21 +308,18 @@ static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout)
 
 static rsp_ucode_t *get_pipeline_ucode(uint32_t features)
 {
-    if (features & 1) return &rsp_gl_pipeline_env;
-    return &rsp_gl_pipeline;
+    return pipeline_ucodes[features];
 }
 
 static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
 {
     mg_pipeline_t **pipelines = calloc(PIPELINE_COUNT, sizeof(mg_pipeline_t*));
 
+    // This will iterate over all possible combinations of features
     for (size_t i = 0; i < PIPELINE_COUNT; i++)
     {
-        // This will iterate over all possible combinations of features
-        uint32_t features = i & PIPELINE_FEATURES_MASK;
-
         pipelines[i] = mg_pipeline_create(&(mg_pipeline_parms_t) {
-            .vertex_shader_ucode = get_pipeline_ucode(features),
+            .vertex_shader_ucode = get_pipeline_ucode(i),
             .vertex_layout = layout->vertex_layout
         });
     }

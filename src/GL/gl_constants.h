@@ -7,8 +7,7 @@
 
 #include "../../include/mgfx_constants.h"
 
-#define PIPELINE_FEATURE_COUNT          1
-#define PIPELINE_FEATURES_MASK          ((1<<PIPELINE_FEATURE_COUNT)-1)
+#define PIPELINE_FEATURE_COUNT          2
 #define PIPELINE_COUNT                  (1<<PIPELINE_FEATURE_COUNT)
 
 #define MODELVIEW_STACK_SIZE  32

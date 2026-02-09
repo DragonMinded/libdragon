@@ -104,6 +104,12 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
             }
         }
 
+        u32 normalize_enabled = flags & 0x1000; // FLAG_NORMALIZE
+        if (normalize_enabled != 0)
+        {
+            features |= 2;
+        }
+
         features = features << 3;
 
         vec16 pipeline = load(features, GL_PIPELINES).xyzw;
