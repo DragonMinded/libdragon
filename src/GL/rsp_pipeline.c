@@ -307,8 +307,6 @@ static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
 {
     mg_pipeline_t **pipelines = calloc(PIPELINE_COUNT, sizeof(mg_pipeline_t*));
 
-    vertex_layout tmp_vl;
-
     for (size_t i = 0; i < PIPELINE_COUNT; i++)
     {
         // This will iterate over all possible combinations of features
