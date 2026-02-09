@@ -176,7 +176,7 @@ void render()
     render_plane();
     render_decal();
     render_cube();
-    //render_skinned(&camera, animation);
+    render_skinned(&camera, animation);
 
     glBindTexture(GL_TEXTURE_2D, textures[(texture_index + 1)%4]);
     render_sphere(rotation);
