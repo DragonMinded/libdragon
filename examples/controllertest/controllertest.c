@@ -4,6 +4,10 @@
  * @brief N64 test ROM for Controller subsystem
  */
 
+/* NOTE: This example intentionally uses the deprecated controller.c API
+ * to ensure backward compatibility is not broken. Deprecation warnings
+ * are disabled for this example in its Makefile. */
+
 #include <string.h>
 #include <libdragon.h>
 
