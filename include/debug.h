@@ -131,9 +131,24 @@ extern "C" {
 
 
 #ifndef NDEBUG
-	/** @brief Initialize USB logging. */
+	/** 
+	 * @brief Initialize USB logging. 
+	 *
+	 * This function initializes the USB logging channel. It is used to log messages
+	 * to the USB port of the development cartridge.
+	 *
+	 * @return true if the USB logging channel was initialized successfully, false otherwise.
+	 * @note This function is not available on iQue Player
+	 */
 	bool debug_init_usblog(void);
-	/** @brief Initialize ISViewer logging. */
+	/** 
+	 * @brief Initialize ISViewer logging. 
+	 *
+	 * This function initializes the ISViewer logging channel. It is used to log messages
+	 * to emulators that support it.
+	 *
+	 * @return true if the ISViewer logging channel was initialized successfully, false otherwise
+	 */
 	bool debug_init_isviewer(void);
 	/** @brief Initialize SD logging. */
 	bool debug_init_sdlog(const char *fn, const char *openfmt);
