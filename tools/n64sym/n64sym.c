@@ -34,7 +34,7 @@
 #define MAX_BUFFER_SIZE  512
 
 bool flag_verbose = false;
-int flag_max_sym_len = 64;
+int flag_max_sym_len = 96;
 bool flag_inlines = true;
 const char *gccprefix_triplet = NULL;
 
@@ -56,7 +56,7 @@ void usage(const char *progname)
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose          Verbose output\n");
-    fprintf(stderr, "   -m/--max-len <N>      Maximum symbol length (default: 64)\n");
+    fprintf(stderr, "   -m/--max-len <N>      Maximum symbol length (default: 96)\n");
     fprintf(stderr, "   --no-inlines          Do not export inlined symbols\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "This program requires a libdragon toolchain installed in $N64_INST.\n");
