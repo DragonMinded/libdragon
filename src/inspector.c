@@ -61,6 +61,8 @@ enum {
 /// @endcond
 
 static int cursor_x, cursor_y, cursor_columns, cursor_wordwrap;
+/** Extra indent (pixels) for wrapped lines; set by \aZ<n>, reset on \n */
+static int cursor_wrap_indent;
 static enum Mode inspector_mode;
 static surface_t *disp;
 static int fpr_show_mode = 1;
@@ -216,6 +218,39 @@ static bool disasm_valid_pc(uint32_t pc) {
     return pc >= 0x80000000 && pc < 0x80800000 && (pc & 3) == 0;
 }
 
+/* Good breakpoints for wrapping C++-style symbols and signatures. */
+static bool is_wrap_break_char(char c)
+{
+    switch (c) {
+    case ' ': case ',': case '(': case ')':
+    case '<': case '>': case ':': case '&':
+    case '*': case '[': case ']':
+        return true;
+    default:
+        return false;
+    }
+}
+
+/* Measure next printable token width in pixels, skipping escape controls. */
+static int next_token_width_px(const char *buf, unsigned int len, int start)
+{
+    int px = 0;
+    for (int j = start; j < (int)len; j++) {
+        char c = buf[j];
+        if (c == '\n' || c == '\t' || is_wrap_break_char(c))
+            break;
+        if (c == '\a') {
+            if (++j >= (int)len) break;
+            if (buf[j] == 'Z' && ++j >= (int)len) break;
+            continue;
+        }
+        if (c == '\b')
+            continue;
+        px += 8;
+    }
+    return px;
+}
+
 static int inspector_stdout(char *buf, unsigned int len) {
     for (int i=0; i<len; i++) {
         if (cursor_x >= 640) break;
@@ -223,7 +258,10 @@ static int inspector_stdout(char *buf, unsigned int len) {
         switch (buf[i]) {
         case '\a': {
             uint32_t color = COLOR_TEXT;
-            switch (buf[++i]) {
+            bool apply_color = true;
+            if (++i >= (int)len) break;
+            int esc = buf[i];
+            switch (esc) {
             case 'T': color = COLOR_TEXT; break;
             case 'E': color = COLOR_EMPHASIS; break;
             case 'O': color = COLOR_ORANGE; break;
@@ -231,8 +269,20 @@ static int inspector_stdout(char *buf, unsigned int len) {
             case 'M': color = COLOR_MAGENTA; break;
             case 'G': color = COLOR_GREEN; break;
             case 'W': color = COLOR_WHITE; break;
+            case 'Z':
+                apply_color = false;
+                if (++i < (int)len) {
+                    int d = buf[i];
+                    cursor_wrap_indent = (d >= '0' && d <= '9') ? (d - '0') * 8 : 0;
+                } else {
+                    cursor_wrap_indent = 0;
+                }
+                break;
+            default:
+                break;
             }
-            graphics_set_color(color, COLOR_BACKGROUND);
+            if (apply_color)
+                graphics_set_color(color, COLOR_BACKGROUND);
         }   break;
         case '\b':
             cursor_wordwrap = true;
@@ -240,11 +290,12 @@ static int inspector_stdout(char *buf, unsigned int len) {
         case '\t':
             cursor_x = ROUND_UP(cursor_x+1, cursor_columns);
             if (cursor_wordwrap && cursor_x >= XEND) {
-                cursor_x = XSTART;
+                cursor_x = XSTART + cursor_wrap_indent;
                 cursor_y += 8;
             }
             break;
         case '\n':
+            cursor_wrap_indent = 0;
             cursor_x = XSTART;
             if (cursor_y == YTITLE) {
                 cursor_y = YSTART;
@@ -255,23 +306,19 @@ static int inspector_stdout(char *buf, unsigned int len) {
             graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
             break;
         default:
+            if (cursor_wordwrap && cursor_x >= XEND) {
+                cursor_x = XSTART + cursor_wrap_indent;
+                cursor_y += 8;
+            }
             if (cursor_x < XEND) {
                 graphics_draw_character(disp, cursor_x, cursor_y, buf[i]);
                 cursor_x += 8;
-                if (cursor_wordwrap && buf[i] == ' ') {
-                    // Check if we can fit the next word
-                    int j = i+1;
-                    while (j < len && buf[j] != ' ' && buf[j] != '\n')
-                        j++;
-                    // If it doesn't fit, wrap
-                    if (cursor_x + (j-i)*8 >= XEND) {
-                        cursor_x = XSTART;
+                if (cursor_wordwrap && is_wrap_break_char(buf[i])) {
+                    int next_word_px = next_token_width_px(buf, len, i + 1);
+                    if (next_word_px > 0 && cursor_x + next_word_px > XEND) {
+                        cursor_x = XSTART + cursor_wrap_indent;
                         cursor_y += 8;
                     }
-                }
-                if (cursor_wordwrap && cursor_x >= XEND) {
-                    cursor_x = XSTART;
-                    cursor_y += 8;
                 }
             }
             break;
@@ -284,7 +331,6 @@ static void inspector_print_backtrace(void *bt, int n, int bt_skip, bool also_de
 {
     printf("\aWBacktrace:\n");
     if (also_debugf) debugf("Backtrace:\n");
-    char func[128];
     bool skip = true;
     void cb(void *arg, backtrace_frame_t *frame) {
         if (also_debugf) { debugf("    "); backtrace_frame_print(frame, stderr); debugf("\n"); }
@@ -297,10 +343,17 @@ static void inspector_print_backtrace(void *bt, int n, int bt_skip, bool also_de
             bt_skip--;
             return;
         }
-        printf("    ");
-        snprintf(func, sizeof(func), "\aG%s\aT", frame->func);
-        frame->func = func;
-        backtrace_frame_print_compact(frame, stdout, 60);
+        const char *source_file = frame->source_file;
+        bool have_source = source_file && source_file[0] && strcmp(source_file, "???") != 0;
+        char file_part[96];
+        if (have_source)
+            snprintf(file_part, sizeof(file_part), "(%s:%d)", source_file, frame->source_line);
+        else
+            snprintf(file_part, sizeof(file_part), "[0x%08lx]", (unsigned long)frame->addr);
+
+        // Print function with arbitrary word-wrapped multiline layout.
+        printf("%*s\aZ%d\b\aG%s\aT", 4, "", 5, frame->func);
+        printf(" %s\n", file_part);
     }
     backtrace_symbols_cb(bt, n, 0, cb, NULL);
     if (skip) {
