@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <strings.h>
 
 #include <math.h>
 #include <stdlib.h>
@@ -33,17 +34,21 @@
 // savings.
 #define MAX_BUFFER_SIZE  512
 
-bool flag_verbose = false;
+int flag_verbose = 0;
 int flag_max_sym_len = 96;
 bool flag_inlines = true;
+bool flag_cpp_shorten = true;
 const char *gccprefix_triplet = NULL;
 
+// C++ symbol shortening function (n64sym_cppshorten.c)
+char *cpp_shorten_symbol(const char *sym, int max_len);
+
 // Printf if verbose
-void verbose(const char *fmt, ...) {
-    if (flag_verbose) {
+void verbose(int level, const char *fmt, ...) {
+    if (flag_verbose >= level) {
         va_list args;
         va_start(args, fmt);
-        vprintf(fmt, args);
+        vfprintf(stderr, fmt, args);
         va_end(args);
     }
 }
@@ -57,6 +62,7 @@ void usage(const char *progname)
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose          Verbose output\n");
     fprintf(stderr, "   -m/--max-len <N>      Maximum symbol length (default: 96)\n");
+    fprintf(stderr, "   --cpp-shorten <0|1>   C++ demangled symbol shortening (default: true)\n");
     fprintf(stderr, "   --no-inlines          Do not export inlined symbols\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "This program requires a libdragon toolchain installed in $N64_INST.\n");
@@ -202,13 +208,22 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         n--;
         if (line_buf[n-1] == '\r') n--; // Remove trailing \r (Windows)
 
-        // If the function of name is longer than 64 bytes, truncate it. This also
-        // avoid paradoxically long function names like in C++ that can even be
-        // several thousands of characters long.
-        // Also ensure it fits in the runtime buffer.
+        // Normalize/truncate function names to bounded length.
         int max_len = MIN(flag_max_sym_len, MAX_BUFFER_SIZE - 8);
-        char *func = strndup(line_buf, MIN(n, max_len));
-        if (n > max_len) strcpy(&func[max_len-3], "...");
+        char *func_raw = strndup(line_buf, n);
+        char *func = NULL;
+        if (flag_cpp_shorten) {
+            func = cpp_shorten_symbol(func_raw, max_len);
+            verbose(2, "C++ shortening:\n");
+            verbose(2, "  in  = %s\n", func_raw);
+            verbose(2, "  out = %s\n", func);
+        } else if (n <= max_len) {
+            func = strdup(func_raw);
+        } else {
+            func = strndup(func_raw, max_len);
+            if (max_len > 3) strcpy(&func[max_len-3], "...");
+        }
+        free(func_raw);
 
         // Second line is the file name and line number
         int ret = getline(&line_buf, &line_buf_size, addr2line_r);
@@ -248,7 +263,7 @@ void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
 {
     char *cmd = NULL;
     asprintf(&cmd, "%sobjdump -t %s", gccprefix_triplet, elf);
-    verbose("Running: %s\n", cmd);
+    verbose(1, "Running: %s\n", cmd);
     FILE *f = popen(cmd, "r");
     if (!f) {
         fprintf(stderr, "Error: cannot run: %s\n", cmd);
@@ -275,12 +290,12 @@ bool elf_find_callsites(const char *elf)
 {
     struct addr_map *all_functions = NULL;
     elf_read_function_symbols(elf, &all_functions);
-    verbose("Found %d function symbols\n", stbds_hmlen(all_functions));
+    verbose(1, "Found %d function symbols\n", stbds_hmlen(all_functions));
 
     // Start objdump to parse the disassembly of the ELF file
     char *cmd = NULL;
     asprintf(&cmd, "%sobjdump -d %s", gccprefix_triplet, elf);
-    verbose("Running: %s\n", cmd);
+    verbose(1, "Running: %s\n", cmd);
     FILE *disasm = popen(cmd, "r");
     if (!disasm) {
         fprintf(stderr, "Error: cannot run: %s\n", cmd);
@@ -429,14 +444,14 @@ void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, u
     int stats_huff_bytes = (stats_huff_bits + 7) / 8;
     int stats_front_coding_size = stats_raw_suffix_len + stats_varint_bytes;
 
-    verbose("  Huffman Stats:\n");
-    verbose("    Raw suffixes: %d bytes\n", stats_raw_suffix_len);
-    verbose("    Equivalent Front Coding Size: %d bytes\n", stats_front_coding_size);
-    verbose("    Compressed suffixes (Huffman): %d bytes (%.1f%%)\n", 
+    verbose(1, "  Huffman Stats:\n");
+    verbose(1, "    Raw suffixes: %d bytes\n", stats_raw_suffix_len);
+    verbose(1, "    Equivalent Front Coding Size: %d bytes\n", stats_front_coding_size);
+    verbose(1, "    Compressed suffixes (Huffman): %d bytes (%.1f%%)\n", 
         stats_huff_bytes, 100.0 * stats_huff_bytes / (stats_raw_suffix_len ? stats_raw_suffix_len : 1));
-    verbose("    Overhead: VarInts: %d bytes, Padding: %d bytes\n", 
+    verbose(1, "    Overhead: VarInts: %d bytes, Padding: %d bytes\n", 
         stats_varint_bytes, stats_padding_bytes);
-    verbose("    Total Blob Size: %d bytes (%.1f%% of Front Coding)\n", 
+    verbose(1, "    Total Blob Size: %d bytes (%.1f%% of Front Coding)\n", 
         stbds_arrlen(*blob), 100.0 * stbds_arrlen(*blob) / (stats_front_coding_size ? stats_front_coding_size : 1));
 }
 
@@ -642,14 +657,14 @@ void write_sym_file(const char *outfn,
     fwrite(stream, stbds_arrlen(stream), 1, out);
     
     int size = ftell(out);
-    verbose("  Total File Size: %d bytes\n", size);
+    verbose(1, "  Total File Size: %d bytes\n", size);
 
     fclose(out);
 }
 
 void process(const char *infn, const char *outfn)
 {
-    verbose("Processing: %s -> %s\n", infn, outfn);
+    verbose(1, "Processing: %s -> %s\n", infn, outfn);
 
     // First, find all functions and call sites. We do this by disassembling
     // the ELF file and grepping it.
@@ -657,11 +672,11 @@ void process(const char *infn, const char *outfn)
         fprintf(stderr, "Error: objdump failed\n");
         exit(1);
     }
-    verbose("Found %d callsites\n", stbds_arrlen(symtable));
+    verbose(1, "Found %d callsites\n", stbds_arrlen(symtable));
 
     // If the symtable is empty, there's nothing else to do
     if (stbds_arrlen(symtable) == 0) {
-        verbose("No symbols found\n");
+        verbose(1, "No symbols found\n");
         return;
     }
 
@@ -719,7 +734,7 @@ void process(const char *infn, const char *outfn)
     for (int i=0; i<nfuncs; i++) stbds_shput(func_map, unique_funcs[i], i);
     
     // Shared Huffman Table
-    verbose("Calculating shared Huffman table...\n");
+    verbose(1, "Calculating shared Huffman table...\n");
     int shared_freqs[256] = {0};
     collect_string_freqs(unique_files, shared_freqs);
     collect_string_freqs(unique_funcs, shared_freqs);
@@ -735,7 +750,7 @@ void process(const char *infn, const char *outfn)
     write_huff_header(&shared_ct, &huff_blob);
     
     // Compress string blobs using shared table (no headers)
-    verbose("Compressing strings (Shared Table)...\n");
+    verbose(1, "Compressing strings (Shared Table)...\n");
     compress_strings(unique_files, shared_huff_table, &file_blob, &file_offsets);
     compress_strings(unique_funcs, shared_huff_table, &func_blob, &func_offsets);
     
@@ -744,17 +759,17 @@ void process(const char *infn, const char *outfn)
     // Compress Symbols
     uint8_t *stream = NULL;
     uint32_t *chunk_index = NULL; // Stores (start_addr, offset) pairs    
-    verbose("Compressing symbols...\n");
+    verbose(1, "Compressing symbols...\n");
     int num_emitted = compress_symbols(symtable, stbds_arrlen(symtable), file_map, func_map, &stream, &chunk_index);
     
-    verbose("Stats:\n");
-    verbose("  Chunk Index: %zu bytes\n", stbds_arrlen(chunk_index) * 4);
-    verbose("  File Tab: %zu bytes\n", stbds_arrlen(file_offsets) * 4);
-    verbose("  Func Tab: %zu bytes\n", stbds_arrlen(func_offsets) * 4);
-    verbose("  Shared Huffman Table: %zu bytes\n", stbds_arrlen(huff_blob));
-    verbose("  File Blob: %zu bytes\n", stbds_arrlen(file_blob));
-    verbose("  Func Blob: %zu bytes\n", stbds_arrlen(func_blob));
-    verbose("  Stream: %zu bytes\n", stbds_arrlen(stream));
+    verbose(1, "Stats:\n");
+    verbose(1, "  Chunk Index: %zu bytes\n", stbds_arrlen(chunk_index) * 4);
+    verbose(1, "  File Tab: %zu bytes\n", stbds_arrlen(file_offsets) * 4);
+    verbose(1, "  Func Tab: %zu bytes\n", stbds_arrlen(func_offsets) * 4);
+    verbose(1, "  Shared Huffman Table: %zu bytes\n", stbds_arrlen(huff_blob));
+    verbose(1, "  File Blob: %zu bytes\n", stbds_arrlen(file_blob));
+    verbose(1, "  Func Blob: %zu bytes\n", stbds_arrlen(func_blob));
+    verbose(1, "  Stream: %zu bytes\n", stbds_arrlen(stream));
 
     write_sym_file(outfn, 
         num_emitted,  stbds_arrlen(chunk_index)/2, 
@@ -790,9 +805,22 @@ int main(int argc, char *argv[])
             usage(argv[0]);
             return 0;
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
-            flag_verbose = true;
+            flag_verbose++;
         } else if (!strcmp(argv[i], "--no-inlines")) {
             flag_inlines = false;
+        } else if (!strcmp(argv[i], "--cpp-shorten")) {
+            if (++i == argc) {
+                fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                return 1;
+            }
+            if (strcmp(argv[i], "0") == 0 || strcmp(argv[i], "false") == 0 || strcmp(argv[i], "no") == 0 || strcmp(argv[i], "off") == 0) {
+                flag_cpp_shorten = false;
+            } else if (strcmp(argv[i], "1") == 0 || strcmp(argv[i], "true") == 0 || strcmp(argv[i], "yes") == 0 || strcmp(argv[i], "on") == 0) {
+                flag_cpp_shorten = true;
+            } else {
+                fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                return 1;
+            }
         } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
             if (++i == argc) {
                 fprintf(stderr, "missing argument for %s\n", argv[i-1]);
