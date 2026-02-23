@@ -227,6 +227,10 @@ static int mixer_calc_buffer_size(int ch, int nchannels)
 	return size;
 }
 
+uint32_t __mixer_get_frequency(void) {
+	return Mixer.sample_rate;
+}
+
 void mixer_set_vol(float vol) {
 	Mixer.vol = vol;
 }
@@ -527,11 +531,17 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	assert(!mixer_ch_playing(ch));
 	tracef("mixer_ch_set_limits: ch=%d bits=%d maxfreq:%.2f bufsz:%d\n", ch, max_bits, max_frequency, max_buf_sz);
 
-	Mixer.limits[ch] = (channel_limit_t){
+	channel_limit_t new_limits = (channel_limit_t){
 		.max_bits = max_bits ? max_bits : 16,
 		.max_frequency = max_frequency ? max_frequency : Mixer.sample_rate,
 		.max_buf_sz = max_buf_sz,
 	};
+
+	// Avoid reallocating the sample buffer if the limits are the same.
+	if (memcmp(&Mixer.limits[ch], &new_limits, sizeof(channel_limit_t)) == 0)
+		return;
+
+	Mixer.limits[ch] = new_limits;
 
 	// Free the memory immediately, as it doesn't match the new limits anymore.
 	// We will reallocate it later lazily if needed.
