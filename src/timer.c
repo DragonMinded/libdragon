@@ -21,12 +21,6 @@ static timer_link_t *TI_timers = NULL;
 /** @brief Timer callback expects a context parameter */
 #define TF_CONTEXT     0x20
 
-/** @brief Timer is the special overflow timer. */
-#define TF_OVERFLOW    0x40
-
-/** @brief Timer has been called once in this interrupt. */
-#define TF_CALLED      0x80
-
 /** @brief Update the compare register to match the first expiring timer. */
 __attribute__((noinline))
 static void timer_update_compare(timer_link_t *head, uint32_t now)
@@ -79,10 +73,9 @@ static int __proc_timers(timer_link_t * thead)
 		 * timers that expire close to each other; eg: if the client creates
 		 * many timers with the same period, they will be created in a fast
 		 * sequence and have a little delay between each other. */
-		if (!(head->flags & TF_CALLED) && 
-			!(head->flags & TF_DISABLED) &&
-			TICKS_DISTANCE(start, head->left) >= 0 && 
-			TICKS_DISTANCE(head->left, now+TIMER_TICKS(5)) >= 0)
+		if (!(head->flags & TF_DISABLED) &&
+			TICKS_DISTANCE(start, head->left) >= 0 &&
+			TICKS_DISTANCE(head->left, now + TIMER_TICKS(5)) >= 0)
 		{
 			/* yes - timed out, do callback */
 			head->ovfl = TICKS_DISTANCE(head->left, now);
@@ -106,23 +99,6 @@ static int __proc_timers(timer_link_t * thead)
 			{
 				head->left += head->set;
 				last = head;
-
-				/* Special case: the internal overflow timer has a period
-				 * of 2**32, so next occurrence will look exactly like the
-				 * current one. Since we're going to reprocess the list, we
-				 * would keep executing it many times until we eventually
-				 * exit the 5 microseconds window.
-				 * So we mark this timer as already called (TF_CALLED) and
-				 * avoid calling it again. 
-				 *
-				 * Notice that we do this only for overflow because other timers
-				 * with a short period might actually be called multiple times
-				 * under interrupt. For instance, if a continuous timer with
-				 * a short period is followed by a very slow one-shot timer,
-				 * when the latter is finished the former might need to fire again.
-				 */
-				if (head->flags & TF_OVERFLOW)
-					head->flags |= TF_CALLED;
 			}
 			else
 			{
@@ -143,12 +119,7 @@ static int __proc_timers(timer_link_t * thead)
 		head = head->next;
 	}
 
-	/* Clear the TF_CALLED flag from the overflow timer (if any) */
-	while (thead) {
-		thead->flags &= ~TF_CALLED;
-		thead = thead->next;
-	}
-	return 0;							// exit timer callback
+	return 0; // exit timer callback
 }
 
 /**
