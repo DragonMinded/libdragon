@@ -39,6 +39,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/vaddr64.o \
 	$(BUILD_DIR)/mi_memset.o \
 	$(BUILD_DIR)/interrupt.o \
+	$(BUILD_DIR)/async.o \
 	$(BUILD_DIR)/backtrace.o \
 	$(BUILD_DIR)/symtable.o \
 	$(BUILD_DIR)/dir.o \

@@ -106,5 +106,6 @@
 #include "a3d.h"
 #include "profile.h"
 #include "coroutine.h"
+#include "async.h"
 
 #endif
