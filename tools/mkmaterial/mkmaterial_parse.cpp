@@ -90,7 +90,7 @@ std::string parse_enum(std::string value, const std::vector<std::string> &enums)
 
 void Combiner::parse_attr(std::string key, std::string value)
 {
-    static const std::regex expr(R"(\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\)(?:\s*,\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*\))?)");
+    static const std::regex expr(R"(\s*\(\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*\)(?:\s*,\s*\(\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*\))?)");
 
     if (key == "rgb") {
         combexpr::Parser parser(value);
@@ -111,7 +111,7 @@ void Combiner::parse_attr(std::string key, std::string value)
         std::smatch match;
         if (std::regex_match(value, match, expr)) {
             rgb = combexpr::CombinerExpr(combexpr::CombinerChannel::RGB, match[1], match[2], match[3], match[4]);
-            if (match.length() > 5) {
+            if (match[5].matched) {
                 rgb.set(1, 'a', match[5]); rgb.set(1, 'b', match[6]); rgb.set(1, 'c', match[7]); rgb.set(1, 'd', match[8]);
             }
             full = combexpr::CombinerExprFull(rgb, alpha);
@@ -123,7 +123,7 @@ void Combiner::parse_attr(std::string key, std::string value)
         std::smatch match;
         if (std::regex_match(value, match, expr)) {
             alpha = combexpr::CombinerExpr(combexpr::CombinerChannel::ALPHA, match[1], match[2], match[3], match[4]);
-            if (match.length() > 5) {
+            if (match[5].matched) {
                 alpha.set(1, 'a', match[5]); alpha.set(1, 'b', match[6]); alpha.set(1, 'c', match[7]); alpha.set(1, 'd', match[8]);
             }
             full = combexpr::CombinerExprFull(rgb, alpha);
@@ -441,7 +441,7 @@ std::vector<Material> parse_jmat(const char *fn)
             try {
                 mat.parse_attr(key, value.get<std::string>());
             } catch (std::runtime_error &e) {
-                fprintf(stderr, "%s: error: %s (material: %s)\n", fn, e.what(), material_name.c_str());
+                fprintf(stderr, "%s: error: %s (material: %s, key: %s)\n", fn, e.what(), material_name.c_str(), key.c_str());
                 mat_error = true;
             }
         }
