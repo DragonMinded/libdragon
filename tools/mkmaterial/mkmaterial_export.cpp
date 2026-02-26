@@ -65,12 +65,12 @@ void texconvert(Texture &tex)
     cmd_addr[i++] = "--format"; 
     cmd_addr[i++] = tex.fmt.c_str();
 
-    if (tex.mipmap != "none") {
+    if (tex.mipmap != "NONE") {
         cmd_addr[i++] = "--mipmap";
         cmd_addr[i++] = tex.mipmap.c_str();
     }
 
-    if (tex.dithering != "none") {
+    if (tex.dithering != "NONE") {
         cmd_addr[i++] = "--dither";
         cmd_addr[i++] = tex.dithering.c_str();
     }

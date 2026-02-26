@@ -185,9 +185,9 @@ void Texture::parse_attr(std::string key, std::string value)
     } else if (key == "fmt") {
         fmt = parse_enum(value, {"AUTO", "RGBA16", "RGBA32", "CI4", "CI8", "IA4", "IA8", "IA16", "I4", "I8", "SHQ", "IHQ"});
     } else if (key == "mipmap") {
-        mipmap = parse_enum(value, {"none", "box"});
+        mipmap = parse_enum(value, {"NONE", "BOX"});
     } else if (key == "dithering") {
-        dithering = value;
+        dithering = parse_enum(value, {"NONE", "RANDOM", "ORDERED"});
     } else if (key == "s.translate") {
         s.translate = parse_float(value, -1024, 1024);
     } else if (key == "s.scale") {
