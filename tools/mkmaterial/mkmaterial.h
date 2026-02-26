@@ -65,9 +65,9 @@ struct MyEnum {
 
 struct Texture {
     std::string name{""};
-    std::string fmt{"auto"};
-    std::string mipmap{"none"};
-    std::string dithering{"none"};
+    std::string fmt{"AUTO"};
+    std::string mipmap{"NONE"};
+    std::string dithering{"NONE"};
     struct {
         float translate{0};
         int scale{1};
