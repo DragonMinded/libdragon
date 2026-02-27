@@ -65,9 +65,9 @@ struct MyEnum {
 
 struct Texture {
     std::string name{""};
-    std::string fmt{"auto"};
-    std::string mipmap{"none"};
-    std::string dithering{"none"};
+    std::string fmt{"AUTO"};
+    std::string mipmap{"NONE"};
+    std::string dithering{"NONE"};
     struct {
         float translate{0};
         int scale{1};
@@ -106,7 +106,7 @@ struct Combiner {
 };
 
 struct Blender {
-    MyEnum mode{0, {"off", "multiply", "multiply_const", "additive"}};
+    MyEnum mode{0, {"none", "multiply", "multiply_const", "additive"}};
     float constant{-1};
 
     void parse_attr(std::string key, std::string value);

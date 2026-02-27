@@ -29,7 +29,7 @@ static const std::vector<std::string> ALPHA_SLOTS_B = { "combined", "tex0", "tex
 static const std::vector<std::string> ALPHA_SLOTS_C = { "lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0" };
 static const std::vector<std::string> ALPHA_SLOTS_D = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
 
-static const std::unordered_set<std::string> ALL_SLOTS = { "combined", "tex0", "tex1", "shade", "prim", "env", "noise", "1", "0", "k4", "k5", "tex0.a", "tex1.a", "shade.a", "prim.a", "env.a", "lod_frac", "prim_lod_frac", "keycenter", "keyscale" };
+static const std::unordered_set<std::string> ALL_SLOTS = { "combined", "tex0", "tex1", "shade", "prim", "env", "noise", "1", "0", "k4", "k5", "combined.a", "tex0.a", "tex1.a", "shade.a", "prim.a", "env.a", "lod_frac", "prim_lod_frac", "keycenter", "keyscale" };
 
 enum CombinerChannel {
     RGB = 0,
