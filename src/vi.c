@@ -833,6 +833,9 @@ void vi_reset(void)
     // VI will be programmed at next vblank.
     cfg_pending = (1 << VI_REGISTERS_COUNT) - 1;
 
+    // Set the vblank interrupt to the beginning of the vblank period
+    vi_write(VI_V_INTR, VI_V_CURRENT_VBLANK);
+
     // Set the timing preset according to the current TV type
     vi_set_timing_preset(default_presets[get_tv_type()]);
 
@@ -872,7 +875,7 @@ void vi_init(void)
 
     disable_interrupts();
     register_VI_handler(__vi_interrupt);
-    set_VI_interrupt(1, VI_V_CURRENT_VBLANK);
+    set_VI_interrupt(1, vi_read(VI_V_INTR));
     enable_interrupts();
 }
 
