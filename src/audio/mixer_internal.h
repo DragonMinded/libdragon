@@ -7,9 +7,6 @@
 
 #include <stdint.h>
 
-/** @brief Get the current sample rate of the mixer */
-extern uint32_t __mixer_get_frequency(void);
-
 /** @brief RSPQ overlay ID assigned to the mixer ucode */
 extern uint32_t __mixer_overlay_id;
 

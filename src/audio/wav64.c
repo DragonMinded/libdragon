@@ -248,13 +248,6 @@ wav64_t* wav64_loadfd(int fd, const char *debug_file_name, wav64_loadparms_t *pa
 
 void wav64_play(wav64_t *wav, int ch)
 {
-	// If we request a playback of a waveform with a frequency higher than
-	// the current mixer frequency, adjust the channel limits to allow it.
-	// This happens often for Opus-compressed files, that all output
-	// at 48kHz but the mixer frequency is often set below that.
-	if (wav->wave.frequency > __mixer_get_frequency())
-		mixer_ch_set_limits(ch, 0, wav->wave.frequency, 0);
-
 	mixer_ch_play(ch, &wav->wave);
 }
 
