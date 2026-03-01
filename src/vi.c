@@ -219,8 +219,11 @@ static void __vblank_interrupt(void*)
     }
 
     // If blank mode is active, set VI_H_VIDEO to 0 to disable any framebuffer sampling
+    // Also disable AA as we can hit hard-to-reproduce VI crashes when switching
+    // from AA blank mode, to a non-AA non-blank mode.
     if (UNLIKELY(blank_mode)) {
         *VI_H_VIDEO = 0;
+        *VI_CTRL |= VI_AA_MODE_NONE;
     }
 
     // VI adjustments in case of serration, to achieve the interlaced effect.
@@ -279,6 +282,11 @@ static void __vblank_interrupt(void*)
             *VI_V_BURST = v_burst_mpal_values[field];
         }
     }
+
+    int line = vi_get_scanline(NULL);
+    if (line < VI_V_CURRENT_VBLANK || line > VI_V_CURRENT_VBLANK + 8) {
+        debugf("VI WARNING: __vblank_interrupt outside of vblank period: %d\n", line);
+    } 
 }
 
 /** @brief VI interrupt handler for line interrupts */
@@ -644,8 +652,10 @@ void vi_blank(bool set_blank)
 {
     disable_interrupts();
     blank_mode = set_blank;
-    if (!blank_mode)
+    if (!blank_mode) {
         vi_write(VI_H_VIDEO, vi_read(VI_H_VIDEO));
+        vi_write(VI_CTRL, vi_read(VI_CTRL));
+    }
     enable_interrupts();
 }
 
@@ -674,6 +684,8 @@ void vi_wait_vblank(void)
             if ((c0_status & C0_STATUS_IE) == 0 || ((c0_status & (C0_STATUS_EXL|C0_STATUS_ERL)) != 0)) {
                 __vblank_interrupt(NULL);
             }
+
+            assert(cfg_pending == 0);
         }
     }
 }
