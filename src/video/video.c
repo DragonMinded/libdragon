@@ -132,6 +132,7 @@ video_t* video_open(const char *fn, const video_parms_t *parms)
     }
     
     assertf(false, "No registered codec found for video file: %s", fn);
+    return NULL;
 }
 
 void video_close(video_t *v)
