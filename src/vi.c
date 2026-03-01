@@ -725,26 +725,32 @@ void vi_debug_dump(int verbose)
 
 void vi_install_vblank_handler(void (*handler)(void *), void *arg)
 {
+    disable_interrupts();
     for (int i=0; i<MAX_VBLANK_HANDLERS; i++) {
         if (vblank_handlers[i].handler == NULL) {
             vblank_handlers[i].handler = handler;
             vblank_handlers[i].arg = arg;
+            enable_interrupts();
             return;
         }
     }
     assertf(false, "Too many vblank handlers");
+    enable_interrupts();
 }
 
 void vi_uninstall_vblank_handler(void (*handler)(void *), void *arg)
 {
+    disable_interrupts();
     for (int i=0; i<MAX_VBLANK_HANDLERS; i++) {
         if (vblank_handlers[i].handler == handler && vblank_handlers[i].arg == arg) {
             vblank_handlers[i].handler = NULL;
             vblank_handlers[i].arg = NULL;
+            enable_interrupts();
             return;
         }
     }
     assertf(false, "VBlank handler not found");
+    enable_interrupts();
 }
 
 void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg)
