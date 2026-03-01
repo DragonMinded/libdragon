@@ -283,10 +283,12 @@ static void __vblank_interrupt(void*)
         }
     }
 
+#ifndef NDEBUG
     int line = vi_get_scanline(NULL);
-    if (line < VI_V_CURRENT_VBLANK || line > VI_V_CURRENT_VBLANK + 8) {
+    if (line > VI_V_CURRENT_VBLANK + 8) {
         debugf("VI WARNING: __vblank_interrupt outside of vblank period: %d\n", line);
-    } 
+    }
+#endif
 }
 
 /** @brief VI interrupt handler for line interrupts */
