@@ -229,6 +229,7 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
 </div><div class="memdoc">
 
 <p>Read a block from EEPROM. </p>
+<p>This operation will wait for the EEPROM busy bit to clear before reading; you may want to pause audio before calling this to prevent stuttering.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">block</td><td>Block to read data from. Joybus accesses EEPROM in 8-byte blocks.</td></tr>
@@ -266,6 +267,7 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
 </div><div class="memdoc">
 
 <p>Write a block to EEPROM. </p>
+<p>Once a block is written, the EEPROM will be busy for up to 15 milliseconds. This operation will wait for the EEPROM busy bit to clear before writing; you may want to pause audio before calling this to prevent stuttering.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">block</td><td>Block to write data to. Joybus accesses EEPROM in 8-byte blocks.</td></tr>
@@ -376,7 +378,7 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Sun Dec 14 2025 13:26:12 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Tue Mar 3 2026 08:29:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
