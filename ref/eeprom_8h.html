@@ -230,6 +230,7 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
 
 <p>Read a block from EEPROM. </p>
 <p>This operation will wait for the EEPROM busy bit to clear before reading; you may want to pause audio before calling this to prevent stuttering.</p>
+<p>This operation is quite fast (compared to writes) as it takes approximately 750 µs.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">block</td><td>Block to read data from. Joybus accesses EEPROM in 8-byte blocks.</td></tr>
@@ -267,7 +268,7 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
 </div><div class="memdoc">
 
 <p>Write a block to EEPROM. </p>
-<p>Once a block is written, the EEPROM will be busy for up to 15 milliseconds. This operation will wait for the EEPROM busy bit to clear before writing; you may want to pause audio before calling this to prevent stuttering.</p>
+<p>Once a block is written, the EEPROM will be busy for up to 6 milliseconds. This operation will wait for the EEPROM busy bit to clear before writing; you may want to pause audio before calling this to prevent stuttering.</p>
 <dl class="params"><dt>Parameters</dt><dd>
   <table class="params">
     <tr><td class="paramdir">[in]</td><td class="paramname">block</td><td>Block to write data to. Joybus accesses EEPROM in 8-byte blocks.</td></tr>
@@ -358,10 +359,10 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
 
 <p>Write a buffer of bytes to EEPROM. </p>
 <p>This is a high-level convenience helper that abstracts away the one-at-a-time EEPROM block access pattern.</p>
-<p>Each EEPROM block write takes approximately 15 milliseconds; this operation may block for a while with large buffer sizes:</p>
+<p>Each EEPROM block write takes approximately 6 milliseconds; this operation may block for a while with large buffer sizes:</p>
 <ul>
-<li>4k EEPROM: 64 blocks * 15ms = 960ms!</li>
-<li>16k EEPROM: 256 blocks * 15ms = 3840ms!</li>
+<li>4k EEPROM: 64 blocks * 6ms = 384ms!</li>
+<li>16k EEPROM: 256 blocks * 6ms = 1536ms!</li>
 </ul>
 <p>You may want to pause audio before calling this.</p>
 <dl class="params"><dt>Parameters</dt><dd>
@@ -378,7 +379,7 @@ thekovic <a href="https://github.com/thekovic">https://github.com/thekovic</a> <
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Tue Mar 3 2026 08:29:50 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Fri Mar 6 2026 12:57:54 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
