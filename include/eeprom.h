@@ -81,6 +81,9 @@ size_t eeprom_total_blocks( void );
  * This operation will wait for the EEPROM busy bit to clear before reading;
  * you may want to pause audio before calling this to prevent stuttering.
  *
+ * This operation is quite fast (compared to writes) as it takes approximately
+ * 750 µs.
+ *
  * @param[in]  block
  *             Block to read data from. Joybus accesses EEPROM in 8-byte blocks.
  *
@@ -92,7 +95,7 @@ void eeprom_read( uint8_t block, uint8_t * dest );
 /**
  * @brief Write a block to EEPROM.
  * 
- * Once a block is written, the EEPROM will be busy for up to 15 milliseconds.
+ * Once a block is written, the EEPROM will be busy for up to 6 milliseconds.
  * This operation will wait for the EEPROM busy bit to clear before writing;
  * you may want to pause audio before calling this to prevent stuttering.
  *
@@ -127,11 +130,11 @@ void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len );
  * This is a high-level convenience helper that abstracts away the
  * one-at-a-time EEPROM block access pattern.
  *
- * Each EEPROM block write takes approximately 15 milliseconds;
+ * Each EEPROM block write takes approximately 6 milliseconds;
  * this operation may block for a while with large buffer sizes:
  *
- * * 4k EEPROM: 64 blocks * 15ms = 960ms!
- * * 16k EEPROM: 256 blocks * 15ms = 3840ms!
+ * * 4k EEPROM: 64 blocks * 6ms = 384ms!
+ * * 16k EEPROM: 256 blocks * 6ms = 1536ms!
  *
  * You may want to pause audio before calling this.
  *
