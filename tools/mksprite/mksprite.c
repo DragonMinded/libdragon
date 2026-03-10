@@ -113,6 +113,7 @@ const char *dither_algo_name(int algo) {
 }
 
 bool flag_verbose = false;
+bool flag_lossy = false;
 bool flag_debug = false;
 
 void print_supported_formats(void) {
@@ -558,7 +559,12 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         fmt = FMT_CI8;
     if (autofmt && state.info_raw.colortype == LCT_RGBA && palout->used_colors <= 16)
         fmt = FMT_CI4;
-    
+
+    if (autofmt && flag_lossy) {
+        // Lossy format is always RGBA16
+        fmt = FMT_RGBA16;
+    }
+
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
         fprintf(stderr, "auto selected format: %s\n", tex_format_name(fmt));
@@ -2116,6 +2122,9 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 pm.lossy_quality = q;
+                if (pm.lossy_quality < 100) {
+                    flag_lossy = true;
+                }
             }
 
             /* ---------------- TEXTURE PARAMETERS console argument ------------------- */
