@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
         asprintf(&outfn, "%s/%s", outdir, basename);
 
         if (flag_verbose)
-            printf("Compressing: %s => %s [algo=%d]\n", infn, outfn, compression);
+            fprintf(stderr, "Compressing: %s => %s [algo=%d]\n", infn, outfn, compression);
 
         if (!file_exists(infn)) {
             fprintf(stderr, "error: input file not found: %s\n", infn);
@@ -132,8 +132,11 @@ int main(int argc, char *argv[])
             fprintf(stderr, "error opening output file: %s\n", outfn);
             return 1;
         }
-        asset_compress_mem(data, sz, out, compression, winsize, NULL);
+        int cmp_size = asset_compress_mem(data, sz, out, compression, winsize, NULL);
         fclose(out);
+
+        if (flag_verbose)
+            fprintf(stderr, "%d bytes => %d bytes (ratio %.1f%%)\n", sz, cmp_size, 100.0 * (float)cmp_size / (float)sz);
 
         free(outfn);
     }

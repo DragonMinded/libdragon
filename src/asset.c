@@ -213,6 +213,7 @@ static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
         header->inplace_margin = __read_varint_u64(&ptr);
         int header_size = (void*)ptr - (void*)header;
         if (header_size & 1) header_size++;
+        assertf(header_size < sizeof(asset_header_t), "header size too large");
 
         // Seek back to the actual end of the header
         int cur = lseek(fd, header_size - rdhead, SEEK_CUR); (void)cur;

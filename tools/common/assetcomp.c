@@ -168,6 +168,8 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
             winsize /= 2;
     }
 
+    int start_pos = ftell(out);
+
     // FIXME: use asset_compress_mem_raw() instead of duplicating the code here
     switch (compression) {
     case 0: { // none
@@ -196,7 +198,7 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         fwrite(output, 1, cmp_size, out);
         free(output);
         if (margin) *margin = inplace_margin;
-        return cmp_size + 20;
+        return ftell(out) - start_pos;
     }   break;
     case 2: { // aplib
         if (winsize == 0) {
@@ -214,6 +216,7 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
             0,          // dictionary size
             NULL,       // progress callback
             &stats);
+        assert(cmp_size <= max_cmp_size);
 
         int inplace_margin = stats.safe_dist + cmp_size - sz;
         fwrite("DCA5", 1, 4, out);
@@ -225,7 +228,7 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         fwrite(output, 1, cmp_size, out);
         free(output);
         if (margin) *margin = inplace_margin;
-        return cmp_size + 20;
+        return ftell(out) - start_pos;
     }   break;
     case 1: { // lz4hc
         // Default for LZ4HC is 8 KiB, which makes sense given the little
@@ -265,7 +268,7 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         fwrite(output, 1, cmp_size, out);
         free(output);
         if (margin) *margin = inplace_margin;
-        return cmp_size + 20;
+        return ftell(out) - start_pos;
     }   break;
     default:
         assert(0);
