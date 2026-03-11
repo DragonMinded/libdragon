@@ -219,6 +219,9 @@ int asset_compress_mem(void *data, int sz, FILE *out, int compression, int winsi
         assert(cmp_size <= max_cmp_size);
 
         int inplace_margin = stats.safe_dist + cmp_size - sz;
+        // FIXME: in rare cases, apultra returns a negative margin...
+        inplace_margin = inplace_margin > 0 ? inplace_margin : 0;
+
         fwrite("DCA5", 1, 4, out);
         w8(out, asset_winsize_to_flags(winsize) | (2 << ASSET_FLAG_ALGO_SHIFT)); // flags
         wleb128u(out, cmp_size); // cmp_size
