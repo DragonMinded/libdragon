@@ -258,10 +258,16 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	@echo "    [DSOEXTERN] $@"
 	$(N64_DSOEXTERN) -o $@ $^ 
 	
-%.msym: %.elf
+%.msym:
 	@echo "    [MSYM] $@"
-	$(N64_DSOMSYM) $< $@
-    
+	EXTERNS_FILE="$(filter %.externs, $^)"; \
+	INPUT_FILE="$(filter %.elf, $^)"; \
+	if [ -z "$$EXTERNS_FILE" ]; then \
+		$(N64_DSOMSYM) "$$INPUT_FILE" $@; \
+	else \
+		$(N64_DSOMSYM) -e "$$EXTERNS_FILE" "$$INPUT_FILE" $@; \
+	fi
+	
 ifneq ($(V),1)
 .SILENT:
 endif
