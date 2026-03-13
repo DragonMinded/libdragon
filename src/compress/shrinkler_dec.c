@@ -13,14 +13,7 @@
 #include "shrinkler_dec_internal.h"
 #include "ringbuf_internal.h"
 #include "../utils.h"
-#ifdef N64
 #include "debug.h"
-#else
-#include <assert.h>
-/// @cond
-#define assertf(x, ...) assert(x)
-/// @endcond
-#endif
 
 /// @cond
 #if defined(__GNUC__) || defined(__clang__)

@@ -4,6 +4,7 @@
  */
 #include "asset.h"
 #include "asset_internal.h"
+#include "debug.h"
 #include "compress/aplib_dec_internal.h"
 #include "compress/lz4_dec_internal.h"
 #include "compress/shrinkler_dec_internal.h"
@@ -33,7 +34,6 @@
 #include <assert.h>
 /// @cond
 #define memalign(a, b) malloc(b)
-#define assertf(x, ...) assert(x)
 /// @endcond
 #endif
 
@@ -143,7 +143,7 @@ static bool decompress_full_stream(asset_compression_stream_t *algo, int fd, uin
     assertf(state, "Out of memory");
     algo->decompress_init(state, fd, winsize);
     int n = algo->decompress_read(state, buf, size);
-    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, size);
+    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, (int)size);
     free(state);
     return true;
 }
@@ -194,7 +194,7 @@ static bool decompress_full(asset_compression_full_t *algo, int fd, size_t cmp_s
         // Run the decompression.
         n = algo->decompress_full(s+cmp_offset, cmp_size, s, size); (void)n;
     }
-    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, size);
+    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, (int)size);
     return true;
 }
 
