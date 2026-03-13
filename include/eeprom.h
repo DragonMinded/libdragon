@@ -30,8 +30,26 @@
  *  * A higher-level API (eepromfs.h) for higher-level access to EEPROM
  *    with structured data.
  *
+ * The low-level API exposes:
+ * - #eeprom_present and #eeprom_total_blocks to probe EEPROM capacity
+ * - #eeprom_read and #eeprom_read_bytes to read save data
+ * - #eeprom_write and #eeprom_write_bytes to update save data
+ * - #eeprom_is_busy to query whether background flush is still pending
+ *
+ * Current implementation uses a RAM master-copy with background write-back:
+ * reads are served from RAM cache (with lazy block fetch from EEPROM),
+ * writes update RAM immediately and are persisted asynchronously.
+ * This implies eventual consistency with physical EEPROM.
+ *
+ * Since writes happen in background, make sure to provide user feedback
+ * while writes are happening, checking with #eeprom_is_busy and telling
+ * the user that a write is in progress.
+ *
+ * Shutting down the console while a write is in progress can result in 
+ * the block being corrupted.
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 
 /**
@@ -90,7 +108,7 @@ size_t eeprom_total_blocks( void );
  * @param[out] dest
  *             Destination buffer for the eight bytes read from EEPROM.
  */
-void eeprom_read( uint8_t block, uint8_t * dest );
+void eeprom_read( uint8_t block, void * dest );
 
 /**
  * @brief Write a block to EEPROM.
@@ -107,7 +125,7 @@ void eeprom_read( uint8_t block, uint8_t * dest );
  *
  * @return the EEPROM status byte
  */
-uint8_t eeprom_write( uint8_t block, const uint8_t * src );
+uint8_t eeprom_write( uint8_t block, const void * src );
 
 /**
  * @brief Read a buffer of bytes from EEPROM.
@@ -122,7 +140,7 @@ uint8_t eeprom_write( uint8_t block, const uint8_t * src );
  * @param[in]  len
  *             Byte length of data to read into buffer
  */
-void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len );
+void eeprom_read_bytes( void * dest, size_t start, size_t len );
 
 /**
  * @brief Write a buffer of bytes to EEPROM.
@@ -147,7 +165,36 @@ void eeprom_read_bytes( uint8_t * dest, size_t start, size_t len );
  * @param[in] len
  *            Byte length of the src buffer
  */
-void eeprom_write_bytes( const uint8_t * src, size_t start, size_t len );
+void eeprom_write_bytes( const void * src, size_t start, size_t len );
+
+/**
+ * @brief Return whether EEPROM flush is currently running.
+ *
+ * This function reports whether the background flusher is actively persisting
+ * data to EEPROM.
+ *
+ * Typical usage is to continue gameplay/UI while periodically checking this,
+ * and show feedback such as "saving..." until it returns false.
+ *
+ * @return true if background flush is currently active, false otherwise.
+ */
+bool eeprom_is_busy(void);
+
+
+/**
+ * @brief Wait until the EEPROM is completely idle.
+ * 
+ * This function will block until the EEPROM is completely idle, i.e. until
+ * all background writes have completed.
+ *
+ * This is similar to making a loop around #eeprom_is_busy, but it allows
+ * to switch to other threads while waiting.
+ *
+ * @note EEPROM writes are quite slow, so this function can block for a
+ *       long time, up to hundreds of milliseconds. Therefore it should be
+ *       used only when there is no graphics or audio to process.
+ */
+void eeprom_wait_idle(void);
 
 #ifdef __cplusplus
 }
