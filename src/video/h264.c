@@ -193,6 +193,7 @@ static void h264_close(video_t *v) {
         close(player->fd);
         player->fd = -1;
     }
+    h264bsdShutdown(&player->s);
     free(player);
 }
 
