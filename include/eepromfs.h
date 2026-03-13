@@ -136,8 +136,10 @@ int eepfs_read(const char * path, void * dest, size_t size);
 /**
  * @brief Writes an entire file to the EEPROM filesystem.
  * 
- * Each EEPROM block write takes approximately 15 milliseconds;
- * this operation may block for a while!
+ * @note Writes are eventually consistent, so they will be
+ * performed in background and may take a while to complete.
+ * Use #eeprom_is_busy or #eeprom_wait_idle to check the status
+ * of the write.
  *
  * @param[in] path
  *            Path of file in EEPROM filesystem to write to
@@ -157,10 +159,12 @@ int eepfs_write(const char * path, const void * src, size_t size);
  * All files in the filesystem must always exist at the size specified
  * during #eepfs_init
  * 
- * Each EEPROM block write takes approximately 15 milliseconds;
- * this operation may block for a while!
- * 
  * Be advised: this is a destructive operation that cannot be undone!
+ *
+ * @note Writes are eventually consistent, so they will be
+ * performed in background and may take a while to complete.
+ * Use #eeprom_is_busy or #eeprom_wait_idle to check the status
+ * of the write.
  * 
  * @retval EEPFS_ESUCCESS if successful
  * @retval EEPFS_ENOFILE if the path is not a valid file
@@ -199,9 +203,6 @@ bool eepfs_verify_signature(void);
  * 
  * This is useful when you want to erase all files in the filesystem.
  * 
- * Each EEPROM block write takes approximately 15 milliseconds;
- * this operation may block for a while:
- * 
  * * 4k EEPROM: 64 blocks * 15ms = 960ms!
  * * 16k EEPROM: 256 blocks * 15ms = 3840ms!
  * 
@@ -209,6 +210,11 @@ bool eepfs_verify_signature(void);
  * 
  * Be advised: this is a destructive operation that cannot be undone!
  * 
+ * @note Writes are eventually consistent, so they will be
+ * performed in background and may take a while to complete.
+ * Use #eeprom_is_busy or #eeprom_wait_idle to check the status
+ * of the write.
+ *
  * @see #eepfs_verify_signature
  */
 void eepfs_wipe(void);
