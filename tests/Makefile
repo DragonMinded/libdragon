@@ -68,8 +68,8 @@ $(BUILD_DIR)/testrom_emu.o: $(SOURCE_DIR)/testrom.c
 
 ${BUILD_DIR}/rsp_test.o: IS_OVERLAY=1
 
-$(BUILD_DIR)/testrom_emu.msym: $(BUILD_DIR)/testrom_emu.elf
-$(BUILD_DIR)/testrom.msym: $(BUILD_DIR)/testrom.elf
+$(BUILD_DIR)/testrom_emu.msym: $(BUILD_DIR)/testrom_emu.elf $(MAIN_ELF_EXTERNS)
+$(BUILD_DIR)/testrom.msym: $(BUILD_DIR)/testrom.elf $(MAIN_ELF_EXTERNS)
 
 $(MAIN_ELF_EXTERNS): $(DSO_LIST)
 filesystem/dl_test_syms.dso: $(BUILD_DIR)/dl_test_syms.o

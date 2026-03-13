@@ -38,7 +38,7 @@ ovldemo.z64: N64_ROM_TITLE="Overlay Demo"
 # Main Executable Symbol Table is required for overlay linking
 ovldemo.z64: $(BUILD_DIR)/ovldemo.dfs $(MAIN_ELF_SYMBOLS)
 # Rule for Main Executable Symbol Table
-$(MAIN_ELF_SYMBOLS): $(BUILD_DIR)/ovldemo.elf
+$(MAIN_ELF_SYMBOLS): $(BUILD_DIR)/ovldemo.elf $(MAIN_ELF_EXTERNS)
 
 clean:
 	rm -rf $(BUILD_DIR) filesystem $(DSO_LIST) ovldemo.z64
