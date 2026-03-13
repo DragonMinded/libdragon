@@ -31,7 +31,7 @@ filesystem/n64brew.dso: $(n64brew_SRC:%.c=$(BUILD_DIR)/%.o)
 overlays_actor.z64: N64_ROM_TITLE="Actor Overlay Demo"
 overlays_actor.z64: $(BUILD_DIR)/overlays_actor.dfs $(BUILD_DIR)/overlays_actor.msym
 
-$(BUILD_DIR)/overlays_actor.msym: $(BUILD_DIR)/overlays_actor.elf
+$(BUILD_DIR)/overlays_actor.msym: $(BUILD_DIR)/overlays_actor.elf $(MAIN_ELF_EXTERNS)
 
 clean:
 	rm -rf $(BUILD_DIR) filesystem $(DSO_LIST) overlays_actor.z64
