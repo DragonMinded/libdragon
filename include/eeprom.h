@@ -46,7 +46,26 @@
  * the user that a write is in progress.
  *
  * Shutting down the console while a write is in progress can result in 
- * the block being corrupted.
+ * the block being corrupted. EEPFS (eepromfs.h) provides higher-level
+ * filesystem integrity features to mitigate this.
+ *
+ * Activating EEPROM in emulators or flashcarts
+ * --------------------------------------------
+ * Libdragon offers support to advertise the need of an EEPROM to emulators
+ * and flashcarts. To do so, add <code>N64_ROM_SAVETYPE=eeprom4k</code> or
+ * <code>N64_ROM_SAVETYPE=eeprom16k</code> to your Makefile. 
+ *
+ * This uses the advanced homebrew header which is supported by most emulators
+ * and flashcarts compatible with libdragon. It still advised to use the
+ * #eeprom_present and #eeprom_total_blocks functions to probe the EEPROM
+ * and gracefully handles the case where no EEPROM is present, even if it
+ * was requested.
+ *
+ * Cheap chinese flashcarts might not support the advanced homebrew header,
+ * and they most likely default to a 4k EEPROM as default save states for
+ * non-commercial ROMs. If your ROM requires a 16k EEPROM to operate
+ * properly, users of those flashcarts will need to manually configure the
+ * EEPROM type using flashcart-specific instructions.
  */
 
 #include <stdbool.h>
@@ -96,26 +115,28 @@ size_t eeprom_total_blocks( void );
 /**
  * @brief Read a block from EEPROM.
  * 
- * This operation will wait for the EEPROM busy bit to clear before reading;
- * you may want to pause audio before calling this to prevent stuttering.
- *
- * This operation is quite fast (compared to writes) as it takes approximately
- * 750 µs.
+ * This function will read a block of data from EEPROM (8 bytes). Most users
+ * will want to use #eeprom_read_bytes instead, which is more flexible.
  *
  * @param[in]  block
  *             Block to read data from. Joybus accesses EEPROM in 8-byte blocks.
  *
  * @param[out] dest
  *             Destination buffer for the eight bytes read from EEPROM.
+ *
+ * @see #eeprom_read_bytes
  */
 void eeprom_read( uint8_t block, void * dest );
 
 /**
  * @brief Write a block to EEPROM.
  * 
- * Once a block is written, the EEPROM will be busy for up to 6 milliseconds.
- * This operation will wait for the EEPROM busy bit to clear before writing;
- * you may want to pause audio before calling this to prevent stuttering.
+ * This function writes a block of data to EEPROM (8 bytes). Most users
+ * will want to use #eeprom_write_bytes instead, which is more flexible.
+ *
+ * @note Writes are eventually consistent to the EEPROM, so they will be
+ *       persisted in background to the actual EEPROM. THe written data is
+ *       immediately visible to read APIs though.
  *
  * @param[in] block
  *            Block to write data to. Joybus accesses EEPROM in 8-byte blocks.
@@ -130,8 +151,10 @@ uint8_t eeprom_write( uint8_t block, const void * src );
 /**
  * @brief Read a buffer of bytes from EEPROM.
  *
- * This is a high-level convenience helper that abstracts away the
- * one-at-a-time EEPROM block access pattern.
+ * Read an arbitrary amount of data from the EEPROM. Normally reads are quite
+ * fast, even more so if the internal cache is already populated. In general
+ * you should be able to use reads without long stalls that might affect
+ * graphics or audio.
  *
  * @param[out] dest
  *             Destination buffer to read data into
@@ -145,16 +168,21 @@ void eeprom_read_bytes( void * dest, size_t start, size_t len );
 /**
  * @brief Write a buffer of bytes to EEPROM.
  *
- * This is a high-level convenience helper that abstracts away the
- * one-at-a-time EEPROM block access pattern.
+ * Writes an arbitrary amount of data to the EEPROM. Notice that writes are
+ * eventually consistent to the EEPROM: this function will return immediately,
+ * but the data will be persisted in background to the actual EEPROM.
  *
- * Each EEPROM block write takes approximately 6 milliseconds;
- * this operation may block for a while with large buffer sizes:
+ * The background persistence is quite slow. These are measured times for
+ * writing the whole EEPROM:
  *
- * * 4k EEPROM: 64 blocks * 6ms = 384ms!
- * * 16k EEPROM: 256 blocks * 6ms = 1536ms!
+ * * 4k EEPROM: 64 blocks * 6ms = 384ms
+ * * 16k EEPROM: 256 blocks * 6ms = 1536ms
  *
- * You may want to pause audio before calling this.
+ * Make sure the user is aware that a write is in progress and do not turn off
+ * the console, otherwise the EEPROM contents might get corrupted. You may want
+ * to display a "save in progress" message or indicator on the screen.
+ *
+ * You can use #eeprom_is_busy to check if a write is in progress at any point.
  *
  * @param[in] src
  *            Source buffer containing data to write
@@ -164,6 +192,8 @@ void eeprom_read_bytes( void * dest, size_t start, size_t len );
  *
  * @param[in] len
  *            Byte length of the src buffer
+ *
+ * @see #eeprom_is_busy
  */
 void eeprom_write_bytes( const void * src, size_t start, size_t len );
 
