@@ -1442,6 +1442,15 @@ rspq_queue_t* rspq_queue_create_placeholder(uint32_t slot)
   return q;
 }
 
+void rspq_queue_set_placeholder(rspq_queue_t* q)
+{
+  uint32_t ptr_stack = offsetof(rsp_queue_t, rspq_pointer_stack);
+  rspq_int_write(RSPQ_CMD_WRITE_WORD, 
+    ptr_stack + (q->nesting_level << 2), 
+    PhysicalAddr(q->run_start)
+  );
+}
+
 void rspq_queue_end(rspq_queue_t* q) {
   if(q->nesting_level > 0) {
     rspq_int_write(RSPQ_CMD_RET, q->nesting_level << 2);

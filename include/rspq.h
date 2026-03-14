@@ -926,9 +926,29 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
  */
  rspq_queue_t* rspq_queue_create(void);
 
+ /**
+  * @brief Create a new buffered queue to be used as a placeholder.
+  * This is functionally the same as 'rspq_queue_create',
+  * expect it is flagged and only usable as a placeholder.
+  * 
+  * @param slot slot to use
+  * @return A pointer to the newly created queue
+  */
  rspq_queue_t* rspq_queue_create_placeholder(uint32_t slot);
 
+ /**
+  * @brief Ends the current queue and switches back to the main command stream.
+  * 
+  * @param q queue to mark as finished
+  */
  void rspq_queue_end(rspq_queue_t* q);
+
+ /**
+  * @brief Sets the placeholder address with the given queue
+  * 
+  * @param q queue to jump to when the placeholder is used
+  */
+ void rspq_queue_set_placeholder(rspq_queue_t* q);
 
  /**
   * @brief Switch the current recording target to a queue.
