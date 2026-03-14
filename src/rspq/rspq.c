@@ -1534,7 +1534,7 @@ void rspq_queue_clear(rspq_queue_t* q)
     assertf(q, "queue is NULL");
 
     rspq_chain_reset(&q->chain, q->chain.first_chunk, RSPQ_BLOCK_MIN_SIZE);
-    q->nesting_level = 0;
+    //q->nesting_level = 0; // @TODO: is this actually safe to remove?
     q->run_start = q->chain.first_chunk;
     __rdpq_tracking_state_reset(&q->rdpq_tracking);
 
