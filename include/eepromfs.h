@@ -22,7 +22,7 @@
 #define EEPFS_EBADINPUT  -1
 /** @brief File does not exist */
 #define EEPFS_ENOFILE    -2
-/** @brief Bad filesystem */
+/** @brief Filesystem is too big for the EEPROM */
 #define EEPFS_EBADFS     -3
 /** @brief No memory for operation */
 #define EEPFS_ENOMEM     -4
@@ -30,6 +30,8 @@
 #define EEPFS_EBADHANDLE -5
 /** @brief Filesystem already initialized */
 #define EEPFS_ECONFLICT  -6
+/** @brief File is corrupted (checksum mismatch) */
+#define EEPFS_CORRUPTED  -7
 /** @} */
 
 #ifdef __cplusplus
@@ -53,7 +55,7 @@ typedef struct eepfs_entry_t
      * 
      * A leading '/' is optional and will be ignored if set.
      * 
-     * The filesytem does not support entries for directories,
+     * The filesystem does not support entries for directories,
      * nor does it support listing files in a given directory.
      */
     const char * path;
@@ -73,6 +75,30 @@ typedef struct eepfs_entry_t
      * * 16k EEPROM: 2048 - 8 = 2040 bytes (255 blocks) free.
      */
     size_t size;
+    /**
+     * @brief Automatically store and verify a checksum of the file
+     * 
+     * When this flag is set, eepfs will calculate a 16-bit checksum
+     * of the file and append it to the file itself. The checksum
+     * will also be automatically verified when the file is read.
+     */
+    bool checksum;
+    /**
+      * @brief Keep a backup copy of the file in the EEPROM.
+      *
+      * When this flag is set, eepfs will automatically keep a backup
+      * copy of the file in the EEPROM. The backup copy is automatically
+      * retrieved if the main copy is corrupted (use of checksum is strongly
+      * recommended if backup is enabled).
+      *
+      * This is useful to prevent data loss in case of corruption or
+      * power failure.
+      *
+      * In addition to the backup copy, the filesystem will also need
+      * to store 2 extra bytes (1 per copy) to keep a reference to the
+      * newest copy of the file.
+      */
+     bool backup;
 } eepfs_entry_t;
 
 /**
@@ -190,7 +216,6 @@ int eepfs_erase(const char * path);
  * filesystem expects. If not, the best move is to erase everything
  * and start from zero.
  * 
- * @see eepfs_generate_signature
  * @see #eepfs_wipe
  * 
  * @retval true if the signature in EEPROM matches the filesystem signature

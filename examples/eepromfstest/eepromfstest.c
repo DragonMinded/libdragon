@@ -32,7 +32,7 @@ typedef struct
     int16_t map_pos_y;
     uint16_t max_hp;
     uint16_t current_hp;
-    uint8_t inventory[256];
+    uint8_t inventory[64];
 } game_save_state_t;
 
 static void press_a_to_continue(void)
@@ -133,7 +133,7 @@ static int validate_game_high_scores(char * path)
     int result;
 
     result = read_game_high_scores(path);
-    if ( result != 0 ) return result;
+    if ( result != 0 ) printf("Ivalid high scores!\n");
     press_a_to_continue();
 
     result = write_game_high_scores(path);
@@ -200,7 +200,7 @@ static int validate_game_settings(char * path)
     int result;
 
     result = read_game_settings(path);
-    if ( result != 0 ) return result;
+    if ( result != 0 ) printf("Invalid settings! (error: %d)\n", result);
     press_a_to_continue();
 
     result = write_game_settings(path);
@@ -268,7 +268,7 @@ static int write_game_save_state(char * path)
         -120,
         40,
         36,
-        { 1, 22, [254] = 52 }
+        { 1, 22, [63] = 52 }
     };
 
     printf( "Writing '%s'\n", path );
@@ -291,7 +291,7 @@ static int validate_game_save_state(char * path)
     int result;
 
     result = read_game_save_state(path);
-    if ( result != 0 ) return result;
+    if ( result != 0 ) printf("Invalid save state! (error: %d)\n", result);
     press_a_to_continue();
 
     result = write_game_save_state(path);
@@ -367,12 +367,12 @@ static int validate_eeprom_16k(void)
 {
     int result;
     const eepfs_entry_t eeprom_16k_files[] = {
-        { "high_scores.dat", sizeof(game_high_scores)  },
-        { "settings.dat",    sizeof(game_settings_t)   },
-        { "saves/slot1.sav", sizeof(game_save_state_t) },
-        { "saves/slot2.sav", sizeof(game_save_state_t) },
-        { "saves/slot3.sav", sizeof(game_save_state_t) },
-        { "saves/slot4.sav", sizeof(game_save_state_t) }
+        { .path ="high_scores.dat", .size = sizeof(game_high_scores),  .checksum = true, .backup = true },
+        { .path ="settings.dat",    .size = sizeof(game_settings_t),   .checksum = true, .backup = true },
+        { .path ="saves/slot1.sav", .size = sizeof(game_save_state_t), .checksum = true, .backup = true },
+        { .path ="saves/slot2.sav", .size = sizeof(game_save_state_t), .checksum = true, .backup = true },
+        { .path ="saves/slot3.sav", .size = sizeof(game_save_state_t), .checksum = true, .backup = true },
+        { .path ="saves/slot4.sav", .size = sizeof(game_save_state_t), .checksum = true, .backup = true }
     };
 
     printf( "EEPROM Detected: 16 Kibit (256 blocks)\n" );
@@ -452,11 +452,15 @@ static int validate_eeprom(eeprom_type_t eeprom_type)
 
 int main(void)
 {
+    debug_init_isviewer();
+    debug_init_usblog();
+
     /* Initialize peripherals */
     console_init();
     joypad_init();
 
     console_set_render_mode(RENDER_AUTOMATIC);
+    console_set_debug(true);
     console_clear();
 
     const eeprom_type_t eeprom_type = eeprom_present();
