@@ -937,13 +937,6 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
  rspq_queue_t* rspq_queue_create_placeholder(uint32_t slot);
 
  /**
-  * @brief Ends the current queue and switches back to the main command stream.
-  * 
-  * @param q queue to mark as finished
-  */
- void rspq_queue_end(rspq_queue_t* q);
-
- /**
   * @brief Sets the placeholder address with the given queue
   * 
   * @param q queue to jump to when the placeholder is used
