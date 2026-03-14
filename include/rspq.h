@@ -926,6 +926,10 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
  */
  rspq_queue_t* rspq_queue_create(void);
 
+ rspq_queue_t* rspq_queue_create_placeholder(uint32_t slot);
+
+ void rspq_queue_end(rspq_queue_t* q);
+
  /**
   * @brief Switch the current recording target to a queue.
   *
@@ -951,6 +955,8 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
   */
  void rspq_queue_run(rspq_queue_t* q);
  
+ void rspq_queue_run_placeholder(uint32_t slot);
+
  /**
   * @brief Clear a queue contents, keeping its memory for reuse.
   *

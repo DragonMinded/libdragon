@@ -42,7 +42,7 @@ void gl_init_texture_object(gl_texture_object_t *obj)
 
     // Fill the levels block with NOOPs, and terminate it with a RET.
     for (int i=0; i<MAX_TEXTURE_LEVELS*2; i++) {
-        srv_obj->levels_block[i] = RSPQ_CMD_NOOP << 24;
+        srv_obj->levels_block[i] = RSPQ_CMD_WRITE_STATUS << 24;
     }
     srv_obj->levels_block[MAX_TEXTURE_LEVELS*2] = (RSPQ_CMD_RET << 24) | (1<<2);
 

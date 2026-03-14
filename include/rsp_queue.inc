@@ -385,7 +385,7 @@ RSPQ_PROFILE_DATA:
 
 RSPQ_INTERNAL_COMMAND_TABLE:
 RSPQ_DefineCommand RSPQCmd_WaitNewInput,    0     # 0x00
-RSPQ_DefineCommand RSPQCmd_Noop,            4     # 0x01
+RSPQ_DefineCommand RSPQCmd_WriteWord,       8     # 0x01
 RSPQ_DefineCommand RSPQCmd_Jump,            4     # 0x02
 RSPQ_DefineCommand RSPQCmd_Call,            8     # 0x03
 RSPQ_DefineCommand RSPQCmd_Ret,             4     # 0x04
@@ -459,7 +459,6 @@ rspq_fetch_buffer_with_ptr:
     # fallthrough into the main loop
     .endfunc
 
-RSPQCmd_Noop:     # noop -> repeat the loop
     .func RSPQ_Loop
 RSPQ_Loop:
     #define ovl_index t4
@@ -678,7 +677,13 @@ RSPQCmd_SwapBuffers:
 RSPQCmd_Call:
     # a0: command opcode + RDRAM address
     # a1: call slot in DMEM
+
+    ## If the MSB in the slot (a1) is set, it is seen as a placeholder. 
+    ## This assumes the address has been placed in the pointer-stack instead.
+    bgez a1, 1f
     lw s0, %lo(RSPQ_RDRAM_PTR)
+      lw a0, %lo(RSPQ_POINTER_STACK)(a1)
+    1:
     add s0, rspq_dmem_buf_ptr
     sw s0, %lo(RSPQ_POINTER_STACK)(a1)  # save return address
     # fallthrough
@@ -890,6 +895,20 @@ RSPQCmd_RdpAppendBuffer:
     mtc0 a0, COP0_DP_END
     .endfunc
 
+    #############################################################
+    # RSPQCmd_WriteWord
+    #
+    # Writes a 32bit word to a given DMEM location.
+    # 
+    # ARGS:
+    #   a0: DMEM address
+    #   a1: 32bit value
+    #############################################################
+    .func RSPQCmd_WriteWord
+RSPQCmd_WriteWord:
+    j RSPQ_Loop
+    sw a1, 0(a0)
+    .endfunc
 
 #if RSPQ_PROFILE
     #############################################################

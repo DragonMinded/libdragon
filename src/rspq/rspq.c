@@ -1432,6 +1432,23 @@ rspq_queue_t* rspq_queue_create(void)
     return q;
 }
 
+rspq_queue_t* rspq_queue_create_placeholder(uint32_t slot)
+{
+  assert(slot > 0);
+  assert(slot < RSPQ_MAX_BLOCK_NESTING_LEVEL);
+
+  rspq_queue_t* q = rspq_queue_create();
+  q->nesting_level = slot;
+  return q;
+}
+
+void rspq_queue_end(rspq_queue_t* q) {
+  if(q->nesting_level > 0) {
+    rspq_int_write(RSPQ_CMD_RET, q->nesting_level << 2);
+  }
+  rspq_queue_switch(NULL);
+}
+
 void rspq_queue_switch(rspq_queue_t* q)
 {
     assertf(rspq_ctx != &highpri, "cannot switch queue in highpri mode");
@@ -1495,6 +1512,16 @@ void rspq_queue_run(rspq_queue_t* q)
     __rdpq_tracking_state_reset(&q->rdpq_tracking);
 }
 
+void rspq_queue_run_placeholder(uint32_t slot)
+{
+  assertf(rspq_block, "queue placeholder is only supported inside a block");
+
+  rspq_int_write(RSPQ_CMD_CALL, 0, (slot << 2) | (1<<31));
+  if(slot <= rspq_block->nesting_level) {
+    rspq_block->nesting_level = slot + 1;
+  }
+}
+
 void rspq_queue_clear(rspq_queue_t* q)
 {
     assertf(q, "queue is NULL");
@@ -1521,7 +1548,7 @@ void rspq_queue_destroy(rspq_queue_t* q)
 
 void rspq_noop()
 {
-    rspq_int_write(RSPQ_CMD_NOOP);
+    rspq_int_write(RSPQ_CMD_WRITE_STATUS, 0);
 }
 
 rspq_syncpoint_t rspq_syncpoint_new(void)

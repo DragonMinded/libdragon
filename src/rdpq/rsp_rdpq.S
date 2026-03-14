@@ -35,9 +35,9 @@
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
         RSPQ_DefineCommand RDPQCmd_SetPrimColorComponent,   8   # 0xD3 Set Primimive Color Component (minlod or primlod or rgba)
         RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4 Modify SOM
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD5
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xD5
         RSPQ_DefineCommand RDPQCmd_SetFillColor32,          8   # 0xD6
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD7
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xD7
         RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
         RSPQ_DefineCommand RDPQCmd_SetFogMode,              8   # 0xD9 Set Fog Mode
         RSPQ_DefineCommand RDPQCmd_RdpWaitIdle,             4   # 0xDA RDP Wait Idle
@@ -47,10 +47,10 @@
         RSPQ_DefineCommand RDPQCmd_Triangle,                4   # 0xDE Triangle (assembled by RSP)
         RSPQ_DefineCommand RDPQCmd_TriangleData,            28  # 0xDF Set Triangle Data
 
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE0
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE1
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE2
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE3
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE0
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE1
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE2
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE3
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE4 TEXTURE_RECTANGLE
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE5 TEXTURE_RECTANGLE_FLIP
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE6 SYNC_LOAD

@@ -25,11 +25,9 @@ enum {
     RSPQ_CMD_INVALID           = 0x00,
 
     /**
-     * @brief RSPQ command: No-op
-     * 
-     * This commands does nothing. It can be useful for debugging purposes.
+     * @brief RSPQ command: Sets a 32-bit word in DMEM
      */
-    RSPQ_CMD_NOOP              = 0x01,
+    RSPQ_CMD_WRITE_WORD        = 0x01,
 
     /**
      * @brief RSPQ command: Jump to another buffer
