@@ -471,6 +471,11 @@ void vi_set_aa_mode(vi_aa_mode_t mode)
     vi_write_masked(VI_CTRL, VI_AA_MODE_MASK, mode);
 }
 
+vi_aa_mode_t vi_get_aa_mode(void)
+{
+    return (vi_aa_mode_t)(vi_read(VI_CTRL) & VI_AA_MODE_MASK);
+}
+
 void vi_set_divot(bool enable)
 {
     vi_write_masked(VI_CTRL, VI_DIVOT_ENABLE, enable ? VI_DIVOT_ENABLE : 0);
@@ -479,6 +484,11 @@ void vi_set_divot(bool enable)
 void vi_set_dedither(bool enable)
 {
     vi_write_masked(VI_CTRL, VI_DEDITHER_FILTER_ENABLE, enable ? VI_DEDITHER_FILTER_ENABLE : 0);
+}
+
+bool vi_get_dedither(void)
+{
+    return (vi_read(VI_CTRL) & VI_DEDITHER_FILTER_ENABLE) != 0;
 }
 
 void vi_set_gamma(vi_gamma_t gamma)
@@ -597,6 +607,22 @@ vi_borders_t vi_get_borders(void)
     b.up    = +(y0 - preset->display.y0);
     b.down  = -(y1 - (preset->display.y0 + preset->display.height));
     return b;
+}
+
+float vi_get_aspect_ratio(void)
+{
+    int vi_width = preset->display.width;
+    int vi_height = preset->display.height;
+
+    int x0, y0, x1, y1;
+    __get_output(&x0, &y0, &x1, &y1);
+    int vis_w = x1 - x0;
+    int vis_h = y1 - y0;
+
+    float correction = (float)vis_w / (float)vis_h;
+    const float vi_dar = 4.0f / 3.0f;
+    float vi_par = (float)vi_width / (float)vi_height;
+    return correction * vi_dar / vi_par;
 }
 
 vi_borders_t vi_calc_borders(float aspect_ratio, float overscan_margin)
