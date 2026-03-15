@@ -339,7 +339,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
         assertf(surfaces[i].buffer, "Out of memory");
 
         /* Baseline is blank */
-        memset( surfaces[i].buffer, 0, __width * __height * __bitdepth );
+        sys_hw_memset( surfaces[i].buffer, 0, __width * __height * __bitdepth );
     }
 
     /* Set the first buffer as the displaying buffer */
