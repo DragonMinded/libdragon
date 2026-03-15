@@ -325,6 +325,7 @@ void *asset_load(const char *fn, int *sz)
 
 #ifdef N64
 
+/** @brief Uncompressed file cookie for funopen() */
 typedef struct  {
     int fd;
     bool seeked;
@@ -362,6 +363,7 @@ static int closefn_none(void *c)
     return 0;
 }
 
+/** @brief Compression cookie for funopen() */
 typedef struct  {
     int fd;
     int pos;
