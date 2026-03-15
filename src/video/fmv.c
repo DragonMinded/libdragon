@@ -9,6 +9,7 @@
 #include "video_sync.h"
 #include "yuv.h"
 #include "display.h"
+#include "vi.h"
 #include "wav64.h"
 #include "mixer.h"
 #include "subtitles.h"
@@ -26,18 +27,44 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
         memset((void*)parms, 0, sizeof(fmv_parms_t));
     }
 
-    display_init((resolution_t){
-        .width = info.width,
-        .height = info.height,
-        .aspect_ratio = info.aspect_ratio,
-        .overscan_margin = parms->crt_margin ? VI_CRT_MARGIN : 0,
-    }, DEPTH_32_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
+    if (!parms->disable_display_init) {
+        display_init((resolution_t){
+            .width = info.width,
+            .height = info.height,
+            .aspect_ratio = info.aspect_ratio,
+            .overscan_margin = parms->crt_margin ? VI_CRT_MARGIN : 0,
+        }, DEPTH_32_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
+    }
+
+    bool vi_16bpp = display_get_bitdepth() == 2;
+
+    // In 16bpp mode, we configure:
+    // * Dithering in the YUV blitter
+    // * Dedithering at the VI level
+    // This achieves the best possible quality for a video playback,
+    // given that all video codecs are natively 32bpp, so you would otherwise
+    // get huge banding artifacts.
+    vi_aa_mode_t saved_aa_mode = 0;
+    bool saved_dedither = false;
+    if (vi_16bpp) {
+        saved_aa_mode = vi_get_aa_mode();
+        saved_dedither = vi_get_dedither();
+        vi_write_begin();
+        vi_set_aa_mode(VI_AA_MODE_RESAMPLE_FETCH_ALWAYS);
+        vi_set_dedither(true);
+        vi_write_end();
+    }
 
     yuv_init();
     yuv_blitter_t yuv = yuv_blitter_new_fmv(
         info.width, info.height,
         display_get_width(), display_get_height(),
-        &(yuv_fmv_parms_t){ .cs = &info.colorspace }
+        &(yuv_fmv_parms_t){
+            .cs = &info.colorspace,
+            .video_aspect_ratio = info.aspect_ratio,
+            .display_aspect_ratio = vi_get_aspect_ratio(),
+            .enable_dithering = vi_16bpp,
+        }
     );
 
     // Engage the fps limiter to ensure proper video pacing.
@@ -249,5 +276,14 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     yuv_close();
     if (vsync) video_sync_destroy(vsync);
     video_close(video);
-    display_close();
+    display_set_fps_limit(0);
+
+    if (vi_16bpp) {
+        vi_write_begin();
+        vi_set_aa_mode(saved_aa_mode);
+        vi_set_dedither(saved_dedither);
+        vi_write_end();
+    }
+    if (!parms->disable_display_init)
+        display_close();
 }
