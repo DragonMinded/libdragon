@@ -684,13 +684,11 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
 
 void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors)
 {
-    // TODO: this is a conservative limit. It should be possible to workaround
-    // this limit by playing with the tlut pointer passed to SET_TEX_IMAGE and
-    // then adjust the first_color offset in rdpq_load_tlut_raw.
-    assertf((PhysicalAddr(tlut) & 7) == 0, "TLUT pointer must be 8-byte aligned");
-    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, 256, 1);
-    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*4*2, 256, NULL);
-    rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, 0, num_colors);
+    int init_offset = (PhysicalAddr(tlut) & 7) / 2;
+    tlut -= init_offset;
+    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, 256+4, 1);
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*4*2, 256+8, NULL);
+    rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, init_offset, num_colors);
 }
 
 void rdpq_tex_multi_begin(void)

@@ -470,6 +470,93 @@ void test_rdpq_tex_upload_tlut(TestContext *ctx)
     }
 }
 
+void test_rdpq_tex_upload_tlut_alignments(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0xFF);
+
+    surface_t tex = surface_alloc(FMT_CI8, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&tex));
+    for (int y = 0; y < FBWIDTH; y++)
+        for (int x = 0; x < FBWIDTH; x++)
+            surface_set_pixel(&tex, x, y, y * FBWIDTH + x);
+
+    /* Buffer: 8-byte aligned from malloc_uncached; we use offsets 0,2,4,6 to get all four alignments. */
+    char *buf = malloc_uncached(256 * 2 + 8);
+    DEFER(free_uncached(buf));
+    uint16_t *base = (uint16_t *)buf;
+
+    uint16_t *tlut_black = malloc_uncached(256 * 2);
+    DEFER(free_uncached(tlut_black));
+    memset(tlut_black, 0, 256 * 2);
+
+    color_t expected_fb[256];
+    for (int i = 0; i < 256; i++) {
+        uint16_t c16 = color_to_packed16(palette_debug_color(i));
+        expected_fb[i] = color_from_packed16(c16);
+        expected_fb[i].a = 0xE0;
+    }
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_mode_standard();
+    rdpq_mode_tlut(TLUT_RGBA16);
+
+    /* Exhaustive test: all four possible 2-byte alignments (0,2,4,6 mod 8). */
+    for (int align = 0; align <= 6; align += 2) {
+        LOG("TLUT full palette: align=%d (byte offset mod 8)\n", align);
+        uint16_t *tlut = (uint16_t *)((char *)base + align);
+        memset(base, 0, 256 * 2 + 8);
+        for (int i = 0; i < 256; i++)
+            tlut[i] = color_to_packed16(palette_debug_color(i));
+
+        surface_clear(&fb, 0xFF);
+        rdpq_tex_upload_tlut(tlut_black, 0, 256);
+        rdpq_tex_upload_tlut(tlut, 0, 256);
+        rdpq_tex_blit(&tex, 0, 0, NULL);
+        rspq_wait();
+
+        ASSERT_SURFACE(&fb, {
+            int pos = y * 16 + x;
+            return expected_fb[pos];
+        });
+        if (ctx->result == TEST_FAILED)
+            return;
+    }
+
+    /* Sub-palette cases for each alignment: first_color + num_colors. */
+    for (int align = 0; align <= 6; align += 2) {
+        uint16_t *tlut = (uint16_t *)((char *)base + align);
+        for (int first_color = 8; first_color < 16; first_color++) {
+            for (int i = 1; i < 9; i++) {
+                LOG("TLUT sub-palette: align=%d first_color=%d num_colors=%d\n", align, first_color, i);
+                memset(base, 0, 256 * 2 + 8);
+                for (int j = 0; j < i; j++)
+                    tlut[j] = color_to_packed16(palette_debug_color(first_color + j));
+
+                surface_clear(&fb, 0xFF);
+                rdpq_tex_upload_tlut(tlut_black, 0, 256);
+                rdpq_tex_upload_tlut(tlut, first_color, i);
+                rdpq_tex_blit(&tex, 0, 0, NULL);
+                rspq_wait();
+
+                ASSERT_SURFACE(&fb, {
+                    int pos = y * 16 + x;
+                    if (pos >= first_color && pos < first_color + i)
+                        return expected_fb[pos];
+                    else
+                        return color_from_packed32(0xE0);
+                });
+                if (ctx->result == TEST_FAILED)
+                    return;
+            }
+        }
+    }
+}
+
 void test_rdpq_tex_4bpp_odd(TestContext *ctx) {
     // Make sure loading a 4bpp texture with odd starting coordinates work
     // correctly. We used to have a bug in this case.

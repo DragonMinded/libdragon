@@ -625,9 +625,10 @@ inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16
 inline void rdpq_load_tlut_raw(rdpq_tile_t tile, int color_idx, int num_colors)
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    assertf(num_colors <= 256, "invalid palette length %d: must be smaller than 256", num_colors);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TLUT, 
         _carg(color_idx, 0xFF, 14), 
-        _carg(tile, 0x7, 24) | _carg(color_idx+num_colors-1, 0xFF, 14),
+        _carg(tile, 0x7, 24) | _carg(color_idx+num_colors-1, 0x1FF, 14),
         AUTOSYNC_TMEM(0),
         AUTOSYNC_TILE(tile));
 }
