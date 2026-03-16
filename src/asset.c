@@ -327,8 +327,8 @@ void *asset_load(const char *fn, int *sz)
 
 /** @brief Uncompressed file cookie for funopen() */
 typedef struct  {
-    int fd;
-    bool seeked;
+    int fd;             ///< Open file descriptor
+    bool seeked;        ///< True if the file has been seeked once
 } cookie_none_t;
 
 static fpos_t seekfn_none(void *c, fpos_t pos, int whence)
@@ -365,13 +365,13 @@ static int closefn_none(void *c)
 
 /** @brief Compression cookie for funopen() */
 typedef struct  {
-    int fd;
-    int pos;
-    bool seeked;
-    int header_size;
-    void (*reset)(void *state);
-    ssize_t (*read)(void *state, void *buf, size_t len);
-    uint8_t alignas(16) state[];
+    int fd;                         ///< Open File descriptor
+    int pos;                        ///< Current position in the file
+    bool seeked;                    ///< True if the file has been seeked once
+    int header_size;                ///< Size of the header
+    void (*reset)(void *state);     ///< Reset function for the decompression state
+    ssize_t (*read)(void *state, void *buf, size_t len); ///< Read function for the decompression state
+    uint8_t alignas(16) state[];    ///< Decompression state (16-byte aligned)
 } cookie_cmp_t;
 
 _Static_assert(offsetof(cookie_cmp_t, state) % 16 == 0, "cookie_cmp_t.state must be 16-byte aligned");

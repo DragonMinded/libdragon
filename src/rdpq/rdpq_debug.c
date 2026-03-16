@@ -406,6 +406,7 @@ void rdpq_debug_stop(void)
     rspq_write(RDPQ_OVL_ID, RDPQ_CMD_SET_DEBUG_MODE, 0);
 }
 
+/** @brief Install a hook to be called for each RDP command */
 void rdpq_debug_install_hook(void (*hook)(void*, uint64_t*, int), void* ctx)
 {
     for (int i=0;i<MAX_HOOKS;i++)
