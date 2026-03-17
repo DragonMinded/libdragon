@@ -14,8 +14,8 @@
  * entropy from this module and then use a cryptographic PRNG like ChaCha20
  * or SipHash to generate the random numbers.
  * 
- * If you just need some random numbers for your game (standard "game randomness"
- * for eg: random stage selection), you can use this module just to seed the
+ * @note This is a low-level module for advance use cases. If you just
+ * need some random numbers for your game, use this module just to seed the
  * standard C library `rand()` function and then use `rand()` in your game
  * engine:
  * 
@@ -66,6 +66,9 @@ int getentropy(void *buf, size_t len);
  * 
  * This is a simplified API for getentropy() to just return 64-bit of entropy
  * instead of an arbitrary buffer.
+ *
+ * @note This function is much, much slower than calling rand(). If you just
+ *       just need random numbers for your game, use rand() instead.
  * 
  * @return uint32_t         Unpredictable 64-bit random number
  */
@@ -77,6 +80,9 @@ int getentropy(void *buf, size_t len);
  * This is a simplified API for getentropy() to just return 32-bit of entropy
  * instead of an arbitrary buffer. Useful for instance to seed `srand()`.
  * 
+ * @note This function is much, much slower than calling rand(). If you just
+ *       just need random numbers for your game, use rand() instead.
+ *
  * @return uint32_t         Unpredictable 32-bit random number
  */
 uint32_t getentropy32(void);
