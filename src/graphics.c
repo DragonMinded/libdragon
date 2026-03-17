@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "vi.h"
+#include "n64sys.h"
 #include "graphics.h"
 #include "sprite.h"
 #include "font.h"
@@ -424,10 +425,7 @@ void graphics_fill_screen( surface_t* disp, uint32_t c )
 
     int len = TEX_FORMAT_PIX2BYTES(surface_get_format(disp), disp->width * disp->height) / 8;
 
-    uint64_t c64 = ((uint64_t)c << 32) | c;
-    uint64_t *buffer = (uint64_t *)__get_buffer(disp);
-    for( int i = 0; i < len; i++ )
-        buffer[i] = c64;
+    sys_hw_memset32(disp->buffer, c, len);
 }
 
 void graphics_set_default_font( void )
