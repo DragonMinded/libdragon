@@ -10,8 +10,8 @@ LODEPNG_DIR := $(ROOT_ABS)/tools/common
 CXX := c++
 CC := cc
 
-CXXFLAGS := -O2 -g -std=c++17 -Wall -Wextra -I$(DECODER_DIR) -I$(OMXDL_DIR) -I$(LODEPNG_DIR)
-CFLAGS := -O2 -g -std=c11 -Wall -Wextra -I$(DECODER_DIR) -I$(OMXDL_DIR) -I$(LODEPNG_DIR) -D_ERROR_PRINT
+CXXFLAGS := -O2 -g -std=c++17 -Wall -Wextra -MMD -MP -I$(DECODER_DIR) -I$(OMXDL_DIR) -I$(LODEPNG_DIR)
+CFLAGS := -O2 -g -std=c11 -Wall -Wextra -MMD -MP -I$(DECODER_DIR) -I$(OMXDL_DIR) -I$(LODEPNG_DIR) -D_ERROR_PRINT
 LDFLAGS :=
 LDLIBS := -lm
 
@@ -23,6 +23,7 @@ OMXDL_SRCS := $(wildcard $(OMXDL_DIR)/*.c)
 EXTRA_C_SRCS := $(LODEPNG_DIR)/lodepng.c
 C_SRCS := $(DECODER_SRCS) $(OMXDL_SRCS) $(EXTRA_C_SRCS)
 C_OBJS := $(patsubst $(ROOT_ABS)/%,$(BUILD_DIR)/%,$(C_SRCS:.c=.o))
+DEPFILES := $(CPP_OBJS:.o=.d) $(C_OBJS:.o=.d)
 
 all: $(TARGET)
 
@@ -48,5 +49,7 @@ clean:
 ifneq ($(V),1)
 .SILENT:
 endif
+
+-include $(DEPFILES)
 
 .PHONY: all clean
