@@ -191,8 +191,8 @@ static double extract_framerate(storage_t *storage, bool *is_from_vui) {
     return 20.0;
 }
 
-static int run_ffmpeg_pack(const Options &opt, const fs::path &png_dir, double fps) {
-    fs::path pattern = png_dir / "frame_%06d.png";
+static int run_ffmpeg_pack(const Options &opt, const fs::path &frame_dir, bool use_png, double fps) {
+    fs::path pattern = frame_dir / (use_png ? "frame_%06d.png" : "frame_%06d.ppm");
     std::ostringstream cmd;
     cmd << shell_quote(opt.ffmpeg_path);
     if (!opt.verbose) {
@@ -204,6 +204,45 @@ static int run_ffmpeg_pack(const Options &opt, const fs::path &png_dir, double f
         << shell_quote(opt.output_mp4.string());
     vlog(opt, "Running ffmpeg: %s", cmd.str().c_str());
     return std::system(cmd.str().c_str());
+}
+
+static unsigned encode_png_fastish_file(const char *filename, const unsigned char *rgb, unsigned w, unsigned h) {
+    LodePNGState state;
+    lodepng_state_init(&state);
+
+    // Keep real compression but strongly bias for speed.
+    state.encoder.auto_convert = 0;
+    state.encoder.filter_palette_zero = 0;
+    state.encoder.filter_strategy = LFS_ZERO;
+    state.encoder.zlibsettings.btype = 2;
+    state.encoder.zlibsettings.use_lz77 = 0;
+    state.encoder.zlibsettings.windowsize = 256;
+    state.encoder.zlibsettings.nicematch = 16;
+    state.encoder.zlibsettings.lazymatching = 0;
+
+    state.info_raw = lodepng_color_mode_make(LCT_RGB, 8);
+    state.info_png.color = lodepng_color_mode_make(LCT_RGB, 8);
+
+    unsigned char *out = NULL;
+    size_t out_size = 0;
+    unsigned error = lodepng_encode(&out, &out_size, rgb, w, h, &state);
+    if (!error) error = lodepng_save_file(out, out_size, filename);
+    if (out) free(out);
+    lodepng_state_cleanup(&state);
+    return error;
+}
+
+static bool write_ppm_file(const char *filename, const unsigned char *rgb, unsigned w, unsigned h) {
+    FILE *f = fopen(filename, "wb");
+    if (!f) return false;
+    if (fprintf(f, "P6\n%u %u\n255\n", w, h) < 0) {
+        fclose(f);
+        return false;
+    }
+    size_t size = (size_t)w * (size_t)h * 3u;
+    bool ok = fwrite(rgb, 1, size, f) == size;
+    ok = ok && (fclose(f) == 0);
+    return ok;
 }
 
 static void progress_update_default(double pct, uint32_t frames) {
@@ -318,12 +357,20 @@ int main(int argc, char **argv) {
                 yuv420_to_rgb24(y, cb, cr, width, height, rgb);
 
                 char name[64];
-                snprintf(name, sizeof(name), "frame_%06u.png", frame_idx++);
+                snprintf(name, sizeof(name), opt.debug ? "frame_%06u.png" : "frame_%06u.ppm", frame_idx++);
                 fs::path out_path = png_guard.path / name;
-                unsigned enc = lodepng_encode24_file(out_path.string().c_str(), rgb.data(), (unsigned)width, (unsigned)height);
-                if (enc) {
-                    fprintf(stderr, "PNG encode failed (%u): %s\n", enc, lodepng_error_text(enc));
-                    return false;
+                if (opt.debug) {
+                    unsigned enc = encode_png_fastish_file(out_path.string().c_str(), rgb.data(), (unsigned)width, (unsigned)height);
+                    if (enc) {
+                        fprintf(stderr, "PNG encode failed (%u): %s\n", enc, lodepng_error_text(enc));
+                        return false;
+                    }
+                } else {
+                    bool ok = write_ppm_file(out_path.string().c_str(), rgb.data(), (unsigned)width, (unsigned)height);
+                    if (!ok) {
+                        fprintf(stderr, "PPM write failed: %s\n", out_path.string().c_str());
+                        return false;
+                    }
                 }
             }
             return true;
@@ -395,7 +442,7 @@ int main(int argc, char **argv) {
             fflush(stdout);
         }
 
-        int ff_rc = run_ffmpeg_pack(opt, png_guard.path, input_fps);
+        int ff_rc = run_ffmpeg_pack(opt, png_guard.path, opt.debug, input_fps);
         if (ff_rc != 0) {
             fprintf(stderr, "ffmpeg failed with code %d\n", ff_rc);
             return 1;
