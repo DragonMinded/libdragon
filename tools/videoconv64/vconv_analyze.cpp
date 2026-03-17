@@ -73,15 +73,6 @@ static void rational_approx(double v, int max_num, int max_den, int *out_num, in
 	*out_den = best_d;
 }
 
-static double choose_default_fps(double src_fps) {
-	// Simple heuristic (TODO: can be tuned later)
-	if (src_fps <= 0.0) return 24.0;
-	if (fabs(src_fps - 23.976) < 0.2 || fabs(src_fps - 24.0) < 0.2) return 24.0;
-	if (fabs(src_fps - 25.0) < 0.2) return 25.0;
-	if (fabs(src_fps - 29.97) < 0.3 || fabs(src_fps - 30.0) < 0.3) return 30.0;
-	return 24.0;
-}
-
 static SourceMeta ffprobe_analyze_source(void) {
 	std::vector<std::string> cmd = {
 		cfg.ffprobe_path,
@@ -316,7 +307,7 @@ AnalysisResult vconv_analyze(const CodecInfo &ci) {
 	r.meta = ffprobe_analyze_source();
 
 	// Target output FPS
-	r.out_fps = (cfg.fps > 0.0) ? cfg.fps : choose_default_fps(r.meta.fps);
+	r.out_fps = (cfg.fps > 0.0) ? cfg.fps : r.meta.fps;
 
 	// Target resolution around cfg.width, then apply codec alignment.
 	// We do not error out if the exact computed size doesn't match alignment:
