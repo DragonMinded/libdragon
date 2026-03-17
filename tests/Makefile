@@ -79,7 +79,11 @@ filesystem/dl_test_ctors.dso: $(BUILD_DIR)/dl_test_ctors.o
 
 clean:
 	rm -rf $(BUILD_DIR) testrom.z64 testrom_emu.z64 testrom_h264.z64
+	$(MAKE) -C h264decoder clean
+
+h264decoder-host:
+	$(MAKE) -C h264decoder
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 
-.PHONY: all clean
+.PHONY: all clean h264decoder-host
