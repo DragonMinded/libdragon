@@ -56,6 +56,9 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 
 	verbose(1, "H.264 quality=%d -> crf=%d maxrate=%d kbps bufsize=%d kbps (fps=%.3f)",
 		cfg.quality, crf, maxrate_kbps, bufsize_kbps, ar.out_fps);
+	std::string x264_params = "no-deblock=1:no-info=1:slices=4";
+	x264_params += cfg.debug_weightp ? ":weightp=1" : ":weightp=0";
+	verbose(1, "H.264 debug weightp: %s", cfg.debug_weightp ? "on" : "off");
 
 	std::vector<std::string> cmd = {
 		cfg.ffmpeg_path,
@@ -79,7 +82,7 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-bf", "0",
 		"-preset", cfg.quick ? "veryfast" : "slower",
 		// Force 4 slices per frame for easier background decoding
-		"-x264-params", "no-deblock=1:no-info=1:slices=4",
+		"-x264-params", x264_params,
 		"-f", "h264",
 		"-progress", "pipe:1",
 		"-v", "error",

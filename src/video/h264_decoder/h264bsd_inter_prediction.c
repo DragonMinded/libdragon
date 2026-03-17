@@ -88,6 +88,98 @@ static void GetInterNeighbour(u32 sliceId, mbStorage_t *nMb,
     interNeighbour_t *n, u32 index);
 static void GetPredictionMv(mv_t *mv, interNeighbour_t *a, u32 refIndex);
 
+#if !H264BSD_N64
+static void ApplyWeightPart(image_t *currImage,
+    const sliceHeader_t *pSliceHeader, u32 part, u32 refIdx)
+{
+    u32 x, y;
+    u32 partX, partY, partWidth, partHeight;
+    u32 lumaPitch, chromaPitch;
+    u32 lumaDenom, chromaDenom;
+    i32 lumaRound, chromaRound;
+    i32 lumaWeight, lumaOffset;
+    i32 chromaWeightCb, chromaWeightCr;
+    i32 chromaOffsetCb, chromaOffsetCr;
+    u8 *pLuma, *pCb, *pCr;
+
+    if (pSliceHeader == NULL || !pSliceHeader->weightedPredFlag)
+        return;
+    if (refIdx >= MAX_NUM_REF_PICS)
+        return;
+
+    partX = (part & 0xFF000000) >> 24;
+    partY = (part & 0x00FF0000) >> 16;
+    partWidth = (part & 0x0000FF00) >> 8;
+    partHeight = (part & 0x000000FF);
+
+    lumaDenom = pSliceHeader->predWeightTable.lumaLog2WeightDenom;
+    chromaDenom = pSliceHeader->predWeightTable.chromaLog2WeightDenom;
+    lumaRound = lumaDenom ? (1 << (lumaDenom - 1)) : 0;
+    chromaRound = chromaDenom ? (1 << (chromaDenom - 1)) : 0;
+
+    lumaWeight = pSliceHeader->predWeightTable.lumaWeightL0[refIdx];
+    lumaOffset = pSliceHeader->predWeightTable.lumaOffsetL0[refIdx];
+    chromaWeightCb = pSliceHeader->predWeightTable.chromaWeightL0[refIdx][0];
+    chromaWeightCr = pSliceHeader->predWeightTable.chromaWeightL0[refIdx][1];
+    chromaOffsetCb = pSliceHeader->predWeightTable.chromaOffsetL0[refIdx][0];
+    chromaOffsetCr = pSliceHeader->predWeightTable.chromaOffsetL0[refIdx][1];
+
+    lumaPitch = currImage->width * 16;
+    pLuma = currImage->luma + lumaPitch * partY + partX;
+    if (lumaWeight != (1 << lumaDenom) || lumaOffset != 0)
+    {
+        for (y = 0; y < partHeight; y++)
+        {
+            u8 *row = pLuma + y * lumaPitch;
+            for (x = 0; x < partWidth; x++)
+            {
+                i32 pred = row[x];
+                i32 weighted = ((lumaWeight * pred + lumaRound) >> lumaDenom) +
+                    lumaOffset;
+                row[x] = CLIP1(weighted);
+            }
+        }
+    }
+
+    chromaPitch = currImage->width * 8;
+    pCb = currImage->cb + (partY >> 1) * chromaPitch + (partX >> 1);
+    pCr = currImage->cr + (partY >> 1) * chromaPitch + (partX >> 1);
+    if (chromaWeightCb != (1 << chromaDenom) || chromaOffsetCb != 0 ||
+        chromaWeightCr != (1 << chromaDenom) || chromaOffsetCr != 0)
+    {
+        for (y = 0; y < (partHeight >> 1); y++)
+        {
+            u8 *rowCb = pCb + y * chromaPitch;
+            u8 *rowCr = pCr + y * chromaPitch;
+            for (x = 0; x < (partWidth >> 1); x++)
+            {
+                i32 predCb = rowCb[x];
+                i32 predCr = rowCr[x];
+                i32 weightedCb = ((chromaWeightCb * predCb + chromaRound) >>
+                    chromaDenom) + chromaOffsetCb;
+                i32 weightedCr = ((chromaWeightCr * predCr + chromaRound) >>
+                    chromaDenom) + chromaOffsetCr;
+                rowCb[x] = CLIP1(weightedCb);
+                rowCr[x] = CLIP1(weightedCr);
+            }
+        }
+    }
+}
+#endif
+
+static inline void PredictPart(image_t *currImage, mv_t *pMv, image_t *refImage,
+    u32 colAndRow, u32 part, u8 *pFill, u32 refIdx,
+    const sliceHeader_t *pSliceHeader)
+{
+    h264bsdPredictSamples(currImage, pMv, refImage, colAndRow, part, pFill);
+#if !H264BSD_N64
+    ApplyWeightPart(currImage, pSliceHeader, part, refIdx);
+#else
+    (void)refIdx;
+    (void)pSliceHeader;
+#endif
+}
+
 static const neighbour_t N_A_SUB_PART[4][4][4] = {
     { { {MB_A,5}, {MB_NA,0}, {MB_NA,0}, {MB_NA,0} },
       { {MB_A,5}, {MB_A,7}, {MB_NA,0}, {MB_NA,0} },
@@ -241,7 +333,8 @@ static inline void n64PredictSamples(
 
 ------------------------------------------------------------------------------*/
 u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
-    dpbStorage_t *dpb, u32 mbNum, image_t *currImage)
+    dpbStorage_t *dpb, u32 mbNum, image_t *currImage,
+    const sliceHeader_t *pSliceHeader)
 {
     PROFILE_START(PS_H264_INTERPRED);
 
@@ -299,8 +392,8 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
             }
             refImage.data = pMb->refAddr[0];
             tmp = (0<<24) + (0<<16) + (16<<8) + 16;
-            h264bsdPredictSamples(currImage, pMb->mv, &refImage,
-                                    colAndRow, tmp, pFill);
+            PredictPart(currImage, pMb->mv, &refImage,
+                colAndRow, tmp, pFill, pMb->refPic[0], pSliceHeader);
             #ifdef H264BSD_N64
             pFill += 800;
             #endif
@@ -313,16 +406,16 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
             }
             refImage.data = pMb->refAddr[0];
             tmp = (0<<24) + (0<<16) + (16<<8) + 8;
-            h264bsdPredictSamples(currImage, pMb->mv, &refImage,
-                                    colAndRow, tmp, pFill);
+            PredictPart(currImage, pMb->mv, &refImage,
+                colAndRow, tmp, pFill, pMb->refPic[0], pSliceHeader);
             #ifdef H264BSD_N64
             pFill += 800;
             #endif
 
             refImage.data = pMb->refAddr[2];
             tmp = (0<<24) + (8<<16) + (16<<8) + 8;
-            h264bsdPredictSamples(currImage, pMb->mv+8, &refImage,
-                                    colAndRow, tmp, pFill);
+            PredictPart(currImage, pMb->mv+8, &refImage,
+                colAndRow, tmp, pFill, pMb->refPic[2], pSliceHeader);
             #ifdef H264BSD_N64
             pFill += 800;
             #endif
@@ -335,15 +428,15 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
             }
             refImage.data = pMb->refAddr[0];
             tmp = (0<<24) + (0<<16) + (8<<8) + 16;
-            h264bsdPredictSamples(currImage, pMb->mv, &refImage,
-                                    colAndRow, tmp, pFill);
+            PredictPart(currImage, pMb->mv, &refImage,
+                colAndRow, tmp, pFill, pMb->refPic[0], pSliceHeader);
             #ifdef H264BSD_N64
             pFill += 800;
             #endif
             refImage.data = pMb->refAddr[1];
             tmp = (8<<24) + (0<<16) + (8<<8) + 16;
-            h264bsdPredictSamples(currImage, pMb->mv+4, &refImage,
-                                    colAndRow, tmp, pFill);
+            PredictPart(currImage, pMb->mv+4, &refImage,
+                colAndRow, tmp, pFill, pMb->refPic[1], pSliceHeader);
             #ifdef H264BSD_N64
             pFill += 800;
             #endif
@@ -365,8 +458,9 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
                 {
                     case MB_SP_8x8:
                         tmp = (x<<24) + (y<<16) + (8<<8) + 8;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
@@ -374,14 +468,16 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
                     case MB_SP_8x4:
                         tmp = (x<<24) + (y<<16) + (8<<8) + 4;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
                         tmp = (x<<24) + ((y+4)<<16) + (8<<8) + 4;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i+2, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i+2, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
@@ -389,14 +485,16 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
                     case MB_SP_4x8:
                         tmp = (x<<24) + (y<<16) + (4<<8) + 8;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
                         tmp = ((x+4)<<24) + (y<<16) + (4<<8) + 8;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i+1, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i+1, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
@@ -404,26 +502,30 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
                     default:
                         tmp = (x<<24) + (y<<16) + (4<<8) + 4;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
                         tmp = ((x+4)<<24) + (y<<16) + (4<<8) + 4;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i+1, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i+1, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
                         tmp = (x<<24) + ((y+4)<<16) + (4<<8) + 4;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i+2, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i+2, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
                         tmp = ((x+4)<<24) + ((y+4)<<16) + (4<<8) + 4;
-                        h264bsdPredictSamples(currImage, pMb->mv+4*i+3, &refImage,
-                                                    colAndRow, tmp, pFill);
+                        PredictPart(currImage, pMb->mv+4*i+3, &refImage,
+                            colAndRow, tmp, pFill, pMb->refPic[i],
+                            pSliceHeader);
                         #ifdef H264BSD_N64
                         pFill += 800;
                         #endif
