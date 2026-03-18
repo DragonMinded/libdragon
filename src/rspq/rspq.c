@@ -364,10 +364,11 @@ typedef struct rspq_cmd_chain_s {
  * @brief A rspq queue: mutable buffered sequence of commands
  */
 typedef struct rspq_queue_s {
-    rspq_cmd_chain_t chain;           ///< Command chain for this queue
-    uint32_t nesting_level;           ///< Nesting level of the queue
-    volatile uint32_t *run_start;     ///< Start address for the next run
-    uint32_t cmds[];                  ///< First chunk contents
+    rspq_cmd_chain_t chain;            ///< Command chain for this queue
+    uint32_t nesting_level;            ///< Nesting level of the queue
+    volatile uint32_t *run_start;      ///< Start address for the next run
+    rdpq_tracking_t rdpq_tracking;     ///< Tracking state of the queue
+    uint32_t cmds[];                   ///< First chunk contents
 } rspq_queue_t;
 
 static rspq_ctx_t lowpri;               ///< Lowpri queue context
@@ -1408,6 +1409,7 @@ rspq_queue_t* rspq_queue_create(void)
     q->run_start = q->chain.first_chunk;
     q->nesting_level = 0;
 
+    __rdpq_tracking_state_reset(&q->rdpq_tracking);
     return q;
 }
 
@@ -1422,6 +1424,10 @@ void rspq_queue_switch(rspq_queue_t* q)
     if (rspq_queue_recording) {
         rspq_queue_recording->chain.cur = rspq_cur_pointer;
         rspq_queue_recording->chain.sentinel = rspq_cur_sentinel;
+        // there is already a queue active we want to move away from now,
+        // save its current tracking back to the queue,
+        // and restore what the queue backed up
+        SWAP(rdpq_tracking, rspq_queue_recording->rdpq_tracking);
     }
 
     if (!q) {
@@ -1429,8 +1435,12 @@ void rspq_queue_switch(rspq_queue_t* q)
         rspq_switch_context(&lowpri);
         return;
     }
-
+    
+    // we want to move into a queue, take the tracking state from the queue
+    // and backup the current main one
+    SWAP(rdpq_tracking, q->rdpq_tracking);
     rspq_queue_recording = q;
+
     if (rspq_ctx != NULL)
         rspq_switch_context(NULL);
     rspq_cur_pointer = q->chain.cur;
@@ -1460,6 +1470,9 @@ void rspq_queue_run(rspq_queue_t* q)
     // Switch back to the recording context.
     if (prev_recording)
         rspq_queue_switch(prev_recording);
+
+    // after the queue was executed, we can take its tracking state going forward
+    rdpq_tracking = q->rdpq_tracking;
 }
 
 void rspq_queue_clear(rspq_queue_t* q)
@@ -1469,6 +1482,7 @@ void rspq_queue_clear(rspq_queue_t* q)
     rspq_chain_reset(&q->chain, q->chain.first_chunk, RSPQ_BLOCK_MIN_SIZE);
     q->nesting_level = 0;
     q->run_start = q->chain.first_chunk;
+    __rdpq_tracking_state_reset(&q->rdpq_tracking);
 
     if (q == rspq_queue_recording) {
         rspq_cur_pointer = q->chain.cur;
