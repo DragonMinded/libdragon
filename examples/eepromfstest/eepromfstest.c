@@ -133,7 +133,7 @@ static int validate_game_high_scores(char * path)
     int result;
 
     result = read_game_high_scores(path);
-    if ( result != 0 ) printf("Ivalid high scores!\n");
+    if ( result != 0 ) printf("Invalid high scores!\n");
     press_a_to_continue();
 
     result = write_game_high_scores(path);

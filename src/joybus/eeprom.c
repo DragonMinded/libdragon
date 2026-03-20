@@ -245,7 +245,6 @@ static void eeprom_flush_write_callback(uint64_t *out_dwords, void *ctx)
 /** Start one async write for a dirty block (if flusher is idle). */
 static void eeprom_flush_kick(void)
 {
-    if (!eeprom_cache) return;
     uint8_t block;
     const uint8_t *src;
 
@@ -351,10 +350,12 @@ uint8_t eeprom_write( uint8_t block, const void * src )
 
 void eeprom_read_bytes( void * dest, size_t start, size_t len )
 {
-    if (len == 0) return;
     eeprom_cache_alloc_if_needed();
-    if (!eeprom_cache) return;
-    assert((start + len) <= (eeprom_num_blocks * EEPROM_BLOCK_SIZE));
+    assertf(eeprom_num_blocks > 0, "EEPROM not present");
+    if (len == 0) return;
+    assertf((start + len) <= (eeprom_num_blocks * EEPROM_BLOCK_SIZE), 
+            "EEPROM read out of bounds: start=%zu, len=%zu, total_size=%zu",
+            start, len, eeprom_num_blocks * EEPROM_BLOCK_SIZE);
 
     size_t first_block = start / EEPROM_BLOCK_SIZE;
     size_t last_block = (start + len - 1) / EEPROM_BLOCK_SIZE;
@@ -368,10 +369,12 @@ void eeprom_read_bytes( void * dest, size_t start, size_t len )
 
 void eeprom_write_bytes( const void * src, size_t start, size_t len )
 {
-    if (len == 0) return;
     eeprom_cache_alloc_if_needed();
-    if (!eeprom_cache) return;
-    assert((start + len) <= (eeprom_num_blocks * EEPROM_BLOCK_SIZE));
+    assertf(eeprom_num_blocks > 0, "EEPROM not present");
+    if (len == 0) return;
+    assertf((start + len) <= (eeprom_num_blocks * EEPROM_BLOCK_SIZE), 
+            "EEPROM write out of bounds: start=%zu, len=%zu, total_size=%zu",
+            start, len, eeprom_num_blocks * EEPROM_BLOCK_SIZE);
 
     // For partial writes we need existing data to preserve untouched bytes.
     size_t first_block = start / EEPROM_BLOCK_SIZE;
