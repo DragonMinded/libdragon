@@ -61,7 +61,7 @@
  * and gracefully handles the case where no EEPROM is present, even if it
  * was requested.
  *
- * Cheap chinese flashcarts might not support the advanced homebrew header,
+ * Cheap flashcarts might not support the advanced homebrew header,
  * and they most likely default to a 4k EEPROM as default save states for
  * non-commercial ROMs. If your ROM requires a 16k EEPROM to operate
  * properly, users of those flashcarts will need to manually configure the
@@ -135,7 +135,7 @@ void eeprom_read( uint8_t block, void * dest );
  * will want to use #eeprom_write_bytes instead, which is more flexible.
  *
  * @note Writes are eventually consistent to the EEPROM, so they will be
- *       persisted in background to the actual EEPROM. THe written data is
+ *       persisted in background to the actual EEPROM. The written data is
  *       immediately visible to read APIs though.
  *
  * @param[in] block
