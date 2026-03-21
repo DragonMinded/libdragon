@@ -353,7 +353,7 @@ u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
     #else 
     u8 fillBuff[32*21 + 15 + 32];
     #endif
-    u8 *pFill;
+    u8 *pFill = NULL;
     u32 tmp;
 /* Code */
 
