@@ -423,9 +423,14 @@ void graphics_fill_screen( surface_t* disp, uint32_t c )
 {
     if( disp == 0 ) { return; }
 
-    int len = TEX_FORMAT_PIX2BYTES(surface_get_format(disp), disp->width * disp->height) / 8;
-
-    sys_hw_memset32(disp->buffer, c, len);
+    int width_bytes = TEX_FORMAT_PIX2BYTES(surface_get_format(disp), disp->width);
+    if (width_bytes == disp->stride) {
+        sys_hw_memset32(disp->buffer, c, width_bytes * disp->height);
+    } else {
+        for (int y = 0; y < disp->height; y++) {
+            sys_hw_memset32(disp->buffer + y * disp->stride, c, width_bytes);
+        }
+    }
 }
 
 void graphics_set_default_font( void )
