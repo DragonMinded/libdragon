@@ -49,6 +49,14 @@
 
 #ifdef H264BSD_N64
 #include "../fastcache.h"
+
+// We can substitute the whole h264bsdPredictSamples with our
+// RSP-based implementation of inter-prediction with overfill.
+#define h264bsdPredictSamples(currImage,mv,refPic,colAndRow,part,pFill) \
+  n64PredictSamples(currImage,mv,refPic,colAndRow,part)
+
+static inline void n64PredictSamples(image_t *img, mv_t *mv, image_t *refPic, u32 colAndRow, u32 part);
+
 #endif
 
 
@@ -89,6 +97,7 @@ static void GetInterNeighbour(u32 sliceId, mbStorage_t *nMb,
 static void GetPredictionMv(mv_t *mv, interNeighbour_t *a, u32 refIndex);
 
 #if !H264BSD_N64
+
 static void ApplyWeightPart(image_t *currImage,
     const sliceHeader_t *pSliceHeader, u32 part, u32 refIdx)
 {
@@ -268,11 +277,6 @@ static const neighbour_t N_D_SUB_PART[4][4][4] = {
 
 #ifdef H264BSD_N64
 #include "../rsph264_internal.h"
-
-// We can substitute the whole h264bsdPredictSamples with our
-// RSP-based implementation of inter-prediction with overfill.
-#define h264bsdPredictSamples(currImage,mv,refPic,colAndRow,part,pFill) \
-  n64PredictSamples(currImage,mv,refPic,colAndRow,part)
 
 static inline void n64PredictSamples(
   image_t *img,
