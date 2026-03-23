@@ -877,7 +877,7 @@ rspq_block_t* rspq_block_end(void);
  *   rspq_block_t *block_caller = rspq_block_end();
  * @endcode
  * 
- * Then this function can be used to set the actual target before running it, e.g.:
+ * Then this function can be used to set the actual target before running it:
  * 
  * @code{.c}
  *   rspq_block_set_ph(block_caller, RSPQ_BLOCK_PH0, the_target_block);
@@ -909,7 +909,7 @@ void rspq_block_set_ph(
  * 
  * It is also possible to use a placeholder instead of a specific block.
  * This allows the target to be set dynamically later on.
- * For that pass the 'RSPQ_BLOCK_PH0' to 'RSPQ_BLOCK_PH7' into this function.
+ * For that pass 'RSPQ_BLOCK_PH0' to 'RSPQ_BLOCK_PH7' into this function.
  *
  * @param block The block or placeholder that must be run
  * 
