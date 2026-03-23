@@ -1337,6 +1337,7 @@ rspq_block_t* rspq_block_end(void)
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
+    rspq_block->cmds_last = rspq_cur_pointer;
     rspq_append1(rspq_cur_pointer, RSPQ_CMD_RET, rspq_block->nesting_level<<2);
 
     // Switch back to the normal display list
@@ -1364,6 +1365,25 @@ void rspq_block_free(rspq_block_t *block)
     free_uncached(block);
 }
 
+void rspq_block_set_ph(
+  rspq_block_t *block_caller,
+  rspq_block_t *ph,
+  rspq_block_t *ph_target
+) {
+  uint32_t slot = (uint32_t)ph;
+  assertf(slot < RSPQ_MAX_BLOCK_NESTING_LEVEL, "Invalid placeholder: %08lX", slot);
+  slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - slot;
+
+  // patch last jump in the block to point to the correct placeholder (@TODO: only do once)
+  rspq_append1(ph_target->cmds_last, RSPQ_CMD_RET, slot << 2);
+
+  uint32_t ptr_stack = offsetof(rsp_queue_t, rspq_pointer_stack);
+  rspq_int_write(RSPQ_CMD_WRITE_WORD, 
+    ptr_stack + (slot << 2), 
+    PhysicalAddr(ph_target->cmds)
+  );
+}
+
 void rspq_block_run(rspq_block_t *block)
 {
     // TODO: add support for block execution in highpri mode. This would be
@@ -1372,6 +1392,14 @@ void rspq_block_run(rspq_block_t *block)
     // would basically mean that a block can either work in highpri or in lowpri
     // mode, but it might be an acceptable limitation.
     assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
+
+    if((uint32_t)block < RSPQ_MAX_BLOCK_NESTING_LEVEL)
+    {
+      assertf(rspq_block, "Calling a placeholder is only supported inside a block");
+      uint32_t slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - (uint32_t)block;
+      rspq_int_write(RSPQ_CMD_CALL, 0, (slot << 2) | (1<<31));
+      return;
+    }
 
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current
@@ -1430,30 +1458,6 @@ rspq_queue_t* rspq_queue_create(void)
 
     __rdpq_tracking_state_reset(&q->rdpq_tracking);
     return q;
-}
-
-rspq_queue_t* rspq_queue_create_placeholder(uint32_t slot)
-{
-  assert(slot > 0);
-  assert(slot < RSPQ_MAX_BLOCK_NESTING_LEVEL);
-
-  rspq_queue_t* q = rspq_queue_create();
-  q->nesting_level = slot;
-  return q;
-}
-
-void rspq_queue_set_placeholder(rspq_queue_t* q)
-{
-  assert(q->nesting_level > 0);
-  
-  rspq_append1(q->chain.cur, RSPQ_CMD_RET, q->nesting_level << 2);
-  --q->chain.cur;
-
-  uint32_t ptr_stack = offsetof(rsp_queue_t, rspq_pointer_stack);
-  rspq_int_write(RSPQ_CMD_WRITE_WORD, 
-    ptr_stack + (q->nesting_level << 2), 
-    PhysicalAddr(q->run_start)
-  );
 }
 
 void rspq_queue_switch(rspq_queue_t* q)
@@ -1517,16 +1521,6 @@ void rspq_queue_run(rspq_queue_t* q)
     // after the queue was executed, we can take its tracking state going forward
     rdpq_tracking = q->rdpq_tracking;
     __rdpq_tracking_state_reset(&q->rdpq_tracking);
-}
-
-void rspq_queue_run_placeholder(uint32_t slot)
-{
-  assertf(rspq_block, "queue placeholder is only supported inside a block");
-
-  rspq_int_write(RSPQ_CMD_CALL, 0, (slot << 2) | (1<<31));
-  if(slot <= rspq_block->nesting_level) {
-    rspq_block->nesting_level = slot + 1;
-  }
 }
 
 void rspq_queue_clear(rspq_queue_t* q)
