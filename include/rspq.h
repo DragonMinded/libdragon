@@ -909,11 +909,11 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
  void rspq_queue_switch(rspq_queue_t* q);
  
  /**
-  * @brief Execute a queue from the first command to the last written one.
+  * @brief Execute the RSP commands in the queue.
   *
-  * The RSP will start executing the queue until it reaches the last written command.
-  * You can keep adding commands to the queue while it is running, and they will be
-  * executed on the next #rspq_queue_run call.
+  * This function will execute all pending RSP commands in the queue, in order.
+  * It is safe to call this function multiple times: each time, it will execute
+  * only new commands that were enqueued since the last call.
   *
   * @param q         The queue to execute
   */
