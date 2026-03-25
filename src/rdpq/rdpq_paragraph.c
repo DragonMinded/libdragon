@@ -311,7 +311,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                             .style_id = wrap_style_id,
                             .glyph = wfnt->ellipsis_glyph,
                             .x = (ellipsis_x + wfnt->ellipsis_advance * i * builder.xscale) + .5f,
-                            .y = wrapch[-1].y + .5f,
+                            .y = wrapch[0].y + .5f,
                         };
                     }
                 }   // fallthrough!
