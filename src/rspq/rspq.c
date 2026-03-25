@@ -1473,6 +1473,7 @@ void rspq_queue_run(rspq_queue_t* q)
 
     // after the queue was executed, we can take its tracking state going forward
     rdpq_tracking = q->rdpq_tracking;
+    __rdpq_tracking_state_reset(&q->rdpq_tracking);
 }
 
 void rspq_queue_clear(rspq_queue_t* q)
