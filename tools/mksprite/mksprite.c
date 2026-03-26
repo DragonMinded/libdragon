@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
+#include <float.h>
 #include <sys/stat.h>
 #include "../common/binout.c"
 #include "../common/binout.h"
@@ -1002,7 +1003,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
 	
     uint8_t *best_rgb_img = NULL;
     int best_rgb_w = 0, best_rgb_h = 0;
-    float best_err = INT32_MAX;
+    float best_err = FLT_MAX;
     float best_ifactor = 0;
     uint8_t *best_i_img = alphausage? malloc(width * height * 2) : malloc(width * height);
     uint8_t *i_img = alphausage? malloc(width * height * 2) : malloc(width * height);
