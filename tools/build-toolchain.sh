@@ -300,7 +300,9 @@ popd
 # Compile newlib for target.
 mkdir -p newlib_compile_target
 pushd newlib_compile_target
-CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
+CC_FOR_TARGET="${N64_TARGET}-gcc" \
+CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" \
+../"newlib-$NEWLIB_V"/configure \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
@@ -367,7 +369,9 @@ else
     # Compile newlib for target.
     mkdir -p newlib_compile
     pushd newlib_compile
-    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" ../"newlib-$NEWLIB_V"/configure \
+    CC_FOR_TARGET="${N64_TARGET}-gcc" \
+    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" \
+    ../"newlib-$NEWLIB_V"/configure \
         --prefix="$INSTALL_PATH" \
         --target="$N64_TARGET" \
         --with-cpu=mips64vr4300 \
