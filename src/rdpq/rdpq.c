@@ -589,6 +589,9 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
     }
 }
 
+/** @brief Resets a tracking state into an unknown state */
+extern inline void __rdpq_tracking_state_reset(rdpq_tracking_t *state);
+
 /** @brief Autosync engine: mark certain resources as in use */
 extern inline void __rdpq_autosync_use(uint32_t res);
 
@@ -829,20 +832,7 @@ void __rdpq_block_run(rdpq_block_t *block)
         st->wend = NULL;
     } else {
         // Initialize tracking state for unknown state
-        rdpq_tracking = (rdpq_tracking_t){
-            // current autosync status is unknown because blocks can be
-            // played in any context. So assume the worst: all resources
-            // are being used. This will cause all SYNCs to be generated,
-            // which is the safest option.
-            .autosync = ~0,
-            // we don't know whether mode changes will be frozen or not
-            // when the block will play. Assume the worst (and thus
-            // do not optimize out mode changes).
-            .mode_freeze = false,
-            // we don't know the cycle type after we run the block
-            .cycle_type_known = 0,
-            .cycle_type_frozen = 0,
-        };
+        __rdpq_tracking_state_reset(&rdpq_tracking);
     }
 }
 
