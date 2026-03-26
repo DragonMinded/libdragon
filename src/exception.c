@@ -105,7 +105,7 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 			break;
 
 		case EXCEPTION_CODE_EMUX:
-			fprintf(out, "On real hardware, this exception would have frozen the CPU.\n");
+			fprintf(out, "On hardware, the console would now be frozen.\n");
 			/* fall through */
 		case EXCEPTION_CODE_D_BUS_ERROR: {
 			uint32_t opcode = *(uint32_t*)epc;
