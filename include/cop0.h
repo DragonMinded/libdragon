@@ -240,6 +240,20 @@
 })
 
 /**
+ * @brief Read the COP0 PARITYERR register
+ *
+ * This register is documented as unused on VR4300.
+ *
+ * @note The emux homebrew spec (ab)uses this register to specify the cause of
+ *       an emux exception.
+ */
+#define C0_PARITYERR() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$26":"=r"(x)); \
+    x; \
+})
+
+/**
  * @brief Write the COP0 WATCHLO register
  * 
  * This register is used during watchpoint programming. It allows to trigger
