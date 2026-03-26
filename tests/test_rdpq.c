@@ -299,6 +299,32 @@ void test_rdpq_block(TestContext *ctx)
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, "Framebuffer contains wrong data!");
 }
 
+void test_rdpq_block_begin_reuse(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    rspq_block_begin();
+    rdpq_set_mode_fill(RGBA32(0, 0, 0, 0));
+    rdpq_set_fill_color(RGBA16(1, 2, 3, 4));
+    rdpq_set_scissor(0, 0, 8, 8);
+    rdpq_fill_rectangle(0, 0, 32, 32);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    ASSERT(block->rdp_block != NULL, "expected RDP static buffer");
+    void *rdp_head = block->rdp_block;
+
+    rspq_block_begin_reuse(block);
+    rdpq_set_mode_fill(RGBA32(0, 0, 0, 0));
+    rdpq_set_fill_color(RGBA16(5, 6, 7, 8));
+    rdpq_set_scissor(0, 0, 8, 8);
+    rdpq_fill_rectangle(0, 0, 32, 32);
+    rspq_block_t *b2 = rspq_block_end();
+
+    ASSERT(block == b2, "rspq block pointer must be stable after begin_reuse");
+    ASSERT(block->rdp_block == rdp_head, "RDP static buffer head must be reused");
+}
+
 void test_rdpq_block_coalescing(TestContext *ctx)
 {
     RDPQ_INIT();

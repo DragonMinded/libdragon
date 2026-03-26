@@ -1279,30 +1279,55 @@ bool rspq_in_highpri(void)
     return (rspq_ctx == &highpri);
 }
 
-void rspq_block_begin(void)
+/** Invoke all #rspq_block_atexit callbacks and free the list nodes. */
+static void rspq_block_free_atexit_chain(rspq_block_t *block)
+{
+    rspq_block_cb_t *cb = block->atexit;
+    while (cb) {
+        cb->cb(cb->ctx);
+        rspq_block_cb_t *next = cb->next;
+        free(cb);
+        cb = next;
+    }
+    block->atexit = NULL;
+}
+
+void rspq_block_begin_reuse(rspq_block_t *reuse_block)
 {
     assertf(!rspq_block, "a block was already being created");
     assertf(rspq_ctx != &highpri, "cannot create a block in highpri mode");
     assertf(!rspq_queue_recording, "cannot create a block while recording a queue");
 
-    // Allocate a new block (at minimum size) and initialize it.
+    rspq_block_t *block;
     int block_size = RSPQ_BLOCK_MIN_SIZE;
-    rspq_block = malloc_uncached(sizeof(rspq_block_t) + block_size*sizeof(uint32_t));
-    assertf(rspq_block, "Out of memory");
-    rspq_block->nesting_level = 0;
-    rspq_block->rdp_block = NULL;
-    rspq_block->atexit = NULL;
 
-    rspq_chain_init(&rspq_block_chain, rspq_block->cmds, block_size);
+    if (!reuse_block) {
+        block = malloc_uncached(sizeof(rspq_block_t) + block_size*sizeof(uint32_t));
+        assertf(block, "Out of memory");
+        block->nesting_level = 0;
+        block->rdp_block = NULL;
+        block->atexit = NULL;
+        rspq_chain_init(&rspq_block_chain, block->cmds, block_size);
+    } else {
+        block = reuse_block;
+        rspq_block_free_atexit_chain(block);
+        block->nesting_level = 0;
+        rspq_chain_reset(&rspq_block_chain, block->cmds, block_size);
+    }
 
     // Switch to the block buffer. From now on, all rspq_writes will
     // go into the block.
     rspq_switch_context(NULL);
-    rspq_switch_buffer(rspq_block->cmds, block_size, false);
+    rspq_switch_buffer(block->cmds, block_size, false);
     rspq_block_chain.cur = rspq_cur_pointer;
     rspq_block_chain.sentinel = rspq_cur_sentinel;
 
-    __rdpq_block_begin();
+    rspq_block = block;
+
+    if (block->rdp_block)
+        __rdpq_block_recycle(block->rdp_block);
+    else
+        __rdpq_block_begin();
 }
 
 rspq_block_t* rspq_block_end(void)
@@ -1333,13 +1358,7 @@ void rspq_block_free(rspq_block_t *block)
     rspq_chain_free(block->cmds, RSPQ_BLOCK_MIN_SIZE);
 
     // Lastly, invoke callbacks (in reverse order of registration)
-    rspq_block_cb_t *cb = block->atexit;
-    while (cb) {
-        cb->cb(cb->ctx);
-        rspq_block_cb_t *next = cb->next;
-        free(cb);
-        cb = next;
-    }
+    rspq_block_free_atexit_chain(block);
 
     free_uncached(block);
 }
@@ -1704,6 +1723,7 @@ void rspq_dma_to_dmem(uint32_t dmem_addr, void *rdram_addr, uint32_t len, bool i
 }
 
 /* Extern inline instantiations. */
+extern inline void rspq_block_begin(void);
 extern inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, int size);
 extern inline void rspq_write_arg(rspq_write_t *w, uint32_t value);
 extern inline void rspq_write_end(rspq_write_t *w);

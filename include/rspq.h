@@ -776,24 +776,56 @@ inline void rspq_call_deferred(void (*func)(void *), void *arg) {
     rspq_flush();
 }
 
+
 /**
  * @brief Begin creating a new block.
- * 
- * This function begins writing a command block (see #rspq_block_t).
- * While a block is being written, all calls to #rspq_write
- * will record the commands into the block, without actually scheduling them for
- * execution. Use #rspq_block_end to close the block and get a reference to it.
- * 
- * Only one block at a time can be created. Calling #rspq_block_begin
- * twice (without any intervening #rspq_block_end) will cause an assert.
  *
- * During block creation, the RSP will keep running as usual and
- * execute commands that have been already added to the queue.
- *       
- * @note Calls to #rspq_flush are ignored during block creation, as the RSP
- *       is not going to execute the block commands anyway.
+ * While a block is being written, all calls to #rspq_write record commands into
+ * the block without scheduling them for execution. Use #rspq_block_end to close
+ * the block and obtain a reference, #rspq_block_run to enqueue playback, and
+ * #rspq_block_free when the block is no longer needed.
+ *
+ * Only one block at a time can be open. Calling #rspq_block_begin again before
+ * #rspq_block_end asserts. The same applies if you are in highpri mode or
+ * recording a #rspq_queue_t.
+ *
+ * During block creation the RSP keeps running as usual and executes commands
+ * already present in the normal queue.
+ *
+ * @note Calls to #rspq_flush are ignored while the block is open; the RSP does
+ *       not execute recorded block commands until the block is run.
+ *
+ * @see #rspq_block_begin_reuse
+ * @see #rspq_block_run
+ * @see #rspq_block_free
  */
-void rspq_block_begin(void);
+inline void rspq_block_begin(void) {
+    extern void rspq_block_begin_reuse(rspq_block_t *);
+    rspq_block_begin_reuse(NULL);
+}
+
+/**
+ * @brief Begin creation of a block, reusing an existing allocation.
+ *
+ * This function is similar to #rspq_block_begin, but it reuses an existing
+ * allocation instead of allocating a new one. It can be useful to avoid
+ * allocating and freeing memory unnecessarily.
+ *
+ *If @p reuse_block is NULL, this function behaves like #rspq_block_begin.
+ *
+ * @note Just like #rspq_block_free, you must not call this function while
+ *       the RSP has a command to run this block in its command queue. If you
+ *       cannot guarantee that, use #rspq_call_deferred to free the previous
+ *       block and allocate a new one with #rspq_block_begin.
+ *
+ * @param reuse_block The block to reuse
+ *
+ * @see #rspq_block_begin
+ * @see #rspq_block_run
+ * @see #rspq_block_free
+ */
+void rspq_block_begin_reuse(rspq_block_t *reuse_block);
+
 
 /**
  * @brief Finish creating a block.

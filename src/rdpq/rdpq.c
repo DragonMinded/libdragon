@@ -649,6 +649,43 @@ void __rdpq_block_begin()
     __rdpq_block_run(NULL);    
 }
 
+/**
+ * @brief Reuse an existing RDP block chain for a new rspq block recording session.
+ *
+ * Like #__rdpq_block_begin followed immediately by the state left after the first
+ * #__rdpq_block_next_buffer on the first node: RSP #RSPQ_CMD_RDP_SET_BUFFER is emitted
+ * and write pointers point at @p head.
+ *
+ * The first link is always sized #RDPQ_BLOCK_MIN_SIZE (see #__rdpq_block_next_buffer).
+ */
+void __rdpq_block_recycle(rdpq_block_t *head)
+{
+    struct rdpq_block_state_s *st = &rdpq_block_state;
+    assertf(head, "__rdpq_block_recycle: NULL head");
+
+    memset(st, 0, sizeof(*st));
+    st->previous_tracking = rdpq_tracking;
+    __rdpq_block_run(NULL);
+
+    st->first_node = head;
+    st->last_node = head;
+    int c = RDPQ_BLOCK_MIN_SIZE;
+    st->wptr = head->cmds;
+    st->wend = head->cmds + c;
+    st->bufsize = (c < RDPQ_BLOCK_MAX_SIZE) ? (c * 2) : c;
+
+    extern volatile uint32_t *rspq_cur_pointer;
+    st->last_rdp_append_buffer = rspq_cur_pointer;
+
+    assertf((PhysicalAddr(st->wptr) & 0x7) == 0,
+        "start not aligned to 8 bytes: %lx", PhysicalAddr(st->wptr));
+    assertf((PhysicalAddr(st->wend) & 0x7) == 0,
+        "end not aligned to 8 bytes: %lx", PhysicalAddr(st->wend));
+
+    rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER,
+        PhysicalAddr(st->wptr), PhysicalAddr(st->wptr), PhysicalAddr(st->wend));
+}
+
 /** 
  * @brief Allocate a new RDP block buffer, chaining it to the current one (if any) 
  * 
@@ -677,18 +714,26 @@ void __rdpq_block_next_buffer(void)
             assert(RDPQ_BLOCK_MIN_SIZE >= RDPQ_MAX_COMMAND_SIZE);
         }
 
-        // Allocate RDP static buffer.
-        int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
-        rdpq_block_t *b = malloc_uncached(memsz);
-        assertf(b, "Out of memory");
+        /* Reuse a pre-linked node when recycling: #next was allocated by this same
+         * function with the current #bufsize (doubling sequence invariant). */
+        rdpq_block_t *b;
+        if (st->last_node && st->last_node->next) {
+            b = st->last_node->next;
+            st->last_node = b;
+        } else {
+            // Allocate RDP static buffer.
+            int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
+            b = malloc_uncached(memsz);
+            assertf(b, "Out of memory");
 
-        // Chain the block to the current one (if any)
-        b->next = NULL;
-        if (st->last_node) {
-            st->last_node->next = b;
+            // Chain the block to the current one (if any)
+            b->next = NULL;
+            if (st->last_node) {
+                st->last_node->next = b;
+            }
+            st->last_node = b;
+            if (!st->first_node) st->first_node = b;
         }
-        st->last_node = b;
-        if (!st->first_node) st->first_node = b;
 
         // Set write pointer and sentinel for the new buffer
         st->wptr = b->cmds;

@@ -111,6 +111,7 @@ typedef struct rdpq_block_state_s {
 } rdpq_block_state_t;
 
 void __rdpq_block_begin();
+void __rdpq_block_recycle(rdpq_block_t *head);
 rdpq_block_t* __rdpq_block_end();
 void __rdpq_block_free(rdpq_block_t *block);
 void __rdpq_block_run(rdpq_block_t *block);
