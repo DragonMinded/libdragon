@@ -15,7 +15,7 @@ if [ -z "${N64_INST-}" ]; then
 fi
 
 # Dependency source libs (Versions)
-GDB_V=16.2
+GDB_V=17.1
 
 # Defines the build system variables to allow cross compilation.
 N64_HOST=${N64_HOST:-""}

@@ -37,12 +37,12 @@ BINUTILS_CONFIGURE_ARGS=()
 GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
-BINUTILS_V=2.44
-GCC_V=14.2.0
-NEWLIB_V=4.4.0.20231231
+BINUTILS_V=2.46.0
+GCC_V=14
+NEWLIB_V=4.5.0.20241231
 GMP_V=6.3.0
-MPC_V=1.3.1
-MPFR_V=4.2.1
+MPC_V=1.4.0
+MPFR_V=4.2.2
 ZLIB_V=${ZLIB_V:-""}
 MAKE_V=${MAKE_V:-""}
 
@@ -120,25 +120,27 @@ fi
 
 # Dependency downloads and unpack
 test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
-test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
+test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzpf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
 
-test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
-test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
+test -f "$DOWNLOAD_PATH/index.html"                  || download "https://ftp.fu-berlin.de/unix/languages/gcc/snapshots/LATEST-${GCC_V:0:2}/index.html"
+GCC_V=`cat "$DOWNLOAD_PATH/index.html" | grep "<title>GCC ${GCC_V:0:2}-" | cut -f2 -d\ `
+test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.xz"           || download "https://ftp.fu-berlin.de/unix/languages/gcc/snapshots/LATEST-${GCC_V:0:2}/gcc-$GCC_V.tar.xz"
+test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xJpf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.xz" -C "$BUILD_PATH"
 
 test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
-test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
+test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzpf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
 
 if [ "$GMP_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download "https://ftp.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
-    test -d "$BUILD_PATH/gmp-$GMP_V"                 || tar -xf "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2" -C "$BUILD_PATH" # note: no .gz download file currently available
+    test -d "$BUILD_PATH/gmp-$GMP_V"                 || tar -xpjf "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2" -C "$BUILD_PATH" # note: no .gz download file currently available
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"gmp-$GMP_V" "gmp"
     popd
 fi
 
 if [ "$MPC_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"       || download "https://ftp.gnu.org/gnu/mpc/mpc-$MPC_V.tar.gz"
-    test -d "$BUILD_PATH/mpc-$MPC_V"                 || tar -xzf "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz" -C "$BUILD_PATH"
+    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.xz"       || download "https://ftp.gnu.org/gnu/mpc/mpc-$MPC_V.tar.xz"
+    test -d "$BUILD_PATH/mpc-$MPC_V"                 || tar -xJpf "$DOWNLOAD_PATH/mpc-$MPC_V.tar.xz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpc-$MPC_V" "mpc"
     popd
@@ -146,7 +148,7 @@ fi
 
 if [ "$MPFR_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz"     || download "https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_V.tar.gz"
-    test -d "$BUILD_PATH/mpfr-$MPFR_V"               || tar -xzf "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz" -C "$BUILD_PATH"
+    test -d "$BUILD_PATH/mpfr-$MPFR_V"               || tar -xzpf "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpfr-$MPFR_V" "mpfr"
     popd
@@ -154,12 +156,12 @@ fi
 
 if [ "$MAKE_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz"     || download "https://ftp.gnu.org/gnu/make/make-$MAKE_V.tar.gz"
-    test -d "$BUILD_PATH/make-$MAKE_V"               || tar -xzf "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz" -C "$BUILD_PATH"
+    test -d "$BUILD_PATH/make-$MAKE_V"               || tar -xzpf "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz" -C "$BUILD_PATH"
 fi
 
 if [ "$ZLIB_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/zlib-$ZLIB_V.tar.gz"     || download "https://zlib.net/fossils/zlib-$ZLIB_V.tar.gz"
-    test -d "$BUILD_PATH/zlib-$ZLIB_V"               || tar -xzf "$DOWNLOAD_PATH/zlib-$ZLIB_V.tar.gz" -C "$BUILD_PATH"
+    test -d "$BUILD_PATH/zlib-$ZLIB_V"               || tar -xzpf "$DOWNLOAD_PATH/zlib-$ZLIB_V.tar.gz" -C "$BUILD_PATH"
 fi
 
 cd "$BUILD_PATH"

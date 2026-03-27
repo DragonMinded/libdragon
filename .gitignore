@@ -13,6 +13,7 @@ tools/n64sym
 tools/n64tool
 tools/n64sym
 tools/**/*.exe
+tools/toolchain/*
 website/ref/
 
 ## OSX junk
