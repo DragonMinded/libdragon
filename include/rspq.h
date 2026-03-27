@@ -880,16 +880,14 @@ rspq_block_t* rspq_block_end(void);
  * Then this function can be used to set the actual target before running it:
  * 
  * @code{.c}
- *   rspq_block_set_ph(block_caller, RSPQ_BLOCK_PH0, the_target_block);
+ *   rspq_block_set_ph(RSPQ_BLOCK_PH0, the_target_block);
  *   rspq_block_run(RSPQ_BLOCK_PH0);
  * @endcode
  * 
- * @param block_caller block that uses the placeholder
  * @param ph the placeholder slot (RSPQ_BLOCK_PH0 - RSPQ_BLOCK_PH7)
  * @param ph_target block the placeholder should point to
  */
 void rspq_block_set_ph(
-  rspq_block_t *block_caller,
   rspq_block_t *ph,
   rspq_block_t *ph_target
 );

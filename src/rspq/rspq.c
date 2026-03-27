@@ -1366,7 +1366,6 @@ void rspq_block_free(rspq_block_t *block)
 }
 
 void rspq_block_set_ph(
-  rspq_block_t *block_caller,
   rspq_block_t *ph,
   rspq_block_t *ph_target
 ) {
@@ -1374,7 +1373,7 @@ void rspq_block_set_ph(
   assertf(slot < RSPQ_MAX_BLOCK_NESTING_LEVEL, "Invalid placeholder: %08lX", slot);
   slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - slot;
 
-  // patch last jump in the block to point to the correct placeholder (@TODO: only do once)
+  // patch last jump in the block to point to the correct placeholder
   rspq_append1(ph_target->cmds_last, RSPQ_CMD_RET, slot << 2);
 
   uint32_t ptr_stack = offsetof(rsp_queue_t, rspq_pointer_stack);
@@ -1398,6 +1397,11 @@ void rspq_block_run(rspq_block_t *block)
       assertf(rspq_block, "Calling a placeholder is only supported inside a block");
       uint32_t slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - (uint32_t)block;
       rspq_int_write(RSPQ_CMD_CALL, 0, (slot << 2) | (1<<31));
+
+      // set RDP to unknown state, since we don't know yet what it may contain
+      rdpq_tracking_t tracking;
+      __rdpq_tracking_state_reset(&tracking);
+      __rdpq_block_run(&tracking);
       return;
     }
 
@@ -1421,7 +1425,7 @@ void rspq_block_run(rspq_block_t *block)
     }
 
     // Notify rdpq engine we have run a block
-    __rdpq_block_run(block->rdp_block);
+    __rdpq_block_run(&block->rdp_block->tracking);
 }
 
 void rspq_block_run_rsp(int nesting_level)

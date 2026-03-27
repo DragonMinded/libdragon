@@ -803,16 +803,16 @@ rdpq_block_t* __rdpq_block_end()
 }
 
 /** @brief Notify that a rspq block was run (called by #rspq_block_run). */
-void __rdpq_block_run(rdpq_block_t *block)
+void __rdpq_block_run(rdpq_tracking_t *tracking)
 {
-    if (block) {
+    if (tracking) {
         // We have run a block that contains rdpq commands.
         // During creation, we tracked some state for the block 
         // and saved it into the block structure; set it as current,
         // because from now on we can assume the block would and the
         // state of the engine must match the state at the end of the block.
         rdpq_tracking_t prev = rdpq_tracking;
-        rdpq_tracking = block->tracking;
+        rdpq_tracking = *tracking;
 
         // If the data coming out of the block is "unknown", we can
         // restore the previous value, because it means that the block didn't
