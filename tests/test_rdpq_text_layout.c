@@ -480,8 +480,106 @@ void test_rdpq_text_max_chars_stop_at_space(TestContext *ctx)
 	DEFER(rdpq_paragraph_free(layout););
 
 	ASSERT_EQUAL_SIGNED(layout->nchars, 2, "two glyphs");
-	/* nbytes reflects outer parse cursor (full string for plain text); layout stops earlier. */
-	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "input fully scanned");
+	ASSERT_EQUAL_SIGNED(nbytes, 2, "2 chars displayed");
+}
+
+
+void test_rdpq_text_nbytes_wrap_word_plaintext(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_textparms_t parms = { .width = 40, .height = 40, .wrap = WRAP_WORD };
+	const char *text = "abcdef abcdef 123456 123456";
+	
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 3, "first word doesn't fit. only 3 chars displayed (+ ellipsis replaces 2 chars which are not consumed)");
+
+	nbytes = (int)strlen(text);
+	parms.width = 45;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 20, "width can fit whole word. height fits 3 lines. 6 + space + 6 + space + 6 = 20");
+
+	nbytes = (int)strlen(text);
+	parms.width = 85;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "width can fit 2 words. full string displayed on 2 lines");
+}
+
+void test_rdpq_text_nbytes_wrap_word_with_escapes(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_font_style(mono, 1, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF),
+    });
+    rdpq_font_style(mono, 2, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0x00, 0x00, 0xFF),
+    });
+
+	rdpq_textparms_t parms = { .width = 40, .height = 40, .wrap = WRAP_WORD };
+	const char *text = "^01abcdef ^02abcdef ^01123456 ^02123456";
+	
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 6, "first word doesn't fit. 3 escape chars consumed + 3 chars displayed + ellipsis replaces 2 chars which are not consumed");
+
+	nbytes = (int)strlen(text);
+	parms.width = 45;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 29, "width can fit whole word. height fits 3 lines. 3 escapes + 6 + space + 3 esc + 6 + space + 3 esc + 6 = 29");
+
+	nbytes = (int)strlen(text);
+	parms.width = 85;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "width can fit 2 words. full string displayed on 2 lines");
+}
+
+void test_rdpq_text_nbytes_wrap_char_with_escapes(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_font_style(mono, 1, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF),
+    });
+    rdpq_font_style(mono, 2, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0x00, 0x00, 0xFF),
+    });
+
+	rdpq_textparms_t parms = { .width = 25, .height = 40, .wrap = WRAP_CHAR };
+	const char *text = "^01abcdef ^02abcdef ^01123456 ^02123456";
+	
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 16, "3 lines, 3 chars per line. last char displayed is second 'c'. 3 escapes + 6 + 1 space + 3 esc + 3 = 16");
+
+	nbytes = (int)strlen(text);
+	parms.width = 30;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 18, "3 lines, 4 chars per line. last char displayed is second 'e'. 3 escapes + 6 + 1 space + 3 esc + 5 = 18");
+
+	nbytes = (int)strlen(text);
+	parms.width = 35;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+	ASSERT_EQUAL_SIGNED(nbytes, 24, "3 lines, 5 chars per line. last char displayed is first '1'. 3 escapes + 6 + 1 space + 3 esc + 6 + 1 space + 3 esc + 1 = 24");
 }
 
 /* max_chars on a word without spaces: final nchars clamped to max_chars. */
