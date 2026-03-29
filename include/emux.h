@@ -33,7 +33,7 @@
  */
 #define EMUX_XDETECT(rd, code)          EMUX_OP(0x20,   rd,      0,  code)  ///< Detect EMUX presence
 #define EMUX_XBREAK()                   EMUX_OP(0x21,    0,      0, 0x000)  ///< Trigger a breakpoint
-#define EMUX_XLOG(addr, len)            EMUX_OP(0x25, addr,    len, 0x000)  ///< Log a string
+#define EMUX_XLOG(addr, len, code)      EMUX_OP(0x25, addr,    len,  code)  ///< Log a string
 #define EMUX_XHEXDUMP(addr, len)        EMUX_OP(0x27, addr,    len, 0x000)  ///< Hexdump memory region
 #define EMUX_XPROF(slot, code)          EMUX_OP(0x28, slot,      0,  code)  ///< Control profiler
 #define EMUX_XPROF_READ(slot, metric)   EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
@@ -51,6 +51,9 @@
 #define EMUX_FEAT1_PROFILER                     (1 << 0x8)    ///< Profiling support
 #define EMUX_FEAT1_EXCEPTION                    (1 << 0xA)    ///< Exception support
 #define EMUX_FEAT1_IOCTL                        (1 << 0xC)    ///< Emulator behavior support
+
+#define EMUX_LOG_ASCIIZ                         0x000      ///< Log a zero-terminated string
+#define EMUX_LOG_LENGTH                         0x001      ///< Log a non-zero-terminated string
 
 #define EMUX_IOCTL_EXIT                         0x001      ///< Exit the emulator
 #define EMUX_IOCTL_FAST                         0x002      ///< Fast mode (go uncapped)
@@ -183,7 +186,7 @@ inline void emux_log(const char *ut8_str)
     register const char *__ut8_str asm("t0") = ut8_str;
     __asm__ __volatile__(
         " .word %1\n"
-        :: "r"(__ut8_str), "i"(EMUX_XLOG(REG_T0, 0)) : "memory");
+        :: "r"(__ut8_str), "i"(EMUX_XLOG(REG_T0, 0, EMUX_LOG_ASCIIZ)) : "memory");
 }
 
 /**
@@ -208,7 +211,7 @@ inline void emux_logn(const char *utf8_str, int len)
     register int __len asm("t1") = len;
     __asm__ __volatile__(
         " .word %2\n"
-        :: "r"(__utf8_str), "r"(__len), "i"(EMUX_XLOG(REG_T0, REG_T1)) : "memory");
+        :: "r"(__utf8_str), "r"(__len), "i"(EMUX_XLOG(REG_T0, REG_T1, EMUX_LOG_LENGTH)) : "memory");
 }
 
 /**
