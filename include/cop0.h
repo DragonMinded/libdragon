@@ -243,13 +243,24 @@
  * @brief Read the COP0 PARITYERR register
  *
  * This register is documented as unused on VR4300.
- *
- * @note The emux homebrew spec (ab)uses this register to specify the cause of
- *       an emux exception.
  */
 #define C0_PARITYERR() ({ \
     uint32_t x; \
     asm volatile("mfc0 %0,$26":"=r"(x)); \
+    x; \
+})
+
+/**
+ * @brief Read the COP0 CACHEERR register
+ *
+ * This register is unused on the hardware and always returns 0.
+ * 
+ * @note The emux homebrew spec (ab)uses this register to specify the cause of
+ *       an emux exception.
+ */
+#define C0_CACHEERR() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$27":"=r"(x)); \
     x; \
 })
 

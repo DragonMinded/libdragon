@@ -299,7 +299,7 @@ static const char* __get_exception_name(exception_t *ex)
 		"Coprocessor Unusable",						// 11
 		"Arithmetic Overflow",						// 12
 		"Trap",										// 13
-		"Emux",										// 14
+		"Reserved",									// 14
 		"Floating-Point",							// 15
 		"Reserved",									// 16
 		"Reserved",									// 17
@@ -309,7 +309,7 @@ static const char* __get_exception_name(exception_t *ex)
 		"Reserved",									// 21
 		"Reserved",									// 22
 		"Watch",									// 23
-		"Reserved",									// 24
+		"Emux", 									// 24
 		"Reserved",									// 25
 		"Reserved",									// 26
 		"Reserved",									// 27
@@ -461,7 +461,7 @@ static const char* __get_exception_name(exception_t *ex)
 			return "Integer divide by zero";
 	}	return exceptionMap[ex->code];
 	case EXCEPTION_CODE_EMUX: {
-		uint32_t kind = C0_PARITYERR() & 0xFF;
+		uint32_t kind = C0_CACHEERR() & 0xFF;
 		switch (kind) {
 		case 0:  return "Cached access to non-RDRAM area";
 		case 1:  return "64-bit read from non-RDRAM area";
