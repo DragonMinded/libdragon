@@ -6,8 +6,8 @@
 #include "emux.h"
 
 
-.macro emux_detect rd
-    .word EMUX_XDETECT(\rd)
+.macro emux_detect rd, code
+    .word EMUX_XDETECT(\rd, \code)
 .endm
 
 .macro emux_break

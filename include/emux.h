@@ -31,7 +31,7 @@
  * @name EMUX opcodes
  * @{
  */
-#define EMUX_XDETECT(rd)                EMUX_OP(0x20,   rd,      0, 0x000)  ///< Detect EMUX presence
+#define EMUX_XDETECT(rd, code)          EMUX_OP(0x20,   rd,      0,  code)  ///< Detect EMUX presence
 #define EMUX_XBREAK()                   EMUX_OP(0x21,    0,      0, 0x000)  ///< Trigger a breakpoint
 #define EMUX_XLOG(addr, len)            EMUX_OP(0x25, addr,    len, 0x000)  ///< Log a string
 #define EMUX_XHEXDUMP(addr, len)        EMUX_OP(0x27, addr,    len, 0x000)  ///< Hexdump memory region
@@ -41,16 +41,16 @@
 #define EMUX_XIOCTL(code)               EMUX_OP(0x2C,    0,      0,  code)  ///< Modify emulator behavior
 /** @} */
 
-#define EMUX_FEAT_DETECT                        (cast64(1) << 0x20)    ///< EMUX detection support
-#define EMUX_FEAT_BREAK                         (cast64(1) << 0x21)    ///< Immediate breakpoint support
-#define EMUX_FEAT_BREAKPOINTS                   (cast64(1) << 0x22)    ///< Breakpoint configuration support
-#define EMUX_FEAT_TRACE                         (cast64(1) << 0x23)    ///< Tracing support
-#define EMUX_FEAT_LOG                           (cast64(1) << 0x25)    ///< Logging support
-#define EMUX_FEAT_LOGREGS                       (cast64(1) << 0x26)    ///< Register logging support
-#define EMUX_FEAT_HEXDUMP                       (cast64(1) << 0x27)    ///< Hexdump support
-#define EMUX_FEAT_PROFILER                      (cast64(1) << 0x28)    ///< Profiling support
-#define EMUX_FEAT_EXCEPTION                     (cast64(1) << 0x2A)    ///< Exception support
-#define EMUX_FEAT_IOCTL                         (cast64(1) << 0x2C)    ///< Emulator behavior support
+#define EMUX_FEAT1_DETECT                       (1 << 0x0)    ///< EMUX detection support
+#define EMUX_FEAT1_BREAK                        (1 << 0x1)    ///< Immediate breakpoint support
+#define EMUX_FEAT1_BREAKPOINTS                  (1 << 0x2)    ///< Breakpoint configuration support
+#define EMUX_FEAT1_TRACE                        (1 << 0x3)    ///< Tracing support
+#define EMUX_FEAT1_LOG                          (1 << 0x5)    ///< Logging support
+#define EMUX_FEAT1_LOGREGS                      (1 << 0x6)    ///< Register logging support
+#define EMUX_FEAT1_HEXDUMP                      (1 << 0x7)    ///< Hexdump support
+#define EMUX_FEAT1_PROFILER                     (1 << 0x8)    ///< Profiling support
+#define EMUX_FEAT1_EXCEPTION                    (1 << 0xA)    ///< Exception support
+#define EMUX_FEAT1_IOCTL                        (1 << 0xC)    ///< Emulator behavior support
 
 #define EMUX_IOCTL_EXIT                         0x001      ///< Exit the emulator
 #define EMUX_IOCTL_FAST                         0x002      ///< Fast mode (go uncapped)
@@ -132,9 +132,10 @@ extern "C" {
  * If this function returns zero, EMUX is not present. Otherwise, the
  * returned bitmask contains the supported features (see EMUX_FEAT_* defines).
  * 
+ * @param subcode       Index of the detection bitmask to read
  * @return uint64_t     Bitmask of supported EMUX features (see EMUX_FEAT_*)
  */
-inline uint64_t emux_detect(void)
+inline uint32_t emux_detect(int subcode)
 {
     /*
      * GCC can't easily feed the destination register number into a raw `.word`
@@ -147,7 +148,7 @@ inline uint64_t emux_detect(void)
 
     __asm__ __volatile__(
         " .word %1\n"
-        : "+r"(result) : "i"(EMUX_XDETECT(REG_T0)) : "memory");
+        : "+r"(result) : "i"(EMUX_XDETECT(REG_T0, subcode)) : "memory");
 
     return result;
 }

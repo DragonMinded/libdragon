@@ -84,7 +84,7 @@ void profile_reset(void) {
 	last_frame_wall = get_ticks();
 	last_frame_user = get_user_ticks();
 
-	bool emux_profile_available = (emux_detect() & EMUX_FEAT_PROFILER) != 0;
+	bool emux_profile_available = (emux_detect(1) & EMUX_FEAT1_PROFILER) != 0;
 	for (int i=0; i<ACCT_CAT_MAX; i++) {
 		sys_total[i] = 0;
 		if (i == ACCT_CAT_IRQ && emux_profile_available)
@@ -109,7 +109,7 @@ void profile_set_target_fps(float fps) {
 }
 
 void profile_next_frame(void) {
-	bool emux_profile_available = (emux_detect() & EMUX_FEAT_PROFILER) != 0;
+	bool emux_profile_available = (emux_detect(1) & EMUX_FEAT1_PROFILER) != 0;
 	for (int i=0; i<num_slots; i++) {
 		profile_slot_t *slot = &slots[i];
 		// Extract and save the total time for this frame.
