@@ -33,7 +33,11 @@
  */
 #define EMUX_XDETECT(rd, code)          EMUX_OP(0x20,   rd,      0,  code)  ///< Detect EMUX presence
 #define EMUX_XBREAK()                   EMUX_OP(0x21,    0,      0, 0x000)  ///< Trigger a breakpoint
+#define EMUX_XBREAKPOINT(addr, op)      EMUX_OP(0x22, addr,      0,    op)  ///< Configure a breakpoint/watchpoint
+#define EMUX_XTRACE_START(count)        EMUX_OP(0x23,    0,      0, count)  ///< Start tracing
+#define EMUX_XTRACE_STOP()              EMUX_OP(0x24,    0,      0, 0x000)  ///< Stop tracing
 #define EMUX_XLOG(addr, len, code)      EMUX_OP(0x25, addr,    len,  code)  ///< Log a string
+#define EMUX_XLOGREGS(mask, code)       EMUX_OP(0x26, mask,      0,  code)  ///< Log registers
 #define EMUX_XHEXDUMP(addr, len)        EMUX_OP(0x27, addr,    len, 0x000)  ///< Hexdump memory region
 #define EMUX_XPROF(slot, code)          EMUX_OP(0x28, slot,      0,  code)  ///< Control profiler
 #define EMUX_XPROF_READ(slot, metric)   EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
@@ -55,6 +59,21 @@
 #define EMUX_LOG_ASCIIZ                         0x000      ///< Log a zero-terminated string
 #define EMUX_LOG_LENGTH                         0x001      ///< Log a non-zero-terminated string
 
+#define EMUX_BREAKPOINT_ADD                     0x001      ///< Add instruction breakpoint
+#define EMUX_BREAKPOINT_REMOVE                  0x002      ///< Remove instruction breakpoint
+#define EMUX_WATCHPOINT_READ_ADD                0x003      ///< Add read watchpoint
+#define EMUX_WATCHPOINT_READ_REMOVE             0x004      ///< Remove read watchpoint
+#define EMUX_WATCHPOINT_WRITE_ADD               0x005      ///< Add write watchpoint
+#define EMUX_WATCHPOINT_WRITE_REMOVE            0x006      ///< Remove write watchpoint
+
+#define EMUX_LOGREGS_COP0                       0x000      ///< Dump COP0 registers
+#define EMUX_LOGREGS_COP1                       0x001      ///< Dump COP1 registers
+#define EMUX_LOGREGS_COP2                       0x002      ///< Dump COP2 registers
+#define EMUX_LOGREGS_GPR                        0x003      ///< Dump GPR registers
+#define EMUX_LOGREGS_DECIMAL                    0x004      ///< Prefer decimal formatting
+#define EMUX_LOGREGS_DOUBLE                     0x008      ///< Interpret as 64-bit floating point (COP1)
+#define EMUX_LOGREGS_EXTRA                      0x010      ///< Include extra registers
+
 #define EMUX_IOCTL_EXIT                         0x001      ///< Exit the emulator
 #define EMUX_IOCTL_FAST                         0x002      ///< Fast mode (go uncapped)
 #define EMUX_IOCTL_SLOW                         0x003      ///< Slow mode (go 1x)
@@ -67,6 +86,8 @@
 
 #define EMUX_PROF_CYCLES                       0x0000      ///< Total CPU cycles
 #define EMUX_PROF_CYCLES_EXC                   0x0001      ///< CPU cycles within exception
+#define EMUX_PROF_INSNS                        0x0002      ///< CPU instructions executed
+#define EMUX_PROF_INSNS_EXC                    0x0003      ///< CPU instructions executed within exception
 #define EMUX_PROF_ICACHE_HITS                  0x0010      ///< Instruction cache hits
 #define EMUX_PROF_ICACHE_MISSES                0x0011      ///< Instruction cache misses
 #define EMUX_PROF_ICACHE_WBS                   0x0012      ///< Instruction cache writebacks

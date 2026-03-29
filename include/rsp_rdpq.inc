@@ -888,7 +888,7 @@ RDPQ_Triangle:
 
 #if 0
     mfc0 fp, COP0_DP_CLOCK
-    emux_trace_start
+    xtrace_start
 #endif
 
     j half_swap
@@ -1342,12 +1342,12 @@ no_texture:
     addi s3, 0x10
 
 #if 0
-    emux_trace_stop
+    xtrace_stop
 
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
-    emux_log_string "RDPQ_Triangle:  "
-    emux_dump_gpr t0
+    xlog_string "RDPQ_Triangle:  "
+    xlogregs_gpr t0
 #endif
 
     jr ra

@@ -1485,8 +1485,6 @@ VADPM_OutputDma:
 	mfc0 k1, COP0_DP_CLOCK
 	subu k1, k1, k0
 	and k1, k1, 0x00FFFFFF
-	emux_log_string "VADPCM_Decompress:\n"
-	emux_dump_gpr k1
 	li k0, 4096-4
 	sw k1, 0(k0)
 	#endif
