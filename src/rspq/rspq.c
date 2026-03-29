@@ -1375,6 +1375,7 @@ void rspq_block_set_ph(
 
   // patch last jump in the block to point to the correct placeholder
   rspq_append1(ph_target->cmds_last, RSPQ_CMD_RET, slot << 2);
+  --ph_target->cmds_last;
 
   uint32_t ptr_stack = offsetof(rsp_queue_t, rspq_pointer_stack);
   rspq_int_write(RSPQ_CMD_WRITE_WORD, 
