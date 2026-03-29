@@ -462,6 +462,7 @@ static const char* __get_exception_name(exception_t *ex)
 	}	return exceptionMap[ex->code];
 	case EXCEPTION_CODE_EMUX: {
 		uint32_t kind = C0_CACHEERR() & 0xFF;
+		C0_WRITE_CACHEERR(0);
 		switch (kind) {
 		case 0:  return "Cached access to non-RDRAM area";
 		case 1:  return "64-bit read from non-RDRAM area";
