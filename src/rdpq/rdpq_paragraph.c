@@ -30,7 +30,9 @@ static struct {
     bool skip_current_line;
     bool must_sort;
     const char *last_consumed_ptr; //tracks the position of the last displayable char
-    const char **char_consumed_ptrs;
+    const char *last_space_consumed_ptr; //tracks the position of the last displayable space
+    bool ellipsis_triggered;
+    const char *ellipsis_scan_start;
 } builder;
 
 static bool rdpq_paragraph_builder_full(void)
@@ -69,9 +71,6 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     if (!builder.parms->disable_aa_fix)
         layout->flags |= RDPQ_PARAGRAPH_FLAG_ANTIALIAS_FIX;
     builder.layout = layout;
-
-    builder.char_consumed_ptrs = malloc(sizeof(const char *) * layout_cap);
-    assertf(builder.char_consumed_ptrs, "Out of memory");
 
     builder.xscale = 1.0f;
     builder.yscale = 1.0f;
@@ -112,8 +111,6 @@ static void paragraph_extend(void)
     int new_cap = builder.layout->capacity * 2;
     builder.layout = realloc(builder.layout, sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * (new_cap + 1));
     assertf(builder.layout, "Out of memory");
-    builder.char_consumed_ptrs = realloc(builder.char_consumed_ptrs, sizeof(const char *) * new_cap);
-    assertf(builder.char_consumed_ptrs, "Out of memory");
     builder.layout->capacity = new_cap;
 }
 
@@ -169,6 +166,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     float ycur = builder.y;
     int16_t next_index = -1;
     bool is_tab = false;
+    builder.ellipsis_triggered = false;
 
     /// @cond
     #define UTF8_DECODE_NEXT() ({ \
@@ -197,6 +195,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                 return;
 
             builder.ch_last_space = builder.layout->nchars;
+            builder.last_space_consumed_ptr = builder.last_consumed_ptr;
 
             if (UNLIKELY(is_tab)) {
                 if (parms->tabstops) {
@@ -238,7 +237,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             .x = xcur+.5f,
             .y = ycur+.5f,
         };
-        builder.char_consumed_ptrs[builder.layout->nchars - 1] = utf8_text;
+        const char *prev_consumed_ptr = builder.last_consumed_ptr;
         builder.last_consumed_ptr = utf8_text;
         builder.max_chars -= 1;
 
@@ -261,8 +260,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             switch (parms->wrap) {
                 case WRAP_CHAR:
                     if (!paragraph_wrap(builder.layout->nchars-1, &xcur, &ycur)){
-                        builder.last_consumed_ptr = (builder.layout->nchars > 0) 
-                            ? builder.char_consumed_ptrs[builder.layout->nchars-1] : NULL;
+                        //char didn't fit. move the pointer to the last consumed char
+                        builder.last_consumed_ptr = prev_consumed_ptr;
                         return;
                     }
                     break;
@@ -270,14 +269,15 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                     // Find the last space in the line
                     if (builder.ch_last_space >= 0) {
                         if (!paragraph_wrap(builder.ch_last_space, &xcur, &ycur)){
-                            builder.last_consumed_ptr = (builder.layout->nchars > 0) 
-                            ? builder.char_consumed_ptrs[builder.layout->nchars-1] : NULL;
+                            //word didn't fit. move the pointer to the last consumed space
+                            builder.last_consumed_ptr = builder.last_space_consumed_ptr;
                             return;
                         }
                         builder.ch_last_space = -1;
                         break;
                     }
                     builder.layout->nchars -= 1;
+                    builder.last_consumed_ptr = prev_consumed_ptr;
                     // fallthrough!
                 case WRAP_ELLIPSES: {
                     const rdpq_font_t *wfnt = fnt;
@@ -309,8 +309,6 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                     // We want to insert the ellipsis in place of this character,
                     // but using the font/style of the *previous* character (if it exists).
                     builder.layout->nchars = wrapchar;
-                    builder.last_consumed_ptr = (wrapchar > 0) 
-                        ? builder.char_consumed_ptrs[wrapchar-1] : NULL;
                     uint8_t wrap_font_id, wrap_style_id;
                     if (wrapchar > 0) {
                         wrap_font_id = wrapch[-1].font_id; wrap_style_id = wrapch[-1].style_id;
@@ -334,6 +332,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                             .y = wrapch[0].y + .5f,
                         };
                     }
+                    builder.ellipsis_triggered = true;
+                    builder.ellipsis_scan_start = utf8_text;
                 }   // fallthrough!
                 case WRAP_NONE:
                     // The text doesn't fit on this line anymore.
@@ -441,8 +441,6 @@ static void insertion_sort_char_array(rdpq_paragraph_char_t *chars, int nchars)
 
 rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
 {
-    free(builder.char_consumed_ptrs);
-    builder.char_consumed_ptrs = NULL;
     // Recalculate the bbox width using the last line, even if it doesn't end
     // with a newline
     if (!__rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, builder.layout->nchars))
@@ -562,7 +560,13 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
     if (buf != span)
         rdpq_paragraph_builder_span(span, buf - span);
 
-    if(builder.last_consumed_ptr)
+    if(builder.ellipsis_triggered) {
+        const char *scan = builder.ellipsis_scan_start;
+        while(scan < end && scan[0] != '\n')
+            ++scan;
+        *nbytes = (scan < end ? scan + 1 : scan) - utf8_text;
+    }
+    else if(builder.last_consumed_ptr)
         *nbytes = builder.last_consumed_ptr - utf8_text;
     else
         *nbytes = 0;
