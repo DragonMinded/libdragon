@@ -31,20 +31,14 @@ bool fm_vec3_refract(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n, flo
 
 void fm_vec3_rotate(fm_vec3_t *out, const fm_vec3_t *i, const fm_quat_t *q)
 {
-  fm_vec3_t *q_vec3 = (fm_vec3_t*)q;
+    float qx = q->x, qy = q->y, qz = q->z, qw = q->w;
+    float tx = 2.0f * (qy * i->z - qz * i->y);
+    float ty = 2.0f * (qz * i->x - qx * i->z);
+    float tz = 2.0f * (qx * i->y - qy * i->x);
 
-  float dot = fm_vec3_dot(q_vec3, i);
-
-  fm_vec3_t cross;
-  fm_vec3_cross(&cross, q_vec3, i);
-  fm_vec3_scale(&cross, &cross, q->w + q->w);
-
-  fm_vec3_t i_scaled;
-  fm_vec3_scale(&i_scaled, i, q->w * q->w - fm_vec3_dot(q_vec3, q_vec3));
-
-  fm_vec3_scale(out, q_vec3, dot + dot);
-  fm_vec3_add(out, out, &cross);
-  fm_vec3_add(out, out, &i_scaled);
+    out->x = i->x + qw * tx + (qy * tz - qz * ty);
+    out->y = i->y + qw * ty + (qz * tx - qx * tz);
+    out->z = i->z + qw * tz + (qx * ty - qy * tx);
 }
 
 // Create a quaternion 
