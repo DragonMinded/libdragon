@@ -1563,6 +1563,7 @@ void rspq_queue_destroy(rspq_queue_t* q)
 
 void rspq_noop()
 {
+    // WRITE_STATUS performs a write to COP0_SP_STATUS, which does nothing if the argument is zero
     rspq_int_write(RSPQ_CMD_WRITE_STATUS, 0);
 }
 
