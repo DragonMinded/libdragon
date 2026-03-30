@@ -31,7 +31,6 @@ static struct {
     bool must_sort;
     const char *last_consumed_ptr; //tracks the position of the last displayable char
     const char *last_space_consumed_ptr; //tracks the position of the last displayable space
-    bool ellipsis_triggered;
     const char *ellipsis_scan_start;
 } builder;
 
@@ -166,7 +165,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     float ycur = builder.y;
     int16_t next_index = -1;
     bool is_tab = false;
-    builder.ellipsis_triggered = false;
+    builder.ellipsis_scan_start = NULL;
 
     /// @cond
     #define UTF8_DECODE_NEXT() ({ \
@@ -332,7 +331,6 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                             .y = wrapch[0].y + .5f,
                         };
                     }
-                    builder.ellipsis_triggered = true;
                     builder.ellipsis_scan_start = utf8_text;
                 }   // fallthrough!
                 case WRAP_NONE:
@@ -560,7 +558,7 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
     if (buf != span)
         rdpq_paragraph_builder_span(span, buf - span);
 
-    if(builder.ellipsis_triggered) {
+    if(builder.ellipsis_scan_start) {
         const char *scan = builder.ellipsis_scan_start;
         while(scan < end && scan[0] != '\n')
             ++scan;
