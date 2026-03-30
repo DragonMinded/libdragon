@@ -682,7 +682,8 @@ RSPQCmd_Call:
     ## This assumes the address has been placed in the pointer-stack instead.
     bgez a1, 1f
     lw s0, %lo(RSPQ_RDRAM_PTR)
-      lw a0, %lo(RSPQ_POINTER_STACK)(a1)
+      ## a0 now contains the DMEM location where to load the block address from
+      lw a0, 0(a0)
     1:
     add s0, rspq_dmem_buf_ptr
     sw s0, %lo(RSPQ_POINTER_STACK)(a1)  # save return address

@@ -1337,7 +1337,6 @@ rspq_block_t* rspq_block_end(void)
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
-    rspq_block->cmds_last = rspq_cur_pointer;
     rspq_append1(rspq_cur_pointer, RSPQ_CMD_RET, rspq_block->nesting_level<<2);
 
     // Switch back to the normal display list
@@ -1373,9 +1372,7 @@ void rspq_block_set_ph(
   assertf(slot < RSPQ_MAX_BLOCK_NESTING_LEVEL, "Invalid placeholder: %08lX", slot);
   slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - slot;
 
-  // patch last jump in the block to point to the correct placeholder
-  rspq_append1(ph_target->cmds_last, RSPQ_CMD_RET, slot << 2);
-  --ph_target->cmds_last;
+  assertf(ph_target->nesting_level == 0, "Nested blocks cannot be used as placeholders");
 
   uint32_t ptr_stack = offsetof(rsp_queue_t, rspq_pointer_stack);
   rspq_int_write(RSPQ_CMD_WRITE_WORD, 
@@ -1397,7 +1394,19 @@ void rspq_block_run(rspq_block_t *block)
     {
       assertf(rspq_block, "Calling a placeholder is only supported inside a block");
       uint32_t slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - (uint32_t)block;
-      rspq_int_write(RSPQ_CMD_CALL, 0, (slot << 2) | (1<<31));
+
+      uint32_t dmem_ph_addr = offsetof(rsp_queue_t, rspq_pointer_stack);
+      dmem_ph_addr += slot << 2;
+
+      // always assume the called block has no further nesting, this is asserted in 'rspq_block_set_ph'.
+      const uint32_t block_nesting = 0;
+    
+      rspq_int_write(RSPQ_CMD_CALL, dmem_ph_addr, (block_nesting << 2) | (1<<31));
+
+      // bump up the current blocks level, it only has to make room for one level once
+      if (rspq_block->nesting_level == 0) {
+        rspq_block->nesting_level = 1;
+      }
 
       // set RDP to unknown state, since we don't know yet what it may contain
       rdpq_tracking_t tracking;
