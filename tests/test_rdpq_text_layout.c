@@ -495,7 +495,7 @@ void test_rdpq_text_nbytes_wrap_word_plaintext(TestContext *ctx)
 	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
 	ASSERT(layout != NULL, "build");
 	rdpq_paragraph_free(layout);
-	ASSERT_EQUAL_SIGNED(nbytes, 3, "first word doesn't fit. only 3 chars displayed (+ ellipsis replaces 2 chars which are not consumed)");
+	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "first word doesn't fit->ellipsis triggered, full line consumed.");
 
 	nbytes = (int)strlen(text);
 	parms.width = 45;
@@ -530,7 +530,7 @@ void test_rdpq_text_nbytes_wrap_word_with_escapes(TestContext *ctx)
 	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
 	ASSERT(layout != NULL, "build");
 	rdpq_paragraph_free(layout);
-	ASSERT_EQUAL_SIGNED(nbytes, 6, "first word doesn't fit. 3 escape chars consumed + 3 chars displayed + ellipsis replaces 2 chars which are not consumed");
+	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "first word doesn't fit->ellipsis triggered, full line consumed.");
 
 	nbytes = (int)strlen(text);
 	parms.width = 45;
@@ -580,6 +580,34 @@ void test_rdpq_text_nbytes_wrap_char_with_escapes(TestContext *ctx)
 	ASSERT(layout != NULL, "build");
 	DEFER(rdpq_paragraph_free(layout););
 	ASSERT_EQUAL_SIGNED(nbytes, 24, "3 lines, 5 chars per line. last char displayed is first '1'. 3 escapes + 6 + 1 space + 3 esc + 6 + 1 space + 3 esc + 1 = 24");
+}
+
+void test_rdpq_text_nbytes_ellipsis(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_font_style(mono, 1, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF),
+    });
+    rdpq_font_style(mono, 2, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0x00, 0x00, 0xFF),
+    });
+
+	rdpq_textparms_t parms = { .width = 65, .height = 30, .wrap = WRAP_WORD };
+	const char *text = "^01abcdef\n^02abcdefabcdef\n^01123456 ^02123456";
+	
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 26, "first word of second line doesn't fit->ellipsis triggered, consume until end of second line");
+
+	nbytes = (int)strlen(text);
+	parms.height = 40;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+	ASSERT_EQUAL_SIGNED(nbytes, 35, "first word of second line does not fit->ellipsis triggered, but first word of last line fits. consume until end of first word of last line");
 }
 
 /* max_chars on a word without spaces: final nchars clamped to max_chars. */
