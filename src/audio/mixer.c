@@ -476,7 +476,7 @@ void mixer_ch_set_pos(int ch, double pos) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_pos: cannot call on secondary stereo channel %d", ch);
 	c->pos = MIXER_FX64(pos) << (c->flags & CH_FLAGS_BPS_SHIFT);
-	tracef("mixer_ch_set_pos: ch=%d pos=%.32g(%lx)(%llx)\n", ch, pos, F2I(pos), c->pos);
+	tracef("mixer_ch_set_pos: ch=%d pos=%.32g(%llx)\n", ch, pos, c->pos);
 }
 
 double mixer_ch_get_pos(int ch) {
