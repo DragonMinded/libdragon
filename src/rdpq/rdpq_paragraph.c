@@ -565,7 +565,8 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
         *nbytes = (scan < end ? scan + 1 : scan) - utf8_text;
     }
     else if(builder.last_consumed_ptr)
-        *nbytes = builder.last_consumed_ptr - utf8_text;
+        *nbytes = (builder.last_consumed_ptr + (builder.parms->wrap == WRAP_WORD && builder.last_consumed_ptr < end))
+             - utf8_text;
     else
         *nbytes = 0;
 

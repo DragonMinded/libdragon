@@ -502,7 +502,7 @@ void test_rdpq_text_nbytes_wrap_word_plaintext(TestContext *ctx)
 	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
 	ASSERT(layout != NULL, "build");
 	rdpq_paragraph_free(layout);
-	ASSERT_EQUAL_SIGNED(nbytes, 20, "width can fit whole word. height fits 3 lines. 6 + space + 6 + space + 6 = 20");
+	ASSERT_EQUAL_SIGNED(nbytes, 21, "width can fit whole word. height fits 3 lines. 6 + space + 6 + space + 6 + space = 21");
 
 	nbytes = (int)strlen(text);
 	parms.width = 85;
@@ -537,7 +537,7 @@ void test_rdpq_text_nbytes_wrap_word_with_escapes(TestContext *ctx)
 	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
 	ASSERT(layout != NULL, "build");
 	rdpq_paragraph_free(layout);
-	ASSERT_EQUAL_SIGNED(nbytes, 29, "width can fit whole word. height fits 3 lines. 3 escapes + 6 + space + 3 esc + 6 + space + 3 esc + 6 = 29");
+	ASSERT_EQUAL_SIGNED(nbytes, 30, "width can fit whole word. height fits 3 lines. 3 escapes + 6 + space + 3 esc + 6 + space + 3 esc + 6 + space = 30");
 
 	nbytes = (int)strlen(text);
 	parms.width = 85;
@@ -607,7 +607,7 @@ void test_rdpq_text_nbytes_ellipsis(TestContext *ctx)
 	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
 	ASSERT(layout != NULL, "build");
 	DEFER(rdpq_paragraph_free(layout););
-	ASSERT_EQUAL_SIGNED(nbytes, 35, "first word of second line does not fit->ellipsis triggered, but first word of last line fits. consume until end of first word of last line");
+	ASSERT_EQUAL_SIGNED(nbytes, 36, "first word of second line does not fit->ellipsis triggered, but first word of last line fits. consume until end of first word of last line");
 }
 
 /* max_chars on a word without spaces: final nchars clamped to max_chars. */
