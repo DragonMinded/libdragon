@@ -593,20 +593,20 @@ int xm_convert(const char *infn, const char *outfn) {
 					n += MIXER_LOOP_OVERREAD;
 
 					if (flag_xm_compress_samples > 0) {
-						// In VADPCM mode, we always decompress in chunks of 32 bytes
-						// Always make space for one more frame than strictly required,
-						// as partially played back frames might exist in the buffer
-						// at any point.
-						n = (n + 31) / 32 * 32; // round up to 32 bytes
-						n += 32; // one more frame
+						// Runtime VADPCM decoding rounds up each decode request to
+						// 32 *samples* (wav64_vadpcm_read), not 32 bytes.
+						// For mono decoded as 16-bit this means 64-byte granularity.
+						// Keep one full decode quantum of extra room to absorb
+						// round-up when part of the requested region is already
+						// cached in the samplebuffer.
+						const int vadpcm_decode_quantum = 64;
+						n = (n + vadpcm_decode_quantum - 1) / vadpcm_decode_quantum * vadpcm_decode_quantum;
+						n += vadpcm_decode_quantum;
 
-						// During loop, decoding of this tick could be split in two
-						// (before loop end and at loop start), and this will require
-						// two different 32-byte roundings. We approximate this by
-						// adding yet another frame to the buffer size for this
-						// sample.
+						// During loop wrapping, a single tick read may be split into
+						// two decode calls, each with its own round-up behavior.
 						if (ch->sample->loop_type)
-							n += 32;
+							n += vadpcm_decode_quantum;
 					}
 
 					// Keep the maximum
