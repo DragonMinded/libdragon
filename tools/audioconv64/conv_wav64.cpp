@@ -299,9 +299,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		int nframes = wav->cnt / kVADPCMFrameSampleCount;
 		struct vadpcm_vector *codebook = (struct vadpcm_vector *)alloca(kPREDICTORS * kVADPCMEncodeOrder * wav->channels * sizeof(struct vadpcm_vector));
 		struct vadpcm_params parms = { 
-			.predictor_count = kPREDICTORS,
-			.min_residual = -(1 << (flag_wav_compress_vadpcm_bits-1)),
-			.max_residual = (1 << (flag_wav_compress_vadpcm_bits-1)) - 1
+			.predictor_count = kPREDICTORS
 		};
 		uint8_t *dest = (uint8_t*)malloc(nframes * kVADPCMFrameByteSize * wav->channels);
 		
@@ -327,13 +325,18 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		std::vector<int> skip_bitpos(skip_points.size(), 0);
 		std::vector<std::array<vadpcm_vector, 2>> skip_state(skip_points.size());
 
-		void *scratch = malloc(vadpcm_encode_scratch_size(nframes));
 		int16_t *schan = (int16_t*)malloc(wav->cnt * sizeof(int16_t));
 		for (int i=0; i<wav->channels; i++) {
 			uint8_t *destchan = (uint8_t*)malloc(nframes * kVADPCMFrameByteSize);
 			for (int j=0; j<wav->cnt; j++)
 				schan[j] = wav->samples[i + j*wav->channels];
-			vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, scratch);
+			vadpcm_error err = vadpcm_encode(&parms, codebook + kPREDICTORS * kVADPCMEncodeOrder * i, nframes, destchan, schan, NULL);
+			if (err != kVADPCMErrNone) {
+				fprintf(stderr, "ERROR: %s: VADPCM encoding failed: %s\n", infn, vadpcm_error_name(err));
+				failed = true;
+				free(destchan);
+				break;
+			}
 			if (!skip_points.empty()) {
 				// Compute decoder states at all skip points in a single forward pass.
 				// We need the state at the *beginning* of the target VADPCM frame N,
@@ -362,7 +365,10 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			free(destchan);
 		}
 		free(schan);
-		free(scratch);
+		if (failed) {
+			free(dest);
+			break;
+		}
 
 		if (!skip_points.empty() && flag_verbose)
 			fprintf(stderr, "  state generated for %zu seek points\n", skip_points.size());
