@@ -299,7 +299,9 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		int nframes = wav->cnt / kVADPCMFrameSampleCount;
 		struct vadpcm_vector *codebook = (struct vadpcm_vector *)alloca(kPREDICTORS * kVADPCMEncodeOrder * wav->channels * sizeof(struct vadpcm_vector));
 		struct vadpcm_params parms = { 
-			.predictor_count = kPREDICTORS
+			.predictor_count = kPREDICTORS,
+			.min_residual = -(1 << (flag_wav_compress_vadpcm_bits-1)),
+			.max_residual = (1 << (flag_wav_compress_vadpcm_bits-1)) - 1
 		};
 		uint8_t *dest = (uint8_t*)malloc(nframes * kVADPCMFrameByteSize * wav->channels);
 		

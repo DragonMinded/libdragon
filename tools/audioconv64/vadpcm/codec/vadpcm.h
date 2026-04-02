@@ -102,6 +102,11 @@ vadpcm_error vadpcm_decode(int predictor_count, int order,
 struct vadpcm_params {
     // The number of predictors to put in the codebook.
     int predictor_count;
+
+    // Optional clamp range for encoded residual values. Valid range is [-8, 7].
+    // Use the default full-range values to match upstream behavior.
+    int min_residual;
+    int max_residual;
 };
 
 // Statistics about the VADPCM encoding.

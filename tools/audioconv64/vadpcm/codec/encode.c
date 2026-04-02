@@ -67,9 +67,9 @@ void vadpcm_make_codebook(size_t frame_count, int predictor_count,
     }
 }
 
-static int vadpcm_getshift(int min, int max) {
+static int vadpcm_getshift(int min, int max, int min_residual, int max_residual) {
     int shift = 0;
-    while (shift < 12 && (min < -8 || 7 < max)) {
+    while (shift < 12 && (min < min_residual || max_residual < max)) {
         min >>= 1;
         max >>= 1;
         shift++;
@@ -82,6 +82,7 @@ void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                         const int16_t *restrict src,
                         const uint8_t *restrict predictors,
                         const struct vadpcm_vector *restrict codebook,
+                        int min_residual, int max_residual,
                         struct vadpcm_stats *restrict stats,
                         struct vadpcm_encoder_state *restrict encoder_state) {
     uint32_t rng_state = encoder_state->rng;
@@ -130,7 +131,7 @@ void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                 }
             }
         }
-        int shift = vadpcm_getshift(min, max);
+        int shift = vadpcm_getshift(min, max, min_residual, max_residual);
 
         // Try a range of 3 shift values, and use the shift value that produces
         // the lowest error.
@@ -155,10 +156,10 @@ void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                     int bias = (rng_state >> 16) >> (16 - shift);
                     rng_state = vadpcm_rng(rng_state);
                     r = (s - a + bias) >> shift;
-                    if (r > 7) {
-                        r = 7;
-                    } else if (r < -8) {
-                        r = -8;
+                    if (r > max_residual) {
+                        r = max_residual;
+                    } else if (r < min_residual) {
+                        r = min_residual;
                     }
                     accumulator[i] = r;
                     // Update state to match decoder. The accumulator has
@@ -213,7 +214,12 @@ vadpcm_error vadpcm_encode(const struct vadpcm_params *restrict params,
                            const int16_t *restrict src,
                            struct vadpcm_stats *stats) {
     int predictor_count = params->predictor_count;
+    int min_residual = params->min_residual;
+    int max_residual = params->max_residual;
     if (predictor_count < 1 || kVADPCMMaxPredictorCount < predictor_count) {
+        return kVADPCMErrInvalidParams;
+    }
+    if (min_residual < -8 || max_residual > 7 || min_residual > max_residual) {
         return kVADPCMErrInvalidParams;
     }
 
@@ -260,6 +266,7 @@ vadpcm_error vadpcm_encode(const struct vadpcm_params *restrict params,
         struct vadpcm_stats stats_buf;
         struct vadpcm_encoder_state encoder_state = {{0, 0}, 0};
         vadpcm_encode_data(frame_count, dest, src, predictors, codebook,
+                           min_residual, max_residual,
                            stats != NULL ? stats : &stats_buf, &encoder_state);
     }
 
