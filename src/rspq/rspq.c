@@ -1306,6 +1306,7 @@ void rspq_block_begin_reuse(rspq_block_t *reuse_block)
         block = malloc_uncached(sizeof(rspq_block_t) + block_size*sizeof(uint32_t));
         assertf(block, "Out of memory");
         block->nesting_level = 0;
+        block->min_ph_level = RSPQ_MAX_BLOCK_NESTING_LEVEL;
         block->rdp_block = NULL;
         block->atexit = NULL;
         rspq_chain_init(&rspq_block_chain, block->cmds, block_size);
@@ -1313,6 +1314,7 @@ void rspq_block_begin_reuse(rspq_block_t *reuse_block)
         block = reuse_block;
         rspq_block_free_atexit_chain(block);
         block->nesting_level = 0;
+        block->min_ph_level = RSPQ_MAX_BLOCK_NESTING_LEVEL;
         rspq_chain_reset(&rspq_block_chain, block->cmds, block_size);
     }
 
@@ -1394,6 +1396,10 @@ void rspq_block_run(rspq_block_t *block)
     {
       assertf(rspq_block, "Calling a placeholder is only supported inside a block");
       uint32_t slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - (uint32_t)block;
+      
+      if(slot < rspq_block->min_ph_level) {
+        rspq_block->min_ph_level = slot;
+      }
 
       uint32_t dmem_ph_addr = offsetof(rsp_queue_t, rspq_pointer_stack);
       dmem_ph_addr += slot << 2;
@@ -1412,6 +1418,8 @@ void rspq_block_run(rspq_block_t *block)
       __rdpq_block_run_maybe_rdp();
       return;
     }
+
+    assertf(block->nesting_level < block->min_ph_level, "Block nesting level overlaps with used placeholders");
 
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current

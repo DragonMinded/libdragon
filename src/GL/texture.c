@@ -230,7 +230,7 @@ inline bool texture_is_default(gl_texture_object_t *obj)
 
 void gl_texture_set_upload_block(uint32_t offset, int level, int width, int height, tex_format_t fmt, rspq_block_t *texup_block)
 {
-    assertf(texup_block->nesting_level == 0, "texture loader: nesting level is %ld", texup_block->nesting_level);
+    assertf(texup_block->nesting_level == 0, "texture loader: nesting level is %d", texup_block->nesting_level);
 
     uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
     gl_set_word (GL_UPDATE_NONE, img_offset + IMAGE_WIDTH_OFFSET,           (width << 16) | height);
