@@ -1409,9 +1409,7 @@ void rspq_block_run(rspq_block_t *block)
       }
 
       // set RDP to unknown state, since we don't know yet what it may contain
-      rdpq_tracking_t tracking;
-      __rdpq_tracking_state_reset(&tracking);
-      __rdpq_block_run(&tracking);
+      __rdpq_block_run_maybe_rdp();
       return;
     }
 
@@ -1435,12 +1433,16 @@ void rspq_block_run(rspq_block_t *block)
     }
 
     // Notify rdpq engine we have run a block
-    __rdpq_block_run(&block->rdp_block->tracking);
+    if(block->rdp_block) {
+      __rdpq_block_run_with_rdp(block->rdp_block);
+    } else {
+      __rdpq_block_run_no_rdp();
+    }
 }
 
 void rspq_block_run_rsp(int nesting_level)
 {
-    __rdpq_block_run(NULL);
+    __rdpq_block_run_no_rdp();
     if (rspq_block && rspq_block->nesting_level <= nesting_level) {
         rspq_block->nesting_level = nesting_level + 1;
         assertf(rspq_block->nesting_level < RSPQ_MAX_BLOCK_NESTING_LEVEL,
