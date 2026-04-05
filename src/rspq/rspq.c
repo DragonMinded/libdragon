@@ -1369,7 +1369,7 @@ void rspq_block_set_ph(
   rspq_block_t *ph_target
 ) {
   uint32_t slot = (uint32_t)ph;
-  assertf(slot < RSPQ_MAX_BLOCK_NESTING_LEVEL, "Invalid placeholder: %08lX", slot);
+  assertf(slot < RSPQ_BLOCK_PH_COUNT, "Invalid placeholder: %08lX", slot);
   slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - slot;
 
   assertf(ph_target->nesting_level == 0, "Nested blocks cannot be used as placeholders");
@@ -1390,7 +1390,7 @@ void rspq_block_run(rspq_block_t *block)
     // mode, but it might be an acceptable limitation.
     assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
 
-    if((uint32_t)block < RSPQ_MAX_BLOCK_NESTING_LEVEL)
+    if((uint32_t)block < RSPQ_BLOCK_PH_COUNT)
     {
       assertf(rspq_block, "Calling a placeholder is only supported inside a block");
       uint32_t slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - (uint32_t)block;

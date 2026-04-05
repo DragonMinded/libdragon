@@ -277,6 +277,10 @@ typedef int rspq_syncpoint_t;
  * @brief Placeholder #6 pointer to be used with rspq_block_run()
  */
 #define RSPQ_BLOCK_PH6   ((rspq_block_t*)6)
+/**
+ * @brief Number of placeholders that are available in blocks
+ */
+#define RSPQ_BLOCK_PH_COUNT 7
 
 /**
  * @brief Initialize the RSPQ library.
