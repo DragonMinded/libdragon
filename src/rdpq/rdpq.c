@@ -649,8 +649,7 @@ void __rdpq_block_begin()
     rdpq_block_state.previous_tracking = rdpq_tracking;
 
     // Set for unknown state (like if we just run another unknown block: we lost track of the RDP state)
-    __rdpq_block_run_no_rdp();    
-
+    __rdpq_block_run_no_rdp();
 }
 
 /**
@@ -771,12 +770,12 @@ void __rdpq_block_next_buffer(void)
  * This is called by #rspq_block_end. It finalizes block creation
  * and return a pointer to the first node of the block, which will
  * be put within the #rspq_block_t structure, so to be able to 
- * reference it in #__rdpq_block_run and #__rdpq_block_free.
+ * reference it in #__rdpq_block_run_with_rdp and #__rdpq_block_free.
  * 
  * @return rdpq_block_t*  The created block (first node)
  * 
  * @see #rspq_block_end
- * @see #__rdpq_block_run
+ * @see #__rdpq_block_run_with_rdp
  * @see #__rdpq_block_free
  */
 rdpq_block_t* __rdpq_block_end()
@@ -803,8 +802,11 @@ rdpq_block_t* __rdpq_block_end()
     return ret;
 }
 
-// Notify that a rspq block was run. The block did contain
-// RDP commands.
+/**
+ * @brief  Notify that a rspq block was run. The block did contain RDP commands.
+ * 
+ * @param  block containing the state 
+ */
 void __rdpq_block_run_with_rdp(rdpq_block_t *block)
 {
   // We have run a block that contains rdpq commands.
@@ -833,17 +835,20 @@ void __rdpq_block_run_with_rdp(rdpq_block_t *block)
   st->wend = NULL;
 }
 
-// Notify that a rspq block was run. The block did NOT
-// contain RDP commands.
+/**
+ * @brief Notify that a rspq block was run. The block did NOT contain RDP commands.
+ */
 void __rdpq_block_run_no_rdp(void)
 {
   __rdpq_tracking_state_reset(&rdpq_tracking);
-
 }
 
-// Notify that a rspq block was run. The block might or
-// might not contain RDP commands. This is the case for
-// a block placeholder.
+/**
+ * @brief Notify that a rspq block was run. 
+ * 
+ * The block might or might not contain RDP commands. 
+ * This is the case for a block placeholder.
+ */
 void __rdpq_block_run_maybe_rdp(void)
 {
   rdpq_tracking_t prev = rdpq_tracking;
