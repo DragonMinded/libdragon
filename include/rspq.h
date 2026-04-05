@@ -248,22 +248,35 @@ typedef struct rspq_queue_s rspq_queue_t;
  */
 typedef int rspq_syncpoint_t;
 
-// Placeholder #0 pointer to be used with rspq_block_run()
+
+/**
+ * @brief Placeholder #0 pointer to be used with rspq_block_run()
+ */
 #define RSPQ_BLOCK_PH0   ((rspq_block_t*)0)
-// Placeholder #1 pointer to be used with rspq_block_run()
+/**
+ * @brief Placeholder #1 pointer to be used with rspq_block_run()
+ */
 #define RSPQ_BLOCK_PH1   ((rspq_block_t*)1)
-// Placeholder #2 pointer to be used with rspq_block_run()
+/**
+ * @brief Placeholder #2 pointer to be used with rspq_block_run()
+ */
 #define RSPQ_BLOCK_PH2   ((rspq_block_t*)2)
-// Placeholder #3 pointer to be used with rspq_block_run()
+/**
+ * @brief Placeholder #3 pointer to be used with rspq_block_run()
+ */
 #define RSPQ_BLOCK_PH3   ((rspq_block_t*)3)
-// Placeholder #4 pointer to be used with rspq_block_run()
+/**
+ * @brief Placeholder #4 pointer to be used with rspq_block_run()
+ */
 #define RSPQ_BLOCK_PH4   ((rspq_block_t*)4)
-// Placeholder #5 pointer to be used with rspq_block_run()
+/**
+ * @brief Placeholder #5 pointer to be used with rspq_block_run()
+ */
 #define RSPQ_BLOCK_PH5   ((rspq_block_t*)5)
-// Placeholder #6 pointer to be used with rspq_block_run()
+/**
+ * @brief Placeholder #6 pointer to be used with rspq_block_run()
+ */
 #define RSPQ_BLOCK_PH6   ((rspq_block_t*)6)
-// Placeholder #7 pointer to be used with rspq_block_run()
-#define RSPQ_BLOCK_PH7   ((rspq_block_t*)7)
 
 /**
  * @brief Initialize the RSPQ library.
@@ -884,7 +897,7 @@ rspq_block_t* rspq_block_end(void);
  *   rspq_block_run(RSPQ_BLOCK_PH0);
  * @endcode
  * 
- * @param ph the placeholder slot (RSPQ_BLOCK_PH0 - RSPQ_BLOCK_PH7)
+ * @param ph the placeholder slot (RSPQ_BLOCK_PH0 - RSPQ_BLOCK_PH6)
  * @param ph_target block the placeholder should point to
  */
 void rspq_block_set_ph(
@@ -907,7 +920,7 @@ void rspq_block_set_ph(
  * 
  * It is also possible to use a placeholder instead of a specific block.
  * This allows the target to be set dynamically later on.
- * For that pass 'RSPQ_BLOCK_PH0' to 'RSPQ_BLOCK_PH7' into this function.
+ * For that pass 'RSPQ_BLOCK_PH0' to 'RSPQ_BLOCK_PH6' into this function.
  *
  * @param block The block or placeholder that must be run
  * 
