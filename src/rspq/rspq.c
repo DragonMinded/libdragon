@@ -1366,12 +1366,12 @@ void rspq_block_free(rspq_block_t *block)
     free_uncached(block);
 }
 
-void rspq_block_set_ph(
+void rspq_block_set_placeholder(
   rspq_block_t *ph,
   rspq_block_t *ph_target
 ) {
   uint32_t slot = (uint32_t)ph;
-  assertf(slot < RSPQ_BLOCK_PH_COUNT, "Invalid placeholder: %08lX", slot);
+  assertf(slot < RSPQ_BLOCK_PLACEHOLDER_COUNT, "Invalid placeholder: %08lX", slot);
   slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - slot;
 
   assertf(ph_target->nesting_level == 0, "Nested blocks cannot be used as placeholders");
@@ -1392,7 +1392,7 @@ void rspq_block_run(rspq_block_t *block)
     // mode, but it might be an acceptable limitation.
     assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
 
-    if((uint32_t)block < RSPQ_BLOCK_PH_COUNT)
+    if((uint32_t)block < RSPQ_BLOCK_PLACEHOLDER_COUNT)
     {
       assertf(rspq_block, "Calling a placeholder is only supported inside a block");
       uint32_t slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - (uint32_t)block;
@@ -1404,7 +1404,7 @@ void rspq_block_run(rspq_block_t *block)
       uint32_t dmem_ph_addr = offsetof(rsp_queue_t, rspq_pointer_stack);
       dmem_ph_addr += slot << 2;
 
-      // always assume the called block has no further nesting, this is asserted in 'rspq_block_set_ph'.
+      // always assume the called block has no further nesting, this is asserted in 'rspq_block_set_placeholder'.
       const uint32_t block_nesting = 0;
     
       rspq_int_write(RSPQ_CMD_CALL, dmem_ph_addr, (block_nesting << 2) | (1<<31));
