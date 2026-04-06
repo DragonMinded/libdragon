@@ -248,6 +248,40 @@ typedef struct rspq_queue_s rspq_queue_t;
  */
 typedef int rspq_syncpoint_t;
 
+
+/**
+ * @brief Placeholder #0 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_0   ((rspq_block_t*)0)
+/**
+ * @brief Placeholder #1 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_1   ((rspq_block_t*)1)
+/**
+ * @brief Placeholder #2 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_2   ((rspq_block_t*)2)
+/**
+ * @brief Placeholder #3 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_3   ((rspq_block_t*)3)
+/**
+ * @brief Placeholder #4 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_4   ((rspq_block_t*)4)
+/**
+ * @brief Placeholder #5 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_5   ((rspq_block_t*)5)
+/**
+ * @brief Placeholder #6 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_6   ((rspq_block_t*)6)
+/**
+ * @brief Number of placeholders that are available in blocks
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_COUNT 7
+
 /**
  * @brief Initialize the RSPQ library.
  * 
@@ -845,6 +879,37 @@ void rspq_block_begin_reuse(rspq_block_t *reuse_block);
 rspq_block_t* rspq_block_end(void);
 
 /**
+ * @brief Sets the target for a placeholder in a block
+ * 
+ * If a block contains calls to placeholders, for example:
+ * 
+ * @code{.c}
+ *   rspq_block_begin();
+ *      ...
+ *     rdpq_tex_multi_begin();
+ *       rdpq_sprite_upload(TILE0, texA, NULL);
+ *       rspq_block_run(RSPQ_BLOCK_PLACEHOLDER_0);
+ *     rdpq_tex_multi_end();
+ *     ...
+ *   rspq_block_t *block_caller = rspq_block_end();
+ * @endcode
+ * 
+ * Then this function can be used to set the actual target before running it:
+ * 
+ * @code{.c}
+ *   rspq_block_set_placeholder(RSPQ_BLOCK_PLACEHOLDER_0, the_target_block);
+ *   rspq_block_run(RSPQ_BLOCK_PLACEHOLDER_0);
+ * @endcode
+ * 
+ * @param ph the placeholder slot (RSPQ_BLOCK_PLACEHOLDER_0 - RSPQ_BLOCK_PLACEHOLDER_6)
+ * @param ph_target block the placeholder should point to
+ */
+void rspq_block_set_placeholder(
+  rspq_block_t *ph,
+  rspq_block_t *ph_target
+);
+
+/**
  * @brief Add to the RSP queue a command that runs a block.
  * 
  * This function runs a block that was previously created via #rspq_block_begin
@@ -856,8 +921,12 @@ rspq_block_t* rspq_block_end(void);
  * created, it is possible to call `rspq_block_run(A)` at any point during the
  * creation of a second block B; this means that B will contain the special
  * command that will call A.
+ * 
+ * It is also possible to use a placeholder instead of a specific block.
+ * This allows the target to be set dynamically later on.
+ * For that pass 'RSPQ_BLOCK_PLACEHOLDER_0' to 'RSPQ_BLOCK_PLACEHOLDER_6' into this function.
  *
- * @param block The block that must be run
+ * @param block The block or placeholder that must be run
  * 
  * @note The maximum depth of nested block calls is 8.
  */
@@ -950,7 +1019,7 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
   * @param q         The queue to execute
   */
  void rspq_queue_run(rspq_queue_t* q);
- 
+
  /**
   * @brief Clear a queue contents, keeping its memory for reuse.
   *
