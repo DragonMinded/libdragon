@@ -649,7 +649,7 @@ void __rdpq_block_begin()
     rdpq_block_state.previous_tracking = rdpq_tracking;
 
     // Set for unknown state (like if we just run another unknown block: we lost track of the RDP state)
-    __rdpq_block_run(NULL);    
+    __rdpq_block_run_no_rdp();
 }
 
 /**
@@ -668,7 +668,7 @@ void __rdpq_block_recycle(rdpq_block_t *head)
 
     memset(st, 0, sizeof(*st));
     st->previous_tracking = rdpq_tracking;
-    __rdpq_block_run(NULL);
+    __rdpq_block_run_no_rdp();
 
     st->first_node = head;
     st->last_node = head;
@@ -770,12 +770,12 @@ void __rdpq_block_next_buffer(void)
  * This is called by #rspq_block_end. It finalizes block creation
  * and return a pointer to the first node of the block, which will
  * be put within the #rspq_block_t structure, so to be able to 
- * reference it in #__rdpq_block_run and #__rdpq_block_free.
+ * reference it in #__rdpq_block_run_with_rdp and #__rdpq_block_free.
  * 
  * @return rdpq_block_t*  The created block (first node)
  * 
  * @see #rspq_block_end
- * @see #__rdpq_block_run
+ * @see #__rdpq_block_run_with_rdp
  * @see #__rdpq_block_free
  */
 rdpq_block_t* __rdpq_block_end()
@@ -802,39 +802,68 @@ rdpq_block_t* __rdpq_block_end()
     return ret;
 }
 
-/** @brief Notify that a rspq block was run (called by #rspq_block_run). */
-void __rdpq_block_run(rdpq_block_t *block)
+/**
+ * @brief  Notify that a rspq block was run. The block did contain RDP commands.
+ * 
+ * @param  block containing the state 
+ */
+void __rdpq_block_run_with_rdp(rdpq_block_t *block)
 {
-    if (block) {
-        // We have run a block that contains rdpq commands.
-        // During creation, we tracked some state for the block 
-        // and saved it into the block structure; set it as current,
-        // because from now on we can assume the block would and the
-        // state of the engine must match the state at the end of the block.
-        rdpq_tracking_t prev = rdpq_tracking;
-        rdpq_tracking = block->tracking;
+  // We have run a block that contains rdpq commands.
+  // During creation, we tracked some state for the block 
+  // and saved it into the block structure; set it as current,
+  // because from now on we can assume the block would and the
+  // state of the engine must match the state at the end of the block.
+  rdpq_tracking_t prev = rdpq_tracking;
+  rdpq_tracking = block->tracking;
 
-        // If the data coming out of the block is "unknown", we can
-        // restore the previous value, because it means that the block didn't
-        // change it.
-        if (rdpq_tracking.cycle_type_known == 0)
-            rdpq_tracking.cycle_type_known = prev.cycle_type_known;
-        if (rdpq_tracking.cycle_type_frozen == 0)
-            rdpq_tracking.cycle_type_frozen = prev.cycle_type_frozen;
+  // If the data coming out of the block is "unknown", we can
+  // restore the previous value, because it means that the block didn't
+  // change it.
+  if (rdpq_tracking.cycle_type_known == 0)
+      rdpq_tracking.cycle_type_known = prev.cycle_type_known;
+  if (rdpq_tracking.cycle_type_frozen == 0)
+      rdpq_tracking.cycle_type_frozen = prev.cycle_type_frozen;
 
-        // The called block has switched static buffer. Adjust our state to set
-        // our buffer as pending; if a new RDP command is issued, we will switch
-        // back to it.
-        struct rdpq_block_state_s *st = &rdpq_block_state;
-        st->pending_wptr = st->wptr;
-        st->pending_wend = st->wend;
-        st->wptr = NULL;
-        st->wend = NULL;
-    } else {
-        // Initialize tracking state for unknown state
-        __rdpq_tracking_state_reset(&rdpq_tracking);
-    }
+  // The called block has switched static buffer. Adjust our state to set
+  // our buffer as pending; if a new RDP command is issued, we will switch
+  // back to it.
+  struct rdpq_block_state_s *st = &rdpq_block_state;
+  st->pending_wptr = st->wptr;
+  st->pending_wend = st->wend;
+  st->wptr = NULL;
+  st->wend = NULL;
 }
+
+/**
+ * @brief Notify that a rspq block was run. The block did NOT contain RDP commands.
+ */
+void __rdpq_block_run_no_rdp(void)
+{
+  __rdpq_tracking_state_reset(&rdpq_tracking);
+}
+
+/**
+ * @brief Notify that a rspq block was run. 
+ * 
+ * The block might or might not contain RDP commands. 
+ * This is the case for a block placeholder.
+ */
+void __rdpq_block_run_maybe_rdp(void)
+{
+  rdpq_tracking_t prev = rdpq_tracking;
+  __rdpq_block_run_no_rdp();
+
+  // The called block has switched static buffer. Adjust our state to set
+  // our buffer as pending; if a new RDP command is issued, we will switch
+  // back to it.
+  struct rdpq_block_state_s *st = &rdpq_block_state;
+  st->pending_wptr = st->wptr;
+  st->pending_wend = st->wend;
+  st->wptr = NULL;
+  st->wend = NULL;
+}
+
 
 /** 
  * @brief Free a block 

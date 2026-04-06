@@ -1306,6 +1306,7 @@ void rspq_block_begin_reuse(rspq_block_t *reuse_block)
         block = malloc_uncached(sizeof(rspq_block_t) + block_size*sizeof(uint32_t));
         assertf(block, "Out of memory");
         block->nesting_level = 0;
+        block->min_ph_level = RSPQ_MAX_BLOCK_NESTING_LEVEL;
         block->rdp_block = NULL;
         block->atexit = NULL;
         rspq_chain_init(&rspq_block_chain, block->cmds, block_size);
@@ -1313,6 +1314,7 @@ void rspq_block_begin_reuse(rspq_block_t *reuse_block)
         block = reuse_block;
         rspq_block_free_atexit_chain(block);
         block->nesting_level = 0;
+        block->min_ph_level = RSPQ_MAX_BLOCK_NESTING_LEVEL;
         rspq_chain_reset(&rspq_block_chain, block->cmds, block_size);
     }
 
@@ -1364,6 +1366,23 @@ void rspq_block_free(rspq_block_t *block)
     free_uncached(block);
 }
 
+void rspq_block_set_placeholder(
+  rspq_block_t *ph,
+  rspq_block_t *ph_target
+) {
+  uint32_t slot = (uint32_t)ph;
+  assertf(slot < RSPQ_BLOCK_PLACEHOLDER_COUNT, "Invalid placeholder: %08lX", slot);
+  slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - slot;
+
+  assertf(ph_target->nesting_level == 0, "Nested blocks cannot be used as placeholders");
+
+  uint32_t ptr_stack = offsetof(rsp_queue_t, rspq_pointer_stack);
+  rspq_int_write(RSPQ_CMD_WRITE_WORD, 
+    ptr_stack + (slot << 2), 
+    PhysicalAddr(ph_target->cmds)
+  );
+}
+
 void rspq_block_run(rspq_block_t *block)
 {
     // TODO: add support for block execution in highpri mode. This would be
@@ -1372,6 +1391,35 @@ void rspq_block_run(rspq_block_t *block)
     // would basically mean that a block can either work in highpri or in lowpri
     // mode, but it might be an acceptable limitation.
     assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
+
+    if((uint32_t)block < RSPQ_BLOCK_PLACEHOLDER_COUNT)
+    {
+      assertf(rspq_block, "Calling a placeholder is only supported inside a block");
+      uint32_t slot = (RSPQ_MAX_BLOCK_NESTING_LEVEL-1) - (uint32_t)block;
+      
+      if(slot < rspq_block->min_ph_level) {
+        rspq_block->min_ph_level = slot;
+      }
+
+      uint32_t dmem_ph_addr = offsetof(rsp_queue_t, rspq_pointer_stack);
+      dmem_ph_addr += slot << 2;
+
+      // always assume the called block has no further nesting, this is asserted in 'rspq_block_set_placeholder'.
+      const uint32_t block_nesting = 0;
+    
+      rspq_int_write(RSPQ_CMD_CALL, dmem_ph_addr, (block_nesting << 2) | (1<<31));
+
+      // bump up the current blocks level, it only has to make room for one level once
+      if (rspq_block->nesting_level == 0) {
+        rspq_block->nesting_level = 1;
+      }
+
+      // set RDP to unknown state, since we don't know yet what it may contain
+      __rdpq_block_run_maybe_rdp();
+      return;
+    }
+
+    assertf(block->nesting_level < block->min_ph_level, "Block nesting level overlaps with used placeholders");
 
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current
@@ -1393,12 +1441,16 @@ void rspq_block_run(rspq_block_t *block)
     }
 
     // Notify rdpq engine we have run a block
-    __rdpq_block_run(block->rdp_block);
+    if(block->rdp_block) {
+      __rdpq_block_run_with_rdp(block->rdp_block);
+    } else {
+      __rdpq_block_run_no_rdp();
+    }
 }
 
 void rspq_block_run_rsp(int nesting_level)
 {
-    __rdpq_block_run(NULL);
+    __rdpq_block_run_no_rdp();
     if (rspq_block && rspq_block->nesting_level <= nesting_level) {
         rspq_block->nesting_level = nesting_level + 1;
         assertf(rspq_block->nesting_level < RSPQ_MAX_BLOCK_NESTING_LEVEL,
@@ -1521,7 +1573,8 @@ void rspq_queue_destroy(rspq_queue_t* q)
 
 void rspq_noop()
 {
-    rspq_int_write(RSPQ_CMD_NOOP);
+    // WRITE_STATUS performs a write to COP0_SP_STATUS, which does nothing if the argument is zero
+    rspq_int_write(RSPQ_CMD_WRITE_STATUS, 0);
 }
 
 rspq_syncpoint_t rspq_syncpoint_new(void)

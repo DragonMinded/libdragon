@@ -15,15 +15,15 @@
         RSPQ_DefineCommand Task_ProcessChromaResidual,           28
         RSPQ_DefineCommand OMX_Interpolate_Luma_Overfill,        44
         RSPQ_DefineCommand OMX_Interpolate_Chroma_Overfill,      44
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand Task_SetPackedDeltaBuffer,           4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand Task_SetPackedDeltaBuffer,             4
     RSPQ_EndOverlayHeader
 
 #if 0

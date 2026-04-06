@@ -42,7 +42,8 @@ void gl_init_texture_object(gl_texture_object_t *obj)
 
     // Fill the levels block with NOOPs, and terminate it with a RET.
     for (int i=0; i<MAX_TEXTURE_LEVELS*2; i++) {
-        srv_obj->levels_block[i] = RSPQ_CMD_NOOP << 24;
+        // direct version of rspq_noop()
+        srv_obj->levels_block[i] = RSPQ_CMD_WRITE_STATUS << 24;
     }
     srv_obj->levels_block[MAX_TEXTURE_LEVELS*2] = (RSPQ_CMD_RET << 24) | (1<<2);
 
@@ -229,7 +230,7 @@ inline bool texture_is_default(gl_texture_object_t *obj)
 
 void gl_texture_set_upload_block(uint32_t offset, int level, int width, int height, tex_format_t fmt, rspq_block_t *texup_block)
 {
-    assertf(texup_block->nesting_level == 0, "texture loader: nesting level is %ld", texup_block->nesting_level);
+    assertf(texup_block->nesting_level == 0, "texture loader: nesting level is %d", texup_block->nesting_level);
 
     uint32_t img_offset = offset + level * sizeof(gl_texture_image_t);
     gl_set_word (GL_UPDATE_NONE, img_offset + IMAGE_WIDTH_OFFSET,           (width << 16) | height);
