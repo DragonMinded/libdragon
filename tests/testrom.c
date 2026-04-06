@@ -388,6 +388,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_attach_stack,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload,            0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload_multi,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_can_upload,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_blit_normal,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_multi_i4,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload_tlut,       0, TEST_FLAGS_NO_BENCHMARK),

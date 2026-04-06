@@ -368,6 +368,21 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1)
 
 ///@endcond
 
+bool rdpq_tex_can_upload(const surface_t *tex)
+{
+    tex_format_t fmt = surface_get_format(tex);
+    int width = tex->width;
+
+    if (TEX_FORMAT_BITDEPTH(fmt) == 4)
+        width = (width + 1) & ~1;
+
+    int pitch_shift = (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? 1 : 0;
+    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width) >> pitch_shift, 8);
+    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_YUV16) ? 2048 : 4096;
+
+    return tex->height * tmem_pitch <= tmem_size;
+}
+
 int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
     last_tload = tex_loader_init(tile, tex);

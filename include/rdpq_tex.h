@@ -191,6 +191,18 @@ int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_
 int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
 
 /**
+ * @brief Check if a surface can be fully uploaded to TMEM
+ *
+ * This helper verifies whether a full-surface upload via #rdpq_tex_upload
+ * would fit in TMEM for the surface format.
+ *
+ * @param tex        Surface to check
+ * @return true      The surface fits in TMEM
+ * @return false     The surface does not fit in TMEM
+ */
+bool rdpq_tex_can_upload(const surface_t *tex);
+
+/**
  * @brief Load one or more palettes into TMEM
  * 
  * This function allows to load one or more palettes into TMEM.

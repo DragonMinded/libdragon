@@ -343,6 +343,76 @@ void test_rdpq_tex_multi_i4(TestContext *ctx) {
     });
 }
 
+void test_rdpq_tex_can_upload(TestContext *ctx)
+{
+    // RGBA16 path: 4KB TMEM budget, no 4bpp alignment, no pitch shift.
+    // Use a non-8 width to verify pitch ROUND_UP to 8-byte boundary.
+    {
+        surface_t surf = surface_alloc(FMT_RGBA16, 5, 256);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "RGBA16 5x256 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_RGBA16, 5, 257);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "RGBA16 5x257 should not fit in TMEM");
+    }
+
+    // RGBA32 path: 2KB TMEM budget + pitch_shift branch.
+    // Use a non-8 width to verify pitch ROUND_UP after pitch_shift.
+    {
+        surface_t surf = surface_alloc(FMT_RGBA32, 3, 256);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "RGBA32 3x256 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_RGBA32, 3, 257);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "RGBA32 3x257 should not fit in TMEM");
+    }
+
+    // CI8 path: 2KB TMEM budget, no pitch_shift.
+    // Use a non-8 width to verify pitch ROUND_UP to 8-byte boundary.
+    {
+        surface_t surf = surface_alloc(FMT_CI8, 9, 128);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "CI8 9x128 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_CI8, 9, 129);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "CI8 9x129 should not fit in TMEM");
+    }
+
+    // YUV16 path: same branch family as RGBA32 (2KB + pitch_shift).
+    {
+        surface_t surf = surface_alloc(FMT_YUV16, 5, 256);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "YUV16 5x256 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_YUV16, 5, 257);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "YUV16 5x257 should not fit in TMEM");
+    }
+
+    // 4bpp alignment path: odd width must be rounded up to even,
+    // then line pitch must still be rounded up to 8-byte boundary.
+    // For I4 17px width, aligned width becomes 18:
+    // tmem_pitch = ROUND_UP(18/2,8) = ROUND_UP(9,8) = 16.
+    // So max height is floor(4096 / 16) = 256.
+    {
+        surface_t surf = surface_alloc(FMT_I4, 17, 256);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "I4 17x256 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_I4, 17, 257);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "I4 17x257 should not fit in TMEM");
+    }
+}
+
 void test_rdpq_tex_blit_normal(TestContext *ctx)
 {
     RDPQ_INIT();
