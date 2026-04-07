@@ -85,13 +85,12 @@ int main(void)
     int cpak_num_banks[4] = {0, 0, 0, 0};
     int b_hold_time[4] = {0, 0, 0, 0};
 
-    timer_init();
-    joypad_init();
     debug_init_isviewer();
     debug_init_usblog();
     console_init();
     console_set_render_mode(RENDER_MANUAL);
     console_set_debug(false);
+    joypad_init();
 
     while (1)
     {

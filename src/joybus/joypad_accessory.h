@@ -154,6 +154,7 @@ typedef struct joypad_accessory_s
     joypad_accessory_state_t state;
     joypad_accessory_error_t error;
     unsigned retries;
+    bool ignore_write_crc;      ///< Should write CRC errors be ignored?
     uint8_t cpak_label_backup[JOYBUS_ACCESSORY_DATA_SIZE];
     uint8_t cpak_probe_label[JOYBUS_ACCESSORY_DATA_SIZE];
     bool cpak_bankswitching;    ///< Does Controller Pak support bankswitching?
