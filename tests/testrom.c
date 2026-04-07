@@ -426,6 +426,7 @@ int main() {
 	console_set_debug(false);
 	debug_init_isviewer();
 	debug_init_usblog();
+	emux_ioctl_fast(); // ask emulator to run as fast as possible
 
 	if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {
 		printf("Invalid ROM: cannot initialize DFS\n");
