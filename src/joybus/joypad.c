@@ -348,9 +348,17 @@ static void joypad_accessory_polled(int port, uint8_t new_status)
     uint8_t prev_accessory_status = accessory->status;
     uint8_t accessory_status = new_status & JOYBUS_IDENTIFY_STATUS_ACCESSORY_MASK;
     // Work-around third-party controllers that don't correctly report accessory status
-    bool accessory_absent = (
-        accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT ||
-        accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED
+    bool accessory_disconnected = (
+        accessory_status != prev_accessory_status &&
+        (
+            accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_ABSENT ||
+            (
+                accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED &&
+                // Ignore 8BitDo receiver buggy Rumble Pak mode accessory status:
+                // Only the initial identify status is correct: subsequent identify status will incorrectly be unsupported.
+                prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT
+            )
+        )
     );
     bool accessory_changed = (
         accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED ||
@@ -358,18 +366,25 @@ static void joypad_accessory_polled(int port, uint8_t new_status)
             accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
             prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
             prev_accessory_status != JOYBUS_IDENTIFY_STATUS_ACCESSORY_CHANGED
+        ) ||
+        (
+            // Handle 8BitDo receiver buggy switching from Rumble Pak to Controller Pak mode
+            accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT &&
+            prev_accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED
+        ) ||
+        (
+            // Handle 8BitDo receiver buggy switching from Controller Pak to Rumble Pak mode
+            accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_UNSUPPORTED &&
+            prev_accessory_status == JOYBUS_IDENTIFY_STATUS_ACCESSORY_PRESENT
         )
     );
-    if (accessory_absent || accessory_changed)
-    {
-        accessory->state = JOYPAD_ACCESSORY_STATE_IDLE;
-        accessory->type = JOYPAD_ACCESSORY_TYPE_NONE;
-        device->rumble_method = JOYPAD_RUMBLE_METHOD_NONE;
-        device->rumble_active = false;
-    }
     if (accessory_changed)
     {
         joypad_accessory_detect_async(port);
+    }
+    else if (accessory_disconnected)
+    {
+        joypad_accessory_reset(port);
     }
     accessory->status = accessory_status;
 }
