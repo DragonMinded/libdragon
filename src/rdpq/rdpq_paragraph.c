@@ -16,6 +16,25 @@
 
 static void __rdpq_paragraph_builder_newline(int ch_newline);
 
+typedef uint32_t spanres_t;
+enum {
+    SPANF_STOPPED_EARLY = 1 << 0,
+    SPANF_CONSUME_TO_EOL = 1 << 1,
+    SPANF_CONSUME_DELIM = 1 << 2,
+    SPANF_MASK = SPANF_STOPPED_EARLY | SPANF_CONSUME_TO_EOL | SPANF_CONSUME_DELIM,
+    SPANF_BITS = 3,
+};
+
+static inline spanres_t spanres_make(uint32_t consumed, uint32_t flags)
+{
+    return (consumed << SPANF_BITS) | (flags & SPANF_MASK);
+}
+
+static inline uint32_t spanres_consumed(spanres_t r)
+{
+    return r >> SPANF_BITS;
+}
+
 static struct {
     rdpq_paragraph_t *layout;
     const rdpq_textparms_t *parms;
@@ -33,7 +52,7 @@ static struct {
 
 static bool rdpq_paragraph_builder_full(void)
 {
-    return (builder.parms->height && builder.y - builder.font->descent >= builder.parms->height) 
+    return (builder.parms->height && builder.y - builder.font->descent > builder.parms->height) 
             || (builder.max_chars <= 0);
 }
 
@@ -149,14 +168,18 @@ static bool paragraph_wrap(int wrapchar, float *xcur, float *ycur)
     return true;
 }
 
-void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
+static spanres_t rdpq_paragraph_builder_span_ex(const char *utf8_text, int nbytes)
 {
     // We're skipping the current line, so this span isn't useful
-    if (builder.skip_current_line) return;
+    if (builder.skip_current_line)
+        return spanres_make(0, SPANF_STOPPED_EARLY);
 
     const rdpq_font_t *fnt = builder.font;
     const rdpq_textparms_t *parms = builder.parms;
+    const char *start = utf8_text;
     const char *end = utf8_text + nbytes;
+    const char *consumed_ptr = utf8_text;
+    const char *last_space_ptr = start;
     float xcur = builder.x;
     float ycur = builder.y;
     int16_t next_index = -1;
@@ -172,6 +195,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     /// @endcond
 
     while (utf8_text < end || next_index >= 0) {
+        const char *char_start = utf8_text;
         int16_t index = next_index; next_index = -1;
         if (index < 0) index = UTF8_DECODE_NEXT();
         if (UNLIKELY(index < 0)) continue;
@@ -185,9 +209,10 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             // If we finished the alloted number of chars, we're done. Check this only
             // on spaces so that we don't mess wordwrapping.
             if (UNLIKELY(builder.max_chars <= 0))
-                return;
+                return spanres_make(consumed_ptr - start, SPANF_STOPPED_EARLY);
 
             builder.ch_last_space = builder.layout->nchars;
+            last_space_ptr = char_start;
 
             if (UNLIKELY(is_tab)) {
                 if (parms->tabstops) {
@@ -212,6 +237,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             // the same in any rendition (since, depending on resolution, a single
             // pixel of relative distance between letters can be very visible).
             xcur = roundf(xcur);
+            consumed_ptr = utf8_text;
 
             continue;
         }
@@ -228,6 +254,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             .x = xcur+.5f,
             .y = ycur+.5f,
         };
+        const char *prev_consumed_ptr = consumed_ptr;
+        consumed_ptr = utf8_text;
         builder.max_chars -= 1;
 
         // Advance the cursor
@@ -248,18 +276,21 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             // Check if we are allowed to wrap
             switch (parms->wrap) {
                 case WRAP_CHAR:
-                    if (!paragraph_wrap(builder.layout->nchars-1, &xcur, &ycur))
-                        return;
+                    if (!paragraph_wrap(builder.layout->nchars-1, &xcur, &ycur)) {
+                        return spanres_make(prev_consumed_ptr - start, SPANF_STOPPED_EARLY);
+                    }
                     break;
                 case WRAP_WORD:
                     // Find the last space in the line
                     if (builder.ch_last_space >= 0) {
-                        if (!paragraph_wrap(builder.ch_last_space, &xcur, &ycur))
-                            return;
+                        if (!paragraph_wrap(builder.ch_last_space, &xcur, &ycur)) {
+                            return spanres_make(last_space_ptr - start, SPANF_STOPPED_EARLY | SPANF_CONSUME_DELIM);
+                        }
                         builder.ch_last_space = -1;
                         break;
                     }
                     builder.layout->nchars -= 1;
+                    consumed_ptr = prev_consumed_ptr;
                     // fallthrough!
                 case WRAP_ELLIPSES: {
                     const rdpq_font_t *wfnt = fnt;
@@ -320,13 +351,55 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                     // Skip the rest of the line, including the rest of this span,
                     // including the current character.
                     builder.skip_current_line = true;
-                    return;
+                    return spanres_make(consumed_ptr - start, SPANF_STOPPED_EARLY | SPANF_CONSUME_TO_EOL);
             }
         }
     }
 
     builder.x = xcur;
     builder.y = ycur;
+    return spanres_make(consumed_ptr - start, 0);
+}
+
+void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
+{
+    rdpq_paragraph_builder_span_ex(utf8_text, nbytes);
+}
+
+static bool paragraph_flush_span(const char *end, const char **span, const char **buf, const char **committed)
+{
+    const char *span0 = *span;
+    spanres_t res = rdpq_paragraph_builder_span_ex(span0, *buf - span0);
+    uint32_t consumed = spanres_consumed(res);
+
+    *buf = span0 + consumed;
+    if (UNLIKELY(res & SPANF_CONSUME_TO_EOL)) {
+        while (*buf < end && **buf != '\n')
+            ++*buf;
+        if (*buf < end && **buf == '\n') {
+            ++*buf;
+            *committed = *buf;
+            rdpq_paragraph_builder_newline();
+            *span = *buf;
+            return rdpq_paragraph_builder_full();
+        }
+    } else if (UNLIKELY((res & SPANF_CONSUME_DELIM) && *buf < end && (**buf == ' ' || **buf == '\n' || **buf == '\t'))) {
+        // Consume the delimiter that logically belongs to the previous wrapped word.
+        ++*buf;
+    }
+
+    if (LIKELY(!(res & SPANF_STOPPED_EARLY))) {
+        // Empty spans at escape boundaries must not advance nbytes checkpoint.
+        if (*buf != span0)
+            *committed = *buf;
+        return false;
+    }
+
+    if (consumed > 0)
+        *committed = *buf;
+
+    *span = *buf;
+    return true;
 }
 
 static bool __rdpq_paragraph_builder_update_bbox_width(int ix0, int ix1)
@@ -384,7 +457,7 @@ static void __rdpq_paragraph_builder_newline(int ch_newline)
      
     builder.y += line_height * builder.yscale;
     builder.x = 0;
-    builder.skip_current_line = builder.parms->height && builder.y - builder.font->descent >= builder.parms->height;
+    builder.skip_current_line = builder.parms->height && builder.y - builder.font->descent > builder.parms->height;
 
     // On newline, update the bbox width using the last line, in case it grew
     __rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, ch_newline);
@@ -489,10 +562,16 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
     const char *buf = utf8_text;
     const char *end = utf8_text + *nbytes;
     const char *span = buf;
+    const char *committed = utf8_text;
 
     while (buf < end) {
         if (UNLIKELY(buf[0] == '$')) {
-            rdpq_paragraph_builder_span(span, buf - span);
+            if (paragraph_flush_span(end, &span, &buf, &committed))
+                break;
+
+            if (UNLIKELY(rdpq_paragraph_builder_full()))
+                break;
+
             if (buf[1] == '$') {
                 // next span will include the escaped char
                 buf += 2; span = buf - 1;                
@@ -505,11 +584,14 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
                 span = buf + 3;
                 buf = span;
             }
-            if (UNLIKELY(rdpq_paragraph_builder_full()))
-                break;
             continue;
         } else if (UNLIKELY(buf[0] == '^')) {
-            rdpq_paragraph_builder_span(span, buf - span);
+            if (paragraph_flush_span(end, &span, &buf, &committed))
+                break;
+
+            if (UNLIKELY(rdpq_paragraph_builder_full()))
+                break;
+
             if (buf[1] == '^') {
                 // next span will include the escaped char
                 buf += 2; span = buf - 1;                
@@ -521,14 +603,18 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
                 span = buf + 3;
                 buf = span;
             }
-            if (UNLIKELY(rdpq_paragraph_builder_full()))
-                break;
             continue;
         } else if (UNLIKELY(buf[0] == '\n')) {
-            rdpq_paragraph_builder_span(span, buf - span);
+            const char *nl_ptr = buf;
+            if (paragraph_flush_span(end, &span, &buf, &committed))
+                break;
+            if (buf != nl_ptr)
+                continue;
+
             rdpq_paragraph_builder_newline();
             span = buf + 1;
             buf = span;
+            committed = buf;
             if (UNLIKELY(rdpq_paragraph_builder_full()))
                 break;
             continue;
@@ -538,8 +624,9 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
     }
 
     if (buf != span)
-        rdpq_paragraph_builder_span(span, buf - span);
-    *nbytes = buf - utf8_text;
+        paragraph_flush_span(end, &span, &buf, &committed);
+
+    *nbytes = committed - utf8_text;
     return rdpq_paragraph_builder_end();
 }
 

@@ -480,8 +480,181 @@ void test_rdpq_text_max_chars_stop_at_space(TestContext *ctx)
 	DEFER(rdpq_paragraph_free(layout););
 
 	ASSERT_EQUAL_SIGNED(layout->nchars, 2, "two glyphs");
-	/* nbytes reflects outer parse cursor (full string for plain text); layout stops earlier. */
-	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "input fully scanned");
+	ASSERT_EQUAL_SIGNED(nbytes, 2, "2 chars displayed");
+}
+
+void test_rdpq_text_nbytes_wrap_word_plaintext(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_textparms_t parms = { .width = 40, .height = 40, .wrap = WRAP_WORD };
+	const char *text = "abcdef abcdef 123456 123456";
+
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "first word doesn't fit -> ellipsis: full line consumed");
+
+	nbytes = (int)strlen(text);
+	parms.width = 45;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 21, "consume spaces after wrapped words");
+
+	nbytes = (int)strlen(text);
+	parms.width = 85;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "full string fits in available lines");
+}
+
+void test_rdpq_text_nbytes_wrap_word_with_escapes(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_font_style(mono, 1, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF),
+    });
+	rdpq_font_style(mono, 2, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0x00, 0x00, 0xFF),
+    });
+
+	rdpq_textparms_t parms = { .width = 40, .height = 40, .wrap = WRAP_WORD };
+	const char *text = "^01abcdef ^02abcdef ^01123456 ^02123456";
+
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "first word doesn't fit -> ellipsis: full line consumed");
+
+	nbytes = (int)strlen(text);
+	parms.width = 45;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 30, "consume escapes and spaces consistently");
+
+	nbytes = (int)strlen(text);
+	parms.width = 85;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+	ASSERT_EQUAL_SIGNED(nbytes, (int)strlen(text), "full string fits in available lines");
+}
+
+void test_rdpq_text_nbytes_wrap_char_with_escapes(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_font_style(mono, 1, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF),
+    });
+	rdpq_font_style(mono, 2, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0x00, 0x00, 0xFF),
+    });
+
+	rdpq_textparms_t parms = { .width = 25, .height = 40, .wrap = WRAP_CHAR };
+	const char *text = "^01abcdef ^02abcdef ^01123456 ^02123456";
+
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 16, "3 lines * 3 chars/line, escapes counted");
+
+	nbytes = (int)strlen(text);
+	parms.width = 30;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 18, "3 lines * 4 chars/line");
+
+	nbytes = (int)strlen(text);
+	parms.width = 35;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+	ASSERT_EQUAL_SIGNED(nbytes, 24, "3 lines * 5 chars/line");
+}
+
+void test_rdpq_text_nbytes_ellipsis(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_font_style(mono, 1, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF),
+    });
+	rdpq_font_style(mono, 2, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0x00, 0x00, 0xFF),
+    });
+
+	rdpq_textparms_t parms = { .width = 65, .height = 30, .wrap = WRAP_WORD };
+	const char *text = "^01abcdef\n^02abcdefabcdef\n^01123456 ^02123456";
+
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, 26, "ellipsis consumes to end of overflowing line");
+
+	nbytes = (int)strlen(text);
+	parms.height = 40;
+	layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+	ASSERT_EQUAL_SIGNED(nbytes, 36, "next line starts after consumed ellipsis line");
+}
+
+/* WRAP_WORD: when stopping on a full page, consume trailing newline delimiter too. */
+void test_rdpq_text_nbytes_wrap_word_consumes_newline(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_textparms_t parms = { .width = 40, .height = 20, .wrap = WRAP_WORD };
+	const char *text = "abcdef\nghijkl";
+	int nbytes = (int)strlen(text);
+
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	DEFER(rdpq_paragraph_free(layout););
+
+	ASSERT_EQUAL_SIGNED(nbytes, 7, "first page consumes first word plus newline");
+}
+
+/* WRAP_WORD + consecutive escapes: nbytes must stop before ^xx^yy when page is full. */
+void test_rdpq_text_nbytes_wrap_word_consecutive_escapes(TestContext *ctx)
+{
+	RDPQ_TEXT_FONT_CTX();
+
+	rdpq_font_style(mono, 1, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0xFF, 0xFF, 0xFF),
+    });
+	rdpq_font_style(mono, 2, &(rdpq_fontstyle_t){
+        .color = RGBA32(0xFF, 0x00, 0x00, 0xFF),
+    });
+
+	rdpq_textparms_t parms = { .width = 20, .height = 20, .wrap = WRAP_WORD };
+	const char *text = "a ^01^02bbbbbbbb c";
+	const int escape_off = (int)(strstr(text, "^01^02") - text);
+
+	int nbytes = (int)strlen(text);
+	rdpq_paragraph_t *layout = rdpq_paragraph_build(&parms, 1, text, &nbytes);
+	ASSERT(layout != NULL, "build");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes, escape_off, "full page must not consume consecutive escapes");
+	ASSERT(text[nbytes] == '^', "next page starts at first escape");
+
+	rdpq_textparms_t parms2 = parms;
+	parms2.height = 120;
+	int nbytes2 = (int)strlen(text) - nbytes;
+	layout = rdpq_paragraph_build(&parms2, 1, text + nbytes, &nbytes2);
+	ASSERT(layout != NULL, "build page 2");
+	rdpq_paragraph_free(layout);
+	ASSERT_EQUAL_SIGNED(nbytes2, (int)strlen(text) - nbytes, "page 2 consumes all remaining bytes");
 }
 
 /* max_chars on a word without spaces: final nchars clamped to max_chars. */
