@@ -116,7 +116,7 @@
     #   must not overflow a 16-bit number. This is a limit of the attribute calculation where the
     #   edges MA/HA are calculated with 16-bit numbers. It looks like it's not a real problem as
     #   it would mean having a triangle where either S or T spans more than 1024 texels within it.
-    #   Fixing it wuold require changing MA/HA into 32-bit numbers, which has other annoying fallouts.
+    #   Fixing it would require changing MA/HA into 32-bit numbers, which has other annoying fallouts.
     # * In case of quasi-degenerate triangles (lines), when the Y difference between two vertices
     #   is just 0.25 (0x00000001), the correct normal reciprocal would be 1.0, but it is calculated
     #   as 0x7FFF8000 which is 0.5 (because it's basically saturating s15.16). This means that the calculated

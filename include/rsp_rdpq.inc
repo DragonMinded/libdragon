@@ -447,7 +447,7 @@ store_comb_2cyc:
     #
     # Let's recap the meaning of SOM blending-related flags:
     #
-    #   SOM_BLENDING: process al pixels of the triangle through the blending unit
+    #   SOM_BLENDING: process all pixels of the triangle through the blending unit
     #   SOM_AA_ENABLE: process edge pixels of the triangle through the blending unit
     #
     # So in general SOM_BLENDING is a superset of SOM_AA_ENABLE.
