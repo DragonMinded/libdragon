@@ -283,7 +283,7 @@ static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks,
         uint32_t chunk_func_off = read_varint(&ptr, end);
 
         uint32_t cur_addr = chunks[c].start_addr;
-        int cur_file = 0, cur_func = 0, cur_line = 0;
+        int cur_file[2] = {0, 0}, cur_func[2] = {0, 0}, cur_line[2] = {0, 0};
         uint32_t last_func_addr = chunk_func_off ? (chunks[c].start_addr - chunk_func_off) : 0;
 
         while (ptr < end) {
@@ -300,20 +300,21 @@ static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks,
                 delta_addr = (op & 0x07) * 4;
             }
 
-            cur_file += delta_file;
-            cur_func += delta_func;
-            cur_line += delta_line;
-            uint32_t sym_addr = cur_addr + delta_addr;
             bool is_func = op & 0x10;
             bool is_inline = op & 0x08;
+            int sid = is_inline ? 1 : 0;
+            cur_file[sid] += delta_file;
+            cur_func[sid] += delta_func;
+            cur_line[sid] += delta_line;
+            uint32_t sym_addr = cur_addr + delta_addr;
             if (is_func) last_func_addr = sym_addr;
 
-            const char *file_str = safe_lookup(files, cur_file);
-            const char *func_str = safe_lookup(funcs, cur_func);
+            const char *file_str = safe_lookup(files, cur_file[sid]);
+            const char *func_str = safe_lookup(funcs, cur_func[sid]);
             uint32_t func_off = last_func_addr ? sym_addr - last_func_addr : 0;
 
             printf("  [%6u] addr=0x%08x file=%d:%s func=%d:%s line=%d func_off=0x%x%s%s\n",
-                total, sym_addr, cur_file, file_str, cur_func, func_str, cur_line, func_off,
+                total, sym_addr, cur_file[sid], file_str, cur_func[sid], func_str, cur_line[sid], func_off,
                 is_func ? " [FUNC]" : "", is_inline ? " [INLINE]" : "");
 
             total++;
@@ -347,7 +348,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Error: invalid magic\n");
         return 1;
     }
-    if (h.version != 3) {
+    if (h.version != 4) {
         fprintf(stderr, "Error: unsupported version %u\n", h.version);
         return 1;
     }

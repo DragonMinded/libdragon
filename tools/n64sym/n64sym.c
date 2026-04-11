@@ -473,9 +473,9 @@ int compress_symbols(
     
     // State machine
     uint32_t state_addr = chunk_start_addr;
-    int state_file = 0;
-    int state_func = 0;
-    int state_line = 0;
+    int state_file[2] = {0, 0}; // [0]=non-inline, [1]=inline
+    int state_func[2] = {0, 0}; // [0]=non-inline, [1]=inline
+    int state_line[2] = {0, 0}; // [0]=non-inline, [1]=inline
 
     // Write per-chunk header: func offset of first symbol (VarInt)
     uint32_t chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
@@ -518,17 +518,19 @@ int compress_symbols(
             stbds_arrsetlen(chunk_buf, 0);
             chunk_start_addr = sym->addr;
             state_addr = sym->addr;
-            state_file = 0;
-            state_func = 0;
-            state_line = 0;
+            state_file[0] = state_file[1] = 0;
+            state_func[0] = state_func[1] = 0;
+            state_line[0] = state_line[1] = 0;
             chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
             w_varint(&chunk_buf, chunk_func_off);
         }
         
+        int sid = sym->is_inline ? 1 : 0;
+
         // Calculate deltas
-        int delta_file = file_idx - state_file;
-        int delta_func = func_idx - state_func;
-        int delta_line = sym->line - state_line;
+        int delta_file = file_idx - state_file[sid];
+        int delta_func = func_idx - state_func[sid];
+        int delta_line = sym->line - state_line[sid];
         uint32_t delta_addr = sym->addr - state_addr;
         
         // Encode to temp buffer
@@ -562,9 +564,9 @@ int compress_symbols(
         emitted++;
         
         state_addr = sym->addr;
-        state_file = file_idx;
-        state_func = func_idx;
-        state_line = sym->line;
+        state_file[sid] = file_idx;
+        state_func[sid] = func_idx;
+        state_line[sid] = sym->line;
 
         if (sym->is_func)
             last_func_addr = sym->addr;
@@ -602,9 +604,9 @@ void write_sym_file(const char *outfn,
         exit(1);
     }
     
-    // Write V3 Header
+    // Write SYMT header
     fwrite("SYMT", 4, 1, out);
-    w32(out, 3); // Version 3
+    w32(out, 4); // Version 4
     w32(out, num_symbols);
     w32(out, num_chunks);
     

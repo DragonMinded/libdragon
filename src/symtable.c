@@ -4,9 +4,9 @@
  * @brief SYMT symbol table access
  * @ingroup backtrace
  *
- * # N64 SYMT Format v3
+ * # N64 SYMT Format v4
  *
- * This document describes the version 3 of the Symbol Table format (SYMT) used by Libdragon for
+ * This document describes version 4 of the Symbol Table format (SYMT) used by Libdragon for
  * runtime symbolization and backtracing.
  *
  * The format is designed to be extremely compact in ROM while requiring a minimal fixed amount of
@@ -25,7 +25,7 @@
  * ```c
  * typedef struct {
  *     char magic[4];           // "SYMT"
- *     uint32_t version;        // 3
+ *     uint32_t version;        // 4
  *     uint32_t num_symbols;    // Total number of symbols
  *     uint32_t num_chunks;     // Total number of compressed symbol chunks
  *
@@ -154,14 +154,15 @@
  * * `FirstFuncOff` (VarInt): Offset of the first symbol in the chunk relative to the start of its
  *   function. If 0, the chunk starts exactly at a function boundary or the function base is unknown.
  * * Opcodes sequence (see below).
- * * `0x00` end-of-chunk marker, padded to 2-byte alignment.
+ * * `0x18` end-of-chunk marker, padded to 2-byte alignment.
  *
- * Inside a Chunk, symbols are stored sequentially using **Delta Encoding** relative to the previous
- * symbol's state. The state consists of:
+ * Inside a Chunk, symbols are stored sequentially using **Delta Encoding**. Address deltas are
+ * relative to the previous symbol address, while file/function/line deltas are relative to a state
+ * selected by symbol class (`inline` vs `non-inline`). The state consists of:
  * * `CurrentAddress` (Initialized to `chunk.start_addr`)
- * * `FileID` (Initialized to 0)
- * * `FuncID` (Initialized to 0)
- * * `Line` (Initialized to 0)
+ * * `FileID[2]` (Initialized to 0, index 0=`non-inline`, 1=`inline`)
+ * * `FuncID[2]` (Initialized to 0, index 0=`non-inline`, 1=`inline`)
+ * * `Line[2]` (Initialized to 0, index 0=`non-inline`, 1=`inline`)
  *
  * **Symbol Encoding:** Each symbol starts with a 1-byte **Opcode**:
  *
@@ -210,11 +211,13 @@
  * 2.  **Load Chunk:**
  *     *   DMA the chunk data from `stream_off + C.stream_off` into the RAM buffer.
  * 3.  **Scan Stream:**
- *     *   Initialize state: `CurrAddr = C.start_addr`, `File=0`, `Func=0`, `Line=0`.
+ *     *   Initialize state: `CurrAddr = C.start_addr`,
+ *         `File[0..1]=0`, `Func[0..1]=0`, `Line[0..1]=0`.
  *     *   Loop through opcodes in the buffer:
  *         *   Decode Address Delta. Update `CurrAddr`.
  *         *   If `CurrAddr > SearchAddr`: Stop. The *previous* valid symbol is the match.
- *         *   Update `File`, `Func`, `Line` based on flags and VarInts.
+ *         *   Select class state with `sid = IsInline ? 1 : 0`.
+ *         *   Update `File[sid]`, `Func[sid]`, `Line[sid]` based on flags and VarInts.
  *         *   Keep track of the "Best Match" seen so far.
  *
  * ### Algorithm 2: String Fetch
@@ -357,7 +360,7 @@ symtable_header_t symt_open(void *addr) {
         SYMT_ROM = 0;
         return (symtable_header_t){0};
     }
-    if (symt_header.version != 3) {
+    if (symt_header.version != 4) {
         debugf("backtrace: unsupported symbol table version %ld -- please update your n64sym tool\n", symt_header.version);
         SYMT_ROM = 0;
         return (symtable_header_t){0};
@@ -401,9 +404,9 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
     
     // Iterate through symbols in the chunk
     uint32_t cur_addr = chunk_start_addr;
-    int cur_file = 0;
-    int cur_func = 0;
-    int cur_line = 0;
+    int cur_file[2] = {0, 0}; // [0]=non-inline, [1]=inline
+    int cur_func[2] = {0, 0}; // [0]=non-inline, [1]=inline
+    int cur_line[2] = {0, 0}; // [0]=non-inline, [1]=inline
     
     uint32_t last_func_addr = chunk_func_off ? (chunk_start_addr - chunk_func_off) : 0;
     int found = 0;
@@ -425,21 +428,23 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
             delta_addr = (op & 0x07) * 4;
         }
         
-        cur_file += delta_file;
-        cur_func += delta_func;
-        cur_line += delta_line;
-        uint32_t sym_addr = cur_addr + delta_addr;
         bool is_func = (op & 0x10);
         bool is_inline = (op & 0x08);
+        int sid = is_inline ? 1 : 0;
+
+        cur_file[sid] += delta_file;
+        cur_func[sid] += delta_func;
+        cur_line[sid] += delta_line;
+        uint32_t sym_addr = cur_addr + delta_addr;
         
         if (is_func) last_func_addr = sym_addr;
         
         // If this is the function start, record it. In case the exact symbol
-        // is not found, ee will return this approximation (funciontion start + offset)
+        // is not found, ee will return this approximation (function start + offset)
         if (sym_addr < addr && is_func) {
             last_func_addr = sym_addr;
-            entry[0].func_sidx = cur_func;
-            entry[0].file_sidx = cur_file;
+            entry[0].func_sidx = cur_func[0];
+            entry[0].file_sidx = cur_file[0];
             entry[0].line = 0;
             entry[0].func_off = addr - last_func_addr;
             entry[0].is_inline = 0;
@@ -450,9 +455,9 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
         if (sym_addr == addr) {
             if (entry[0].line == 0) found = 0; // Overwrite function-only entry
             if (found < max_entries) {
-                entry[found].func_sidx = cur_func;
-                entry[found].file_sidx = cur_file;
-                entry[found].line = cur_line;
+                entry[found].func_sidx = cur_func[sid];
+                entry[found].file_sidx = cur_file[sid];
+                entry[found].line = cur_line[sid];
                 entry[found].is_inline = is_inline;
                 if (last_func_addr) {
                     entry[found].func_off = addr - last_func_addr;
