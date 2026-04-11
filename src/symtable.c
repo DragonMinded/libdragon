@@ -4,9 +4,9 @@
  * @brief SYMT symbol table access
  * @ingroup backtrace
  *
- * # N64 SYMT Format v4
+ * # N64 SYMT Format v5
  *
- * This document describes version 4 of the Symbol Table format (SYMT) used by Libdragon for
+ * This document describes version 5 of the Symbol Table format (SYMT) used by Libdragon for
  * runtime symbolization and backtracing.
  *
  * The format is designed to be extremely compact in ROM while requiring a minimal fixed amount of
@@ -25,7 +25,7 @@
  * ```c
  * typedef struct {
  *     char magic[4];           // "SYMT"
- *     uint32_t version;        // 4
+ *     uint32_t version;        // 5
  *     uint32_t num_symbols;    // Total number of symbols
  *     uint32_t num_chunks;     // Total number of compressed symbol chunks
  *
@@ -36,7 +36,8 @@
  *     uint32_t huff_tab_off;   // Global Huffman Table
  *     uint32_t file_blob_off;  // File String Blob
  *     uint32_t func_blob_off;  // Func String Blob
- *     uint32_t stream_off;     // Compressed Symbol Stream
+ *     uint32_t stream_off;     // Compressed Symbol Stream (asset compression level 3)
+ *     uint32_t max_chunk_margin; // Max in-place decompression safety margin
  *     
  *     // Size of sections (useful for bounds checking)
  *     uint32_t num_files;      // Total number of file strings
@@ -147,14 +148,15 @@
  *
  * ### 5. Compressed Symbol Stream (`stream_off`)
  *
- * Contains the symbol data. This is a continuous stream of bytes divided into Chunks (as defined in
- * the Chunk Index). Each Chunk can be decompressed independently.
+ * Contains chunks compressed with asset compression level 3 (currently Shrinkler). 
+ * This is a continuous stream of bytes divided into Chunks
+ * (as defined in the Chunk Index). Each Chunk can be decompressed independently.
  *
- * **Chunk Layout:**
+ * **Chunk Layout (after asset compression level 3 decompression):**
  * * `FirstFuncOff` (VarInt): Offset of the first symbol in the chunk relative to the start of its
  *   function. If 0, the chunk starts exactly at a function boundary or the function base is unknown.
  * * Opcodes sequence (see below).
- * * `0x18` end-of-chunk marker, padded to 2-byte alignment.
+ * * No explicit end-of-chunk marker: the chunk ends at the decompressed chunk length.
  *
  * Inside a Chunk, symbols are stored sequentially using **Delta Encoding**. Address deltas are
  * relative to the previous symbol address, while file/function/line deltas are relative to a state
@@ -174,10 +176,6 @@
  * | 4 | `Is Func` | If 1, this symbol marks the start of a function. |
  * | 3 | `Is Inline` | If 1, this symbol is an inlined function instance. |
  * | 2-0 | `Addr Delta` | Addr inc. <br> `0`: 0. <br> `1..6`: (`V*4`). <br> `7`: VarInt, Delta = (`V+7`)*4. |
- *
- * The opcode value `0x18` (EOM) is used to signal the end of the chunk. This is
- * guaranteed never to appear as a valid opcode for a symbol, because a function
- * start address can never be an inlined symbol.
  *
  * ## Data Types
  *
@@ -263,12 +261,14 @@
 #include <string.h>
 #include <stdio.h>
 #include "symtable_internal.h"
+#include "asset_internal.h"
 #include "n64sys.h"
 #include "dma.h"
 #include "rompak_internal.h"
 #include "dlfcn_internal.h"
 #include "debug.h"
 #include "utils.h"
+#include "compress/shrinkler_dec_internal.h"
 
 /** @brief Buffer size for decompression */
 #define MAX_BUFFER_SIZE 512
@@ -360,7 +360,7 @@ symtable_header_t symt_open(void *addr) {
         SYMT_ROM = 0;
         return (symtable_header_t){0};
     }
-    if (symt_header.version != 4) {
+    if (symt_header.version != 5) {
         debugf("backtrace: unsupported symbol table version %ld -- please update your n64sym tool\n", symt_header.version);
         SYMT_ROM = 0;
         return (symtable_header_t){0};
@@ -386,19 +386,25 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
     
     // Read the chunk entry for the found chunk
     int chunk_start_addr = io_read(SYMT_ROM + symt->chunk_idx_off + min * 8 + 0);
-    int chunk_stream_off = io_read(SYMT_ROM + symt->chunk_idx_off + min * 8 + 4);
+    uint32_t chunk_stream_off = io_read(SYMT_ROM + symt->chunk_idx_off + min * 8 + 4);
+    uint32_t next_chunk_stream_off = (min + 1 < symt->num_chunks)
+        ? io_read(SYMT_ROM + symt->chunk_idx_off + (min + 1) * 8 + 4)
+        : symt->stream_size;
     if (addr < chunk_start_addr)
         return false; // Should not happen if address is valid code
+    uint32_t cmp_size = next_chunk_stream_off - chunk_stream_off;
 
-    // Decompress the chunk
-    uint8_t alignas(16) chunk_buf[MAX_BUFFER_SIZE];
+    // Read + decompress the chunk in-place (same model as asset.c)
     uint32_t stream_addr = SYMT_ROM + symt->stream_off + chunk_stream_off;
-    
-    // We don't know the exact size of the chunk, but we know it fits in MAX_BUFFER_SIZE.
-    data_cache_hit_writeback_invalidate(chunk_buf, MAX_BUFFER_SIZE);
-    dma_read(chunk_buf, stream_addr, MAX_BUFFER_SIZE);
-    
+    int cmp_pos = 0;
+    int work_size = asset_buf_size(MAX_BUFFER_SIZE, cmp_size, symt->max_chunk_margin, &cmp_pos);
+    uint8_t alignas(16) chunk_buf[work_size];
+    data_cache_hit_writeback_invalidate(chunk_buf, work_size);
+    dma_read(chunk_buf + cmp_pos, stream_addr, cmp_size);
+    int dec_n = decompress_shrinkler_full_inplace(chunk_buf + cmp_pos, cmp_size, chunk_buf, MAX_BUFFER_SIZE);
+
     const uint8_t *ptr = chunk_buf;
+    const uint8_t *end = chunk_buf + dec_n;
     // First field: function offset of the first symbol in chunk (VarInt)
     uint32_t chunk_func_off = __read_varint_u64(&ptr);
     
@@ -411,9 +417,8 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
     uint32_t last_func_addr = chunk_func_off ? (chunk_start_addr - chunk_func_off) : 0;
     int found = 0;
     
-    while (1) {
+    while (ptr < end) {
         uint8_t op = *ptr++;
-        if (op == 0x18) break; // End of chunk marker
         
         // Decode deltas
         int delta_file = (op & 0x80) ? __read_varint_s64(&ptr) : 0;

@@ -34,6 +34,7 @@ typedef struct {
     uint32_t file_blob_off;  ///< Offset of the file string blob
     uint32_t func_blob_off;  ///< Offset of the func string blob
     uint32_t stream_off;     ///< Offset of the compressed symbol stream
+    uint32_t max_chunk_margin; ///< Max in-place decompression safety margin across chunks
     
     // Size of sections (useful for bounds checking)
     uint32_t num_files;      ///< Total number of file strings

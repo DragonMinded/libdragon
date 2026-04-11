@@ -24,6 +24,7 @@
 #include "../common/polyfill.h"
 #include "../common/utils.h"
 #include "../common/binout.h"
+#include "../common/assetcomp.h"
 #include "n64sym_huffman.h"
 
 #include "../common/binout.c"
@@ -33,6 +34,7 @@
 // is sufficient. Testing shows that growing after 512 has very minimal size
 // savings.
 #define MAX_BUFFER_SIZE  512
+#define SYMT_VERSION     5
 
 int flag_verbose = 0;
 int flag_max_sym_len = 96;
@@ -497,13 +499,6 @@ int compress_symbols(
         bool flush = (stbds_arrlen(chunk_buf) > MAX_BUFFER_SIZE - 32);
         
         if (flush) {
-            // End of chunk marker (EOM)
-            stbds_arrput(chunk_buf, 0x18);
-
-            // Pad chunk to 2 bytes alignment for DMA
-            if (stbds_arrlen(chunk_buf) % 2 != 0)
-                stbds_arrput(chunk_buf, 0x00);
-
             // Flush chunk
             stbds_arrput(*chunk_index, chunk_start_addr);
             stbds_arrput(*chunk_index, stbds_arrlen(*stream));
@@ -554,7 +549,6 @@ int compress_symbols(
             has_addr_param = true;
         }
         
-        assert(op != 0x18 && "Opcode should never be 0x18 (EOM) within the stream");
         stbds_arrput(chunk_buf, op);
         if (delta_file != 0) w_signed_varint(&chunk_buf, delta_file);
         if (delta_func != 0) w_signed_varint(&chunk_buf, delta_func);
@@ -576,10 +570,6 @@ int compress_symbols(
     if (stbds_arrlen(chunk_buf) > 0) {
         stbds_arrput(*chunk_index, chunk_start_addr);
         stbds_arrput(*chunk_index, stbds_arrlen(*stream));
-        stbds_arrput(chunk_buf, 0x18); // EOM
-        // Pad chunk to 2 bytes alignment for DMA
-        if (stbds_arrlen(chunk_buf) % 2 != 0)
-            stbds_arrput(chunk_buf, 0x00);
         int cur_len = stbds_arrlen(*stream);
         int chunk_len = stbds_arrlen(chunk_buf);
         stbds_arrsetlen(*stream, cur_len + chunk_len);
@@ -590,8 +580,55 @@ int compress_symbols(
     return emitted;
 }
 
+static void compress_symbol_chunks(
+    uint8_t *plain_stream, uint32_t *plain_chunk_index,
+    uint8_t **cmp_stream, uint32_t **cmp_chunk_index,
+    uint32_t *max_chunk_margin)
+{
+    int num_chunks = stbds_arrlen(plain_chunk_index) / 2;
+    *max_chunk_margin = 0;
+
+    for (int i = 0; i < num_chunks; i++) {
+        uint32_t start_addr = plain_chunk_index[i * 2 + 0];
+        uint32_t plain_off = plain_chunk_index[i * 2 + 1];
+        uint32_t plain_end = (i + 1 < num_chunks) ? plain_chunk_index[(i + 1) * 2 + 1] : stbds_arrlen(plain_stream);
+        assert(plain_end >= plain_off);
+        uint32_t plain_size = plain_end - plain_off;
+
+        int cmp_size = 0;
+        int winsize = 0;
+        int margin = 0;
+        uint8_t *cmp_buf = NULL;
+        asset_compress_mem_raw(3, plain_stream + plain_off, (int)plain_size, &cmp_buf, &cmp_size, &winsize, &margin);
+        if (!cmp_buf || cmp_size <= 0) {
+            fprintf(stderr, "Error: compression failed for chunk %d\n", i);
+            exit(1);
+        }
+
+        // Keep compressed chunk sizes even so the next chunk offset preserves
+        // ROM/RAM parity constraints required by dma_read().
+        if (cmp_size & 1) {
+            cmp_buf = realloc(cmp_buf, cmp_size + 1);
+            cmp_buf[cmp_size++] = 0;
+        }
+
+        if ((uint32_t)margin > *max_chunk_margin)
+            *max_chunk_margin = margin;
+
+        stbds_arrput(*cmp_chunk_index, start_addr);
+        stbds_arrput(*cmp_chunk_index, stbds_arrlen(*cmp_stream));
+
+        int cur_len = stbds_arrlen(*cmp_stream);
+        stbds_arrsetlen(*cmp_stream, cur_len + cmp_size);
+        memcpy(*cmp_stream + cur_len, cmp_buf, cmp_size);
+
+        free(cmp_buf);
+    }
+}
+
 void write_sym_file(const char *outfn, 
     int num_symbols, int num_chunks, int num_files, int num_funcs,
+    uint32_t max_chunk_margin,
     uint32_t *chunk_index,
     uint32_t *file_offsets, uint8_t *file_blob,
     uint32_t *func_offsets, uint8_t *func_blob,
@@ -606,7 +643,7 @@ void write_sym_file(const char *outfn,
     
     // Write SYMT header
     fwrite("SYMT", 4, 1, out);
-    w32(out, 4); // Version 4
+    w32(out, SYMT_VERSION);
     w32(out, num_symbols);
     w32(out, num_chunks);
     
@@ -618,6 +655,7 @@ void write_sym_file(const char *outfn,
     int file_blob_off_ph = w32_placeholder(out);
     int func_blob_off_ph = w32_placeholder(out);
     int stream_off_ph = w32_placeholder(out);
+    w32(out, max_chunk_margin);
     
     // Sizes
     w32(out, num_files);
@@ -759,10 +797,16 @@ void process(const char *infn, const char *outfn)
     free(shared_ct.symbols);
     
     // Compress Symbols
-    uint8_t *stream = NULL;
-    uint32_t *chunk_index = NULL; // Stores (start_addr, offset) pairs    
+    uint8_t *plain_stream = NULL;
+    uint32_t *plain_chunk_index = NULL; // Stores (start_addr, offset) pairs
     verbose(1, "Compressing symbols...\n");
-    int num_emitted = compress_symbols(symtable, stbds_arrlen(symtable), file_map, func_map, &stream, &chunk_index);
+    int num_emitted = compress_symbols(symtable, stbds_arrlen(symtable), file_map, func_map, &plain_stream, &plain_chunk_index);
+
+    uint8_t *stream = NULL;
+    uint32_t *chunk_index = NULL; // Stores (start_addr, compressed offset) pairs
+    uint32_t max_chunk_margin = 0;
+    verbose(1, "Applying compression to symbol chunks...\n");
+    compress_symbol_chunks(plain_stream, plain_chunk_index, &stream, &chunk_index, &max_chunk_margin);
     
     verbose(1, "Stats:\n");
     verbose(1, "  Chunk Index: %zu bytes\n", stbds_arrlen(chunk_index) * 4);
@@ -771,11 +815,14 @@ void process(const char *infn, const char *outfn)
     verbose(1, "  Shared Huffman Table: %zu bytes\n", stbds_arrlen(huff_blob));
     verbose(1, "  File Blob: %zu bytes\n", stbds_arrlen(file_blob));
     verbose(1, "  Func Blob: %zu bytes\n", stbds_arrlen(func_blob));
-    verbose(1, "  Stream: %zu bytes\n", stbds_arrlen(stream));
+    verbose(1, "  Stream (plain): %zu bytes\n", stbds_arrlen(plain_stream));
+    verbose(1, "  Stream (compressed): %zu bytes\n", stbds_arrlen(stream));
+    verbose(1, "  Max Chunk Margin: %u bytes\n", max_chunk_margin);
 
     write_sym_file(outfn, 
         num_emitted,  stbds_arrlen(chunk_index)/2, 
         stbds_arrlen(unique_files), stbds_arrlen(unique_funcs), 
+        max_chunk_margin,
         chunk_index,
         file_offsets, file_blob,
         func_offsets, func_blob,
@@ -787,6 +834,8 @@ void process(const char *infn, const char *outfn)
     stbds_arrfree(huff_blob);
     stbds_arrfree(file_offsets);
     stbds_arrfree(func_offsets);
+    stbds_arrfree(plain_stream);
+    stbds_arrfree(plain_chunk_index);
     stbds_arrfree(stream);
     stbds_arrfree(chunk_index);
     stbds_arrfree(unique_files);

@@ -15,7 +15,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "n64sym_huffman.h"
+#include "../common/polyfill.h"
+#include "../../src/compress/shrinkler_dec_internal.h"
 
 #define STBDS_NO_SHORT_NAMES
 #define STB_DS_IMPLEMENTATION
@@ -35,6 +38,7 @@ typedef struct {
     uint32_t file_blob_off;
     uint32_t func_blob_off;
     uint32_t stream_off;
+    uint32_t max_chunk_margin;
     uint32_t num_files;
     uint32_t num_funcs;
     uint32_t num_file_blocks;
@@ -67,7 +71,7 @@ static void read_exact(FILE *f, void *buf, size_t len, const char *what) {
 }
 
 static symt_header_t read_header(FILE *f) {
-    enum { SYMT_HEADER_BYTES = 4 + 4 * 18 };
+    enum { SYMT_HEADER_BYTES = 4 + 4 * 19 };
     uint8_t raw[SYMT_HEADER_BYTES];
     read_exact(f, raw, sizeof(raw), "header");
     symt_header_t h = {0};
@@ -82,14 +86,15 @@ static symt_header_t read_header(FILE *f) {
     h.file_blob_off = be32(raw + 32);
     h.func_blob_off = be32(raw + 36);
     h.stream_off    = be32(raw + 40);
-    h.num_files     = be32(raw + 44);
-    h.num_funcs     = be32(raw + 48);
-    h.num_file_blocks = be32(raw + 52);
-    h.num_func_blocks = be32(raw + 56);
-    h.huff_tab_size = be32(raw + 60);
-    h.file_blob_size= be32(raw + 64);
-    h.func_blob_size= be32(raw + 68);
-    h.stream_size   = be32(raw + 72);
+    h.max_chunk_margin = be32(raw + 44);
+    h.num_files     = be32(raw + 48);
+    h.num_funcs     = be32(raw + 52);
+    h.num_file_blocks = be32(raw + 56);
+    h.num_func_blocks = be32(raw + 60);
+    h.huff_tab_size = be32(raw + 64);
+    h.file_blob_size= be32(raw + 68);
+    h.func_blob_size= be32(raw + 72);
+    h.stream_size   = be32(raw + 76);
     return h;
 }
 
@@ -106,6 +111,7 @@ static void print_header(symt_header_t *h) {
     printf("file_blob_off: %u (size %u)\n", h->file_blob_off, h->file_blob_size);
     printf("func_blob_off: %u (size %u)\n", h->func_blob_off, h->func_blob_size);
     printf("stream_off   : %u (size %u)\n", h->stream_off, h->stream_size);
+    printf("max_chunk_margin: %u\n", h->max_chunk_margin);
     printf("num_files    : %u (%u blocks)\n", h->num_files, h->num_file_blocks);
     printf("num_funcs    : %u (%u blocks)\n", h->num_funcs, h->num_func_blocks);
     printf("huff_tab_size: %u bytes\n", h->huff_tab_size);
@@ -267,6 +273,40 @@ static const char *safe_lookup(char **arr, int idx) {
     return arr[idx];
 }
 
+static int decompress_chunk(const uint8_t *cmp_buf, uint32_t cmp_size, uint8_t *out_buf, uint32_t out_cap)
+{
+    FILE *tmp = tmpfile();
+    assert(tmp && "tmpfile() failed");
+    fwrite(cmp_buf, 1, cmp_size, tmp);
+    fflush(tmp);
+    fseek(tmp, 0, SEEK_SET);
+
+    int winsize = 2 * 1024; // Chunks are <= 512 bytes plain, so compressor uses 2 KiB window
+    uint8_t *state = calloc(1, DECOMPRESS_SHRINKLER_STATE_SIZE + winsize);
+    decompress_shrinkler_init(state, fileno(tmp), winsize);
+
+    int dec_size = 0;
+    while (dec_size < out_cap) {
+        ssize_t n = decompress_shrinkler_read(state, out_buf + dec_size, out_cap - dec_size);
+        if (n < 0) {
+            dec_size = -1;
+            break;
+        }
+        if (n == 0) break;
+        dec_size += n;
+    }
+
+    if (dec_size >= 0) {
+        uint8_t tmp_byte;
+        ssize_t n = decompress_shrinkler_read(state, &tmp_byte, 1);
+        assert(n <= 0 && "Corrupted .sym file: compressed chunk expands beyond expected size");
+    }
+
+    free(state);
+    fclose(tmp);
+    return dec_size;
+}
+
 static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks, char **files, char **funcs) {
     printf("=== Symbols ===\n");
     uint32_t total = 0;
@@ -274,12 +314,19 @@ static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks,
         uint32_t chunk_start = chunks[c].stream_off;
         uint32_t chunk_end = (c + 1 < stbds_arrlen(chunks)) ? chunks[c + 1].stream_off : h->stream_size;
         uint32_t chunk_len = chunk_end - chunk_start;
-        uint8_t *buf = malloc(chunk_len);
+        uint8_t *cmp_buf = malloc(chunk_len);
+        uint8_t *buf = malloc(MAX_BUFFER_SIZE);
+
         fseek(f, h->stream_off + chunk_start, SEEK_SET);
-        read_exact(f, buf, chunk_len, "symbol chunk");
+        read_exact(f, cmp_buf, chunk_len, "symbol chunk");
+        int dec_size = decompress_chunk(cmp_buf, chunk_len, buf, MAX_BUFFER_SIZE);
+        if (dec_size <= 0) {
+            fprintf(stderr, "Error: decompression failed for chunk %d\n", c);
+            exit(1);
+        }
 
         const uint8_t *ptr = buf;
-        const uint8_t *end = buf + chunk_len;
+        const uint8_t *end = buf + dec_size;
         uint32_t chunk_func_off = read_varint(&ptr, end);
 
         uint32_t cur_addr = chunks[c].start_addr;
@@ -288,7 +335,6 @@ static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks,
 
         while (ptr < end) {
             uint8_t op = *ptr++;
-            if (op == 0x18) break; // End-of-chunk marker
             int delta_file = (op & 0x80) ? read_signed_varint(&ptr, end) : 0;
             int delta_func = (op & 0x40) ? read_signed_varint(&ptr, end) : 0;
             int delta_line = (op & 0x20) ? read_signed_varint(&ptr, end) : 0;
@@ -321,6 +367,7 @@ static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks,
             cur_addr = sym_addr;
         }
 
+        free(cmp_buf);
         free(buf);
     }
     printf("Total symbols decoded: %u (header says %u)\n\n", total, h->num_symbols);
@@ -348,7 +395,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "Error: invalid magic\n");
         return 1;
     }
-    if (h.version != 4) {
+    if (h.version != 5) {
         fprintf(stderr, "Error: unsupported version %u\n", h.version);
         return 1;
     }
