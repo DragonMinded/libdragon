@@ -6,7 +6,6 @@
  */
 #include "rdpq_debug.h"
 #include "rdpq_debug_internal.h"
-#include "rdpq_macros.h"
 #ifdef N64
 #include "rdpq.h"
 #include "rspq.h"
@@ -1272,19 +1271,19 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
     // Warn if that may be the case, as rgb.mul starts overflowing from 256 onwards.
     if (rdp.som.cycle_type == 1) { // 2cyc
         struct cc_cycle_s *ccA = &rdp.cc.cyc[0];
-        if (rdp.cc.cyc[1].rgb.mul == _RDPQ_COMB2B_RGB_MUL_COMBINED) {
-            if (ccA->rgb.mul == _RDPQ_COMB2A_RGB_MUL_ZERO) {
-                if (ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_ONE) {
+        if (rdp.cc.cyc[1].rgb.mul == 0) { // combined
+            if (ccA->rgb.mul >= 16 && ccA->rgb.mul <= 31) { // zero
+                if (ccA->rgb.add == 6) { // one
                     VALIDATE_WARN_CC(0, "combined rgb passed to mul input and evaluating to 1, overflow will occur");
                 }
             } else {
                 // Detect a lerp (where subb == add)
-                if ((ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_TEX0 && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_TEX0)
-                    || (ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_TEX1 && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_TEX1)
-                    || (ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_PRIM && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_PRIM)
-                    || (ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_SHADE && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_SHADE)
-                    || (ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_ENV && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_ENV)
-                    || (ccA->rgb.subb >= 8 /* ZERO */ && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_ZERO)) {
+                if ((ccA->rgb.subb == 1 && ccA->rgb.add == 1) // tex0
+                    || (ccA->rgb.subb == 2 && ccA->rgb.add == 2) // tex1
+                    || (ccA->rgb.subb == 3 && ccA->rgb.add == 3) // prim
+                    || (ccA->rgb.subb == 4 && ccA->rgb.add == 4) // shade
+                    || (ccA->rgb.subb == 5 && ccA->rgb.add == 5) // env
+                    || (ccA->rgb.subb >= 8 && ccA->rgb.add == 7)) { // zero
                     // Lerps would only be problematic if subb == add == ONE, but subb cannot take the ONE input so lerps are always fine.
                 } else {
                     VALIDATE_WARN_CC(0, "combined rgb passed to mul input and exotic combiner detected, be mindful of overflow");
