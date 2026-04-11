@@ -288,7 +288,7 @@ static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks,
 
         while (ptr < end) {
             uint8_t op = *ptr++;
-            if (op == 0x00) break;
+            if (op == 0x18) break; // End-of-chunk marker
             int delta_file = (op & 0x80) ? read_signed_varint(&ptr, end) : 0;
             int delta_func = (op & 0x40) ? read_signed_varint(&ptr, end) : 0;
             int delta_line = (op & 0x20) ? read_signed_varint(&ptr, end) : 0;
