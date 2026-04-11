@@ -161,14 +161,22 @@ static char *collapse_template_args(const char *s)
             continue;
         }
 
-        out[o++] = '<';
-        out[o++] = '.';
-        out[o++] = '.';
-        out[o++] = '.';
-        out[o++] = '>';
+        size_t span_len = j - i + 1; // includes both '<' and '>'
+        if (span_len >= 5) {
+            out[o++] = '<';
+            out[o++] = '.';
+            out[o++] = '.';
+            out[o++] = '.';
+            out[o++] = '>';
+        } else {
+            // Keep the original span if replacing would grow output.
+            memcpy(out + o, s + i, span_len);
+            o += span_len;
+        }
         i = j;
     }
 
+    assert(o <= len);
     out[o] = '\0';
     return out;
 }
