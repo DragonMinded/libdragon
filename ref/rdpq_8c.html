@@ -2320,7 +2320,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 
 <p>Store an address into the rdpq lookup table. </p>
 <p>This function is for advanced usages, it is not normally required to call it.</p>
-<p>This function modifies the internal RDPQ address lookup table, by storing an address into on of the available slots.</p>
+<p>This function modifies the internal RDPQ address lookup table, by storing an address into one of the available slots.</p>
 <p>The lookup table is used to allow for an indirect access to surface pointers. For instance, some library code might want to record a block that manipulates several surfaces, but without saving the actual surface pointers within the block. Instead, all commands referring to a surface, will actually refer to an index into the lookup table. The caller of the block will then store the actual buffer pointers in the table, before playing back the block.</p>
 <p>While recording, you can create a placeholder surface via <a class="el" href="surface_8h.html#ade63b26694a75b09506d5fd9cf35e670" title="Create a placeholder surface, that can be used during rdpq block recording.">surface_make_placeholder</a> or <a class="el" href="surface_8h.html#a72c6f76ee9f39cc668e6628cc1fb46ef" title="Create a linear placeholder surface, that can be used during rdpq block recording.">surface_make_placeholder_linear</a> that is just an "index" into the lookup table.</p>
 <div class="fragment"><div class="line"><span class="comment">// Create placeholder surfaces with indices 3 and 4</span></div>
@@ -2460,7 +2460,7 @@ Address of the syncpoint ID in RDRAM. </td></tr>
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon Apr 6 2026 21:31:06 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Sat Apr 11 2026 18:09:18 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
