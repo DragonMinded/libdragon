@@ -370,6 +370,8 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_with_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_nbytes_wrap_char_with_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_nbytes_ellipsis, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_consumes_newline, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_consecutive_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_max_chars_clamp_end, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_max_chars_with_word_wrap, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_typewriter, 0, TEST_FLAGS_NO_BENCHMARK),
