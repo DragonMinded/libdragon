@@ -1232,7 +1232,7 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
 
         if (use_tex) {
             VALIDATE_WARN_CC(cc_use_tex0 || cc_use_tex1 || cc_use_tex0alpha || cc_use_tex1alpha,
-                "textured primitive drawn but the color combiner that does not use the TEX0/TEX1/TEX0_ALPHA/TEX1_ALPHA slots");
+                "textured primitive drawn but the color combiner does not use the TEX0/TEX1/TEX0_ALPHA/TEX1_ALPHA slots");
         } else {
             VALIDATE_ERR_CC(!cc_use_tex0,
                 "cannot draw a non-textured primitive with a color combiner using the TEX0 slot");

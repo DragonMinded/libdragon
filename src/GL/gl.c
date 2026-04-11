@@ -168,7 +168,7 @@ void gl_close()
     rspq_overlay_unregister(gl_overlay_id);
     rspq_overlay_unregister(glp_overlay_id);
 
-    // FIXME: some of the above to deferred deletions, others don't.
+    // FIXME: some of the above do deferred deletions, others don't.
     // So we need another rspq_wait.
     rspq_wait();
 

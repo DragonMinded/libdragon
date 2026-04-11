@@ -150,6 +150,13 @@ static bool joypad_accessory_check_write_crc_error(
         }
         case JOYBUS_ACCESSORY_IO_STATUS_BAD_CRC:
         {
+            if (accessory->ignore_write_crc)
+            {
+                // Special case: some buggy accessories always return an invalid data CRC.
+                // Ignore the CRC error and treat the write operation as successful.
+                accessory->error = JOYPAD_ACCESSORY_ERROR_NONE;
+                return false;
+            }
             size_t retries = accessory->retries;
             if (retries < JOYPAD_ACCESSORY_RETRY_LIMIT)
             {
@@ -590,6 +597,14 @@ static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *c
 
     const joybus_cmd_n64_accessory_write_port_t *cmdw =
         (void *)&out_bytes[port + JOYBUS_COMMAND_METADATA_SIZE];
+
+    if (cmdw->recv.data_crc == 0x00 && joybus_accessory_calculate_data_crc(cmdw->send.data) != 0x00)
+    {
+        // Special case: some accessories (notably 8BitDo receivers on old firmware) always return an invalid data CRC of 0x00.
+        // If this buggy behavior is detected, ignore all write CRC errors for this device from now on.
+        joypad_accessories_hot[port].ignore_write_crc = true;
+    }
+
     joybus_callback_t retry_callback = joypad_accessory_detect_write_callback;
     if (joypad_accessory_check_write_crc_error(port, cmdw, retry_callback, ctx))
         return; // Accessory communication error!
@@ -608,8 +623,12 @@ void joypad_accessory_detect_async(joypad_port_t port)
     {
         joypad_transfer_pak_wait_timer_init(port);
     }
+
     // Create a random label for the Controller Pak probe
-    __rand((uint8_t *)accessory->cpak_probe_label, sizeof(accessory->cpak_probe_label));
+    // Avoid generating a probe label with a data CRC of 0x00
+    do { __rand((uint8_t *)accessory->cpak_probe_label, sizeof(accessory->cpak_probe_label)); }
+    while (joybus_accessory_calculate_data_crc((uint8_t *)accessory->cpak_probe_label) == 0x00);
+     
     // Don't interrupt other accessory operations if they are still running
     if (accessory->state == JOYPAD_ACCESSORY_STATE_IDLE)
     {
