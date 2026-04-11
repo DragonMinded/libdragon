@@ -914,7 +914,7 @@ typedef uint32_t rdpq_blender_t;
  */
 #define ZBUF_MAX        0xFFFC 
 
-#ifndef __ASSEMBLER__
+#if !defined(__ASSEMBLER__) && defined(N64)
 
 ///@cond
 extern uint16_t __rdpq_zfp14(float f);
