@@ -6,6 +6,7 @@
  */
 #include "rdpq_debug.h"
 #include "rdpq_debug_internal.h"
+#include "rdpq_macros.h"
 #ifdef N64
 #include "rdpq.h"
 #include "rspq.h"
@@ -1264,6 +1265,32 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
         }
 
     }   break;
+    }
+
+    // In 2-cycle mode, check for rgb.mul being set to COMBINED and receiving a 1 (or greater) input.
+    // Note "1" corresponds to a 256 value in the combiner unit (and not 255).
+    // Warn if that may be the case, as rgb.mul starts overflowing from 256 onwards.
+    if (rdp.som.cycle_type == 1) { // 2cyc
+        struct cc_cycle_s *ccA = &rdp.cc.cyc[0];
+        if (rdp.cc.cyc[1].rgb.mul == _RDPQ_COMB2B_RGB_MUL_COMBINED) {
+            if (ccA->rgb.mul == _RDPQ_COMB2A_RGB_MUL_ZERO) {
+                if (ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_ONE) {
+                    VALIDATE_WARN_CC(0, "combined rgb passed to mul input and evaluating to 1, overflow will occur");
+                }
+            } else {
+                // Detect a lerp (where subb == add)
+                if ((ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_TEX0 && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_TEX0)
+                    || (ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_TEX1 && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_TEX1)
+                    || (ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_PRIM && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_PRIM)
+                    || (ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_SHADE && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_SHADE)
+                    || (ccA->rgb.subb == _RDPQ_COMB2A_RGB_SUBB_ENV && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_ENV)
+                    || (ccA->rgb.subb >= 8 /* ZERO */ && ccA->rgb.add == _RDPQ_COMB2A_RGB_ADD_ZERO)) {
+                    // Lerps would only be problematic if subb == add == ONE, but subb cannot take the ONE input so lerps are always fine.
+                } else {
+                    VALIDATE_WARN_CC(0, "combined rgb passed to mul input and exotic combiner detected, be mindful of overflow");
+                }
+            }
+        }
     }
 }
 
