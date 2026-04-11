@@ -368,6 +368,8 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_with_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_nbytes_wrap_char_with_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_nbytes_ellipsis, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_consumes_newline, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_consecutive_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_max_chars_clamp_end, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_max_chars_with_word_wrap, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_text_typewriter, 0, TEST_FLAGS_NO_BENCHMARK),
@@ -427,6 +429,7 @@ int main() {
 	console_set_debug(false);
 	debug_init_isviewer();
 	debug_init_usblog();
+	emux_ioctl_fast(); // ask emulator to run as fast as possible
 
 	if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {
 		printf("Invalid ROM: cannot initialize DFS\n");
