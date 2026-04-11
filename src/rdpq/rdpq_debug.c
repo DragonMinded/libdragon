@@ -1265,6 +1265,32 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
 
     }   break;
     }
+
+    // In 2-cycle mode, check for rgb.mul being set to COMBINED and receiving a 1 (or greater) input.
+    // Note "1" corresponds to a 256 value in the combiner unit (and not 255).
+    // Warn if that may be the case, as rgb.mul starts overflowing from 256 onwards.
+    if (rdp.som.cycle_type == 1) { // 2cyc
+        struct cc_cycle_s *ccA = &rdp.cc.cyc[0];
+        if (rdp.cc.cyc[1].rgb.mul == 0) { // combined
+            if (ccA->rgb.mul >= 16 && ccA->rgb.mul <= 31) { // zero
+                if (ccA->rgb.add == 6) { // one
+                    VALIDATE_WARN_CC(0, "combined rgb passed to mul input and evaluating to 1, overflow will occur");
+                }
+            } else {
+                // Detect a lerp (where subb == add)
+                if ((ccA->rgb.subb == 1 && ccA->rgb.add == 1) // tex0
+                    || (ccA->rgb.subb == 2 && ccA->rgb.add == 2) // tex1
+                    || (ccA->rgb.subb == 3 && ccA->rgb.add == 3) // prim
+                    || (ccA->rgb.subb == 4 && ccA->rgb.add == 4) // shade
+                    || (ccA->rgb.subb == 5 && ccA->rgb.add == 5) // env
+                    || (ccA->rgb.subb >= 8 && ccA->rgb.add == 7)) { // zero
+                    // Lerps would only be problematic if subb == add == ONE, but subb cannot take the ONE input so lerps are always fine.
+                } else {
+                    VALIDATE_WARN_CC(0, "combined rgb passed to mul input and exotic combiner detected, be mindful of overflow");
+                }
+            }
+        }
+    }
 }
 
 static void validate_busy_pipe(void) {
