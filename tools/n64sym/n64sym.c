@@ -11,10 +11,12 @@
 #define _GNU_SOURCE
 #endif
 #include <assert.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <string.h>
 #include <strings.h>
 
 #include <math.h>
@@ -38,6 +40,7 @@
 
 int flag_verbose = 0;
 int flag_max_sym_len = 96;
+bool flag_all = false;
 bool flag_inlines = true;
 bool flag_cpp_shorten = true;
 const char *gccprefix_triplet = NULL;
@@ -63,6 +66,7 @@ void usage(const char *progname)
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose          Verbose output\n");
+    fprintf(stderr, "   -a/--all              Add line info for exception-prone instructions\n");
     fprintf(stderr, "   -m/--max-len <N>      Maximum symbol length (default: 96)\n");
     fprintf(stderr, "   --cpp-shorten <0|1>   C++ demangled symbol shortening (default: true)\n");
     fprintf(stderr, "   --no-inlines          Do not export inlined symbols\n");
@@ -288,9 +292,102 @@ void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
     pclose(f);
 }
 
+static bool symbol_add_unique(const char *elf, uint32_t addr, bool is_func, struct addr_map **emitted_addrs)
+{
+    if (stbds_hmgeti(*emitted_addrs, addr) >= 0) {
+        assert(!is_func && "duplicate address reached with is_func=true; function symbol must be emitted first");
+        return false;
+    }
+
+    stbds_hmput(*emitted_addrs, addr, 1);
+    symbol_add(elf, addr, is_func);
+    return true;
+}
+
+static bool disasm_get_fields(const char *line, char **mnemonic_out, char **operands_out)
+{
+    *mnemonic_out = NULL;
+    *operands_out = NULL;
+
+    // Keep parsing simple: split objdump line by tabs and take fields.
+    // Format is usually: ADDR: \t ENCODING \t MNEMONIC \t OPERANDS
+    char *tmp = strdup(line);
+    if (!tmp) return false;
+
+    char *saveptr = NULL;
+    char *f_addr = strtok_r(tmp, "\t", &saveptr);
+    char *f_encoding = strtok_r(NULL, "\t", &saveptr);
+    char *f_mnemonic = strtok_r(NULL, "\t", &saveptr);
+    char *f_operands = strtok_r(NULL, "\t", &saveptr);
+    if (!f_addr || !f_encoding || !f_mnemonic) {
+        free(tmp);
+        return false;
+    }
+
+    if (!f_mnemonic[0]) {
+        free(tmp);
+        return false;
+    }
+
+    *mnemonic_out = strdup(f_mnemonic);
+    if (f_operands && f_operands[0]) {
+        *operands_out = strdup(f_operands);
+    }
+    free(tmp);
+    return *mnemonic_out != NULL;
+}
+
+// Returns true if the mnemonic can generate an exception at runtime. This is
+// a "pragmatic" version, as all opcodes could theoretically trap in weird cases
+// (eg when run via an invalid TLB). But we want to keep SYM to a decent size, so
+// we want to cover the "99% common" cases here. This means:
+//  * FPU opcodes as they can always trigger exceptions for invalid operands
+//  * Memory accesses. We ignore accesses via sp (stack) and gp (small data), as
+//    those are extremely unlikely to trigger exceptions. Normally, crashes are
+//    because of invalid pointers built at runtime by user code, and those will
+//    go through different registers.
+//  * Explicitly trapping instructions like teq / tne, etc. These are rare anyway.
+static bool mnemonic_can_trap(const char *mn, const char *ops)
+{
+    static const char *memory_mnemonics[] = {
+        "lb", "lbu", "lh", "lhu", "lw", "lwl", "lwr", "ld",
+        "sb", "sh", "sw", "swl", "swr", "sd",
+        "ll", "sc",
+        "lwc1", "swc1", "ldc1", "sdc1",
+    };
+    static const char *fault_mnemonics[] = {
+        "syscall", "break",
+        "teq", "tne", "tge", "tgeu", "tlt", "tltu",
+        "teqi", "tnei", "tgei", "tgeiu", "tlti", "tltiu",
+    };
+    static const char *fpu_mnemonics[] = {
+        "add.", "sub.", "mul.", "div.", "sqrt.", "abs.", "mov.", "neg.",
+        "round.", "trunc.", "ceil.", "floor.", "cvt.", "c.",
+    };
+
+    for (size_t i = 0; i < sizeof(memory_mnemonics) / sizeof(memory_mnemonics[0]); i++) {
+        if (strcmp(mn, memory_mnemonics[i]) == 0) {
+            if (strstr(ops, "(sp)") || strstr(ops, "($sp)")) return false;
+            if (strstr(ops, "(gp)") || strstr(ops, "($gp)")) return false;
+            return true;
+        }
+    }
+    for (size_t i = 0; i < sizeof(fault_mnemonics) / sizeof(fault_mnemonics[0]); i++) {
+        if (strcmp(mn, fault_mnemonics[i]) == 0) return true;
+    }
+
+    for (size_t i = 0; i < sizeof(fpu_mnemonics) / sizeof(fpu_mnemonics[0]); i++) {
+        size_t n = strlen(fpu_mnemonics[i]);
+        if (strncmp(mn, fpu_mnemonics[i], n) == 0) return true;
+    }
+
+    return false;
+}
+
 bool elf_find_callsites(const char *elf)
 {
     struct addr_map *all_functions = NULL;
+    struct addr_map *emitted_addrs = NULL;
     elf_read_function_symbols(elf, &all_functions);
     verbose(1, "Found %d function symbols\n", stbds_hmlen(all_functions));
 
@@ -312,18 +409,35 @@ bool elf_find_callsites(const char *elf)
         if (strstr(line, ">:")) {
             uint32_t addr = strtoul(line, NULL, 16);
             if (stbds_hmgeti(all_functions, addr) >= 0) {
-                symbol_add(elf, addr, true);
+                symbol_add_unique(elf, addr, true, &emitted_addrs);
             }
         }
-        // Find the callsites
-        if (strstr(line, "\tjal\t") || strstr(line, "\tjalr\t") || strstr(line, "\tsyscall")) {
-            uint32_t addr = strtoul(line, NULL, 16);
-            symbol_add(elf, addr, false);
+
+        char *mn = NULL;
+        char *ops = NULL;
+        if (!disasm_get_fields(line, &mn, &ops)) continue;
+
+        bool should_emit = false;
+        if (strcmp(mn, "jal") == 0 || strcmp(mn, "jalr") == 0 || strcmp(mn, "syscall") == 0) {
+            // Keep default behavior for callsites regardless of --all.
+            should_emit = true;
+        } else if (flag_all) {
+            if (mnemonic_can_trap(mn, ops)) {
+                should_emit = true;
+            }
         }
+
+        if (should_emit) {
+            uint32_t addr = strtoul(line, NULL, 16);
+            symbol_add_unique(elf, addr, false, &emitted_addrs);
+        }
+        free(mn);
+        free(ops);
     }
     free(line);
     free(cmd);
     stbds_hmfree(all_functions);
+    stbds_hmfree(emitted_addrs);
     int status = pclose(disasm);
 #ifdef __MINGW32__
     return status == 0;
@@ -857,6 +971,8 @@ int main(int argc, char *argv[])
             return 0;
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
             flag_verbose++;
+        } else if (!strcmp(argv[i], "-a") || !strcmp(argv[i], "--all")) {
+            flag_all = true;
         } else if (!strcmp(argv[i], "--no-inlines")) {
             flag_inlines = false;
         } else if (!strcmp(argv[i], "--cpp-shorten")) {
