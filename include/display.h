@@ -302,6 +302,41 @@ extern "C" {
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters );
 
 /**
+ * @brief Change display parameters without reallocating framebuffers
+ *
+ * Reapplies the same configuration options as #display_init but reuses the
+ * existing framebuffer memory. Use this to change resolution, bit depth,
+ * number of buffers, gamma or filters at run time without calling
+ * #display_close and #display_init.
+ *
+ * The display must already be initialized with #display_init. The new
+ * configuration is constrained: \p num_buffers must be less than or equal
+ * to the number of buffers originally allocated, and the new framebuffer
+ * size (width × height × bytes per pixel) must not exceed the originally
+ * allocated size. Multiple successive calls to #display_change are allowed,
+ * always within the memory initially allocated by #display_init.
+ *
+ * No allocation is performed: the same buffer pointers are reused. Buffers
+ * that were obtained via #display_get before the change complete their
+ * lifecycle with the old dimensions and are shown correctly; only buffers
+ * obtained via #display_get after the change use the new dimensions.
+ *
+ * Getters such as #display_get_width, #display_get_height and
+ * #display_get_bitdepth return the new dimensions immediately after
+ * #display_change returns.
+ *
+ * The actual VI register updates are applied lazily by the display subsystem
+ * after any pre-change queued frames have been shown.
+ *
+ * @param[in] res    Requested resolution (same meaning as in #display_init)
+ * @param[in] bit    Requested bit depth
+ * @param[in] num_buffers  Number of buffers (must be ≤ originally allocated)
+ * @param[in] gamma  Requested gamma setting
+ * @param[in] filters  Requested display filtering options
+ */
+void display_change( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters );
+
+/**
  * @brief Close the display
  *
  * Close a display and free buffer memory associated with it.
