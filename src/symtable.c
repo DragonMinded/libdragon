@@ -289,6 +289,20 @@ extern uint32_t __text_end[];
 /** @brief Address of the SYMT symbol table in the rompak. */
 static uint32_t SYMT_ROM = 0xFFFFFFFF;
 
+/**
+ * Read a 32-bit word from SYMT ROM, tolerating unaligned PI addresses.
+ * SYMT files for DSOs only have 2-byte aligned offsets.
+ */
+static uint32_t symt_read_u32(pi_addr_t pi_address)
+{
+    uint32_t base = pi_address & ~3;
+    uint32_t off = pi_address & 3;
+    uint32_t w0 = io_read(base);
+    if (off == 0) return w0;
+    uint32_t w1 = io_read(base + 4);
+    return (w0 << 16) | (w1 >> 16);
+}
+
 /** @brief Placeholder used in frames where symbols are not available */
 const char *UNKNOWN_SYMBOL = "???";
 
@@ -377,7 +391,7 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
 
     while (min < max) {
         int mid = (min + max + 1) / 2;
-        int chunk_start_addr = io_read(SYMT_ROM + symt->chunk_idx_off + mid * 8);
+        int chunk_start_addr = symt_read_u32(SYMT_ROM + symt->chunk_idx_off + mid * 8);
         if (addr < chunk_start_addr)
             max = mid - 1;
         else
@@ -385,10 +399,10 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
     }
     
     // Read the chunk entry for the found chunk
-    int chunk_start_addr = io_read(SYMT_ROM + symt->chunk_idx_off + min * 8 + 0);
-    uint32_t chunk_stream_off = io_read(SYMT_ROM + symt->chunk_idx_off + min * 8 + 4);
+    int chunk_start_addr = symt_read_u32(SYMT_ROM + symt->chunk_idx_off + min * 8 + 0);
+    uint32_t chunk_stream_off = symt_read_u32(SYMT_ROM + symt->chunk_idx_off + min * 8 + 4);
     uint32_t next_chunk_stream_off = (min + 1 < symt->num_chunks)
-        ? io_read(SYMT_ROM + symt->chunk_idx_off + (min + 1) * 8 + 4)
+        ? symt_read_u32(SYMT_ROM + symt->chunk_idx_off + (min + 1) * 8 + 4)
         : symt->stream_size;
     if (addr < chunk_start_addr)
         return false; // Should not happen if address is valid code
@@ -607,7 +621,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
 
     while (min < max) {
         int mid = (min + max + 1) / 2;
-        uint32_t entry_start_idx = io_read(SYMT_ROM + tab_off + mid * 8 + 0);
+        uint32_t entry_start_idx = symt_read_u32(SYMT_ROM + tab_off + mid * 8 + 0);
         if (idx < entry_start_idx)
             max = mid - 1;
         else
@@ -615,8 +629,8 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     }
     
     // Read the block entry
-    uint32_t entry_start_idx = io_read(SYMT_ROM + tab_off + min * 8 + 0);
-    uint32_t entry_blob_off = io_read(SYMT_ROM + tab_off + min * 8 + 4);
+    uint32_t entry_start_idx = symt_read_u32(SYMT_ROM + tab_off + min * 8 + 0);
+    uint32_t entry_blob_off = symt_read_u32(SYMT_ROM + tab_off + min * 8 + 4);
     if (idx < entry_start_idx) {
         snprintf(buf, size, "%s", UNKNOWN_SYMBOL);
         return buf;
