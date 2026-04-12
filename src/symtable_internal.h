@@ -45,6 +45,9 @@ typedef struct {
     uint32_t file_blob_size; ///< Size of file blob in bytes
     uint32_t func_blob_size; ///< Size of func blob in bytes
     uint32_t stream_size;    ///< Size of compressed stream in bytes
+
+    // Runtime-only fields (not serialized in .sym file)
+    uint32_t rom_offset;     ///< ROM offset where this SYMT was loaded from
 } __attribute__((aligned(8))) symtable_header_t;
 
 /** @brief Symbol table entry **/

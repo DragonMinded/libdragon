@@ -258,6 +258,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdalign.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 #include "symtable_internal.h"
@@ -286,8 +287,8 @@ extern uint32_t __text_start[];
 /** @brief End of main executable text section */
 extern uint32_t __text_end[];
 
-/** @brief Address of the SYMT symbol table in the rompak. */
-static uint32_t SYMT_ROM = 0xFFFFFFFF;
+/** @brief Serialized SYMT header size (runtime-only fields excluded). */
+#define SYMT_FILE_HEADER_SIZE ((int)offsetof(symtable_header_t, rom_offset))
 
 /**
  * Read a 32-bit word from SYMT ROM, tolerating unaligned PI addresses.
@@ -339,6 +340,7 @@ static bool is_main_exe_text_address(uint32_t addr)
 }
 
 symtable_header_t symt_open(void *addr) {
+    uint32_t sym_rom = 0;
     if(is_main_exe_text_address((uint32_t)addr)) {
         //Open SYMT from rompak
         static uint32_t mainexe_symt = 0xFFFFFFFF;
@@ -347,7 +349,7 @@ symtable_header_t symt_open(void *addr) {
             if (!mainexe_symt)
                 debugf("backtrace: no symbol table found in the rompak\n");
         }
-        SYMT_ROM = mainexe_symt;
+        sym_rom = mainexe_symt;
     } else {
         dl_module_t *module = NULL;
         if(__bt_lookup_module) {
@@ -355,31 +357,30 @@ symtable_header_t symt_open(void *addr) {
         }
         if(module && module->sym_romofs != 0) {
             //Read module SYMT
-            SYMT_ROM = module->sym_romofs;
+            sym_rom = module->sym_romofs;
         } else {
-            SYMT_ROM = 0;
+            sym_rom = 0;
         }
     }
     
-    if (!SYMT_ROM) {
+    if (!sym_rom) {
         return (symtable_header_t){0};
     }
 
     symtable_header_t symt_header;
     data_cache_hit_writeback_invalidate(&symt_header, sizeof(symt_header));
-    dma_read(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
+    dma_read(&symt_header, sym_rom, SYMT_FILE_HEADER_SIZE);
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
-        debugf("backtrace: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
-        SYMT_ROM = 0;
+        debugf("backtrace: invalid symbol table found at 0x%08lx\n", sym_rom);
         return (symtable_header_t){0};
     }
     if (symt_header.version != 5) {
         debugf("backtrace: unsupported symbol table version %ld -- please update your n64sym tool\n", symt_header.version);
-        SYMT_ROM = 0;
         return (symtable_header_t){0};
     }
 
+    symt_header.rom_offset = sym_rom;
     return symt_header;
 }
 
@@ -391,7 +392,7 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
 
     while (min < max) {
         int mid = (min + max + 1) / 2;
-        int chunk_start_addr = symt_read_u32(SYMT_ROM + symt->chunk_idx_off + mid * 8);
+        int chunk_start_addr = symt_read_u32(symt->rom_offset + symt->chunk_idx_off + mid * 8);
         if (addr < chunk_start_addr)
             max = mid - 1;
         else
@@ -399,17 +400,17 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
     }
     
     // Read the chunk entry for the found chunk
-    int chunk_start_addr = symt_read_u32(SYMT_ROM + symt->chunk_idx_off + min * 8 + 0);
-    uint32_t chunk_stream_off = symt_read_u32(SYMT_ROM + symt->chunk_idx_off + min * 8 + 4);
+    int chunk_start_addr = symt_read_u32(symt->rom_offset + symt->chunk_idx_off + min * 8 + 0);
+    uint32_t chunk_stream_off = symt_read_u32(symt->rom_offset + symt->chunk_idx_off + min * 8 + 4);
     uint32_t next_chunk_stream_off = (min + 1 < symt->num_chunks)
-        ? symt_read_u32(SYMT_ROM + symt->chunk_idx_off + (min + 1) * 8 + 4)
+        ? symt_read_u32(symt->rom_offset + symt->chunk_idx_off + (min + 1) * 8 + 4)
         : symt->stream_size;
     if (addr < chunk_start_addr)
         return false; // Should not happen if address is valid code
     uint32_t cmp_size = next_chunk_stream_off - chunk_stream_off;
 
     // Read + decompress the chunk in-place (same model as asset.c)
-    uint32_t stream_addr = SYMT_ROM + symt->stream_off + chunk_stream_off;
+    uint32_t stream_addr = symt->rom_offset + symt->stream_off + chunk_stream_off;
     int cmp_pos = 0;
     int work_size = asset_buf_size(MAX_BUFFER_SIZE, cmp_size, symt->max_chunk_margin, &cmp_pos);
     uint8_t alignas(16) chunk_buf[work_size];
@@ -621,7 +622,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
 
     while (min < max) {
         int mid = (min + max + 1) / 2;
-        uint32_t entry_start_idx = symt_read_u32(SYMT_ROM + tab_off + mid * 8 + 0);
+        uint32_t entry_start_idx = symt_read_u32(symt->rom_offset + tab_off + mid * 8 + 0);
         if (idx < entry_start_idx)
             max = mid - 1;
         else
@@ -629,8 +630,8 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     }
     
     // Read the block entry
-    uint32_t entry_start_idx = symt_read_u32(SYMT_ROM + tab_off + min * 8 + 0);
-    uint32_t entry_blob_off = symt_read_u32(SYMT_ROM + tab_off + min * 8 + 4);
+    uint32_t entry_start_idx = symt_read_u32(symt->rom_offset + tab_off + min * 8 + 0);
+    uint32_t entry_blob_off = symt_read_u32(symt->rom_offset + tab_off + min * 8 + 4);
     if (idx < entry_start_idx) {
         snprintf(buf, size, "%s", UNKNOWN_SYMBOL);
         return buf;
@@ -640,7 +641,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     uint32_t huff_size = MIN(symt->huff_tab_size, MAX_BUFFER_SIZE);
     uint8_t alignas(16) huff_tab[huff_size] __attribute__((uninitialized));
     data_cache_hit_writeback_invalidate(huff_tab, huff_size);
-    dma_read(huff_tab, SYMT_ROM + symt->huff_tab_off, huff_size);
+    dma_read(huff_tab, symt->rom_offset + symt->huff_tab_off, huff_size);
     
     huff_decoder_t dec;
     huff_decoder_init(&dec, huff_tab, huff_size);
@@ -648,7 +649,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     // Read string block
     uint8_t alignas(16) str_blob[MAX_BUFFER_SIZE] __attribute__((uninitialized));
     data_cache_hit_writeback_invalidate(str_blob, sizeof(str_blob));
-    dma_read(str_blob, SYMT_ROM + blob_off + entry_blob_off, sizeof(str_blob));
+    dma_read(str_blob, symt->rom_offset + blob_off + entry_blob_off, sizeof(str_blob));
     
     // Decode strings
     bit_reader_t br;
