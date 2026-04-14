@@ -1052,14 +1052,14 @@ Mix32Loop:
 	vmacf v_mix_r, v_sample_3, v_xvol_r_3;
 
 	# Mix all lanes together into the first lane       # Load next loop's samples
-	vaddc v_out_l, v_mix_l, v_mix_l.q1;                lqv v_sample_0.e0, 0x00,s0
-	vaddc v_out_r, v_mix_r, v_mix_r.q1;                lqv v_sample_1.e0, 0x10,s0
+	vadd v_out_l, v_mix_l, v_mix_l.q1;                 lqv v_sample_0.e0, 0x00,s0
+	vadd v_out_r, v_mix_r, v_mix_r.q1;                 lqv v_sample_1.e0, 0x10,s0
 	  # 1 cycle stall here
-	vaddc v_out_l, v_out_l, v_out_l.h2;                lqv v_sample_2.e0, 0x20,s0
-	vaddc v_out_r, v_out_r, v_out_r.h2;                lqv v_sample_3.e0, 0x30,s0
+	vadd v_out_l, v_out_l, v_out_l.h2;                 lqv v_sample_2.e0, 0x20,s0
+	vadd v_out_r, v_out_r, v_out_r.h2;                 lqv v_sample_3.e0, 0x30,s0
 	  # 1 cycle stall here
-	vaddc v_out_l, v_out_l, v_out_l.e4;                bnez t0, Mix32Loop
-	vaddc v_out_r, v_out_r, v_out_r.e4;
+	vadd v_out_l, v_out_l, v_out_l.e4;                 bnez t0, Mix32Loop
+	vadd v_out_r, v_out_r, v_out_r.e4;
 
 #if VOLUME_FILTER
 	# Apply volume ramp
@@ -1111,14 +1111,14 @@ Mix8Loop:
 	vmulf v_mix_l, v_sample_0, v_xvol_l_0;             ssv v_out_l.e0, -4,s4
 	vmulf v_mix_r, v_sample_0, v_xvol_r_0;             ssv v_out_r.e0, -2,s4
 	  # pipeline stall
-	vaddc v_out_l, v_mix_l, v_mix_l.q1;                addi t0, -1
-	vaddc v_out_r, v_mix_r, v_mix_r.q1;                add s0, 32*2
+	vadd v_out_l, v_mix_l, v_mix_l.q1;                 addi t0, -1
+	vadd v_out_r, v_mix_r, v_mix_r.q1;                 add s0, 32*2
 	  # pipeline stall
-	vaddc v_out_l, v_out_l, v_out_l.h2;                addi s4, 4
-	vaddc v_out_r, v_out_r, v_out_r.h2;                lqv v_sample_0, 0,s0
+	vadd v_out_l, v_out_l, v_out_l.h2;                 addi s4, 4
+	vadd v_out_r, v_out_r, v_out_r.h2;                 lqv v_sample_0, 0,s0
 	  # pipeline stall
-	vaddc v_out_l, v_out_l, v_out_l.e4;                bnez t0, Mix8Loop
-	vaddc v_out_r, v_out_r, v_out_r.e4;
+	vadd v_out_l, v_out_l, v_out_l.e4;                 bnez t0, Mix8Loop
+	vadd v_out_r, v_out_r, v_out_r.e4;
 
 #if VOLUME_FILTER
 	# Apply volume ramp
