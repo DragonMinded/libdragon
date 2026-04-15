@@ -12,6 +12,10 @@
 #include <stdint.h>
 #include "kernel.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** @brief Kernel Semaphore structure
  * 
  * This structure represents a semaphore in the kernel. Semaphores are
@@ -93,7 +97,8 @@ void ksemaphore_wait(ksemaphore_t *sem);
  */
 bool ksemaphore_try_wait(ksemaphore_t *sem, uint32_t ticks);
 
+#ifdef __cplusplus
+}
 #endif
 
-
-
+#endif
