@@ -8,6 +8,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /** 
  * @brief A thread-safe FIFO queue 
  * 
@@ -151,5 +155,9 @@ bool kqueue_full(kqueue_t *queue);
  * @return Element at the head of the queue, or NULL if the queue is empty
  */
 void *kqueue_peek(kqueue_t *queue);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
