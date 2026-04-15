@@ -91,24 +91,16 @@ static ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
     return pos;
 }
 
-/* This function is original code in libdragon */
-__attribute__((used))
-static char *strndup(const char *s, size_t n)
-{
-  size_t len = strnlen(s, n);
-  char *ret = (char*)malloc(len + 1);
-  if (!ret) return NULL;
-  memcpy(ret, s, len);
-  ret[len] = '\0';
-  return ret;
-}
-
-// tmpfile in mingw is broken (it uses msvcrt that tries to
-// create a file in C:\, which is non-writable nowadays)
-#ifdef tmpfile
-#undef tmpfile
+#if defined(__MSVCRT_VERSION__) && __MSVCRT_VERSION__ >= 0xE00
+    // UCRT is being used so we can use runtime-provided tmpfile() implementation
+#else
+    // tmpfile() in MINGW64 is broken for use (it uses MSVCRT that tries to
+    // create a file in C:\, which is non-writable nowadays)
+    #ifdef tmpfile
+    #undef tmpfile
+    #endif
+    #define tmpfile()   mingw_tmpfile()
 #endif
-#define tmpfile()   mingw_tmpfile()
 
 typedef void* HANDLE;
 typedef const char* LPCSTR;
