@@ -40,7 +40,7 @@ extern "C" {
 // if typedef doesn't exist (msvc, blah)
 typedef intptr_t ssize_t;
 
-/* Fetched from: https://stackoverflow.com/a/47229318 */
+/* Implementation of 'getline' fetched from: https://stackoverflow.com/a/47229318 */
 /* The original code is public domain -- Will Hartung 4/9/09 */
 /* Modifications, public domain as well, by Antti Haapala, 11/10/17
    - Switched to getc on 5/23/19 */
