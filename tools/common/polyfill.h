@@ -31,6 +31,8 @@
 #include <fcntl.h>
 #include <time.h>
 
+#include "msys2_age.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -90,6 +92,25 @@ static ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
     (*lineptr)[pos] = '\0';
     return pos;
 }
+
+// Provide implementation of strndup for MSYS2 environments that are missing it (before April 13 2026).
+#if defined(MSYS2_RUNTIME_PACMAN_AGE) && MSYS2_RUNTIME_PACMAN_AGE <= 20260413
+__attribute__((used))
+static char *msys2_fallback_strndup(const char *s, size_t n)
+{
+    size_t len = strnlen(s, n);
+    char *ret = (char*)malloc(len + 1);
+    if (!ret) return NULL;
+    memcpy(ret, s, len);
+    ret[len] = '\0';
+    return ret;
+}
+
+    #ifdef strndup
+    #undef strndup
+    #endif
+    #define strndup   msys2_fallback_strndup
+#endif
 
 #if defined(__MSVCRT_VERSION__) && __MSVCRT_VERSION__ >= 0xE00
     // UCRT is being used so we can use runtime-provided tmpfile() implementation

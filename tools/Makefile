@@ -41,13 +41,15 @@ ifeq ($(OS),Windows_NT)
 	ifeq ($(CHECK_CXX),fail)
 		$(error "CXX is not set to a mingw compiler: ${CXX}")
 	endif
+
+	MSYS2_AGE_HEADER := common/msys2_age.h
 endif
 
 # Decomment to rebuild tools with ASAN
 #C_CXX_FLAGS += -O0 -g -fsanitize=address
 #LDFLAGS += -g -fsanitize=address
 
-all:
+all: $(MSYS2_AGE_HEADER)
 
 %.o: %.c
 	@echo "    [CC] $@"
@@ -59,6 +61,13 @@ all:
 	@echo "    [AR] $@"
 	rm -f $@
 	$(AR) rcs $@ $^
+
+# Dump an estimate of the MSYS2 environment's age into a header so that we can check it for compatibility reasons.
+common/msys2_age.h:
+	@echo "Generating MSYS2 age header..."
+	@date_str=$$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p'); \
+	age=$$(date -d "$$date_str" +%Y%m%d); \
+	echo "#define MSYS2_RUNTIME_PACMAN_AGE $$age" > $@
 
 # Avoid many warnings for vendored code that we don't intend to ever modify
 common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
