@@ -1611,6 +1611,7 @@ bool spritemaker_write(spritemaker_t *spr) {
                 int max_colors = (spr->images[0].fmt == FMT_CI4) ? 16 : 256;
                 assert(spr->palette.used_colors > 0);
                 assert(spr->palette.used_colors <= max_colors);
+                // Truncate to uint8. Notice that we use 0 to mean 256 here.
                 pal_used_colors = (uint8_t)spr->palette.used_colors;
             }
             w8(out, pal_used_colors);

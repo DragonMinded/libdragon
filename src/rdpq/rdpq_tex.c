@@ -699,6 +699,7 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
 
 void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors)
 {
+    assert(num_colors > 0);
     int init_offset = (PhysicalAddr(tlut) & 7) / 2;
     tlut -= init_offset;
     rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, 256+4, 1);

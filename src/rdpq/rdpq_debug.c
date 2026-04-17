@@ -1611,7 +1611,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         VALIDATE_WARN(!(low&3) && !(high&3), "lowest 2 bits of palette start/stop must be 0");
         VALIDATE_ERR(low>>2 < 256, "palette start index must be < 256");
         VALIDATE_CRASH(low>>2 <= high>>2, "palette stop index is lower than palette start index");
-        VALIDATE_ERR((high>>2)+1-(low>>2) <= 256, "palette lnegth must be < 256");
+        VALIDATE_ERR((high>>2)+1-(low>>2) <= 256, "palette length must be < 256");
     }   break;
     case 0x2F: // SET_OTHER_MODES
         validate_busy_pipe();
