@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
+#include "mi.h"
 #include "accounting_internal.h"
 #include <stdbool.h>
 #include <assert.h>
@@ -694,7 +695,10 @@ void vi_wait_vblank(void)
     if ((ctrl & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
         return;
 
-    if (__kernel) {
+    // For the kernel we can avoid spin-waiting by using 'kirq_wait'.
+    // However, if VI interrupts are disabled we would wait forever if no other thread turns it on again.
+    // To avoid hanging up here, fallback to the regular logic
+    if (__kernel && (*MI_MASK & MI_MASK_VI)) {
         kirq_wait_t w = kirq_begin_wait_vi();
         kirq_wait(&w);
         return;
