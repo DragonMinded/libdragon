@@ -31,8 +31,6 @@
 #include <fcntl.h>
 #include <time.h>
 
-#include "msys2_age.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
