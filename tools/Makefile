@@ -42,14 +42,21 @@ ifeq ($(OS),Windows_NT)
 		$(error "CXX is not set to a mingw compiler: ${CXX}")
 	endif
 
-	MSYS2_AGE_HEADER := common/msys2_age.h
+# Define a macro with an estimate of the MSYS2 environment's age so that we can check it for compatibility reasons.
+	MSYS2_AGE := $(shell date -d "$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
+	ifeq ($(MSYS2_AGE),)
+		$(error "Failed to determine MSYS2 age. Please make sure that pacman, date, and sed are in PATH and that msys2-runtime is installed.")
+	else
+		CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
+		CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
+	endif
 endif
 
 # Decomment to rebuild tools with ASAN
 #C_CXX_FLAGS += -O0 -g -fsanitize=address
 #LDFLAGS += -g -fsanitize=address
 
-all: $(MSYS2_AGE_HEADER)
+all:
 
 %.o: %.c
 	@echo "    [CC] $@"
@@ -62,12 +69,6 @@ all: $(MSYS2_AGE_HEADER)
 	rm -f $@
 	$(AR) rcs $@ $^
 
-# Dump an estimate of the MSYS2 environment's age into a header so that we can check it for compatibility reasons.
-common/msys2_age.h:
-	@echo "Generating MSYS2 age header..."
-	@date_str=$$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p'); \
-	age=$$(date -d "$$date_str" +%Y%m%d); \
-	echo "#define MSYS2_RUNTIME_PACMAN_AGE $$age" > $@
 
 # Avoid many warnings for vendored code that we don't intend to ever modify
 common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
