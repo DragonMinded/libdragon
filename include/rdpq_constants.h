@@ -18,7 +18,7 @@
 /** @brief Asserted if a 2-pass combiner is set with #rdpq_mode_combiner while mipmap is enabled */
 #define RDPQ_ASSERT_MIPMAP_COMB2  0xC004
 
-/** @brief Asserted if RDPQCmd_Triangle is called with RDPQ_TRIANGLE_REFERENCE == 0 */
+/** @brief Asserted if RDPQCmd_Triangle is called with RDPQ_TRIANGLE_REFERENCE != 0 */
 #define RDPQ_ASSERT_INVALID_CMD_TRI  0xC005
 
 /** @brief Asserted if RDPQ_Send is called with invalid parameters (begin > end) */

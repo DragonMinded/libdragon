@@ -588,10 +588,10 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
     fm_sincosf(parms->theta, &sin_theta, &cos_theta);
 
     float mtx[3][2] = {
-        { cos_theta * scalex, -sin_theta * scaley },
-        { sin_theta * scalex, cos_theta * scaley },
-        { x0 - cx * cos_theta * scalex - cy * sin_theta * scaley,
-          y0 + cx * sin_theta * scalex - cy * cos_theta * scaley }
+        { cos_theta * scalex, -sin_theta * scalex },
+        { sin_theta * scaley, cos_theta * scaley },
+        { x0-((cx*(cos_theta*scalex))+(cy*(sin_theta*scaley))),
+        y0-((cx*(-sin_theta*scalex))+(cy*(cos_theta*scaley)))}
     };
 
     void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
