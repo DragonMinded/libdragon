@@ -88,6 +88,7 @@ int main(void)
 	}
 
 	fmv_play("rom:/caminandes.h264", &(fmv_parms_t){
+		.loop = true,
 		.osd_callback = osd_callback,
 	});
 }

@@ -151,6 +151,8 @@ void h264bsdDpbReleasePicture(dpbStorage_t *dpb, const u8 *data);
 
 void h264bsdFlushDpb(dpbStorage_t *dpb);
 
+void h264bsdClearDpb(dpbStorage_t *dpb);
+
 void h264bsdFreeDpb(dpbStorage_t *dpb);
 
 #endif /* #ifdef H264SWDEC_DPB_H */

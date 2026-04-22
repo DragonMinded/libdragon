@@ -466,6 +466,85 @@ void h264bsdResetStorage(storage_t *pStorage)
 
 /*------------------------------------------------------------------------------
 
+    Function: h264bsdRewindStorage
+
+        Functional description:
+            Reset decoder state for video rewind/loop without freeing any
+            allocated memory. Parameter sets (SPS/PPS), macroblock storage,
+            slice group map, and DPB pixel buffers are preserved. Per-frame
+            state (slice, POC, AUB, stream pointers, etc.) is reset so the
+            decoder can re-parse the stream from the beginning.
+
+        Inputs:
+            pStorage    pointer to storage structure
+
+        Outputs:
+            pStorage    state fields reset, allocations preserved
+
+        Returns:
+            none
+
+------------------------------------------------------------------------------*/
+
+void h264bsdRewindStorage(storage_t *pStorage)
+{
+
+/* Variables */
+
+    u32 i;
+
+/* Code */
+
+    ASSERT(pStorage);
+
+    /* reset slice state */
+    pStorage->slice->numDecodedMbs = 0;
+    pStorage->slice->sliceId = 0;
+
+    /* reset per-frame flags */
+    pStorage->skipRedundantSlices = 0;
+    pStorage->picStarted = 0;
+    pStorage->validSliceInAccessUnit = 0;
+    pStorage->numConcealedMbs = 0;
+    pStorage->currentPicId = 0;
+    pStorage->pendingActivation = 0;
+    pStorage->mbLayerIdx = 0;
+
+    /* reset stream pointers */
+    pStorage->prevBufNotFinished = 0;
+    pStorage->prevBufPointer = NULL;
+    pStorage->prevBytesConsumed = 0;
+    H264SwDecMemset(pStorage->strm, 0, sizeof(strmData_t));
+
+    /* reset POC, AUB, NAL unit, and slice header state */
+    H264SwDecMemset(pStorage->poc, 0, sizeof(pocStorage_t));
+    H264SwDecMemset(pStorage->aub, 0, sizeof(aubCheck_t));
+    pStorage->aub->firstCallFlag = HANTRO_TRUE;
+    H264SwDecMemset(pStorage->prevNalUnit, 0, sizeof(nalUnit_t));
+    H264SwDecMemset(pStorage->sliceHeader, 0, 2 * sizeof(sliceHeader_t));
+
+    /* reset current image data pointer (will be reassigned by
+     * h264bsdAllocateDpbImage during decode) */
+    pStorage->currImage->data = NULL;
+
+    /* reset macroblock slice state (same as h264bsdResetStorage) */
+    if (pStorage->mb)
+    {
+        for (i = 0; i < pStorage->picSizeInMbs; i++)
+        {
+            pStorage->mb[i].sliceId = 0;
+#ifndef OPTIMIZE_NO_DECODED_FLAG
+            pStorage->mb[i].decoded = 0;
+#endif
+        }
+    }
+
+    /* clear DPB state, keeping allocated buffers */
+    h264bsdClearDpb(pStorage->dpb);
+}
+
+/*------------------------------------------------------------------------------
+
     Function: h264bsdIsStartOfPicture
 
         Functional description:
