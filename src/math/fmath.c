@@ -65,6 +65,27 @@ void fm_sincosf(float x, float *sin, float *cos) {
     *cos = cy;
 }
 
+float fm_acosf(float x) {
+    // Approximation of acosf using a polynomial approximation
+    // from (https://developer.download.nvidia.com/cg/acos.html)
+    // Reported error of 6.7e-5
+    
+    // TO DO: expected input range is [-1,1], how to handle this?
+    
+    float n = (float)(x < 0.0f);
+    x = fabsf(x);
+    float r = -0.0187293f;
+    r *= x;
+    r += 0.0742610f;
+    r *= x;
+    r -= 0.2121144f;
+    r *= x;
+    r += 1.5707288f;
+    r *= sqrtf(1.0f - x);
+    r -= 2.0f * n * r;
+    return n * 3.14159265358979f + r;
+}
+
 float fm_atan2f(float y, float x) {
     // Approximation of atan2f using a polynomial minmax approximation in [0,1]
     // calculated via the Remez algorithm (https://math.stackexchange.com/a/1105038).

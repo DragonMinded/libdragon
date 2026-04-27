@@ -221,6 +221,11 @@ float fm_cosf(float x);
 void fm_sincosf(float x, float *sin, float *cos);
 
 /**
+ * @brief Faster version of acosf.
+*/
+float fm_acosf(float x);
+
+/**
  * @brief Faster version of atan2f.
  * 
  * Given a point (x,y), return the angle in radians that the vector (x,y)
