@@ -75,9 +75,9 @@ common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
 mkfont/freetype/FreeTypeAmalgam.o: CFLAGS += -Wno-all -Wno-error
 mkfont/plutosvg/plutosvg-amalgam.o:CFLAGS += -Imkfont/plutosvg -Wno-unused-function -Wno-error
 mkfont/mkfont.o:              	   CXXFLAGS += -Imkfont/plutosvg -Imkfont/freetype
-mksprite/x264_amalgam.o:           CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand
+mksprite/x264_amalgam.o:           CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand -fno-strict-aliasing
 mksprite/x264_amalgam.o:           CFLAGS += -Imksprite/x264
-mksprite/x264_amalgam2.o:          CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand
+mksprite/x264_amalgam2.o:          CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand -fno-strict-aliasing
 mksprite/x264_amalgam2.o:          CFLAGS += -Imksprite/x264
 audioconv64/libvadpcm.o:           CFLAGS += -Iaudioconv64/vadpcm
 
