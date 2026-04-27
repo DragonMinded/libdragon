@@ -472,6 +472,52 @@ inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k
         _carg(x1fx, 0xFFF, 12) | _carg(y1fx, 0xFFF, 0)); \
 })
 
+/** @brief Only keep/draw even lines while drawing to a buffer */
+#define RDP_INTERLACE_DRAW_ODD 1
+/** @brief Only keep/draw odd lines while drawing to a buffer */
+#define RDP_INTERLACE_DRAW_EVEN 0
+
+/**
+ * @brief Enable whether the RDP should only draw even or odd lines (for interlaced displays) (RDP command: SET_SCISSOR)
+ * 
+ * This function is used to configure an interlacing function the RDP internally has
+ * to only draw half the lines into a framebuffer (Z-buffer is interlaced as well 
+ * automatically).
+ * 
+ * This interlacing mode assumes that the framebuffer itself has both fields in it
+ * and it can work on any framebuffer size (320x240, 512x256, 640x480 etc.)
+ * 
+ * This interlacing mode saves half the RDP's fillrate since it skips half the lines
+ * to draw. This is very helpful for performance in high-res mode since the system
+ * is primairly fillrate constrained.
+ * 
+ * 
+ * @param[in]   draw_field      True if the RDP should only draw odd lines, otherwise only even lines are drawn
+ * 
+ */
+inline void rdpq_enable_interlaced(int draw_field) { 
+    __rdpq_set_scissor( 
+        0, 
+        _carg(1, 0x1, 26) | _carg(1, 0x1, 25) | _carg(draw_field & 1, 0x1, 24)); 
+}
+
+/**
+ * @brief Disable the RDP interlacing feature to be able to draw all lines in a framebuffer (RDP command: SET_SCISSOR)
+ * 
+ * This function is used to configure an interlacing function the RDP internally has
+ * to only draw half the lines into a framebuffer (Z-buffer is interlaced as well 
+ * automatically). This function disables this functionality.
+ * 
+ *
+ * @see #rdpq_enable_interlaced
+ * */
+inline void rdpq_disable_interlaced() { 
+    __rdpq_set_scissor( 
+        0, 
+        _carg(1, 0x1, 26) | _carg(0, 0x1, 25) | _carg(0, 0x1, 24)); 
+}
+
+
 /**
  * @brief Set a fixed Z value to be used instead of a per-pixel value (RDP command; SET_PRIM_DEPTH)
  * 

@@ -717,7 +717,26 @@ rdpq_update_fillcopy:
     #############################################################
     .func RDPQ_WriteSetScissor
 RDPQ_WriteSetScissor:
+
+    # Check whether we have sent a scissor rect command or interlacing command by checking 26th bit
+    li t6, 0x1 << 26
+    and t6, t6, a1
+    beqz t6, 3f
+    lw a2, %lo(RDPQ_SCISSOR_RECT) + 0x4
+
+    # Only update the interlacing info in low word if we've sent an rdp interlacing command
+    li t6, ~(3 << 24)
+    and a2, a2, t6
+    or a1, a2, a1
+    j 1f
+    sw a1, %lo(RDPQ_SCISSOR_RECT) + 0x4
+3:  
+    # Load the interlacing info from the state info if we've sent a scissor rect command
+    li t6, (3 << 24)
+    and a2, a2, t6
     sw a0, %lo(RDPQ_SCISSOR_RECT) + 0x0
+    or a1, a2, a1
+
     lb t6, %lo(RDPQ_OTHER_MODES) + 0x1
     # Bit 21 of the first word is set if FILL or COPY mode is active
     andi t6, 0x1 << 5
