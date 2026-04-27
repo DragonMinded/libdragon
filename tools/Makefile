@@ -50,6 +50,10 @@ ifeq ($(OS),Windows_NT)
 		CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
 		CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
 	endif
+else
+# When cross-building, set a default value for MSYS2_RUNTIME_PACMAN_AGE
+	CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=0
+	CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=0
 endif
 
 # Decomment to rebuild tools with ASAN
