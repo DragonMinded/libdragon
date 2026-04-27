@@ -273,6 +273,8 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 
 #else /* N64 */
 
+#include <stdlib.h>
+
 // Lots of tools code include this file transitively. Make sure we expose the
 // bare minimum assertion APIs.
 
