@@ -36,6 +36,36 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
     }
 }
 
+// Helper function to merge the texparms from various sources including handling the detail texparms
+// Returns the merged texparms for the main texture plus the detail texparms are modified with main texture's
+static rdpq_texparms_t __rdpq_sprite_combine_texparms(const rdpq_texparms_t *arg, const rdpq_texparms_t *sprite, rdpq_texparms_t *detail){
+    rdpq_texparms_t argparms = {0}, sprparms = {0}, out = {0}; // reserve texparms for argument + sprite's
+    if(arg) argparms = *arg;
+    if(sprite) sprparms = *sprite;
+    // merge texparms from both sources
+    out.s.mirror = argparms.s.mirror | sprparms.s.mirror;
+    out.t.mirror = argparms.t.mirror | sprparms.t.mirror;
+    out.s.scale_log = argparms.s.scale_log + sprparms.s.scale_log;
+    out.t.scale_log = argparms.t.scale_log + sprparms.t.scale_log;
+    out.s.translate = argparms.s.translate + sprparms.s.translate;
+    out.t.translate = argparms.t.translate + sprparms.t.translate;
+    out.s.repeats = argparms.s.repeats + sprparms.s.repeats;
+    out.t.repeats = argparms.t.repeats + sprparms.t.repeats;
+    // Setup the texparms for the detail texture (handle them mainly through argparms since mksprite has already added info)
+    if(detail){
+        detail->s.mirror |= argparms.s.mirror;
+        detail->t.mirror |= argparms.t.mirror;
+        detail->s.scale_log += argparms.s.scale_log;
+        detail->t.scale_log += argparms.t.scale_log;
+        // since the translation is in pixels instead of normalized coordinates, we need to normalize the scaling of it
+        detail->s.translate += out.s.translate * (1 << (out.s.scale_log - detail->s.scale_log));
+        detail->t.translate += out.t.translate * (1 << (out.t.scale_log - detail->t.scale_log));
+        detail->s.repeats += argparms.s.repeats;
+        detail->t.repeats += argparms.t.repeats;
+    }
+    return out;
+}
+
 /** @brief Internal implementation of #rdpq_sprite_upload that will optionally skip setting render modes */
 int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
 {
@@ -45,13 +75,14 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
     surface_t surf = sprite_get_pixels(sprite);
 
     // If no texparms were provided but the sprite contains some, use them
-    rdpq_texparms_t parms_builtin;
-    if (!parms && sprite_get_texparms(sprite, &parms_builtin))
-        parms = &parms_builtin;
+    rdpq_texparms_t parms_builtin = {0};
+    sprite_get_texparms(sprite, &parms_builtin);
 
     // Check for detail texture
-    sprite_detail_t detail; rdpq_texparms_t detailtexparms = {0};
+    sprite_detail_t detail = {0}; rdpq_texparms_t detailtexparms = {0};
     surface_t detailsurf = sprite_get_detail_pixels(sprite, &detail, &detailtexparms);
+    // Combine the texparms from various sources including detail, mksprite and arg info
+    rdpq_texparms_t mergedtexparms = __rdpq_sprite_combine_texparms(parms, &parms_builtin, &detailtexparms);
     bool use_detail = detailsurf.buffer != NULL;
     bool is_shq = sprite_is_shq(sprite);
 
@@ -66,24 +97,18 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
         float factor = detail.blend_factor;
         rdpq_set_detail_factor(factor);
 
-        // Setup the texparms for the detail texture
-        if (parms) {
-            detailtexparms.s.translate += parms->s.translate * (1 << (parms->s.scale_log - detailtexparms.s.scale_log));
-            detailtexparms.t.translate += parms->t.translate * (1 << (parms->t.scale_log - detailtexparms.t.scale_log));
-        }
-
         // Upload the detail texture if necessary or reuse the main texture
         if(detail.use_main_tex){
-            rdpq_tex_upload(tile, &surf, parms);
+            rdpq_tex_upload(tile, &surf, &mergedtexparms);
             rdpq_tex_reuse(detail_tile, &detailtexparms);
         }
         else {
             rdpq_tex_upload(detail_tile, &detailsurf, &detailtexparms);
-            rdpq_tex_upload(tile, &surf, parms);
+            rdpq_tex_upload(tile, &surf, &mergedtexparms);
         }
     }
     else // Upload the main texture
-        rdpq_tex_upload(tile, &surf, parms);
+        rdpq_tex_upload(tile, &surf, &mergedtexparms);
 
     // Upload mipmaps if any
     int num_mipmaps = 0;
@@ -94,11 +119,7 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
 
         // if this is the first lod, initialize lod parameters
         if (i==1) {
-            if (!parms) {
-                memset(&lod_parms, 0, sizeof(lod_parms));
-            } else {
-                lod_parms = *parms;
-            }
+            lod_parms = mergedtexparms;
         }
 
         // Update parameters for next lod. If the scale maxes out, stop here
@@ -114,12 +135,12 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
     }
 
     if (__builtin_expect(set_mode, 1)) {
-        // Enable/disable mipmapping
+        // Enable/disable mipmapping (SHQ has a special subtractive interpolation function)
         if(is_shq) {
             rdpq_mode_mipmap(MIPMAP_INTERPOLATE_SHQ, num_mipmaps);
             rdpq_set_yuv_parms(0, 0, 0, 0, 0, 0xFF);
         } 
-        else if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
+        else if(use_detail)     rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
         else if (num_mipmaps)   rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
         else                    rdpq_mode_mipmap(MIPMAP_NONE, 0);
     }
