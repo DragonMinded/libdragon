@@ -49,6 +49,7 @@ typedef struct parms_s {
     int mipmap_algo;
     int dither_algo;
     int gamma_correct;
+    bool ignore_tmem;
     int lossy_quality;
     texparms_t texparms;
     struct{

@@ -139,6 +139,7 @@ void print_args( char * name )
     fprintf(stderr, "   -f/--format <fmt>                       Specify output RDP surface format (default: AUTO)\n");
     fprintf(stderr, "   -g/--gamma                              Convert colors to linear scale (use with runtime\n");
     fprintf(stderr, "                                            VI gamma correction enabled)\n");
+    fprintf(stderr, "   --ignore-tmem                           Ignore TMEM size restrictions during conversion\n");
     fprintf(stderr, "   -d/--debug                              Dump computed images as PNGs (eg: mipmaps)\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Lossless sprite (default mode):\n");
@@ -261,6 +262,7 @@ typedef struct {
         bool         enabled;       // If true, detail texture is enabled
     } detail;
     int ditheralgo;
+    bool ignore_tmem;
 } spritemaker_t;
 
 
@@ -656,10 +658,9 @@ bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
     assert(algo == MIPMAP_ALGO_BOX);
 
     int tmem_usage;
-    if (!spritemaker_fit_tmem(spr, &tmem_usage)) {
+    spritemaker_fit_tmem(spr, &tmem_usage);
+    if (!spr->ignore_tmem && tmem_usage > 4096) {
         fprintf(stderr, "WARNING: image does not fit in TMEM (%d), no mipmaps will be calculated\n", tmem_usage);
-        // Continue execution anyway
-        // TODO: maybe abort?
         return true;
     }
 
@@ -671,7 +672,7 @@ bool spritemaker_calc_lods(spritemaker_t *spr, int algo) {
         int mw = prev->width / 2, mh = prev->height / 2;
         if (mw < 4 || mh < 4) break;
         tmem_usage += calc_tmem_usage(spr->images[0].fmt, mw, mh);
-        if (tmem_usage > 4096) {
+        if (!spr->ignore_tmem && tmem_usage > 4096) {
             if (flag_verbose)
                 fprintf(stderr, "mipmap: stopping because TMEM full (%d)\n", tmem_usage);
             break;
@@ -966,7 +967,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
 
     // A IHQ image fakes doubling the available TMEM. So check whether the TMEM
     // usage as RGBA16 is lower than 8192 bytes, otherwise it doesn't fit.
-    if (calc_tmem_usage(FMT_RGBA16, spr->images[0].width, spr->images[0].height) > 8192) {
+    if (!spr->ignore_tmem && calc_tmem_usage(FMT_RGBA16, spr->images[0].width, spr->images[0].height) > 8192) {
         fprintf(stderr, "ERROR: image too big for IHQ mode (max is 64x64, or 128x32, or similar)\n");
         return false;
     }
@@ -1727,6 +1728,7 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     spritemaker_t spr = {0};
 
     spr.ditheralgo = pm->dither_algo;
+    spr.ignore_tmem = pm->ignore_tmem;
     spr.infn = infn;
     spr.out = out;
     spr.texparms = pm->texparms;
@@ -2104,6 +2106,12 @@ int main(int argc, char *argv[])
             /* -g/--gamma  Adjust colors for when VI gamma correction is enabled on console (convert to linear colors)                          */
             else if (!strcmp(argv[i], "-g") || !strcmp(argv[i], "--gamma")) {
                 pm.gamma_correct = 1;
+            }
+
+            /* ---------------- IGNORE TMEM console argument ------------------- */
+            /* --ignore-tmem  Ignore TMEM size restrictions during conversion */
+            else if (!strcmp(argv[i], "--ignore-tmem")) {
+                pm.ignore_tmem = true;
             }
 
             /* ---------------- LOSSY console argument ------------------- */
