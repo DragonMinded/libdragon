@@ -96,6 +96,7 @@
 #include "rdpq_xform.h"
 #include "surface.h"
 #include "sprite.h"
+#include "lossysprite.h"
 #include "debugcpp.h"
 #include "dlfcn.h"
 #include "model64.h"
