@@ -5,14 +5,20 @@
 
 #include "lossysprite.h"
 
-#include "h264_decoder.h"
-#include "h264_decoder/h264bsd_macroblock_layer.h"
-#include "h264_decoder/h264bsd_neighbour.h"
-#include "h264_decoder/h264bsd_pic_param_set.h"
-#include "h264_decoder/h264bsd_seq_param_set.h"
-#include "h264_decoder/h264bsd_slice_header.h"
-#include "h264_decoder/h264bsd_util.h"
-#include "rsph264_internal.h"
+// Match the layout used inside the h264_decoder TU (h264_decoder.c defines
+// this before including all internal .c files). Without it, mbStorage_t here
+// gains an extra u32 `decoded` field, shifting mbA/mbB/mbC/mbD off the offset
+// h264bsdInitMbNeighbours writes to — neighbour pointers come back NULL.
+#define OPTIMIZE_NO_DECODED_FLAG
+
+#include "video/h264_decoder.h"
+#include "video/h264_decoder/h264bsd_macroblock_layer.h"
+#include "video/h264_decoder/h264bsd_neighbour.h"
+#include "video/h264_decoder/h264bsd_pic_param_set.h"
+#include "video/h264_decoder/h264bsd_seq_param_set.h"
+#include "video/h264_decoder/h264bsd_slice_header.h"
+#include "video/h264_decoder/h264bsd_util.h"
+#include "video/rsph264_internal.h"
 #include "asset.h"
 #include "sprite.h"
 #include "sprite_internal.h"
@@ -92,8 +98,7 @@ static void lspr_decode_intra_slice(
         .levelIdc = 22,
         .seqParameterSetId = 0,
         .maxFrameNum = 1 << 4,
-        .picOrderCntType = 0,
-        .maxPicOrderCntLsb = 1 << 4,
+        .picOrderCntType = 2,
         .numRefFrames = 1,
         .picWidthInMbs = (u32)mb_w,
         .picHeightInMbs = (u32)mb_h,
@@ -145,11 +150,20 @@ static void lspr_decode_intra_slice(
         lspr_set_mb_params(mb + currMbAddr, &slice, 1, pps.chromaQpIndexOffset);
         u32 mb_layer_status = h264bsdDecodeMacroblockLayer(&strm, &mbLayer, mb + currMbAddr,
                                                            slice.sliceType, slice.numRefIdxL0Active);
-        assertf(mb_layer_status == HANTRO_OK, "LSPR: macroblock layer decode failed");
-        assertf(IS_INTRA_MB(mbLayer), "LSPR: inter MB not supported");
+        assertf(mb_layer_status == HANTRO_OK, "LSPR: macroblock layer decode failed at mb=%lu",
+                (unsigned long)currMbAddr);
+        assertf(IS_INTRA_MB(mbLayer), "LSPR: inter MB not supported (mb=%lu type=%d)",
+                (unsigned long)currMbAddr, (int)mbLayer.mbType);
         u32 mb_status = h264bsdDecodeMacroblock(mb + currMbAddr, &mbLayer, &image, NULL,
-                                                &qpY, currMbAddr, pps.constrainedIntraPredFlag);
-        assertf(mb_status == HANTRO_OK, "LSPR: macroblock decode failed");
+                                                &qpY, currMbAddr, pps.constrainedIntraPredFlag,
+                                                &slice);
+        assertf(mb_status == HANTRO_OK, "LSPR: macroblock decode failed at mb=%lu",
+                (unsigned long)currMbAddr);
+        // Drain the RSP queue between MBs. The CAVLC residual buffer
+        // (mbLayer.residual.posCoefBuf) is reused across MBs, and the RSP's
+        // SET_PACKED_DELTA_BUFFER task DMAs from it asynchronously; without a
+        // sync, MB N+1's CAVLC writes can race the DMA for MB N's residual.
+        rsph264_sync();
         currMbAddr++;
         if (!h264bsdMoreRbspData(&strm))
             break;
@@ -163,7 +177,7 @@ static void lspr_decode_intra_slice(
     *out_yuv_size = yuv_size;
 }
 
-sprite_t* lossysprite_open(const char *fn) {
+sprite_t* lossysprite_load(const char *fn) {
     int sz = 0;
     uint8_t *raw = asset_load(fn, &sz);
     assertf(raw && sz >= (int)sizeof(lspr_header_t), "Invalid LSPR file");
@@ -181,6 +195,7 @@ sprite_t* lossysprite_open(const char *fn) {
     size_t payload_size = (size_t)sz - sizeof(lspr_header_t);
 
     rsph264_init();
+    rsph264_begin_frame();
 
     uint8_t *pic = NULL;
     size_t pic_size = 0;
@@ -201,12 +216,16 @@ sprite_t* lossysprite_open(const char *fn) {
     };
 
     size_t pixel_bytes = (size_t)orig_w * (size_t)orig_h * 2;
+    size_t pixel_bytes_aligned = (pixel_bytes + 15) & ~(size_t)15;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
-    size_t pixel_off = (header_bytes + 63) & ~63;
-    size_t total_bytes = pixel_off + pixel_bytes;
+    size_t pixel_off = (header_bytes + 63) & ~(size_t)63;
+    size_t total_bytes = pixel_off + pixel_bytes_aligned;
     sprite_t *spr = (sprite_t*)memalign(64, total_bytes);
     assertf(spr, "Out of memory");
-    memset(spr, 0, total_bytes);
+    // Zero only the header region; the pixel area is fully overwritten by the
+    // RDP. Memset'ing it would pollute the data cache with zeros, which the
+    // RDP's RDRAM-direct write does not invalidate.
+    memset(spr, 0, pixel_off);
     spr->width = orig_w;
     spr->height = orig_h;
     spr->flags = SPRITE_FLAGS_OWNEDBUFFER | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_RGBA16;
@@ -214,43 +233,57 @@ sprite_t* lossysprite_open(const char *fn) {
     spr->vslices = 1;
 
     sprite_ext_t *sx = (sprite_ext_t*)spr->data;
-    memset(sx, 0, sizeof(*sx));
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
     sx->data_ptr = (uint32_t)pixel_off;
 
     yuv_init();
-    surface_t rgba = surface_make_linear((uint8_t*)spr + pixel_off, FMT_RGBA16, orig_w, orig_h);
-    surface_t rgba_out = rgba;
+    surface_t rgba_out = surface_make_linear((uint8_t*)spr + pixel_off, FMT_RGBA16, orig_w, orig_h);
     uint8_t *temp = NULL;
+    size_t temp_bytes_aligned = 0;
     if (orig_w != width || orig_h != height) {
         size_t padded_bytes = (size_t)width * (size_t)height * 2;
-        temp = (uint8_t*)memalign(64, padded_bytes);
+        temp_bytes_aligned = (padded_bytes + 15) & ~(size_t)15;
+        temp = (uint8_t*)memalign(64, temp_bytes_aligned);
         assertf(temp, "Out of memory");
-        memset(temp, 0, padded_bytes);
         rgba_out = surface_make_linear(temp, FMT_RGBA16, width, height);
     }
 
+    // The RDP will DMA-write the RGBA output. memalign returns recycled heap
+    // memory which may have stale dirty cache lines aliased to the same
+    // physical addresses; if those evict during the RDP's writes, they
+    // clobber RDP output. Flush them now so no eviction can race the RDP.
+    if (temp)
+        data_cache_hit_writeback_invalidate(temp, temp_bytes_aligned);
+    else
+        data_cache_hit_writeback_invalidate((uint8_t*)spr + pixel_off, pixel_bytes_aligned);
+
     rdpq_attach(&rgba_out, NULL);
     rdpq_mode_push();
-    yuv_tex_blit(&frame, 0, 0, NULL, NULL);
+    yuv_tex_blit(&frame, 0, 0, NULL, &YUV_BT709_FULL);
     rdpq_mode_pop();
     rdpq_detach_wait();
     yuv_close();
 
+    free_uncached(pic);
+
+    uint8_t *dst = (uint8_t*)spr + pixel_off;
     if (temp) {
+        // RDP wrote `temp` directly to RDRAM. Invalidate any stale cache lines
+        // before the memcpy reads, then writeback the destination so the RDP
+        // sees the final pixels.
+        data_cache_hit_invalidate(temp, temp_bytes_aligned);
         size_t row_bytes = (size_t)orig_w * 2;
         size_t src_stride = (size_t)width * 2;
-        uint8_t *dst = (uint8_t*)spr + pixel_off;
         for (uint16_t y = 0; y < orig_h; y++) {
             memcpy(dst + (size_t)y * row_bytes, temp + (size_t)y * src_stride, row_bytes);
         }
         free(temp);
+        data_cache_hit_writeback(dst, pixel_bytes_aligned);
+    } else {
+        // Drop any stale cache lines so future CPU reads see RDP output.
+        data_cache_hit_invalidate(dst, pixel_bytes_aligned);
     }
-
-    surface_free(&rgba_out);
-
-    free_uncached(pic);
 
     return spr;
 }
