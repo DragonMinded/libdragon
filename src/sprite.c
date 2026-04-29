@@ -70,11 +70,6 @@ sprite_t *sprite_load_buf(void *buf, int sz)
     assertf(sz > 4, "Sprite buffer too small (sz=%d)", sz);
     if (memcmp(buf, "LSPR", 4) == 0)
     {
-        // Take a refcount on the YUV subsystem for the lifetime of this sprite.
-        // The matching yuv_close() lives in sprite_free()
-        // (gated on SPRITE_FLAG_YUV_PLANAR).
-        yuv_init();
-        
         // LSPR is a compressed format: it can't be used in-place. Decode it
         // into a freshly allocated FMT_YUV16 sprite. Caller retains ownership
         // of the source buffer, which can be freed after this call.
@@ -107,8 +102,7 @@ sprite_t *sprite_load(const char *fn)
 void sprite_free(sprite_t *s)
 {
     // Release any subsystem refcounts held for this sprite. The YUV overlay
-    // is registered in __lossysprite_decode_buf() for planar YUV sprites; the
-    // matching yuv_close() must run before we wipe the flags below.
+    // is registered in __lossysprite_decode_buf() for planar YUV sprites
     if (s->flags & SPRITE_FLAGS_EXT) {
         sprite_ext_t *sx = __sprite_ext(s);
         if (sx && (sx->flags & SPRITE_FLAG_YUV_PLANAR)) yuv_close();

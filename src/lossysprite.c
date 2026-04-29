@@ -259,6 +259,11 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
 
     free_uncached(pic);
 
+    // Take a refcount on the YUV subsystem for the lifetime of this sprite.
+    // The matching yuv_close() lives in sprite_free()
+    // (gated on SPRITE_FLAG_YUV_PLANAR).
+    yuv_init();
+
     return spr;
 }
 
