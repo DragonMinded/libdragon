@@ -14,7 +14,6 @@ int main(void)
     while (1) {
         surface_t *screen = display_get();
         rdpq_attach(screen, NULL);
-        rdpq_set_mode_copy(false);
         rdpq_sprite_blit(bkg, 0, 0, NULL);
         rdpq_detach_show();
 

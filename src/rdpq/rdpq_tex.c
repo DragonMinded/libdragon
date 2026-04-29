@@ -363,7 +363,23 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1)
 
     tex_format_t fmt = surface_get_format(tload->tex);
     int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_YUV16) ? 2048 : 4096;
-    return tmem_size / tload->rect.tmem_pitch;
+    int max_h = tmem_size / tload->rect.tmem_pitch;
+
+    // For YUV16, the hardware splits each line across the two TMEM halves
+    // (Y bytes go to upper, UV bytes go to lower), so tmem_pitch already
+    // counts only one half. A single LOAD_TILE/LOAD_BLOCK still transfers
+    // (s1-s0)*2 RDRAM bytes per line; cap the strip so the total transfer
+    // stays within the 2KB-per-load limit that LOAD_BLOCK enforces and
+    // some emulators sanity-check on LOAD_TILE.
+    if (fmt == FMT_YUV16) {
+        int rdram_pitch = TEX_FORMAT_PIX2BYTES(fmt, s1 - s0);
+        int max_h_rdram = 2048 / rdram_pitch;
+        if (max_h_rdram < max_h)
+            max_h = max_h_rdram;
+        if (max_h < 1) max_h = 1;
+    }
+
+    return max_h;
 }
 
 ///@endcond

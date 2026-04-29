@@ -16,6 +16,18 @@
 #define SPRITE_FLAG_FITS_TMEM               0x0020   ///< Set if the sprite does fit TMEM without splitting
 #define SPRITE_FLAG_SHQ                     0x0040   ///< Sprite is in special SHQ format (2 mipmap levels with subtractive blending)
 
+/** @brief YUV colorspace identifier stored in #sprite_ext_t::colorspace.
+ *
+ * Only meaningful for #FMT_YUV16 sprites; ignored otherwise. The default
+ * value (0) maps to BT.601 TV-range to match the previous behavior of
+ * #rdpq_set_mode_yuv when no colorspace was specified. */
+enum sprite_colorspace_e {
+    SPRITE_COLORSPACE_BT601_TV   = 0,
+    SPRITE_COLORSPACE_BT601_FULL = 1,
+    SPRITE_COLORSPACE_BT709_TV   = 2,
+    SPRITE_COLORSPACE_BT709_FULL = 3,
+};
+
 /** 
  * @brief Internal structure used as additional sprite header
  * 
@@ -38,7 +50,7 @@ typedef struct sprite_ext_s {
     struct {
         uint16_t flags;             ///< Generic Flags for the sprite
         uint8_t  pal_used_colors;   ///< Number of colors actually used in palette
-        uint8_t  padding;           ///< Padding
+        uint8_t  colorspace;        ///< YUV colorspace ID (#sprite_colorspace_e); only used for FMT_YUV16
     };
     /// @brief RDP texture parameters
     struct texparms_s {
@@ -63,7 +75,17 @@ typedef struct sprite_ext_s {
 
 _Static_assert(sizeof(sprite_ext_t) == 128, "invalid sizeof(sprite_ext_t)");
 
-/** @brief Convert a sprite from the old format with implicit texture format */ 
+/** @brief Convert a sprite from the old format with implicit texture format */
 bool __sprite_upgrade(sprite_t *sprite);
+
+/** @brief Access the sprite extended structure, or NULL if it does not exist. */
+sprite_ext_t *__sprite_ext(sprite_t *sprite);
+
+/** @brief Decode an in-memory LSPR buffer into a freshly allocated sprite.
+ *
+ * The caller retains ownership of @p buf — the decoder does not free it.
+ * The returned sprite owns its pixel storage and must be released with
+ * #sprite_free. */
+sprite_t *__lossysprite_decode_buf(const void *buf, int sz);
 
 #endif

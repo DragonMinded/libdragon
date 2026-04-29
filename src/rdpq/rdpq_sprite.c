@@ -13,6 +13,23 @@
 #include "rdpq_tex.h"
 #include "sprite.h"
 #include "sprite_internal.h"
+#include "yuv.h"
+
+static void sprite_setup_yuv_mode(sprite_t *sprite)
+{
+    rdpq_set_mode_yuv(true);
+    const yuv_colorspace_t *cs = &YUV_BT601_TV;
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (sx) {
+        switch (sx->colorspace) {
+        case SPRITE_COLORSPACE_BT601_FULL: cs = &YUV_BT601_FULL; break;
+        case SPRITE_COLORSPACE_BT709_TV:   cs = &YUV_BT709_TV;   break;
+        case SPRITE_COLORSPACE_BT709_FULL: cs = &YUV_BT709_FULL; break;
+        default: break;
+        }
+    }
+    rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
+}
 
 static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
 {
@@ -114,11 +131,17 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
     }
 
     if (__builtin_expect(set_mode, 1)) {
+        // For YUV sprites, configure the RDP YUV render mode + colorspace
+        // from the sprite's metadata. This must happen before mipmap/tlut
+        // tweaks below, since rdpq_set_mode_yuv resets the SOM.
+        if (sprite_get_format(sprite) == FMT_YUV16)
+            sprite_setup_yuv_mode(sprite);
+
         // Enable/disable mipmapping
         if(is_shq) {
             rdpq_mode_mipmap(MIPMAP_INTERPOLATE_SHQ, num_mipmaps);
             rdpq_set_yuv_parms(0, 0, 0, 0, 0, 0xFF);
-        } 
+        }
         else if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
         else if (num_mipmaps)   rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
         else                    rdpq_mode_mipmap(MIPMAP_NONE, 0);
@@ -138,6 +161,11 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
 void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms)
 {
     assertf(!sprite_is_shq(sprite), "SHQ sprites only work with rdpq_sprite_upload, not rdpq_sprite_blit");
+
+    // For YUV sprites, configure the RDP YUV render mode + colorspace from
+    // the sprite's metadata so the caller doesn't need to set it up.
+    if (sprite_get_format(sprite) == FMT_YUV16)
+        sprite_setup_yuv_mode(sprite);
 
     // Upload the palette and configure the render mode
     sprite_upload_palette(sprite, 0, true);

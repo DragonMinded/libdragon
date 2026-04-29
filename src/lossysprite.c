@@ -25,9 +25,6 @@
 #include "n64sys.h"
 #include "surface.h"
 #include "debug.h"
-#include "yuv.h"
-#include "rdpq_attach.h"
-#include "rdpq_mode.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -177,12 +174,10 @@ static void lspr_decode_intra_slice(
     *out_yuv_size = yuv_size;
 }
 
-sprite_t* lossysprite_load(const char *fn) {
-    int sz = 0;
-    uint8_t *raw = asset_load(fn, &sz);
-    assertf(raw && sz >= (int)sizeof(lspr_header_t), "Invalid LSPR file");
+sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
+    assertf(buf && sz >= (int)sizeof(lspr_header_t), "Invalid LSPR buffer");
 
-    lspr_header_t *hdr = (lspr_header_t *)raw;
+    const lspr_header_t *hdr = (const lspr_header_t *)buf;
     assertf(memcmp(hdr->magic, LSPR_MAGIC, 4) == 0, "Invalid LSPR magic");
     assertf(hdr->version == LSPR_VERSION, "Invalid LSPR version");
     assertf((hdr->flags & 0x3) == LSPR_YUV_420, "Invalid LSPR YUV format");
@@ -191,7 +186,7 @@ sprite_t* lossysprite_load(const char *fn) {
     uint16_t height = hdr->height;
     uint16_t orig_w = hdr->orig_width;
     uint16_t orig_h = hdr->orig_height;
-    uint8_t *payload = hdr->payload;
+    const uint8_t *payload = hdr->payload;
     size_t payload_size = (size_t)sz - sizeof(lspr_header_t);
 
     rsph264_init();
@@ -200,20 +195,14 @@ sprite_t* lossysprite_load(const char *fn) {
     uint8_t *pic = NULL;
     size_t pic_size = 0;
     lspr_decode_intra_slice(payload, payload_size, width, height, &pic, &pic_size);
-    free(raw);
+
+    assertf((orig_w & 1) == 0, "LSPR: orig_width must be even for FMT_YUV16 (got %u)", orig_w);
 
     int mb_w = (width + 15) / 16;
     int mb_h = (height + 15) / 16;
     int stride = mb_w * 16;
     int luma_h = mb_h * 16;
     int chroma_stride = stride / 2;
-
-    yuv_frame_t frame = {
-        .y = surface_make(pic, FMT_I8, width, height, stride),
-        .u = surface_make(pic + stride * luma_h, FMT_I8, width / 2, height / 2, chroma_stride),
-        .v = surface_make(pic + stride * luma_h + chroma_stride * (luma_h / 2),
-                          FMT_I8, width / 2, height / 2, chroma_stride),
-    };
 
     size_t pixel_bytes = (size_t)orig_w * (size_t)orig_h * 2;
     size_t pixel_bytes_aligned = (pixel_bytes + 15) & ~(size_t)15;
@@ -222,68 +211,53 @@ sprite_t* lossysprite_load(const char *fn) {
     size_t total_bytes = pixel_off + pixel_bytes_aligned;
     sprite_t *spr = (sprite_t*)memalign(64, total_bytes);
     assertf(spr, "Out of memory");
-    // Zero only the header region; the pixel area is fully overwritten by the
-    // RDP. Memset'ing it would pollute the data cache with zeros, which the
-    // RDP's RDRAM-direct write does not invalidate.
     memset(spr, 0, pixel_off);
     spr->width = orig_w;
     spr->height = orig_h;
-    spr->flags = SPRITE_FLAGS_OWNEDBUFFER | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_RGBA16;
+    spr->flags = SPRITE_FLAGS_OWNEDBUFFER | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_YUV16;
     spr->hslices = 1;
     spr->vslices = 1;
 
     sprite_ext_t *sx = (sprite_ext_t*)spr->data;
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
+    sx->colorspace = SPRITE_COLORSPACE_BT709_FULL;
     sx->data_ptr = (uint32_t)pixel_off;
 
-    yuv_init();
-    surface_t rgba_out = surface_make_linear((uint8_t*)spr + pixel_off, FMT_RGBA16, orig_w, orig_h);
-    uint8_t *temp = NULL;
-    size_t temp_bytes_aligned = 0;
-    if (orig_w != width || orig_h != height) {
-        size_t padded_bytes = (size_t)width * (size_t)height * 2;
-        temp_bytes_aligned = (padded_bytes + 15) & ~(size_t)15;
-        temp = (uint8_t*)memalign(64, temp_bytes_aligned);
-        assertf(temp, "Out of memory");
-        rgba_out = surface_make_linear(temp, FMT_RGBA16, width, height);
+    // Pack the 4:2:0 planar YUV that the H.264 decoder produced directly into
+    // UYVY 4:2:2 (FMT_YUV16) — the RDP-native packed layout. Each chroma row
+    // is reused for two luma rows (4:2:0 → 4:2:2 vertical doubling), and the
+    // crop from padded MB-aligned dimensions to (orig_w, orig_h) happens
+    // inline by iterating only over the visible pixels.
+    uint8_t *dst_base = (uint8_t*)spr + pixel_off;
+    size_t dst_stride = (size_t)orig_w * 2;
+    const uint8_t *u_plane = pic + (size_t)stride * luma_h;
+    const uint8_t *v_plane = u_plane + (size_t)chroma_stride * (luma_h / 2);
+    for (int y = 0; y < orig_h; y++) {
+        const uint8_t *yrow = pic + (size_t)y * stride;
+        const uint8_t *urow = u_plane + (size_t)(y >> 1) * chroma_stride;
+        const uint8_t *vrow = v_plane + (size_t)(y >> 1) * chroma_stride;
+        uint8_t *dst = dst_base + (size_t)y * dst_stride;
+        for (int x = 0; x < orig_w; x += 2) {
+            dst[(x << 1) + 0] = urow[x >> 1];
+            dst[(x << 1) + 1] = yrow[x];
+            dst[(x << 1) + 2] = vrow[x >> 1];
+            dst[(x << 1) + 3] = yrow[x + 1];
+        }
     }
-
-    // The RDP will DMA-write the RGBA output. memalign returns recycled heap
-    // memory which may have stale dirty cache lines aliased to the same
-    // physical addresses; if those evict during the RDP's writes, they
-    // clobber RDP output. Flush them now so no eviction can race the RDP.
-    if (temp)
-        data_cache_hit_writeback_invalidate(temp, temp_bytes_aligned);
-    else
-        data_cache_hit_writeback_invalidate((uint8_t*)spr + pixel_off, pixel_bytes_aligned);
-
-    rdpq_attach(&rgba_out, NULL);
-    rdpq_mode_push();
-    yuv_tex_blit(&frame, 0, 0, NULL, &YUV_BT709_FULL);
-    rdpq_mode_pop();
-    rdpq_detach_wait();
-    yuv_close();
+    // The RDP will load_block the packed pixels via DMA; flush the CPU
+    // writes so the RDP sees them.
+    data_cache_hit_writeback(dst_base, pixel_bytes_aligned);
 
     free_uncached(pic);
 
-    uint8_t *dst = (uint8_t*)spr + pixel_off;
-    if (temp) {
-        // RDP wrote `temp` directly to RDRAM. Invalidate any stale cache lines
-        // before the memcpy reads, then writeback the destination so the RDP
-        // sees the final pixels.
-        data_cache_hit_invalidate(temp, temp_bytes_aligned);
-        size_t row_bytes = (size_t)orig_w * 2;
-        size_t src_stride = (size_t)width * 2;
-        for (uint16_t y = 0; y < orig_h; y++) {
-            memcpy(dst + (size_t)y * row_bytes, temp + (size_t)y * src_stride, row_bytes);
-        }
-        free(temp);
-        data_cache_hit_writeback(dst, pixel_bytes_aligned);
-    } else {
-        // Drop any stale cache lines so future CPU reads see RDP output.
-        data_cache_hit_invalidate(dst, pixel_bytes_aligned);
-    }
+    return spr;
+}
 
+sprite_t* lossysprite_load(const char *fn) {
+    int sz = 0;
+    uint8_t *enc = asset_load(fn, &sz);
+    sprite_t *spr = __lossysprite_decode_buf(enc, sz);
+    free(enc);
     return spr;
 }

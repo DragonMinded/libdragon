@@ -66,9 +66,12 @@ bool __sprite_upgrade(sprite_t *sprite)
 
 sprite_t *sprite_load_buf(void *buf, int sz)
 {
-    sprite_t *s = buf;
     assertf(sz >= sizeof(sprite_t), "Sprite buffer too small (sz=%d)", sz);
-    assertf(memcmp(buf, "LSPR", 4) != 0, "lossy sprite support not implemented yet");
+    // LSPR is a compressed format: it can't be used in-place. Decode it
+    // into a freshly allocated FMT_YUV16 sprite. The caller retains
+    // ownership of @p buf.
+    if (memcmp(buf, "LSPR", 4) == 0) return __lossysprite_decode_buf(buf, sz);
+    sprite_t *s = buf;
     __sprite_upgrade(s);
     (void)__sprite_ext(s); // just check if the sprite is valid (the version is checked in __sprite_ext)
     data_cache_hit_writeback(s, sz);
@@ -80,7 +83,14 @@ sprite_t *sprite_load(const char *fn)
     int sz;
     void *buf = asset_load(fn, &sz);
     sprite_t *s = sprite_load_buf(buf, sz);
-    s->flags |= SPRITE_FLAGS_OWNEDBUFFER;
+    if ((void*)s != buf) {
+        // The decoder allocated a fresh sprite (e.g. LSPR); the source
+        // buffer is no longer needed. The new sprite already has
+        // SPRITE_FLAGS_OWNEDBUFFER set internally.
+        free(buf);
+    } else {
+        s->flags |= SPRITE_FLAGS_OWNEDBUFFER;
+    }
     return s;
 }
 
