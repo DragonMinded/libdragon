@@ -541,19 +541,30 @@ static void get_array_element_convert_parms(array_convert_parms_t *parms, uint32
     parms->range.count = 1;
 }
 
+static bool is_array_enabled(gl_array_type_t type)
+{
+    return state->array_object->arrays[type].enabled;
+}
+
+static bool is_vertex_array_enabled()
+{
+    return is_array_enabled(ATTRIB_VERTEX);
+}
+
 static void gl_rsp_array_element(uint32_t index)
 {
     array_convert_parms_t convert_parms;
     get_array_element_convert_parms(&convert_parms, index);
     array_convert(&convert_parms);
 
-    if (state->array_object->arrays[ATTRIB_MTX_INDEX].enabled) {
+    if (is_array_enabled(ATTRIB_MTX_INDEX)) {
         gl_rsp_mtx_index(state->current_attribs.mtx_index);
     }
 
-    if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
+    if (is_vertex_array_enabled()) {
         begin_end_advance();
     }
+    // TODO: if vertex array is not enabled, send attributes to RSP?
 }
 
 static data_view_t get_vertex_data_for_block(gl_array_object_t *array_object, index_bounds_t bounds)
@@ -602,7 +613,9 @@ static void prepare_drawing(gl_array_object_t *array_object, index_bounds_t boun
 
 static void gl_rsp_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
 {
-    // TODO: Do nothing if vertex array is disabled
+    if (!is_vertex_array_enabled()) {
+        return;
+    }
     
     index_bounds_t range = {
         .first = first,
@@ -682,7 +695,9 @@ static void gl_rsp_draw_elements(GLenum mode, uint32_t count, const void* indice
 {
     assertf(type == GL_UNSIGNED_SHORT, "Index type must be GL_UNSIGNED_SHORT");
     
-    // TODO: Do nothing if vertex array is disabled
+    if (!is_vertex_array_enabled()) {
+        return;
+    }
 
     gl_buffer_object_t *element_buffer = state->array_object->element_array_buffer;
     
