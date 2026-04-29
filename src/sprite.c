@@ -293,4 +293,12 @@ bool sprite_is_shq(sprite_t *sprite)
     return (sx->flags & SPRITE_FLAG_SHQ) != 0;
 }
 
+bool sprite_is_yuv_nv12(sprite_t *sprite)
+{
+    if (sprite_get_format(sprite) != FMT_YUV16) return false;
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (!sx) return false;
+    return (sx->flags & SPRITE_FLAG_YUV_NV12) != 0;
+}
+
 extern inline tex_format_t sprite_get_format(sprite_t *sprite);
