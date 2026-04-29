@@ -11,7 +11,6 @@
 #include "asset.h"
 #include "utils.h"
 #include "rdpq_tex.h"
-#include "yuv.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -101,13 +100,6 @@ sprite_t *sprite_load(const char *fn)
 
 void sprite_free(sprite_t *s)
 {
-    // Release any subsystem refcounts held for this sprite. The YUV overlay
-    // is registered in __lossysprite_decode_buf() for planar YUV sprites
-    if (s->flags & SPRITE_FLAGS_EXT) {
-        sprite_ext_t *sx = __sprite_ext(s);
-        if (sx && (sx->flags & SPRITE_FLAG_YUV_PLANAR)) yuv_close();
-    }
-
     if(s->flags & SPRITE_FLAGS_OWNEDBUFFER) {
         #ifndef NDEBUG
         //To help debugging, zero the sprite structure as well

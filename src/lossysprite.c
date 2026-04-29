@@ -24,7 +24,6 @@
 #include "sprite_internal.h"
 #include "n64sys.h"
 #include "surface.h"
-#include "yuv.h"
 #include "debug.h"
 
 #include <string.h>
@@ -209,18 +208,21 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     int stride = mb_w * 16;
     int luma_h = mb_h * 16;
 
-    // yuv_tex_blit asserts (Y width % 32) == 0 (in addition to height % 16,
-    // which is always satisfied since luma_h = mb_h*16). LSPR-aware encoders
-    // pad accordingly; if not, this fires loudly rather than producing a
-    // garbled blit.
+    // yuv_tex_blit_semiplanar asserts (Y width % 32) == 0 (in addition to
+    // height % 16, which is always satisfied since luma_h = mb_h*16).
+    // LSPR-aware encoders pad accordingly; if not, this fires loudly
+    // rather than producing a garbled blit.
     assertf((stride % 32) == 0,
             "LSPR: padded width %d not multiple of 32 (yuv_tex_blit constraint); pad encoder output to %d",
             stride, (stride + 31) & ~31);
 
-    // The decoder lays out Y, then U, then V — contiguously, with row strides
-    // of `stride` and `stride/2`. That's exactly the layout we want in the
-    // sprite buffer, so a single memcpy moves all three planes. Total payload:
-    // stride * luma_h * 3/2 (one Y plane plus two quarter-size chroma planes).
+    // Sprite layout: Y plane (FMT_I8, stride x luma_h) followed by an
+    // interleaved UV plane (FMT_IA16, stride/2 x luma_h/2 with U in the
+    // high byte and V in the low byte of each pixel). This matches the
+    // byte layout that the RSP UV interleaver in yuv.c produces, so the
+    // RDP can load it directly via yuv_tex_blit_semiplanar without a
+    // per-frame interleave pass. Total bytes match a fully-planar Y+U+V
+    // layout: y_bytes + 2*uv_bytes.
     size_t y_bytes  = (size_t)stride * luma_h;
     size_t uv_bytes = (size_t)(stride / 2) * (luma_h / 2);
     size_t plane_bytes = y_bytes + 2 * uv_bytes;
@@ -240,7 +242,7 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     sprite_ext_t *sx = (sprite_ext_t*)spr->data;
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
-    sx->flags = SPRITE_FLAG_YUV_PLANAR;
+    sx->flags = SPRITE_FLAG_YUV_SEMIPLANAR;
     // Colorspace ID is encoded directly into sprite_colorspace_e values, so
     // the bit field maps 1:1 into sx->colorspace.
     sx->colorspace = (hdr->flags & LSPR_FLAGS_COLORSPACE_MASK) >> LSPR_FLAGS_COLORSPACE_SHIFT;
@@ -250,19 +252,20 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     sx->texparms.s.translate = (float)stride;
     sx->texparms.t.translate = (float)luma_h;
 
-    // Copy the 4:2:0 planar payload from the uncached decoder buffer into the
-    // sprite's cached plane area. The RDP will read the planes via DMA after
-    // CPU cache writeback.
+    // Copy Y verbatim; interleave the U/V planes from the uncached decoder
+    // buffer into a single IA16 plane in the sprite's cached storage.
     uint8_t *plane_base = (uint8_t*)spr + pixel_off;
-    memcpy(plane_base, pic, plane_bytes);
+    uint8_t *uv_dst = plane_base + y_bytes;
+    const uint8_t *u_src = pic + y_bytes;
+    const uint8_t *v_src = u_src + uv_bytes;
+    memcpy(plane_base, pic, y_bytes);
+    for (size_t i = 0; i < uv_bytes; i++) {
+        uv_dst[i*2 + 0] = u_src[i];
+        uv_dst[i*2 + 1] = v_src[i];
+    }
     data_cache_hit_writeback(plane_base, plane_bytes_aligned);
 
     free_uncached(pic);
-
-    // Take a refcount on the YUV subsystem for the lifetime of this sprite.
-    // The matching yuv_close() lives in sprite_free()
-    // (gated on SPRITE_FLAG_YUV_PLANAR).
-    yuv_init();
 
     return spr;
 }

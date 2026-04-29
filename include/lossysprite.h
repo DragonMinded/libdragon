@@ -15,16 +15,18 @@ extern "C" {
 /**
  * @brief Open and decode a LSPR file into memory.
  *
- * The H.264 intra slice is fully decoded during this call into a planar
- * 4:2:0 YUV sprite (#FMT_YUV16, with #SPRITE_FLAG_YUV_PLANAR set
- * internally). The returned sprite renders correctly via
- * #rdpq_sprite_blit, which transparently routes to #yuv_tex_blit and
- * applies the colorspace stored in the file header.
+ * The H.264 intra slice is fully decoded during this call into a 4:2:0
+ * YUV sprite stored as a Y plane (#FMT_I8) followed by an interleaved
+ * UV plane (#FMT_IA16). The sprite is tagged as #FMT_YUV16 with
+ * #SPRITE_FLAG_YUV_SEMIPLANAR set internally. It renders correctly via
+ * #rdpq_sprite_blit, which transparently routes to
+ * #yuv_tex_blit_semiplanar and applies the colorspace stored in the file
+ * header.
  *
- * Note: a planar YUV sprite cannot be uploaded to TMEM as a single
- * texture, so it is incompatible with #rdpq_sprite_upload and any code
- * path that expects packed UYVY pixels. Use #rdpq_sprite_blit to draw
- * it.
+ * Note: a semi-planar YUV sprite cannot be uploaded to TMEM as a
+ * single texture, so it is incompatible with #rdpq_sprite_upload and
+ * any code path that expects packed UYVY pixels. Use
+ * #rdpq_sprite_blit to draw it.
  *
  * #sprite_load also accepts LSPR files directly (it sniffs the magic
  * and delegates here), so calling it instead of this function lets

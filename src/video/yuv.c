@@ -360,11 +360,25 @@ static void yuv_tex_blit_run(int width, int height, float x0, float y0,
 }
 
 void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
-    const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs) 
+    const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs)
 {
     assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
     yuv_tex_blit_setup(&frame->y, &frame->u, &frame->v);
     yuv_tex_blit_run(frame->y.width, frame->y.height, x0, y0, parms, cs, false);
+}
+
+void yuv_tex_blit_semiplanar(surface_t *y, surface_t *uv, float x0, float y0,
+    const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs)
+{
+    assertf(y->width == uv->width*2 && y->height == uv->height*2,
+        "wrong plane sizes: only YUV 4:2:0 is supported (Y:%dx%d UV:%dx%d)",
+        y->width, y->height, uv->width, uv->height);
+    // The interleave step in yuv_tex_blit_setup is what populates the
+    // RDP lookup slots; do the same setup here directly from the
+    // caller-provided buffers, then reuse the regular run path.
+    rdpq_set_lookup_address(1, y->buffer);
+    rdpq_set_lookup_address(2, uv->buffer);
+    yuv_tex_blit_run(y->width, y->height, x0, y0, parms, cs, false);
 }
 
 yuv_blitter_t yuv_blitter_new(int video_width, int video_height, float x0, float y0, const rdpq_blitparms_t *parms,

@@ -33,20 +33,19 @@ static void sprite_setup_yuv_mode(sprite_t *sprite)
     rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
 }
 
-static void sprite_blit_planar_yuv(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms_in)
+static void sprite_blit_yuv_semiplanar(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms_in)
 {
     sprite_ext_t *sx = __sprite_ext(sprite);
     int padded_w = (int)sx->texparms.s.translate;
     int padded_h = (int)sx->texparms.t.translate;
     uint8_t *base = (uint8_t*)sprite + sx->data_ptr;
-    size_t y_bytes  = (size_t)padded_w * padded_h;
-    size_t uv_bytes = (size_t)(padded_w / 2) * (padded_h / 2);
+    size_t y_bytes = (size_t)padded_w * padded_h;
 
-    yuv_frame_t frame = {
-        .y = surface_make_linear(base,                         FMT_I8, padded_w,     padded_h),
-        .u = surface_make_linear(base + y_bytes,               FMT_I8, padded_w / 2, padded_h / 2),
-        .v = surface_make_linear(base + y_bytes + uv_bytes,    FMT_I8, padded_w / 2, padded_h / 2),
-    };
+    // Y plane is FMT_I8; UV plane is FMT_IA16 with U in the high byte and
+    // V in the low byte of each pixel — the layout that the LSPR decoder
+    // pre-interleaves at decode time.
+    surface_t y_surf  = surface_make_linear(base,           FMT_I8,   padded_w,     padded_h);
+    surface_t uv_surf = surface_make_linear(base + y_bytes, FMT_IA16, padded_w / 2, padded_h / 2);
 
     // Crop from the padded plane to the sprite's visible region. If the caller
     // already supplied width/height, respect those; otherwise pin to the
@@ -57,7 +56,7 @@ static void sprite_blit_planar_yuv(sprite_t *sprite, float x0, float y0, const r
     if (parms.width  == 0) parms.width  = sprite->width;
     if (parms.height == 0) parms.height = sprite->height;
 
-    yuv_tex_blit(&frame, x0, y0, &parms, sprite_lookup_yuv_colorspace(sx));
+    yuv_tex_blit_semiplanar(&y_surf, &uv_surf, x0, y0, &parms, sprite_lookup_yuv_colorspace(sx));
 }
 
 static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
@@ -86,8 +85,8 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
 int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
 {
     sprite_ext_t *sx = __sprite_ext(sprite);
-    assertf(!sx || !(sx->flags & SPRITE_FLAG_YUV_PLANAR),
-        "planar YUV sprites cannot be uploaded to TMEM as a single texture; use rdpq_sprite_blit");
+    assertf(!sx || !(sx->flags & SPRITE_FLAG_YUV_SEMIPLANAR),
+        "semi-planar YUV sprites cannot be uploaded to TMEM as a single texture; use rdpq_sprite_blit");
     assertf(sprite_fits_tmem(sprite), "sprite doesn't fit in TMEM");
 
     // Load main sprite surface
@@ -194,12 +193,13 @@ void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms
 {
     assertf(!sprite_is_shq(sprite), "SHQ sprites only work with rdpq_sprite_upload, not rdpq_sprite_blit");
 
-    // Planar YUV sprites can't be uploaded as a single texture (the Y and UV
-    // halves are loaded separately into the two TMEM banks). Hand off to
-    // yuv_tex_blit, which sets up its own render mode and colorspace.
+    // Semi-planar YUV sprites can't be uploaded as a single texture (the Y
+    // and UV halves are loaded separately into the two TMEM banks). Hand off
+    // to yuv_tex_blit_semiplanar, which sets up its own render mode and
+    // colorspace.
     sprite_ext_t *sx = __sprite_ext(sprite);
-    if (sx && (sx->flags & SPRITE_FLAG_YUV_PLANAR)) {
-        sprite_blit_planar_yuv(sprite, x0, y0, parms);
+    if (sx && (sx->flags & SPRITE_FLAG_YUV_SEMIPLANAR)) {
+        sprite_blit_yuv_semiplanar(sprite, x0, y0, parms);
         return;
     }
 
