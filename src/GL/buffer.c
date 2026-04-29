@@ -3,7 +3,9 @@
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief OpenGL buffer object management and data transfer.
  */
+#include "buffer.h"
 #include "gl_internal.h"
+#include "array_object.h"
 #include <n64sys.h>
 #include <malloc.h>
 #include <string.h>
@@ -25,11 +27,7 @@ static void buffer_object_free(gl_buffer_object_t *obj)
 
     if (obj->element_cache != NULL)
     {
-        if (obj->element_cache->block != NULL)
-        {
-            rspq_call_deferred((void(*)(void*))rspq_block_free, obj->element_cache->block);
-        }
-        free(obj->element_cache);
+        draw_call_cache_free(obj->element_cache);
     }
 
     assertf(obj->array_obj_ref == NULL, "Freeing a buffer object that still had references to array objects: %p", obj);
@@ -172,7 +170,7 @@ bool gl_get_buffer_object(GLenum target, gl_buffer_object_t **obj)
 void buffer_set_data_dirty(gl_buffer_object_t *obj)
 {
     if (obj->element_cache != NULL) {
-        obj->element_cache->is_data_dirty = true;
+        draw_call_cache_set_data_dirty(obj->element_cache);
     }
 
     // Inform all array objects that are bound to this buffer

@@ -19,6 +19,8 @@
 #include "vertex_layout.h"
 #include "../hashtable_internal.h"
 #include "ringbuffer.h"
+#include "array_object.h"
+#include "buffer.h"
 
 #define MAX_PIPELINE_COUNT          (1<<4)
 
@@ -75,13 +77,6 @@
 
 #define gl_assert_no_display_list() assertf(state->current_list == 0, "%s cannot be recorded into a display list", __func__)
 
-typedef int16_t int16u_t __attribute__((aligned(1)));
-typedef uint16_t uint16u_t __attribute__((aligned(1)));
-typedef int32_t int32u_t __attribute__((aligned(1)));
-typedef uint32_t uint32u_t __attribute__((aligned(1)));
-typedef float floatu __attribute__((aligned(1)));
-typedef double doubleu __attribute__((aligned(1)));
-
 extern uint32_t gl_overlay_id;
 extern uint32_t gl2_overlay_id;
 extern phys_addr_t gl_rsp_state;
@@ -92,6 +87,12 @@ extern phys_addr_t magma_rsp_state;
 #define gl_write_rdp(rdpcmds, cmd_id, ...)  rdpq_write(rdpcmds, gl_overlay_id, cmd_id, ##__VA_ARGS__)
 #define gl2_write_rdp(rdpcmds, cmd_id, ...)  rdpq_write(rdpcmds, gl2_overlay_id, cmd_id, ##__VA_ARGS__)
 
+typedef int16_t int16u_t __attribute__((aligned(1)));
+typedef uint16_t uint16u_t __attribute__((aligned(1)));
+typedef int32_t int32u_t __attribute__((aligned(1)));
+typedef uint32_t uint32u_t __attribute__((aligned(1)));
+typedef float floatu __attribute__((aligned(1)));
+typedef double doubleu __attribute__((aligned(1)));
 
 typedef enum {
     GL_CMD_SET_FLAG         = 0x0,
@@ -125,15 +126,6 @@ typedef enum {
     GL_UPDATE_TEXTURE_OBJECTS       = 0x3,
 } gl_update_func_t;
 
-typedef enum {
-    ATTRIB_VERTEX,
-    ATTRIB_NORMAL,
-    ATTRIB_COLOR,
-    ATTRIB_TEXCOORD,
-    ATTRIB_MTX_INDEX,
-    ATTRIB_COUNT
-} gl_array_type_t;
-
 typedef struct {
     GLfloat position[4];
     GLfloat color[4];
@@ -154,11 +146,6 @@ typedef struct {
     uint8_t tr_code;
     uint8_t t_l_applied;
 } gl_vtx_t;
-
-#define VTX_SCREEN_POS_OFFSET   (offsetof(gl_vtx_t, screen_pos)  / sizeof(float))
-#define VTX_SHADE_OFFSET        (offsetof(gl_vtx_t, shade)       / sizeof(float))
-#define VTX_TEXCOORD_OFFSET     (offsetof(gl_vtx_t, texcoord)    / sizeof(float))
-#define VTX_DEPTH_OFFSET        (offsetof(gl_vtx_t, depth)       / sizeof(float))
 
 typedef struct {
     GLfloat m[4][4];
@@ -270,80 +257,6 @@ typedef struct {
     GLfloat quadratic_attenuation;
     bool enabled;
 } gl_light_t;
-
-typedef struct {
-    GLvoid *data;
-    uint32_t size;
-} gl_storage_t;
-
-typedef struct {
-    uint32_t offset;
-    uint32_t count;
-    GLenum mode;
-    rspq_block_t *block;
-    uint16_t min_index;
-    uint16_t max_index;
-    bool is_data_dirty;
-} gl_element_array_cache_t;
-
-typedef struct gl_array_object_s gl_array_object_t;
-typedef struct gl_array_object_ref_s gl_array_object_ref_t;
-
-typedef struct gl_array_object_ref_s {
-    gl_array_object_t *array_object;
-    gl_array_object_ref_t *next;
-} gl_array_object_ref_t;
-
-typedef struct {
-    GLenum usage;
-    GLenum access;
-    GLvoid *pointer;
-    gl_storage_t storage;
-    bool mapped;
-    gl_array_object_ref_t *array_obj_ref;
-    gl_element_array_cache_t *element_cache;
-    uint32_t ref_count;
-} gl_buffer_object_t;
-
-typedef void (*cpu_read_attrib_func)(void*,const void*,uint32_t);
-typedef void (*rsp_read_attrib_func)(void*,const void*,uint32_t);
-
-typedef struct {
-    GLint size;
-    GLenum type;
-    GLsizei stride;
-    const GLvoid *pointer;
-    gl_buffer_object_t *binding;
-    bool normalize;
-    bool enabled;
-
-    const GLvoid *final_pointer;
-    uint16_t final_stride;
-    cpu_read_attrib_func cpu_read_func;
-    rsp_read_attrib_func rsp_read_func;
-} gl_array_t;
-
-typedef struct gl_vertex_data_cache_s {
-    gl_array_type_t first_array;
-    gl_array_type_t until_array;
-    void *data;
-    uint32_t cached_first;
-    uint32_t cached_count;
-    uint32_t cached_stride;
-    bool is_layout_dirty;
-    bool is_data_dirty;
-    bool is_all_vbos;
-    bool are_bindings_dirty;
-} gl_vertex_data_cache_t;
-
-typedef struct gl_array_object_s {
-    gl_array_t arrays[ATTRIB_COUNT];
-    uint32_t out_offsets[ATTRIB_COUNT];
-    gl_buffer_object_t *element_array_buffer;
-    vertex_layout layout;
-    gl_vertex_data_cache_t vertex_data_cache;
-    gl_vertex_data_cache_t mtx_indices_cache;
-} gl_array_object_t;
 
 typedef uint32_t (*read_index_func)(const void*,uint32_t);
 
@@ -660,22 +573,6 @@ float dot_product3(const float *a, const float *b);
 void gl_normalize(GLfloat *d, const GLfloat *v);
 
 uint32_t gl_get_type_size(GLenum type);
-
-bool gl_storage_alloc(gl_storage_t *storage, uint32_t size);
-void gl_storage_free(gl_storage_t *storage);
-bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
-
-void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
-void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
-void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
-void buffer_object_validate_not_mapped(gl_buffer_object_t *obj);
-void array_object_set_buffer_binding(gl_array_object_t *obj, gl_array_type_t array_type, gl_buffer_object_t *buffer);
-void array_object_set_buffer_dirty(gl_array_object_t *obj, gl_buffer_object_t *buffer);
-void array_object_update(gl_array_object_t *array_object);
-void array_object_validate_drawing(gl_array_object_t *array_object, bool indexed);
-void data_cache_fill(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache, uint32_t first, uint32_t count);
-void array_object_convert_into(gl_array_object_t *array_object, gl_vertex_data_cache_t *cache, uint32_t first, uint32_t count, void* buffer);
-void array_convert(gl_array_object_t *obj, const uint32_t out_offsets[ATTRIB_COUNT], void *dst_buffer, uint32_t first, uint32_t count, uint32_t stride, gl_array_type_t first_array, gl_array_type_t until_array);
 
 void set_can_use_rsp_dirty();
 

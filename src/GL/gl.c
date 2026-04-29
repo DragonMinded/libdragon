@@ -16,6 +16,8 @@
 #include <math.h>
 #include <malloc.h>
 #include "gl_internal.h"
+#include "buffer.h"
+#include "array.h"
 #include "../magma/magma_internal.h"
 
 DEFINE_RSP_UCODE(rsp_gl);

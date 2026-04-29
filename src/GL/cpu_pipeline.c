@@ -8,6 +8,11 @@
 
 extern gl_state_t *state;
 
+#define VTX_SCREEN_POS_OFFSET   (offsetof(gl_vtx_t, screen_pos)  / sizeof(float))
+#define VTX_SHADE_OFFSET        (offsetof(gl_vtx_t, shade)       / sizeof(float))
+#define VTX_TEXCOORD_OFFSET     (offsetof(gl_vtx_t, texcoord)    / sizeof(float))
+#define VTX_DEPTH_OFFSET        (offsetof(gl_vtx_t, depth)       / sizeof(float))
+
 static const float clip_planes[CLIPPING_PLANE_COUNT][4] = {
     { 1, 0, 0, GUARD_BAND_FACTOR },
     { 0, 1, 0, GUARD_BAND_FACTOR },

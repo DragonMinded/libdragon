@@ -13,6 +13,7 @@
 #include "../rdpq/rdpq_internal.h"
 #include <malloc.h>
 #include <string.h>
+#include "array.h"
 
 _Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_DEPTH_TEST     >> TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_ZBUF << 8));
 _Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_TEXTURE_ACTIVE >> TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_TEX  << 8));

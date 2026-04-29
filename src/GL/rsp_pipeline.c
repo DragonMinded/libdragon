@@ -11,6 +11,14 @@
 #include "rdpq_debug.h"
 #include "../magma/magma_internal.h"
 #include "mgfx_macros.h"
+#include "indices.h"
+#include "draw_call_cache.h"
+#include "data_cache.h"
+#include "array.h"
+#include "array_object.h"
+#include "buffer.h"
+#include "fnv1a.h"
+#include "array_convert.h"
 
 _Static_assert(BEGIN_END_BUFFER_SIZE <= MG_VERTEX_CACHE_COUNT);
 
@@ -192,31 +200,6 @@ const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
     },
 };
 
-static mg_primitive_topology_t get_primitive_topology(GLenum mode)
-{
-    switch (mode)
-    {
-    case GL_TRIANGLES:
-        return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-    case GL_TRIANGLE_STRIP:
-        return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-    case GL_TRIANGLE_FAN:
-    case GL_POLYGON:
-        return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
-
-    case GL_POINTS:
-    case GL_LINES:
-    case GL_LINE_LOOP:
-    case GL_LINE_STRIP:
-    case GL_QUADS:
-    case GL_QUAD_STRIP:
-        assertf(0, "Draw mode %ld is not supported", mode);
-    default:
-        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
-        return -1;
-    }
-}
-
 static void begin_end_next_buffer()
 {
     if (rspq_block_is_recording()) {
@@ -278,31 +261,16 @@ static bool get_begin_end_need_save(GLenum mode)
     }
 }
 
-static const vertex_layout *get_current_layout()
-{
-    if (state->begin_end_active) {
-        return &state->begin_end_layout;
-    } else {
-        return &state->array_object->layout;
-    }
-}
-
-inline void fnv1a(uint32_t *hash, uint32_t v)
-{
-    *hash ^= v;
-    *hash *= 0x01000193; // FNV prime
-}
-
 static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout)
 {
     // Get pipeline key by creating a hash from all pipeline parameters using FNV-1a hash
-    uint32_t key = 0x811c9dc5; // FNV offset basis
+    uint32_t key = fnv1a_init();
     for (size_t i = 0; i < layout->attribute_count; i++)
     {
-        fnv1a(&key, layout->attributes[i].input);
-        fnv1a(&key, layout->attributes[i].offset);
+        fnv1a_step(&key, layout->attributes[i].input);
+        fnv1a_step(&key, layout->attributes[i].offset);
     }
-    fnv1a(&key, layout->stride);
+    fnv1a_step(&key, layout->stride);
     return key;
 }
 
@@ -327,9 +295,9 @@ static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
     return pipelines;
 }
 
-static void update_pipeline(const vertex_layout *layout)
+static mg_pipeline_t **get_or_create_pipelines(const vertex_layout *layout)
 {
-    uint32_t key = get_pipeline_key(&layout->vertex_layout);
+    uint32_t key = get_pipeline_key(&layout->vertex_layout); // TODO: Cache this as well
 
     mg_pipeline_t **pipelines = hashtable_lookup(&state->pipeline_cache, key);
     if (pipelines == NULL) {
@@ -337,29 +305,43 @@ static void update_pipeline(const vertex_layout *layout)
         hashtable_insert(&state->pipeline_cache, key, pipelines);
     }
 
+    return pipelines;
+}
+
+static const mg_uniform_t *get_matrices_uniform(mg_pipeline_t **pipelines)
+{
+    return mg_pipeline_get_uniform(pipelines[0], GLP_BINDING_MATRICES);
+}
+
+static void assign_pipelines(mg_pipeline_t **pipelines)
+{
     for (size_t i = 0; i < PIPELINE_COUNT; i++)
     {
         uint32_t packed = ((sizeof(gl_pipeline_data_t)*i) << 16) | (ROUND_UP(pipelines[i]->shader_code_size, 8) - 1);
         gl2_write(GL_CMD_SET_PIPELINE, PhysicalAddr(pipelines[i]->shader_code), packed);
     }
 
-    if (state->matrices_uniform == NULL) {
-        state->matrices_uniform = mg_pipeline_get_uniform(pipelines[0], GLP_BINDING_MATRICES);
-    }
+    state->matrices_uniform = get_matrices_uniform(pipelines);
 }
 
-static void prepare_drawing_with_magma()
+static void update_pipelines_from_layout(vertex_layout *vertex_layout)
 {
-    const vertex_layout *layout = get_current_layout();
-    update_pipeline(layout);
+    mg_pipeline_t **pipelines = get_or_create_pipelines(vertex_layout);
+    assign_pipelines(pipelines);
+}
 
+static uint32_t get_client_flags()
+{
     uint32_t client_flags = 0;
     if (state->begin_end_active) client_flags |= CLIENT_FLAG_BEGIN_END;
     if (state->array_object->arrays[ATTRIB_COLOR].enabled) client_flags |= CLIENT_FLAG_COLOR_ARRAY;
-    
+    return client_flags;
+}
+
+static void magma_init()
+{
+    uint32_t client_flags = get_client_flags();
     gl2_write(GL_CMD_PRE_INIT_MAGMA, magma_rsp_state, client_flags);
-    
-    mg_set_vertex_stride(layout->vertex_layout.stride);
 }
 
 static void gl_rsp_begin(GLenum mode)
@@ -368,7 +350,9 @@ static void gl_rsp_begin(GLenum mode)
     state->begin_end_multiple = get_begin_end_multiple(mode);
     state->begin_end_need_save = get_begin_end_need_save(mode);
 
-    prepare_drawing_with_magma();
+    update_pipelines_from_layout(&state->begin_end_layout);
+    magma_init();
+    mg_set_vertex_stride(sizeof(native_vertex_t));
 
     mg_draw_begin();
 
@@ -532,16 +516,36 @@ static void gl_rsp_mtx_index(const uint8_t *mtx_index)
     }
 }
 
+static void get_array_element_convert_parms(array_convert_parms_t *parms, uint32_t index)
+{
+    static const data_layout_t layout = {
+        .offsets = {
+            offsetof(native_vertex_t, position),
+            offsetof(native_vertex_t, normal),
+            offsetof(native_vertex_t, color),
+            offsetof(native_vertex_t, texcoord),
+            offsetof(native_vertex_t, mtx_index),
+        },
+        .stride = sizeof(native_vertex_t)
+    };
+
+    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
+    {
+        parms->arrays[i] = &state->array_object->arrays[i];
+    }
+
+    parms->array_count = ATTRIB_COUNT;
+    parms->out_layout = &layout;
+    parms->out_buffer = &state->current_attribs;
+    parms->range.first = index;
+    parms->range.count = 1;
+}
+
 static void gl_rsp_array_element(uint32_t index)
 {
-    static const uint32_t out_offsets[ATTRIB_COUNT] = {
-        offsetof(native_vertex_t, position),
-        offsetof(native_vertex_t, normal),
-        offsetof(native_vertex_t, color),
-        offsetof(native_vertex_t, texcoord),
-        offsetof(native_vertex_t, mtx_index),
-    };
-    array_convert(state->array_object, out_offsets, &state->current_attribs, index, 1, sizeof(native_vertex_t), ATTRIB_VERTEX, ATTRIB_COUNT);
+    array_convert_parms_t convert_parms;
+    get_array_element_convert_parms(&convert_parms, index);
+    array_convert(&convert_parms);
 
     if (state->array_object->arrays[ATTRIB_MTX_INDEX].enabled) {
         gl_rsp_mtx_index(state->current_attribs.mtx_index);
@@ -552,115 +556,70 @@ static void gl_rsp_array_element(uint32_t index)
     }
 }
 
-static void prepare_drawing_from_arrays()
+static data_view_t get_vertex_data_for_block(gl_array_object_t *array_object, index_bounds_t bounds)
 {
-    array_object_update(state->array_object);
-    prepare_drawing_with_magma();
+    uint32_t stride = data_source_get_stride(&array_object->vertex_data_source);
+
+    void *buffer = malloc_uncached(stride * bounds.count);
+    rspq_block_atexit(free_uncached, buffer);
+    data_source_pull(&array_object->vertex_data_source, buffer, bounds);
+
+    return (data_view_t) {
+        .pointer = buffer,
+        .stride = data_source_get_stride(&array_object->vertex_data_source)
+    };
 }
 
-static void prepare_array_vertex_data(gl_array_object_t *array_object, uint32_t first, uint32_t count)
+static void update_pipelines(gl_array_object_t *array_object)
+{
+    vertex_layout_cache_update(&array_object->layout_cache, array_object->arrays);
+    vertex_layout *vertex_layout = vertex_layout_cache_get_layout(&array_object->layout_cache);
+    update_pipelines_from_layout(vertex_layout);
+}
+
+static data_view_t get_vertex_data_view(gl_array_object_t *array_object, index_bounds_t bounds)
 {
     if (rspq_block_is_recording()) {
-        void *buffer = malloc_uncached(array_object->layout.vertex_layout.stride * count);
-        rspq_block_atexit(free_uncached, buffer);
-        array_object_convert_into(array_object, &array_object->vertex_data_cache, first, count, buffer);
-        mg_bind_vertex_buffer(buffer);
-    } else {
-        data_cache_fill(array_object, &array_object->vertex_data_cache, first, count);
-        // It's possible that we are now accessing a sub-range of a previously cached buffer.
-        // In that case we need to apply an offset, since the draw command expects the first vertex at offset 0.
-        uint32_t buffer_offset = first - array_object->vertex_data_cache.cached_first;
-        mg_bind_vertex_buffer(((uint8_t*)array_object->vertex_data_cache.data) + buffer_offset * array_object->layout.vertex_layout.stride);
+        return get_vertex_data_for_block(array_object, bounds);
     }
+
+    return data_cache_prepare_at_bounds(&array_object->vertex_data_cache, bounds);
 }
 
-static void get_input_assembly_parms(mg_input_assembly_parms_t *parms, gl_array_object_t *array_object, GLenum mode, uint32_t first, uint32_t count)
+static void prepare_vertex_data(gl_array_object_t *array_object, index_bounds_t bounds)
 {
-    parms->primitive_topology = get_primitive_topology(mode);
-    parms->primitive_restart_enabled = false;
+    data_view_t vertex_data_view = get_vertex_data_view(state->array_object, bounds);
+    mg_set_vertex_stride(vertex_data_view.stride);
+    mg_bind_vertex_buffer(vertex_data_view.pointer);
+}
 
-    gl_array_t *mtx_index_array = &array_object->arrays[ATTRIB_MTX_INDEX];
-    if (mtx_index_array->enabled) {
-        gl_vertex_data_cache_t *cache = &array_object->mtx_indices_cache;
-
-        data_cache_fill(array_object, cache, first, count);
-
-        uint32_t buffer_offset = first - cache->cached_first;
-        parms->mtx_indices = ((uint8_t*)cache->data) + buffer_offset;
-        parms->mtx_indices_stride = cache->cached_stride;
-        parms->matrices = state->matrix_palette;
-        parms->matrices_stride = sizeof(state->matrix_palette[0]);
-        parms->matrix_uniform = *state->matrices_uniform;
-    } else {
-        parms->mtx_indices = NULL;
-    }
+static void prepare_drawing(gl_array_object_t *array_object, index_bounds_t bounds)
+{
+    update_pipelines(array_object);
+    magma_init();
+    prepare_vertex_data(array_object, bounds);
 }
 
 static void gl_rsp_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
 {
-    prepare_drawing_from_arrays();
-    prepare_array_vertex_data(state->array_object, first, count);
+    // TODO: Do nothing if vertex array is disabled
+    
+    index_bounds_t range = {
+        .first = first,
+        .count = count
+    };
+    
+    prepare_drawing(state->array_object, range);
+
     mg_draw_begin();
-
-    mg_input_assembly_parms_t input_assembly_parms;
-    get_input_assembly_parms(&input_assembly_parms, state->array_object, mode, first, count);
-
-    // TODO: record into block?
+    mg_input_assembly_parms_t input_assembly_parms = array_object_get_input_assembly_parms(state->array_object, mode, range);
     mg_draw(&input_assembly_parms, count, first);
     mg_draw_end();
 }
 
-static void find_index_bounds(const uint16_t *indices, uint32_t count, uint16_t *min_index, uint16_t *max_index)
+static const uint16_t *get_indices_from_buffer(gl_buffer_object_t *buffer_object, uint32_t offset)
 {
-    uint16_t min = USHRT_MAX;
-    uint16_t max = 0;
-
-    for (size_t i = 0; i < count; i++)
-    {
-        if (indices[i] < min) min = indices[i];
-        if (indices[i] > max) max = indices[i];
-    }
-
-    *min_index = min;
-    *max_index = max;
-}
-
-static void update_element_array_cache(gl_array_object_t *array_object, GLenum mode, uint32_t count, uint32_t offset, uint16_t *min_index, uint16_t *max_index)
-{
-    gl_buffer_object_t *element_buffer = array_object->element_array_buffer;
-
-    if (element_buffer->element_cache == NULL) {
-        element_buffer->element_cache = calloc(1, sizeof(gl_element_array_cache_t));
-    }
-
-    const uint16_t *indices_i16 = (const uint16_t*)((const uint8_t*)element_buffer->storage.data + offset);
-
-    gl_element_array_cache_t *cache = element_buffer->element_cache;
-    bool is_dirty = false;
-    if (cache->is_data_dirty || cache->count != count || cache->offset != offset) {
-        find_index_bounds(indices_i16, count, &cache->min_index, &cache->max_index);
-        cache->count = count;
-        cache->offset = offset;
-        is_dirty = true;
-    }
-    
-    if (is_dirty || cache->mode != mode || 
-        (array_object->arrays[ATTRIB_MTX_INDEX].enabled && array_object->mtx_indices_cache.is_data_dirty)) {
-        cache->mode = mode;
-
-        mg_input_assembly_parms_t assembly_parms;
-        get_input_assembly_parms(&assembly_parms, array_object, mode, cache->min_index, cache->max_index - cache->min_index + 1);
-
-        if (cache->block != NULL) rspq_call_deferred((void(*)(void*))rspq_block_free, cache->block);
-
-        rspq_block_begin();
-        mg_draw_indexed(&assembly_parms, indices_i16, count, -cache->min_index);
-        cache->block = rspq_block_end();
-        cache->is_data_dirty = false;
-    }
-
-    *min_index = cache->min_index;
-    *max_index = cache->max_index;
+    return (const uint16_t*)((const uint8_t*)buffer_object->storage.data + offset);
 }
 
 static const uint16_t *get_indices(gl_buffer_object_t *element_buffer, const void* indices)
@@ -668,37 +627,71 @@ static const uint16_t *get_indices(gl_buffer_object_t *element_buffer, const voi
     if (element_buffer == NULL) {
         return (const uint16_t*)indices;
     } else {
-        return (const uint16_t*)((const uint8_t*)element_buffer->storage.data + (uint32_t)indices);
+        return get_indices_from_buffer(element_buffer, (uint32_t)indices);
     }
+}
+
+static cached_draw_call_t *get_or_create_draw_call(gl_array_object_t *array_object, const draw_call_parms_t *parms)
+{
+    draw_call_cache_t *draw_call_cache = array_object_get_draw_call_cache(state->array_object);
+    return draw_call_cache_get_or_create(draw_call_cache, parms);
+}
+
+static cached_draw_call_t *prepare_draw_call(gl_array_object_t *array_object, const draw_call_parms_t *parms, const void *index_data)
+{
+    cached_draw_call_t *draw_call = get_or_create_draw_call(array_object, parms);
+    
+    if (draw_call_needs_update(draw_call)) {
+        draw_call_update(draw_call, index_data, array_object);
+    }
+
+    return draw_call;
+}
+
+static void draw_elements_from_buffer(GLenum mode, uint32_t count, const void* indices, gl_buffer_object_t *element_buffer)
+{
+    draw_call_parms_t parms = {
+        .mode = mode,
+        .offset = (uint32_t)indices,
+        .count = count
+    };
+
+    const void *index_data = get_indices(element_buffer, indices);
+    cached_draw_call_t *draw_call = prepare_draw_call(state->array_object, &parms, index_data);
+    
+    prepare_drawing(state->array_object, draw_call->index_range);
+
+    mg_draw_begin();
+    draw_call_run(draw_call);
+    mg_draw_end();
+}
+
+static void draw_elements_from_pointer(GLenum mode, uint32_t count, const void* indices)
+{
+    index_bounds_t range = find_index_bounds(indices, count);
+
+    prepare_drawing(state->array_object, range);
+
+    mg_draw_begin();
+    mg_input_assembly_parms_t input_assembly_parms = array_object_get_input_assembly_parms(state->array_object, mode, range);
+    mg_draw_indexed(&input_assembly_parms, indices, count, -range.first);
+    mg_draw_end();
 }
 
 static void gl_rsp_draw_elements(GLenum mode, uint32_t count, const void* indices, GLenum type)
 {
     assertf(type == GL_UNSIGNED_SHORT, "Index type must be GL_UNSIGNED_SHORT");
-
-    prepare_drawing_from_arrays();
-
-    uint16_t min_index, max_index;
+    
+    // TODO: Do nothing if vertex array is disabled
 
     gl_buffer_object_t *element_buffer = state->array_object->element_array_buffer;
+    
     if (element_buffer != NULL && !rspq_block_is_recording()) {
-        update_element_array_cache(state->array_object, mode, count, (uint32_t)indices, &min_index, &max_index);
+        draw_elements_from_buffer(mode, count, indices, element_buffer);
     } else {
-        find_index_bounds(get_indices(element_buffer, indices), count, &min_index, &max_index);
+        const void *index_data = get_indices(element_buffer, indices);
+        draw_elements_from_pointer(mode, count, index_data);
     }
-
-    uint32_t vertex_count = max_index - min_index + 1;
-
-    prepare_array_vertex_data(state->array_object, min_index, vertex_count);
-    mg_draw_begin();
-    if (element_buffer != NULL && !rspq_block_is_recording()) {
-        rspq_block_run(element_buffer->element_cache->block);
-    } else {
-        mg_input_assembly_parms_t input_assembly_parms;
-        get_input_assembly_parms(&input_assembly_parms, state->array_object, mode, min_index, vertex_count);
-        mg_draw_indexed(&input_assembly_parms, get_indices(element_buffer, indices), count, -min_index);
-    }
-    mg_draw_end();
 }
 
 const gl_pipeline_t gl_rsp_pipeline = (gl_pipeline_t) {
