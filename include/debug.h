@@ -62,6 +62,35 @@ extern "C" {
  */
 #define DEBUG_FEATURE_LOG_ISVIEWER  (1 << 1)
 
+/**
+ * @brief Flag to activate the emux logging channel.
+ *
+ * @ref emux is a set of N64 emulator extensions.
+ * Specifically, this makes use of the xlog extension.
+ *
+ * Logging can be done by writing to stderr. You can use the debugf()
+ * macro as a simple wrapper over fprintf(stderr) that can be
+ * disabled when building the final ROM through the NDEBUG macro.
+ *
+ * Supported emulators:
+ *
+ *   * Ares (https://ares-emulator.github.io)
+ *
+ */
+#define DEBUG_FEATURE_LOG_EMUX  (1 << 4)
+
+/**
+ * @brief Don't activate ISViewer if emux is available.
+ *
+ * @see #DEBUG_FEATURE_LOG_EMUX
+ */
+#define DEBUG_FEATURE_LOG_PREFER_EMUX_OVER_ISVIEWER (1 << 5)
+
+/**
+ * @brief Activate the best available logging channel for in-emulator development.
+ */
+#define DEBUG_FEATURE_LOG_EMULATOR_BEST (DEBUG_FEATURE_LOG_ISVIEWER | DEBUG_FEATURE_LOG_EMUX | DEBUG_FEATURE_LOG_PREFER_EMUX_OVER_ISVIEWER)
+
 /** 
  * @brief Flag to activate the logging on CompactFlash/SD card.
  *
@@ -118,6 +147,21 @@ extern "C" {
  */
 #define DEBUG_FEATURE_FILE_SD       (1 << 3)
 
+/**
+ * @brief Flag to enable emux exceptions
+ *
+ * @ref emux is a set of N64 emulator extensions.
+ * Specifically, this makes use of the xexception extension.
+ *
+ * This extension allows emulators to report hardware crashes using CPU exceptions.
+ *
+ * Supported emulators:
+ *
+ *   * Ares (https://ares-emulator.github.io)
+ *
+ */
+#define DEBUG_FEATURE_EMUX_EXCEPTIONS (1 << 6)
+
 
 /**
  * @brief Flag to activate all supported debugging features.
@@ -152,10 +196,21 @@ extern "C" {
 	 * @return true if the ISViewer logging channel was initialized successfully, false otherwise
 	 */
 	bool debug_init_isviewer(void);
+	/**
+	 * @brief Initialize emux logging.
+	 *
+	 * This function initializes the emux logging channel. It is used to log messages
+	 * to emulators that support it.
+	 *
+	 * @return true if the emux logging channel was initialized successfully, false otherwise
+	 */
+	bool debug_init_emux_log(void);
 	/** @brief Initialize SD logging. */
 	bool debug_init_sdlog(const char *fn, const char *openfmt);
 	/** @brief Initialize SD filesystem */
 	bool debug_init_sdfs(const char *prefix, int npart);
+	/** @brief Use emux exceptions */
+	bool debug_init_emux_exceptions(void);
 
 	/** @brief Shutdown SD filesystem. */
 	void debug_close_sdfs(void);
@@ -174,14 +229,21 @@ extern "C" {
 	static inline bool debug_init(int features)
 	{
 		bool ok = false; 
+		bool emux_log_ok = false;
 		if (features & DEBUG_FEATURE_LOG_USB)
 			ok = debug_init_usblog() || ok;
-		if (features & DEBUG_FEATURE_LOG_ISVIEWER)
+		if (features & DEBUG_FEATURE_LOG_EMUX)
+			ok = (emux_log_ok = debug_init_emux_log()) || ok;
+		if ((features & DEBUG_FEATURE_LOG_ISVIEWER)
+			&& ((features & DEBUG_FEATURE_LOG_PREFER_EMUX_OVER_ISVIEWER)
+					? !emux_log_ok : true))
 			ok = debug_init_isviewer() || ok;
 		if (features & DEBUG_FEATURE_FILE_SD)
 			ok = debug_init_sdfs("sd:/", -1) || ok;
 		if (features & DEBUG_FEATURE_LOG_SD)
 			ok = debug_init_sdlog("sd:/libdragon.log", "a");
+		if (features & DEBUG_FEATURE_EMUX_EXCEPTIONS)
+			ok = debug_init_emux_exceptions() || ok;
 		return ok;
 	}
 

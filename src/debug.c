@@ -308,11 +308,17 @@ bool debug_init_usblog(void)
 
 bool debug_init_isviewer(void)
 {
-	if (emux_detect(1) & EMUX_FEAT1_EXCEPTION)
+	if (isviewer_init())
 	{
-		// Activate exceptions on console freeze
-		emux_exception_set_mask(EMUX_EXCEPTION_ERR_MASK);
+		hook_init_once();
+		debug_writer[1] = isviewer_write;
+		return true;
 	}
+	
+	return false;
+}
+
+bool debug_init_emux_log(void) {
 
 	if (emux_detect(1) & EMUX_FEAT1_LOG)
 	{
@@ -321,13 +327,6 @@ bool debug_init_isviewer(void)
 		return true;
 	}
 
-	if (isviewer_init())
-	{
-		hook_init_once();
-		debug_writer[1] = isviewer_write;
-		return true;
-	}
-	
 	return false;
 }
 
@@ -360,6 +359,17 @@ void debug_close_sdfs(void)
 		detach_filesystem(sdfs_prefix);
 		f_mount(NULL, sdfs_logic_drive, 0);
 	}
+}
+
+bool debug_init_emux_exceptions(void) {
+	if (emux_detect(1) & EMUX_FEAT1_EXCEPTION)
+	{
+		// Activate exceptions on console freeze
+		emux_exception_set_mask(EMUX_EXCEPTION_ERR_MASK);
+		return true;
+	}
+
+	return false;
 }
 
 static void debugfv(const char *msg, va_list args)
