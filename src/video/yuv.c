@@ -367,7 +367,7 @@ void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
     yuv_tex_blit_run(frame->y.width, frame->y.height, x0, y0, parms, cs, false);
 }
 
-void yuv_tex_blit_semiplanar(surface_t *y, surface_t *uv, float x0, float y0,
+void yuv_tex_blit_nv12(surface_t *y, surface_t *uv, float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs)
 {
     assertf(y->width == uv->width*2 && y->height == uv->height*2,

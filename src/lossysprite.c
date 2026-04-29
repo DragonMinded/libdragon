@@ -20,10 +20,12 @@
 #include "video/h264_decoder/h264bsd_util.h"
 #include "video/rsph264_internal.h"
 #include "asset.h"
+#include "graphics.h"
 #include "sprite.h"
 #include "sprite_internal.h"
 #include "n64sys.h"
 #include "surface.h"
+#include "yuv.h"
 #include "debug.h"
 
 #include <string.h>
@@ -32,22 +34,35 @@
 #include <malloc.h>
 
 #define LSPR_MAGIC "LSPR"
-#define LSPR_VERSION 3
+#define LSPR_VERSION 4
 
 // LSPR header flags layout (16 bits) — must match tools/mksprite/mksprite_lossy.cpp:
 //   bits [1:0]  YUV chroma subsampling (LSPR_YUV_*)
 //   bits [3:2]  YUV colorspace; values match sprite_colorspace_e and so are
 //               assigned directly into sprite_ext_t::colorspace.
-enum {
+//   bits [7:4]  Target memory format (LSPR_TARGET_*)
+// Must mirror the enum in tools/mksprite/mksprite_lossy.cpp
+enum lspr_chroma_e {
     LSPR_YUV_420 = 0,
     LSPR_YUV_422 = 1,
     LSPR_YUV_444 = 2,
     LSPR_YUV_400 = 3,
 };
 
-#define LSPR_FLAGS_COLORSPACE_SHIFT 2
-#define LSPR_FLAGS_COLORSPACE_MASK  (0x3 << LSPR_FLAGS_COLORSPACE_SHIFT)
+// Target sprite format the runtime decoder converts the YUV reconstruction to.
+// Must mirror the enum in tools/mksprite/mksprite_lossy.cpp
+enum lspr_target_e {
+    LSPR_TARGET_RGBA16 = 0, // 5:5:5:1 RGBA (default)
+    LSPR_TARGET_RGBA32 = 1, // 8:8:8:8 RGBA
+    LSPR_TARGET_UYVY   = 2, // packed 4:2:2 (also known as FMT_YUV16)
+    LSPR_TARGET_NV12   = 3, // semi-planar 4:2:0
+};
 
+/**
+ * @brief Header structure for LSPR-encoded files.
+ * 
+ * Must mirror the layout used in tools/mksprite/mksprite_lossy.cpp
+ */
 typedef struct lspr_header_s {
     uint8_t magic[4];
     uint16_t version;
@@ -58,6 +73,28 @@ typedef struct lspr_header_s {
     uint16_t orig_height;
     uint8_t payload[];
 } lspr_header_t;
+
+#define LSPR_FLAGS_CHROMA_SHIFT     0
+#define LSPR_FLAGS_CHROMA_MASK      0x3
+#define LSPR_FLAGS_COLORSPACE_SHIFT 2
+#define LSPR_FLAGS_COLORSPACE_MASK  (0x3 << LSPR_FLAGS_COLORSPACE_SHIFT)
+#define LSPR_FLAGS_TARGET_SHIFT     4
+#define LSPR_FLAGS_TARGET_MASK      (0xF << LSPR_FLAGS_TARGET_SHIFT)
+
+/** @brief Extract the chroma subsampling from the LSPR flags. */
+static inline enum lspr_chroma_e lspr_chroma(uint16_t flags) {
+    return (flags & LSPR_FLAGS_CHROMA_MASK) >> LSPR_FLAGS_CHROMA_SHIFT;
+}
+
+/** @brief Extract the target sprite format from the LSPR flags. */
+static inline enum lspr_target_e lspr_target(uint16_t flags) {
+    return (flags & LSPR_FLAGS_TARGET_MASK) >> LSPR_FLAGS_TARGET_SHIFT;
+}
+
+/** @brief Extract the YUV colorspace from the LSPR flags. */
+static inline enum sprite_colorspace_e lspr_colorspace(uint16_t flags) {
+    return (flags & LSPR_FLAGS_COLORSPACE_MASK) >> LSPR_FLAGS_COLORSPACE_SHIFT;
+}
 
 static void lspr_set_mb_params(mbStorage_t *pMb, sliceHeader_t *pSlice, u32 sliceId,
                                i32 chromaQpIndexOffset) {
@@ -181,34 +218,71 @@ static void lspr_decode_intra_slice(
     *out_yuv_size = yuv_size;
 }
 
-sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
-    assertf(buf && sz >= (int)sizeof(lspr_header_t), "Invalid LSPR buffer");
+// Walk an orig_w x orig_h crop of the I420 reconstruction. (U,V) are shared
+// across each 2x2 block at (x/2, y/2).
+static void lspr_i420_to_rgba32(const uint8_t *y_plane, const uint8_t *u_plane, const uint8_t *v_plane,
+                                int stride, int uv_stride,
+                                int w, int h,
+                                const yuv_colorspace_t *cs,
+                                uint8_t *dst) {
+    for (int py = 0; py < h; py++) {
+        const uint8_t *yrow = y_plane + (size_t)py * stride;
+        const uint8_t *urow = u_plane + (size_t)(py / 2) * uv_stride;
+        const uint8_t *vrow = v_plane + (size_t)(py / 2) * uv_stride;
+        uint8_t *drow = dst + (size_t)py * w * 4;
+        for (int px = 0; px < w; px++) {
+            color_t c = yuv_to_rgb(yrow[px], urow[px / 2], vrow[px / 2], cs);
+            drow[px * 4 + 0] = c.r;
+            drow[px * 4 + 1] = c.g;
+            drow[px * 4 + 2] = c.b;
+            drow[px * 4 + 3] = 0xFF;
+        }
+    }
+}
 
-    const lspr_header_t *hdr = (const lspr_header_t *)buf;
-    assertf(memcmp(hdr->magic, LSPR_MAGIC, 4) == 0, "Invalid LSPR magic");
-    assertf(hdr->version == LSPR_VERSION, "Invalid LSPR version");
-    assertf((hdr->flags & 0x3) == LSPR_YUV_420, "Invalid LSPR YUV format");
+static void lspr_i420_to_rgba16(const uint8_t *y_plane, const uint8_t *u_plane, const uint8_t *v_plane,
+                                int stride, int uv_stride,
+                                int w, int h,
+                                const yuv_colorspace_t *cs,
+                                uint16_t *dst) {
+    for (int py = 0; py < h; py++) {
+        const uint8_t *yrow = y_plane + (size_t)py * stride;
+        const uint8_t *urow = u_plane + (size_t)(py / 2) * uv_stride;
+        const uint8_t *vrow = v_plane + (size_t)(py / 2) * uv_stride;
+        uint16_t *drow = dst + (size_t)py * w;
+        for (int px = 0; px < w; px++) {
+            color_t c = yuv_to_rgb(yrow[px], urow[px / 2], vrow[px / 2], cs);
+            drow[px] = color_to_packed16(c);
+        }
+    }
+}
 
-    uint16_t width = hdr->width;
-    uint16_t height = hdr->height;
-    uint16_t orig_w = hdr->orig_width;
-    uint16_t orig_h = hdr->orig_height;
-    const uint8_t *payload = hdr->payload;
-    size_t payload_size = (size_t)sz - sizeof(lspr_header_t);
+// Vertically upsample chroma (4:2:0 -> 4:2:2) by reusing the same source
+// (U,V) row across both vertical neighbors. Output byte order is U,Y0,V,Y1
+// per pixel pair, matching the FMT_YUV16 (UYVY) layout the RDP expects.
+static void lspr_i420_to_uyvy(const uint8_t *y_plane, const uint8_t *u_plane, const uint8_t *v_plane,
+                              int stride, int uv_stride,
+                              int w, int h,
+                              uint8_t *dst) {
+    for (int py = 0; py < h; py++) {
+        const uint8_t *yrow = y_plane + (size_t)py * stride;
+        const uint8_t *urow = u_plane + (size_t)(py / 2) * uv_stride;
+        const uint8_t *vrow = v_plane + (size_t)(py / 2) * uv_stride;
+        uint8_t *drow = dst + (size_t)py * w * 2;
+        for (int px = 0; px < w; px += 2) {
+            drow[px * 2 + 0] = urow[px / 2];
+            drow[px * 2 + 1] = yrow[px];
+            drow[px * 2 + 2] = vrow[px / 2];
+            drow[px * 2 + 3] = yrow[px + 1];
+        }
+    }
+}
 
-    rsph264_init();
-    rsph264_begin_frame();
-
-    uint8_t *pic = NULL;
-    size_t pic_size = 0;
-    lspr_decode_intra_slice(payload, payload_size, width, height, &pic, &pic_size);
-
-    int mb_w = (width + 15) / 16;
-    int mb_h = (height + 15) / 16;
-    int stride = mb_w * 16;
-    int luma_h = mb_h * 16;
-
-    // yuv_tex_blit_semiplanar asserts (Y width % 32) == 0 (in addition to
+static sprite_t *lspr_build_nv12_sprite(const uint8_t *pic,
+                                        uint16_t orig_w, uint16_t orig_h,
+                                        int stride, int luma_h,
+                                        uint16_t flags) {
+    // yuv_tex_blit_nv12 asserts (Y width % 32) == 0 (in addition to
     // height % 16, which is always satisfied since luma_h = mb_h*16).
     // LSPR-aware encoders pad accordingly; if not, this fires loudly
     // rather than producing a garbled blit.
@@ -220,7 +294,7 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     // interleaved UV plane (FMT_IA16, stride/2 x luma_h/2 with U in the
     // high byte and V in the low byte of each pixel). This matches the
     // byte layout that the RSP UV interleaver in yuv.c produces, so the
-    // RDP can load it directly via yuv_tex_blit_semiplanar without a
+    // RDP can load it directly via yuv_tex_blit_nv12 without a
     // per-frame interleave pass. Total bytes match a fully-planar Y+U+V
     // layout: y_bytes + 2*uv_bytes.
     size_t y_bytes  = (size_t)stride * luma_h;
@@ -242,10 +316,10 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     sprite_ext_t *sx = (sprite_ext_t*)spr->data;
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
-    sx->flags = SPRITE_FLAG_YUV_SEMIPLANAR;
+    sx->flags = SPRITE_FLAG_YUV_NV12;
     // Colorspace ID is encoded directly into sprite_colorspace_e values, so
     // the bit field maps 1:1 into sx->colorspace.
-    sx->colorspace = (hdr->flags & LSPR_FLAGS_COLORSPACE_MASK) >> LSPR_FLAGS_COLORSPACE_SHIFT;
+    sx->colorspace = lspr_colorspace(flags);
     sx->data_ptr = (uint32_t)pixel_off;
     // Stash the padded plane dimensions for the renderer. The texparms fields
     // are otherwise unread (SPRITE_FLAG_HAS_TEXPARMS is not set).
@@ -265,15 +339,139 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     }
     data_cache_hit_writeback(plane_base, plane_bytes_aligned);
 
-    free_uncached(pic);
+    return spr;
+}
 
+static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
+                                          uint16_t orig_w, uint16_t orig_h,
+                                          int stride, int luma_h,
+                                          uint16_t flags) {
+    tex_format_t fmt;
+    size_t pixel_bytes;
+    enum lspr_target_e target = lspr_target(flags);
+    switch (target) {
+    case LSPR_TARGET_RGBA32:
+        fmt = FMT_RGBA32;
+        pixel_bytes = (size_t)orig_w * orig_h * 4;
+        break;
+    case LSPR_TARGET_RGBA16:
+        fmt = FMT_RGBA16;
+        pixel_bytes = (size_t)orig_w * orig_h * 2;
+        break;
+    case LSPR_TARGET_UYVY:
+        fmt = FMT_YUV16;
+        pixel_bytes = (size_t)orig_w * orig_h * 2;
+        break;
+    default:
+        assertf(0, "LSPR: unsupported target format %d", target);
+        return NULL;
+    }
+
+    size_t pixel_bytes_aligned = (pixel_bytes + 15) & ~(size_t)15;
+    size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
+    size_t pixel_off = (header_bytes + 63) & ~(size_t)63;
+    size_t total_bytes = pixel_off + pixel_bytes_aligned;
+    sprite_t *spr = (sprite_t*)memalign(64, total_bytes);
+    assertf(spr, "Out of memory");
+    memset(spr, 0, pixel_off);
+    spr->width = orig_w;
+    spr->height = orig_h;
+    spr->flags = SPRITE_FLAGS_OWNEDBUFFER | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | fmt;
+    spr->hslices = 1;
+    spr->vslices = 1;
+
+    sprite_ext_t *sx = (sprite_ext_t*)spr->data;
+    sx->size = sizeof(sprite_ext_t);
+    sx->version = SPRITE_EXT_VERSION;
+    sx->flags = 0; // not semi-planar; ordinary blit path
+    sx->colorspace = lspr_colorspace(flags);
+    sx->data_ptr = (uint32_t)pixel_off;
+
+    // Convert from the I420 reconstruction the H.264 decoder produced.
+    // Y/U/V strides are derived from the macroblock-padded picture size.
+    int uv_stride = stride / 2;
+    size_t y_bytes  = (size_t)stride * luma_h;
+    size_t uv_bytes = (size_t)uv_stride * (luma_h / 2);
+    const uint8_t *y_plane = pic;
+    const uint8_t *u_plane = pic + y_bytes;
+    const uint8_t *v_plane = u_plane + uv_bytes;
+    uint8_t *dst = (uint8_t*)spr + pixel_off;
+
+    if (target == LSPR_TARGET_UYVY) {
+        assertf((orig_w & 1) == 0,
+                "LSPR: UYVY target requires even width (got %d)", orig_w);
+        lspr_i420_to_uyvy(y_plane, u_plane, v_plane,
+                          stride, uv_stride, orig_w, orig_h, dst);
+    } else {
+        const yuv_colorspace_t *cs = __sprite_colorspace(sx->colorspace);
+        if (target == LSPR_TARGET_RGBA32) {
+            lspr_i420_to_rgba32(y_plane, u_plane, v_plane,
+                                stride, uv_stride, orig_w, orig_h, cs, dst);
+        } else {
+            lspr_i420_to_rgba16(y_plane, u_plane, v_plane,
+                                stride, uv_stride, orig_w, orig_h, cs,
+                                (uint16_t*)dst);
+        }
+    }
+
+    data_cache_hit_writeback(dst, pixel_bytes_aligned);
+    return spr;
+}
+
+void lossysprite_init(void)
+{
+    sprite_decoder_register(LSPR_MAGIC, lossysprite_decode_buf);
+}
+
+void lossysprite_close(void)
+{
+    sprite_decoder_unregister(LSPR_MAGIC);
+}
+
+sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
+    assertf(buf && sz >= (int)sizeof(lspr_header_t), "Invalid LSPR buffer");
+
+    const lspr_header_t *hdr = (const lspr_header_t *)buf;
+    assertf(memcmp(hdr->magic, LSPR_MAGIC, 4) == 0, "Invalid LSPR magic");
+    // Accept v3 (legacy: implicit RGBA16 target) and v4 (explicit target field).
+    assertf(hdr->version == 3 || hdr->version == LSPR_VERSION,
+            "Invalid LSPR version %u", (unsigned)hdr->version);
+    assertf(lspr_chroma(hdr->flags) == LSPR_YUV_420, "Invalid LSPR YUV format");
+
+    uint16_t width = hdr->width;
+    uint16_t height = hdr->height;
+    uint16_t orig_w = hdr->orig_width;
+    uint16_t orig_h = hdr->orig_height;
+    const uint8_t *payload = hdr->payload;
+    size_t payload_size = (size_t)sz - sizeof(lspr_header_t);
+
+    rsph264_init();
+    rsph264_begin_frame();
+
+    uint8_t *pic = NULL;
+    size_t pic_size = 0;
+    lspr_decode_intra_slice(payload, payload_size, width, height, &pic, &pic_size);
+
+    int mb_w = (width + 15) / 16;
+    int mb_h = (height + 15) / 16;
+    int stride = mb_w * 16;
+    int luma_h = mb_h * 16;
+
+    sprite_t *spr;
+    if (lspr_target(hdr->flags) == LSPR_TARGET_NV12) {
+        spr = lspr_build_nv12_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags);
+    } else {
+        spr = lspr_build_target_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags);
+    }
+
+    free_uncached(pic);
     return spr;
 }
 
 sprite_t* lossysprite_load(const char *fn) {
     int sz = 0;
     uint8_t *enc = asset_load(fn, &sz);
-    sprite_t *spr = __lossysprite_decode_buf(enc, sz);
+    sprite_t *spr = lossysprite_decode_buf(enc, sz);
     free(enc);
     return spr;
 }

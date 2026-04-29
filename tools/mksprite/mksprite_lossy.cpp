@@ -41,27 +41,43 @@ extern "C" {
 #include "mksprite.h"
 #include "x264/x264.h"
 
+// Must mirror enum sprite_colorspace_e in src/sprite_internal.h
+enum sprite_colorspace_e {
+    SPRITE_COLORSPACE_BT601_TV   = 0,
+    SPRITE_COLORSPACE_BT601_FULL = 1,
+    SPRITE_COLORSPACE_BT709_TV   = 2,
+    SPRITE_COLORSPACE_BT709_FULL = 3,
+};
+
 // LSPR header flags layout (16 bits):
 //   bits [1:0]  YUV chroma subsampling (LSPR_YUV_*)
-//   bits [3:2]  YUV colorspace (LSPR_COLORSPACE_*; values must match
+//   bits [3:2]  YUV colorspace (SPRITE_COLORSPACE_*; values must match
 //               sprite_colorspace_e in src/sprite_internal.h)
-enum {
+//   bits [7:4]  Target memory format (LSPR_TARGET_*)
+// Must mirror enum lspr_chroma_e in src/lossysprite.c
+enum lspr_chroma_e {
     LSPR_YUV_420 = 0,
     LSPR_YUV_422 = 1,
     LSPR_YUV_444 = 2,
     LSPR_YUV_400 = 3,
 };
 
-enum {
-    LSPR_COLORSPACE_BT601_TV   = 0,
-    LSPR_COLORSPACE_BT601_FULL = 1,
-    LSPR_COLORSPACE_BT709_TV   = 2,
-    LSPR_COLORSPACE_BT709_FULL = 3,
+// Target memory format the runtime decoder converts the YUV reconstruction to.
+// Default (RGBA16 = 0) means an all-zero target field decodes to the new
+// default. NV12 reproduces the original semi-planar runtime layout that the
+// FMT_YUV16 + SPRITE_FLAG_YUV_NV12 render path consumes.
+// Must mirror enum lspr_target_e in src/lossysprite.c
+enum lspr_target_e {
+    LSPR_TARGET_RGBA16 = 0, // 5:5:5:1 RGBA (default)
+    LSPR_TARGET_RGBA32 = 1, // 8:8:8:8 RGBA
+    LSPR_TARGET_UYVY   = 2, // packed 4:2:2 (also known as FMT_YUV16)
+    LSPR_TARGET_NV12   = 3, // semi-planar 4:2:0
 };
 
 #define LSPR_FLAGS_COLORSPACE_SHIFT 2
+#define LSPR_FLAGS_TARGET_SHIFT     4
 
-#define LSPR_VERSION 3
+#define LSPR_VERSION 4
 
 static void verbose(const char *str, ...) {
     if (!flag_verbose) return;
@@ -320,9 +336,21 @@ extern "C" int mksprite_convert_lossy(
         fprintf(stderr, "mksprite: lossy does not support mipmap generation\n");
         return 1;
     }
-    if (pm->outfmt != FMT_NONE && pm->outfmt != FMT_RGBA16) {
-        fprintf(stderr, "mksprite: lossy supports only RGBA16 format\n");
-        return 1;
+    uint16_t target_code;
+    const char *target_name;
+    if (pm->lossy_nv12) {
+        target_code = LSPR_TARGET_NV12;
+        target_name = "NV12";
+    } else {
+        switch (pm->outfmt) {
+        case FMT_NONE:   target_code = LSPR_TARGET_RGBA16; target_name = "RGBA16"; break;
+        case FMT_RGBA16: target_code = LSPR_TARGET_RGBA16; target_name = "RGBA16"; break;
+        case FMT_RGBA32: target_code = LSPR_TARGET_RGBA32; target_name = "RGBA32"; break;
+        case FMT_YUV16:  target_code = LSPR_TARGET_UYVY;   target_name = "UYVY";   break;
+        default:
+            fprintf(stderr, "mksprite: lossy --format only supports RGBA32, RGBA16, UYVY, NV12\n");
+            return 1;
+        }
     }
 
     palette_t pal = {0};
@@ -331,8 +359,14 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
-    if (img.fmt != FMT_RGBA16 || img.ct != LCT_RGBA) {
-        fprintf(stderr, "mksprite: lossy supports only RGBA16 format\n");
+    if (img.ct != LCT_RGBA) {
+        fprintf(stderr, "mksprite: lossy: failed to load PNG as RGBA\n");
+        free(img.image);
+        return 1;
+    }
+
+    if (target_code == LSPR_TARGET_UYVY && (img.width & 1)) {
+        fprintf(stderr, "mksprite: lossy --format=UYVY requires even width (got %d)\n", img.width);
         free(img.image);
         return 1;
     }
@@ -378,7 +412,7 @@ extern "C" int mksprite_convert_lossy(
     free(img.image);
 
     int crf = quality_to_h264_crf(pm->lossy_quality);
-    verbose("mksprite: lossy quality=%d -> crf=%d", pm->lossy_quality, crf);
+    verbose("mksprite: lossy quality=%d -> crf=%d target=%s", pm->lossy_quality, crf, target_name);
 
     x264_param_t param;
     char *recon_yuv_path = NULL;
@@ -471,7 +505,8 @@ extern "C" int mksprite_convert_lossy(
     // i.e. BT.709 full range. If that conversion is ever changed, update the
     // colorspace tag here too so the decoder picks the matching K0..K5.
     uint16_t lspr_flags = LSPR_YUV_420 |
-        (LSPR_COLORSPACE_BT709_FULL << LSPR_FLAGS_COLORSPACE_SHIFT);
+        (SPRITE_COLORSPACE_BT709_FULL << LSPR_FLAGS_COLORSPACE_SHIFT) |
+        ((uint16_t)target_code << LSPR_FLAGS_TARGET_SHIFT);
 
     w8(f, 'L'); w8(f, 'S'); w8(f, 'P'); w8(f, 'R');
     w16(f, LSPR_VERSION); // version

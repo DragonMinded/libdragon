@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include <surface.h>
+#include "yuv.h"
 
 #define SPRITE_EXT_VERSION                  6        ///< Current version of the sprite extended structure
 
@@ -15,19 +16,35 @@
 #define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
 #define SPRITE_FLAG_FITS_TMEM               0x0020   ///< Set if the sprite does fit TMEM without splitting
 #define SPRITE_FLAG_SHQ                     0x0040   ///< Sprite is in special SHQ format (2 mipmap levels with subtractive blending)
-#define SPRITE_FLAG_YUV_SEMIPLANAR          0x0080   ///< Sprite stores YUV 4:2:0 as a Y plane (FMT_I8) followed by an interleaved UV plane (FMT_IA16, U in high byte, V in low byte)
+#define SPRITE_FLAG_YUV_NV12                0x0080   ///< Sprite is stored as YUV 4:2:0 in NV12 layout for use with #yuv_tex_blit_nv12
 
 /** @brief YUV colorspace identifier stored in #sprite_ext_t::colorspace.
  *
  * Only meaningful for #FMT_YUV16 sprites; ignored otherwise. The default
  * value (0) maps to BT.601 TV-range to match the previous behavior of
- * #rdpq_set_mode_yuv when no colorspace was specified. */
+ * #rdpq_set_mode_yuv when no colorspace was specified.
+ * 
+ * This must mirror enum sprite_colorspace_e in tools/mksprite/mksprite_lossy.cpp
+ */
 enum sprite_colorspace_e {
     SPRITE_COLORSPACE_BT601_TV   = 0,
     SPRITE_COLORSPACE_BT601_FULL = 1,
     SPRITE_COLORSPACE_BT709_TV   = 2,
     SPRITE_COLORSPACE_BT709_FULL = 3,
 };
+
+/**
+ * @brief Get a pointer to the #yuv_colorspace_t corresponding to a given sprite colorspace enum value.
+ */
+static inline const yuv_colorspace_t *__sprite_colorspace(enum sprite_colorspace_e cs)
+{
+    switch (cs) {
+    case SPRITE_COLORSPACE_BT601_FULL: return &YUV_BT601_FULL;
+    case SPRITE_COLORSPACE_BT709_TV:   return &YUV_BT709_TV;
+    case SPRITE_COLORSPACE_BT709_FULL: return &YUV_BT709_FULL;
+    default:                           return &YUV_BT601_TV;
+    }
+}
 
 /** 
  * @brief Internal structure used as additional sprite header
@@ -82,11 +99,21 @@ bool __sprite_upgrade(sprite_t *sprite);
 /** @brief Access the sprite extended structure, or NULL if it does not exist. */
 sprite_ext_t *__sprite_ext(sprite_t *sprite);
 
-/** @brief Decode an in-memory LSPR buffer into a freshly allocated sprite.
- *
- * The caller retains ownership of @p buf — the decoder does not free it.
- * The returned sprite owns its pixel storage and must be released with
- * #sprite_free. */
-sprite_t *__lossysprite_decode_buf(const void *buf, int sz);
+/** @brief Function pointer type for a sprite decoder function */
+typedef sprite_t *(*sprite_decode_fn)(const void *buf, int sz);
+
+/** @brief Internal structure for registered sprite decoders */
+struct sprite_decoder_s {
+    const char *magic;
+    int magic_len;
+    sprite_decode_fn decode;
+    struct sprite_decoder_s *next;
+};
+
+/** @brief Register a sprite decoder for a specific magic string. */
+void sprite_decoder_register(const char *magic, sprite_decode_fn decode);
+
+/** @brief Unregister the sprite decoder for a specific magic string. */
+int sprite_decoder_unregister(const char *magic);
 
 #endif

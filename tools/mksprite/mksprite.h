@@ -50,6 +50,7 @@ typedef struct parms_s {
     int dither_algo;
     int gamma_correct;
     int lossy_quality;
+    bool lossy_nv12;            // --format=NV12 (lossy-only; no tex_format_t analog)
     texparms_t texparms;
     struct{
         const char   *infn;       // Input file for detail texture

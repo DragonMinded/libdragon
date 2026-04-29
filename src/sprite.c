@@ -64,18 +64,9 @@ bool __sprite_upgrade(sprite_t *sprite)
     return false;
 }
 
-typedef sprite_t *(*sprite_decode_fn)(const void *buf, int sz);
-
-struct sprite_decoder_s {
-    const char *magic;
-    int magic_len;
-    sprite_decode_fn decode;
-    struct sprite_decoder_s *next;
-};
-
 static struct sprite_decoder_s *sprite_decoders = NULL;
 
-static void sprite_decoder_register(const char *magic, sprite_decode_fn decode)
+void sprite_decoder_register(const char *magic, sprite_decode_fn decode)
 {
     struct sprite_decoder_s *d = malloc(sizeof(struct sprite_decoder_s));
     d->magic = magic;
@@ -85,7 +76,7 @@ static void sprite_decoder_register(const char *magic, sprite_decode_fn decode)
     sprite_decoders = d;
 }
 
-static int sprite_decoder_unregister(const char *magic)
+int sprite_decoder_unregister(const char *magic)
 {
     struct sprite_decoder_s **d = &sprite_decoders;
     while (*d) {
@@ -98,16 +89,6 @@ static int sprite_decoder_unregister(const char *magic)
         d = &(*d)->next;
     }
     return -1;
-}
-
-void sprite_init_lossy(void)
-{
-    sprite_decoder_register("LSPR", __lossysprite_decode_buf);
-}
-
-void sprite_close_lossy(void)
-{
-    sprite_decoder_unregister("LSPR");
 }
 
 sprite_t *sprite_load_buf(void *buf, int sz)

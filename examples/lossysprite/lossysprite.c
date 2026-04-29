@@ -8,7 +8,7 @@ int main(void)
     dfs_init(DFS_DEFAULT_LOCATION);
     rdpq_init();
 
-    sprite_init_lossy();
+    lossysprite_init();
     sprite_t *bkg  = sprite_load("rom:/background.sprite");
     sprite_t *brew = sprite_load("rom:/n64brew.sprite");
 

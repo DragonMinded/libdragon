@@ -415,15 +415,15 @@ void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 
 /**
- * @brief Blit a semi-planar YUV 4:2:0 frame (Y + interleaved UV).
+ * @brief Blit an NV12 (4:2:0 semi-planar) YUV frame: Y plane + interleaved UV.
  *
  * This is a variant of #yuv_tex_blit for callers whose source data is
- * already in the NV12-style "semi-planar" layout: a Y plane plus a
- * single FMT_IA16 plane that interleaves U and V (U in the high byte,
- * V in the low byte of each pixel — the byte layout that the RSP UV
- * interleaver inside #yuv_tex_blit produces). It skips the RSP
- * interleave pass and goes straight to the RDP upload + draw, so
- * #yuv_init does not need to have been called.
+ * already in NV12 layout: a Y plane plus a single FMT_IA16 plane that
+ * interleaves U and V (U in the high byte, V in the low byte of each
+ * pixel — the byte layout that the RSP UV interleaver inside
+ * #yuv_tex_blit produces). It skips the RSP interleave pass and goes
+ * straight to the RDP upload + draw, so #yuv_init does not need to
+ * have been called.
  *
  * The @p uv plane must have half the width and half the height of the
  * @p y plane (4:2:0 subsampling), with one IA16 pixel per (U,V) pair.
@@ -437,7 +437,7 @@ void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
  *
  * @see #yuv_tex_blit
  */
-void yuv_tex_blit_semiplanar(surface_t *y, surface_t *uv, float x0, float y0,
+void yuv_tex_blit_nv12(surface_t *y, surface_t *uv, float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 
 

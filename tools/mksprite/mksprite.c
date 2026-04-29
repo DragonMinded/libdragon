@@ -75,7 +75,8 @@ const char* tex_format_name(tex_format_t fmt) {
 tex_format_t tex_format_from_name(const char *name) {
     if (!strcasecmp(name, "RGBA32")) return FMT_RGBA32;
     if (!strcasecmp(name, "RGBA16")) return FMT_RGBA16;
-    if (!strcasecmp(name, "YUV16"))  return FMT_YUV16;
+    if (!strcasecmp(name, "UYVY"))   return FMT_YUV16;
+    if (!strcasecmp(name, "YUV16"))  return FMT_YUV16; // alias for UYVY
     if (!strcasecmp(name, "IA16"))   return FMT_IA16;
     if (!strcasecmp(name, "CI8"))    return FMT_CI8;
     if (!strcasecmp(name, "I8"))     return FMT_I8;
@@ -118,7 +119,9 @@ bool flag_lossy = false;
 bool flag_debug = false;
 
 void print_supported_formats(void) {
-    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, YUV16, IA16, CI8, I8, IA8, CI4, I4, IA4, ZBUF, IHQ\n");
+    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, UYVY, IA16, CI8, I8, IA8, CI4, I4, IA4, ZBUF, IHQ\n");
+    fprintf(stderr, "                   (YUV16 is a deprecated alias for UYVY)\n");
+    fprintf(stderr, "                   (NV12 is lossy-only: semi-planar 4:2:0)\n");
 }
 
 void print_supported_mipmap(void) {
@@ -2029,13 +2032,19 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
                 }
-                pm.outfmt = tex_format_from_name(argv[i]);
-                if (pm.outfmt == FMT_NONE && strcasecmp(argv[i], "AUTO") != 0) {
-                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
-                    print_supported_formats();
-                    return 1;
+                if (!strcasecmp(argv[i], "NV12")) {
+                    pm.lossy_nv12 = true;
+                    pm.outfmt = FMT_NONE;
+                } else {
+                    pm.lossy_nv12 = false;
+                    pm.outfmt = tex_format_from_name(argv[i]);
+                    if (pm.outfmt == FMT_NONE && strcasecmp(argv[i], "AUTO") != 0) {
+                        fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                        print_supported_formats();
+                        return 1;
+                    }
                 }
-            } 
+            }
 
             /* ---------------- HV TILES console argument ------------------- */
             else if (!strcmp(argv[i], "-t") || !strcmp(argv[i], "--tiles")) {
@@ -2221,6 +2230,13 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
+        if (pm.lossy_nv12 && pm.lossy_quality >= 100) {
+            fprintf(stderr, "NV12 is only valid with --lossy\n");
+            free(outfn);
+            error = true;
+            continue;
+        }
+
         if (pm.lossy_quality < 100) {
             if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
                 error = true;
@@ -2252,7 +2268,10 @@ int main(int argc, char *argv[])
         setmode(1, _O_BINARY);
         #endif
 
-        if (pm.lossy_quality < 100) {
+        if (pm.lossy_nv12 && pm.lossy_quality >= 100) {
+            fprintf(stderr, "NV12 is only valid with --lossy\n");
+            error = true;
+        } else if (pm.lossy_quality < 100) {
             if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
                 error = true;
             }
