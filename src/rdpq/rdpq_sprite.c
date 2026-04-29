@@ -56,7 +56,12 @@ static void sprite_blit_yuv_semiplanar(sprite_t *sprite, float x0, float y0, con
     if (parms.width  == 0) parms.width  = sprite->width;
     if (parms.height == 0) parms.height = sprite->height;
 
+    // Save/restore the caller's render mode around the YUV blit so the
+    // YUV combiner + SOM bits set inside yuv_tex_blit_run don't leak into
+    // subsequent non-YUV draws.
+    rdpq_mode_push();
     yuv_tex_blit_semiplanar(&y_surf, &uv_surf, x0, y0, &parms, sprite_lookup_yuv_colorspace(sx));
+    rdpq_mode_pop();
 }
 
 static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
@@ -204,9 +209,14 @@ void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms
     }
 
     // For YUV sprites, configure the RDP YUV render mode + colorspace from
-    // the sprite's metadata so the caller doesn't need to set it up.
-    if (sprite_get_format(sprite) == FMT_YUV16)
+    // the sprite's metadata so the caller doesn't need to set it up. Save
+    // the caller's render mode around the blit so the YUV combiner + SOM
+    // bits don't leak into subsequent non-YUV draws.
+    bool is_yuv = sprite_get_format(sprite) == FMT_YUV16;
+    if (is_yuv) {
+        rdpq_mode_push();
         sprite_setup_yuv_mode(sprite);
+    }
 
     // Upload the palette and configure the render mode
     sprite_upload_palette(sprite, 0, true);
@@ -214,4 +224,7 @@ void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms
     // Get the sprite surface
     surface_t surf = sprite_get_pixels(sprite);
     rdpq_tex_blit(&surf, x0, y0, parms);
+
+    // Restore the caller's render mode if we changed it for YUV
+    if (is_yuv) rdpq_mode_pop();
 }

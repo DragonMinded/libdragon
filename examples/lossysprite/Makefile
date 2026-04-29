@@ -6,13 +6,14 @@ assets_png = $(wildcard assets/*.png)
 
 assets_conv = $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))
 
-MKSPRITE_FLAGS ?= --lossy 75 --compress 3
-
 all: lossysprite.z64
+
+filesystem/background.sprite: MKSPRITE_FLAGS=--lossy 75 --compress 3
+filesystem/n64brew.sprite: MKSPRITE_FLAGS=--format RGBA16
 
 filesystem/%.sprite: assets/%.png
 	@mkdir -p $(dir $@)
-	@echo "    [LSPR] $@"
+	@echo "    [SPRITE] $@"
 	$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
 
 $(BUILD_DIR)/lossysprite.dfs: $(assets_conv)
