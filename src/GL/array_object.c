@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include "gl_internal.h"
 #include "buffer.h"
+#include "pipelines.h"
 
 extern gl_state_t *state;
 
@@ -65,7 +66,7 @@ mg_input_assembly_parms_t array_object_get_input_assembly_parms(gl_array_object_
         parms.mtx_indices_stride = mtx_index_data.stride;
         parms.matrices = state->matrix_palette;
         parms.matrices_stride = sizeof(state->matrix_palette[0]);
-        parms.matrix_uniform = *state->matrices_uniform;
+        parms.matrix_uniform = *get_matrices_uniform();
     } else {
         parms.mtx_indices = NULL;
     }
