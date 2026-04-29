@@ -6,7 +6,7 @@ typedef void (*print_func)(int time);
 int main(void)
 {
     //Initialize debugging output
-    debug_init_isviewer();
+    debug_init(DEBUG_FEATURE_LOG_EMULATOR_BEST);
     debug_init_usblog();
     //Initialize joypad/controller
     joypad_init();

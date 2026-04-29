@@ -29,7 +29,7 @@ const char *colorspace_name(yuv_colorspace_t *cs) {
 int main(void)
 {
 	joypad_init();
-	debug_init_isviewer();
+	debug_init(DEBUG_FEATURE_LOG_EMULATOR_BEST);
 	debug_init_usblog();
 
 	dfs_init(DFS_DEFAULT_LOCATION);

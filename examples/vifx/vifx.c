@@ -5,7 +5,7 @@
 
 int main(void)
 {
-    debug_init_isviewer();
+    debug_init(DEBUG_FEATURE_LOG_EMULATOR_BEST);
     debug_init_usblog();
     joypad_init();
 

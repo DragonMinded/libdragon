@@ -55,7 +55,7 @@ int main(void)
 {
     timer_init();
     controller_init();
-    debug_init_isviewer();
+    debug_init(DEBUG_FEATURE_LOG_EMULATOR_BEST);
     console_init();
     console_set_render_mode(RENDER_MANUAL);
     console_set_debug(false);
