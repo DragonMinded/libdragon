@@ -6,7 +6,7 @@ assets_png = $(wildcard assets/*.png)
 
 assets_conv = $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))
 
-MKSPRITE_FLAGS ?= --lossy 75 --compress 3 -f RGBA16
+MKSPRITE_FLAGS ?= --lossy 75 --compress 3
 
 all: lossysprite.z64
 
