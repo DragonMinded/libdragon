@@ -84,9 +84,7 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
 /** @brief Internal implementation of #rdpq_sprite_upload that will optionally skip setting render modes */
 int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
 {
-    sprite_ext_t *sx = __sprite_ext(sprite);
-    assertf(!sx || !(sx->flags & SPRITE_FLAG_YUV_NV12),
-        "NV12 YUV sprites cannot be uploaded to TMEM as a single texture; use rdpq_sprite_blit");
+    assertf(!sprite_is_yuv_nv12(sprite), "NV12 YUV sprites cannot be uploaded to TMEM as a single texture; use rdpq_sprite_blit");
     assertf(sprite_fits_tmem(sprite), "sprite doesn't fit in TMEM");
 
     // Load main sprite surface
@@ -196,8 +194,7 @@ void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms
     // NV12 YUV sprites can't be uploaded as a single texture (the Y and UV
     // halves are loaded separately into the two TMEM banks). Hand off to
     // yuv_tex_blit_nv12, which sets up its own render mode and colorspace.
-    sprite_ext_t *sx = __sprite_ext(sprite);
-    if (sx && (sx->flags & SPRITE_FLAG_YUV_NV12)) {
+    if (sprite_is_yuv_nv12(sprite)) {
         sprite_blit_yuv_nv12(sprite, x0, y0, parms);
         return;
     }
