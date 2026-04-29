@@ -4,10 +4,10 @@
 #include "array.h"
 #include "data_source.h"
 #include "data_cache.h"
-#include "draw_call_cache.h"
 #include "vertex_layout_cache.h"
 
 typedef struct gl_buffer_object_s gl_buffer_object_t;
+typedef struct draw_call_cache_s draw_call_cache_t;
 
 typedef struct gl_array_object_s {
     gl_array_t arrays[ATTRIB_COUNT];

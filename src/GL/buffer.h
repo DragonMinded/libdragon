@@ -4,7 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "GL/gl.h"
-#include "draw_call_cache.h"
 
 typedef struct {
     GLvoid *data;
@@ -13,6 +12,7 @@ typedef struct {
 
 typedef struct gl_array_object_s gl_array_object_t;
 typedef struct gl_array_object_ref_s gl_array_object_ref_t;
+typedef struct draw_call_cache_s draw_call_cache_t;
 
 typedef struct gl_array_object_ref_s {
     gl_array_object_t *array_object;

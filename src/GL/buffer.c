@@ -6,6 +6,7 @@
 #include "buffer.h"
 #include "gl_internal.h"
 #include "array_object.h"
+#include "draw_call_cache.h"
 #include <n64sys.h>
 #include <malloc.h>
 #include <string.h>

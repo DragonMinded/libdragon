@@ -7,6 +7,7 @@
 #include "debug.h"
 #include "array.h"
 #include "array_object.h"
+#include "draw_call_cache.h"
 #include "buffer.h"
 #include <malloc.h>
 

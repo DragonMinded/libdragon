@@ -3,6 +3,7 @@
 #include "gl_internal.h"
 #include "buffer.h"
 #include "pipelines.h"
+#include "draw_call_cache.h"
 
 extern gl_state_t *state;
 
