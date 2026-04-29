@@ -41,12 +41,25 @@ extern "C" {
 #include "mksprite.h"
 #include "x264/x264.h"
 
+// LSPR header flags layout (16 bits):
+//   bits [1:0]  YUV chroma subsampling (LSPR_YUV_*)
+//   bits [3:2]  YUV colorspace (LSPR_COLORSPACE_*; values must match
+//               sprite_colorspace_e in src/sprite_internal.h)
 enum {
     LSPR_YUV_420 = 0,
     LSPR_YUV_422 = 1,
     LSPR_YUV_444 = 2,
     LSPR_YUV_400 = 3,
 };
+
+enum {
+    LSPR_COLORSPACE_BT601_TV   = 0,
+    LSPR_COLORSPACE_BT601_FULL = 1,
+    LSPR_COLORSPACE_BT709_TV   = 2,
+    LSPR_COLORSPACE_BT709_FULL = 3,
+};
+
+#define LSPR_FLAGS_COLORSPACE_SHIFT 2
 
 #define LSPR_VERSION 3
 
@@ -454,9 +467,15 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
+    // rgba_to_i420 above uses Kr=0.2126/Kb=0.0722 with full-range scaling,
+    // i.e. BT.709 full range. If that conversion is ever changed, update the
+    // colorspace tag here too so the decoder picks the matching K0..K5.
+    uint16_t lspr_flags = LSPR_YUV_420 |
+        (LSPR_COLORSPACE_BT709_FULL << LSPR_FLAGS_COLORSPACE_SHIFT);
+
     w8(f, 'L'); w8(f, 'S'); w8(f, 'P'); w8(f, 'R');
     w16(f, LSPR_VERSION); // version
-    w16(f, LSPR_YUV_420); // flags: YUV format only for now
+    w16(f, lspr_flags);   // flags: chroma subsampling + colorspace
     w16(f, img.width);
     w16(f, img.height);
     w16(f, orig_w);

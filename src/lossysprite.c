@@ -35,12 +35,19 @@
 #define LSPR_MAGIC "LSPR"
 #define LSPR_VERSION 3
 
+// LSPR header flags layout (16 bits) — must match tools/mksprite/mksprite_lossy.cpp:
+//   bits [1:0]  YUV chroma subsampling (LSPR_YUV_*)
+//   bits [3:2]  YUV colorspace; values match sprite_colorspace_e and so are
+//               assigned directly into sprite_ext_t::colorspace.
 enum {
     LSPR_YUV_420 = 0,
     LSPR_YUV_422 = 1,
     LSPR_YUV_444 = 2,
     LSPR_YUV_400 = 3,
 };
+
+#define LSPR_FLAGS_COLORSPACE_SHIFT 2
+#define LSPR_FLAGS_COLORSPACE_MASK  (0x3 << LSPR_FLAGS_COLORSPACE_SHIFT)
 
 typedef struct lspr_header_s {
     uint8_t magic[4];
@@ -234,7 +241,9 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
     sx->flags = SPRITE_FLAG_YUV_PLANAR;
-    sx->colorspace = SPRITE_COLORSPACE_BT709_FULL;
+    // Colorspace ID is encoded directly into sprite_colorspace_e values, so
+    // the bit field maps 1:1 into sx->colorspace.
+    sx->colorspace = (hdr->flags & LSPR_FLAGS_COLORSPACE_MASK) >> LSPR_FLAGS_COLORSPACE_SHIFT;
     sx->data_ptr = (uint32_t)pixel_off;
     // Stash the padded plane dimensions for the renderer. The texparms fields
     // are otherwise unread (SPRITE_FLAG_HAS_TEXPARMS is not set).
