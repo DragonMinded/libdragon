@@ -242,7 +242,7 @@ static void patch_shader_with_vertex_layout(void *shader_code, const mg_meta_hea
                 patch_vertex_attribute_loader(shader_code, loaders[j], vertex_attribute);
             }
         } else {
-            assertf(attributes[i].is_optional, "The vertex attribute with input number %ld is not optional!", attributes[i].input);
+            assertf(attributes[i].is_optional, "The vertex attribute with input number %ld was omitted, but it is not optional!", attributes[i].input);
             // Otherwise, if the vertex attribute is disabled, apply all patches
             mg_meta_attribute_patch_t *patches = (mg_meta_attribute_patch_t*)((uint8_t*)attributes + attributes[i].patches_offset);
             for (size_t j = 0; j < attributes[i].patches_count; j++)
