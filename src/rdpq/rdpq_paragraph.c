@@ -29,6 +29,9 @@ static struct {
     int max_chars;
     bool skip_current_line;
     bool must_sort;
+    const char *last_consumed_ptr; //tracks the position of the last displayable char
+    const char *last_space_consumed_ptr; //tracks the position of the last displayable space
+    const char *ellipsis_scan_start;
 } builder;
 
 static bool rdpq_paragraph_builder_full(void)
@@ -79,6 +82,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     builder.ch_last_space = -1;
     builder.max_chars = builder.parms->max_chars ? builder.parms->max_chars : INT32_MAX;
     builder.skip_current_line = rdpq_paragraph_builder_full();
+    builder.last_consumed_ptr = NULL;
 }
 
 void rdpq_paragraph_builder_font(uint8_t font_id)
@@ -161,6 +165,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     float ycur = builder.y;
     int16_t next_index = -1;
     bool is_tab = false;
+    builder.ellipsis_scan_start = NULL;
 
     /// @cond
     #define UTF8_DECODE_NEXT() ({ \
@@ -172,6 +177,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     /// @endcond
 
     while (utf8_text < end || next_index >= 0) {
+        const char *char_start = utf8_text;
         int16_t index = next_index; next_index = -1;
         if (index < 0) index = UTF8_DECODE_NEXT();
         if (UNLIKELY(index < 0)) continue;
@@ -188,6 +194,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                 return;
 
             builder.ch_last_space = builder.layout->nchars;
+            builder.last_space_consumed_ptr = builder.last_consumed_ptr;
 
             if (UNLIKELY(is_tab)) {
                 if (parms->tabstops) {
@@ -213,6 +220,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             // pixel of relative distance between letters can be very visible).
             xcur = roundf(xcur);
 
+            builder.last_consumed_ptr = char_start;
             continue;
         }
 
@@ -228,6 +236,8 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             .x = xcur+.5f,
             .y = ycur+.5f,
         };
+        const char *prev_consumed_ptr = builder.last_consumed_ptr;
+        builder.last_consumed_ptr = utf8_text;
         builder.max_chars -= 1;
 
         // Advance the cursor
@@ -248,18 +258,25 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             // Check if we are allowed to wrap
             switch (parms->wrap) {
                 case WRAP_CHAR:
-                    if (!paragraph_wrap(builder.layout->nchars-1, &xcur, &ycur))
+                    if (!paragraph_wrap(builder.layout->nchars-1, &xcur, &ycur)){
+                        //char didn't fit. move the pointer to the last consumed char
+                        builder.last_consumed_ptr = prev_consumed_ptr;
                         return;
+                    }
                     break;
                 case WRAP_WORD:
                     // Find the last space in the line
                     if (builder.ch_last_space >= 0) {
-                        if (!paragraph_wrap(builder.ch_last_space, &xcur, &ycur))
+                        if (!paragraph_wrap(builder.ch_last_space, &xcur, &ycur)){
+                            //word didn't fit. move the pointer to the last consumed space
+                            builder.last_consumed_ptr = builder.last_space_consumed_ptr;
                             return;
+                        }
                         builder.ch_last_space = -1;
                         break;
                     }
                     builder.layout->nchars -= 1;
+                    builder.last_consumed_ptr = prev_consumed_ptr;
                     // fallthrough!
                 case WRAP_ELLIPSES: {
                     const rdpq_font_t *wfnt = fnt;
@@ -311,9 +328,10 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                             .style_id = wrap_style_id,
                             .glyph = wfnt->ellipsis_glyph,
                             .x = (ellipsis_x + wfnt->ellipsis_advance * i * builder.xscale) + .5f,
-                            .y = wrapch[-1].y + .5f,
+                            .y = wrapch[0].y + .5f,
                         };
                     }
+                    builder.ellipsis_scan_start = utf8_text;
                 }   // fallthrough!
                 case WRAP_NONE:
                     // The text doesn't fit on this line anymore.
@@ -539,7 +557,19 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
 
     if (buf != span)
         rdpq_paragraph_builder_span(span, buf - span);
-    *nbytes = buf - utf8_text;
+
+    if(builder.ellipsis_scan_start) {
+        const char *scan = builder.ellipsis_scan_start;
+        while(scan < end && scan[0] != '\n')
+            ++scan;
+        *nbytes = (scan < end ? scan + 1 : scan) - utf8_text;
+    }
+    else if(builder.last_consumed_ptr)
+        *nbytes = (builder.last_consumed_ptr + (builder.parms->wrap == WRAP_WORD && builder.last_consumed_ptr < end))
+             - utf8_text;
+    else
+        *nbytes = 0;
+
     return rdpq_paragraph_builder_end();
 }
 

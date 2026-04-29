@@ -134,7 +134,7 @@ RSPASFLAGS+=-MMD
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
-	$(N64_SYM) $< $<.sym
+	$(N64_SYM) --all $< $<.sym
 	cp $< $<.stripped
 	$(N64_STRIP) -s $<.stripped
 	$(N64_ELFCOMPRESS) -o $(dir $<) -c $(N64_ROM_ELFCOMPRESS) $<.stripped
@@ -253,16 +253,22 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	$(N64_LD) $(N64_DSOLDFLAGS) -Map=$(basename $(DSO_ELF)).map -o $(DSO_ELF) $(filter %.o, $^)
 	$(N64_SIZE) -G $(DSO_ELF)
 	$(N64_DSO) -o $(dir $@) -c $(N64_ROM_DSOCOMPRESS) $(DSO_ELF)
-	$(N64_SYM) $(DSO_ELF) $@.sym
+	$(N64_SYM) --all $(DSO_ELF) $@.sym
 	
 %.externs:
 	@echo "    [DSOEXTERN] $@"
 	$(N64_DSOEXTERN) -o $@ $^ 
 	
-%.msym: %.elf
+%.msym:
 	@echo "    [MSYM] $@"
-	$(N64_DSOMSYM) $< $@
-    
+	EXTERNS_FILE="$(filter %.externs, $^)"; \
+	INPUT_FILE="$(filter %.elf, $^)"; \
+	if [ -z "$$EXTERNS_FILE" ]; then \
+		$(N64_DSOMSYM) "$$INPUT_FILE" $@; \
+	else \
+		$(N64_DSOMSYM) -e "$$EXTERNS_FILE" "$$INPUT_FILE" $@; \
+	fi
+	
 ifneq ($(V),1)
 .SILENT:
 endif

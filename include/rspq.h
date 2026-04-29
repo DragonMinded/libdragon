@@ -248,6 +248,40 @@ typedef struct rspq_queue_s rspq_queue_t;
  */
 typedef int rspq_syncpoint_t;
 
+
+/**
+ * @brief Placeholder #0 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_0   ((rspq_block_t*)0)
+/**
+ * @brief Placeholder #1 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_1   ((rspq_block_t*)1)
+/**
+ * @brief Placeholder #2 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_2   ((rspq_block_t*)2)
+/**
+ * @brief Placeholder #3 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_3   ((rspq_block_t*)3)
+/**
+ * @brief Placeholder #4 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_4   ((rspq_block_t*)4)
+/**
+ * @brief Placeholder #5 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_5   ((rspq_block_t*)5)
+/**
+ * @brief Placeholder #6 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_6   ((rspq_block_t*)6)
+/**
+ * @brief Number of placeholders that are available in blocks
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_COUNT 7
+
 /**
  * @brief Initialize the RSPQ library.
  * 
@@ -776,24 +810,56 @@ inline void rspq_call_deferred(void (*func)(void *), void *arg) {
     rspq_flush();
 }
 
+
 /**
  * @brief Begin creating a new block.
- * 
- * This function begins writing a command block (see #rspq_block_t).
- * While a block is being written, all calls to #rspq_write
- * will record the commands into the block, without actually scheduling them for
- * execution. Use #rspq_block_end to close the block and get a reference to it.
- * 
- * Only one block at a time can be created. Calling #rspq_block_begin
- * twice (without any intervening #rspq_block_end) will cause an assert.
  *
- * During block creation, the RSP will keep running as usual and
- * execute commands that have been already added to the queue.
- *       
- * @note Calls to #rspq_flush are ignored during block creation, as the RSP
- *       is not going to execute the block commands anyway.
+ * While a block is being written, all calls to #rspq_write record commands into
+ * the block without scheduling them for execution. Use #rspq_block_end to close
+ * the block and obtain a reference, #rspq_block_run to enqueue playback, and
+ * #rspq_block_free when the block is no longer needed.
+ *
+ * Only one block at a time can be open. Calling #rspq_block_begin again before
+ * #rspq_block_end asserts. The same applies if you are in highpri mode or
+ * recording a #rspq_queue_t.
+ *
+ * During block creation the RSP keeps running as usual and executes commands
+ * already present in the normal queue.
+ *
+ * @note Calls to #rspq_flush are ignored while the block is open; the RSP does
+ *       not execute recorded block commands until the block is run.
+ *
+ * @see #rspq_block_begin_reuse
+ * @see #rspq_block_run
+ * @see #rspq_block_free
  */
-void rspq_block_begin(void);
+inline void rspq_block_begin(void) {
+    extern void rspq_block_begin_reuse(rspq_block_t *);
+    rspq_block_begin_reuse(NULL);
+}
+
+/**
+ * @brief Begin creation of a block, reusing an existing allocation.
+ *
+ * This function is similar to #rspq_block_begin, but it reuses an existing
+ * allocation instead of allocating a new one. It can be useful to avoid
+ * allocating and freeing memory unnecessarily.
+ *
+ *If @p reuse_block is NULL, this function behaves like #rspq_block_begin.
+ *
+ * @note Just like #rspq_block_free, you must not call this function while
+ *       the RSP has a command to run this block in its command queue. If you
+ *       cannot guarantee that, use #rspq_call_deferred to free the previous
+ *       block and allocate a new one with #rspq_block_begin.
+ *
+ * @param reuse_block The block to reuse
+ *
+ * @see #rspq_block_begin
+ * @see #rspq_block_run
+ * @see #rspq_block_free
+ */
+void rspq_block_begin_reuse(rspq_block_t *reuse_block);
+
 
 /**
  * @brief Finish creating a block.
@@ -813,6 +879,37 @@ void rspq_block_begin(void);
 rspq_block_t* rspq_block_end(void);
 
 /**
+ * @brief Sets the target for a placeholder in a block
+ * 
+ * If a block contains calls to placeholders, for example:
+ * 
+ * @code{.c}
+ *   rspq_block_begin();
+ *      ...
+ *     rdpq_tex_multi_begin();
+ *       rdpq_sprite_upload(TILE0, texA, NULL);
+ *       rspq_block_run(RSPQ_BLOCK_PLACEHOLDER_0);
+ *     rdpq_tex_multi_end();
+ *     ...
+ *   rspq_block_t *block_caller = rspq_block_end();
+ * @endcode
+ * 
+ * Then this function can be used to set the actual target before running it:
+ * 
+ * @code{.c}
+ *   rspq_block_set_placeholder(RSPQ_BLOCK_PLACEHOLDER_0, the_target_block);
+ *   rspq_block_run(RSPQ_BLOCK_PLACEHOLDER_0);
+ * @endcode
+ * 
+ * @param ph the placeholder slot (RSPQ_BLOCK_PLACEHOLDER_0 - RSPQ_BLOCK_PLACEHOLDER_6)
+ * @param ph_target block the placeholder should point to
+ */
+void rspq_block_set_placeholder(
+  rspq_block_t *ph,
+  rspq_block_t *ph_target
+);
+
+/**
  * @brief Add to the RSP queue a command that runs a block.
  * 
  * This function runs a block that was previously created via #rspq_block_begin
@@ -824,8 +921,12 @@ rspq_block_t* rspq_block_end(void);
  * created, it is possible to call `rspq_block_run(A)` at any point during the
  * creation of a second block B; this means that B will contain the special
  * command that will call A.
+ * 
+ * It is also possible to use a placeholder instead of a specific block.
+ * This allows the target to be set dynamically later on.
+ * For that pass 'RSPQ_BLOCK_PLACEHOLDER_0' to 'RSPQ_BLOCK_PLACEHOLDER_6' into this function.
  *
- * @param block The block that must be run
+ * @param block The block or placeholder that must be run
  * 
  * @note The maximum depth of nested block calls is 8.
  */
@@ -909,16 +1010,16 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
  void rspq_queue_switch(rspq_queue_t* q);
  
  /**
-  * @brief Execute a queue from the first command to the last written one.
+  * @brief Execute the RSP commands in the queue.
   *
-  * The RSP will start executing the queue until it reaches the last written command.
-  * You can keep adding commands to the queue while it is running, and they will be
-  * executed on the next #rspq_queue_run call.
+  * This function will execute all pending RSP commands in the queue, in order.
+  * It is safe to call this function multiple times: each time, it will execute
+  * only new commands that were enqueued since the last call.
   *
   * @param q         The queue to execute
   */
  void rspq_queue_run(rspq_queue_t* q);
- 
+
  /**
   * @brief Clear a queue contents, keeping its memory for reuse.
   *

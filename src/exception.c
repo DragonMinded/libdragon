@@ -104,6 +104,9 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 			fprintf(out, "Syscall code: %05lX\n", (*(uint32_t*)ex->regs->epc >> 6) & 0xfffff);
 			break;
 
+		case EXCEPTION_CODE_EMUX:
+			fprintf(out, "On hardware, the console would now be frozen.\n");
+			/* fall through */
 		case EXCEPTION_CODE_D_BUS_ERROR: {
 			uint32_t opcode = *(uint32_t*)epc;
 			uint64_t base = ex->regs->gpr[((opcode >> 21) & 0x1F)];
@@ -296,7 +299,7 @@ static const char* __get_exception_name(exception_t *ex)
 		"Coprocessor Unusable",						// 11
 		"Arithmetic Overflow",						// 12
 		"Trap",										// 13
-		"Reserved",									// 13
+		"Reserved",									// 14
 		"Floating-Point",							// 15
 		"Reserved",									// 16
 		"Reserved",									// 17
@@ -306,7 +309,7 @@ static const char* __get_exception_name(exception_t *ex)
 		"Reserved",									// 21
 		"Reserved",									// 22
 		"Watch",									// 23
-		"Reserved",									// 24
+		"Emux", 									// 24
 		"Reserved",									// 25
 		"Reserved",									// 26
 		"Reserved",									// 27
@@ -457,6 +460,16 @@ static const char* __get_exception_name(exception_t *ex)
 		if (code == 7)
 			return "Integer divide by zero";
 	}	return exceptionMap[ex->code];
+	case EXCEPTION_CODE_EMUX: {
+		uint32_t kind = C0_CACHEERR() & 0xFF;
+		C0_WRITE_CACHEERR(0);
+		switch (kind) {
+		case 0:  return "Cached access to non-RDRAM area";
+		case 1:  return "64-bit read from non-RDRAM area";
+		case 2:  return "Access to RCP unmapped area";
+		default: return "Unknown emux";
+		}
+	}
 	default:
 		return exceptionMap[ex->code];
 	}

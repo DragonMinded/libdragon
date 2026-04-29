@@ -23,6 +23,7 @@
 typedef struct HuffNode {
     int symbol;
     int frequency;
+    int order;  // used to stable-sort of nodes with the same frequency (for determinism)
     struct HuffNode *left, *right;
 } HuffNode;
 
@@ -43,12 +44,15 @@ typedef struct {
 int compare_freq(const void *a, const void *b) {
     HuffNode *node_a = *(HuffNode**)a;
     HuffNode *node_b = *(HuffNode**)b;
-    return node_a->frequency - node_b->frequency;
+    if (node_a->frequency != node_b->frequency)
+        return node_a->frequency - node_b->frequency;
+    return node_a->order - node_b->order;
 }
 
 HuffNode* build_huffman_tree(int frequencies[], int size) {
     HuffNode* heap[16];
     int hsize = 0;
+    int next_order = 0;
     for (int i = 0; i < size; i++) {
         if (frequencies[i] == 0) {
             continue;
@@ -56,6 +60,7 @@ HuffNode* build_huffman_tree(int frequencies[], int size) {
         heap[hsize] = (HuffNode*)malloc(sizeof(HuffNode));
         heap[hsize]->symbol = i;
         heap[hsize]->frequency = frequencies[i];
+        heap[hsize]->order = next_order++;
         heap[hsize]->left = heap[hsize]->right = NULL;
         hsize++;
     }
@@ -67,6 +72,7 @@ HuffNode* build_huffman_tree(int frequencies[], int size) {
         HuffNode* parent = (HuffNode*)malloc(sizeof(HuffNode));
         parent->symbol = -1;
         parent->frequency = left->frequency + right->frequency;
+        parent->order = next_order++;
         parent->left = left;
         parent->right = right;
         memmove(&heap[0], &heap[2], (hsize - 2) * sizeof(HuffNode*));

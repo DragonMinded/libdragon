@@ -179,7 +179,7 @@ uint16_t* sprite_get_palette(sprite_t *sprite) {
 
 int sprite_get_palette_used_colors(sprite_t *sprite) {
     sprite_ext_t *sx = __sprite_ext(sprite);
-    return sx->pal_used_colors;
+    return sx->pal_used_colors ? sx->pal_used_colors : 256;
 }
 
 surface_t sprite_get_tile(sprite_t *sprite, int h, int v) {

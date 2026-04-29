@@ -216,6 +216,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_backtrace.c"
 #include "test_rspq.c"
 #include "test_rdpq.c"
+#include "test_rdpq_text_layout.c"
 #include "test_rdpq_tri.c"
 #include "test_rdpq_tex.c"
 #include "test_rdpq_attach.c"
@@ -299,6 +300,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rspq_flush,                 			0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_rspq_rapid_flush,           			0, TEST_FLAGS_NO_BENCHMARK | TEST_FLAGS_NO_EMULATOR),
 	TEST_FUNC(test_rspq_block,                 			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rspq_block_begin_reuse,     			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_wait_sync_in_block,    			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_basic,         			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rspq_highpri_multiple,      			0, TEST_FLAGS_NO_BENCHMARK),
@@ -317,6 +319,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_dynamic,               			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_passthrough_big,       			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_block,                 			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_block_begin_reuse,     			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_block_coalescing,      			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_block_contiguous,      			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_block_dynamic,         			0, TEST_FLAGS_NO_BENCHMARK),
@@ -347,13 +350,56 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_texrect_passthrough,   			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_triangle,              			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_triangle_w1,           			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_metrics_empty,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_metrics_simple_ascii, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_newline_only,        0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_escape_dollar_font,  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_escape_caret_style, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_escape_literal_dollar_caret, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_indent_first_line,   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_wrap_char_basic,     0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_wrap_word_basic,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_wrap_word_long_token, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_wrap_none_truncate,  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_wrap_ellipses,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_char_spacing,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_line_spacing,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_tab_default_32,      0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_tab_custom_stops,   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_max_chars_stop_at_space, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_plaintext, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_with_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_char_with_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_ellipsis, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_consumes_newline, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_nbytes_wrap_word_consecutive_escapes, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_max_chars_clamp_end, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_max_chars_with_word_wrap, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_typewriter, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_wrap_ellipses_narrow_width, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_wrap_word_short_then_long_token, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_height_truncates_vertical, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_valign_center_height, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_align_center_width,  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_align_right_width,   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_utf8_multibyte_in_range, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_utf8_invalid_sequence, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_preserve_overlap_order, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_disable_aa_fix_flag,  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_builder_api_matches_build, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_kerning_var_font,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_register_get_unregister, 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_printf_small_buf,    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_text_printf_large_buf,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_attach_clear,          			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_attach_stack,          			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload,            			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload_multi,      			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_can_upload,        			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_blit_normal,       			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_multi_i4,          			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload_tlut,       			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_upload_tlut_alignments, 	0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_4bpp_odd,          			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_sprite_upload,         			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_sprite_lod,            			0, TEST_FLAGS_NO_BENCHMARK),
@@ -408,6 +454,7 @@ int main() {
 	console_set_debug(false);
 	debug_init_isviewer();
 	debug_init_usblog();
+	emux_ioctl_fast(); // ask emulator to run as fast as possible
 
 	if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {
 		printf("Invalid ROM: cannot initialize DFS\n");

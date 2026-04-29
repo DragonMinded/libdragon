@@ -14,6 +14,8 @@
 extern "C" {
 #endif
 
+#ifdef N64
+
 /** 
  * @brief Flag to activate the USB logging channel.
  *
@@ -131,9 +133,24 @@ extern "C" {
 
 
 #ifndef NDEBUG
-	/** @brief Initialize USB logging. */
+	/** 
+	 * @brief Initialize USB logging. 
+	 *
+	 * This function initializes the USB logging channel. It is used to log messages
+	 * to the USB port of the development cartridge.
+	 *
+	 * @return true if the USB logging channel was initialized successfully, false otherwise.
+	 * @note This function is not available on iQue Player
+	 */
 	bool debug_init_usblog(void);
-	/** @brief Initialize ISViewer logging. */
+	/** 
+	 * @brief Initialize ISViewer logging. 
+	 *
+	 * This function initializes the ISViewer logging channel. It is used to log messages
+	 * to emulators that support it.
+	 *
+	 * @return true if the ISViewer logging channel was initialized successfully, false otherwise
+	 */
 	bool debug_init_isviewer(void);
 	/** @brief Initialize SD logging. */
 	bool debug_init_sdlog(const char *fn, const char *openfmt);
@@ -252,6 +269,30 @@ void debug_backtrace(void);
 /** @brief Underlying implementation function for assert() and #assertf. */ 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
    __attribute__((noreturn, format(printf, 5, 6)));
+
+
+#else /* N64 */
+
+#include <stdlib.h>
+
+// Lots of tools code include this file transitively. Make sure we expose the
+// bare minimum assertion APIs.
+
+#define assertf(expr, msg, ...)   ({ \
+	if (!(expr)) { \
+		fprintf(stderr, "ASSERTION FAILED: "); \
+		fprintf(stderr, msg, ##__VA_ARGS__); \
+		assert(expr); \
+		abort(); \
+	} \
+})
+
+#define debugf(msg, ...)           ({ \
+	fprintf(stderr, msg, ##__VA_ARGS__); \
+})
+
+#endif /* N64 */
+
 
 #ifdef __cplusplus
 } /* extern "C" */

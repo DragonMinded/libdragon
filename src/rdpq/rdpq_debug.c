@@ -406,6 +406,7 @@ void rdpq_debug_stop(void)
     rspq_write(RDPQ_OVL_ID, RDPQ_CMD_SET_DEBUG_MODE, 0);
 }
 
+/** @brief Install a hook to be called for each RDP command */
 void rdpq_debug_install_hook(void (*hook)(void*, uint64_t*, int), void* ctx)
 {
     for (int i=0;i<MAX_HOOKS;i++)
@@ -1231,7 +1232,7 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
 
         if (use_tex) {
             VALIDATE_WARN_CC(cc_use_tex0 || cc_use_tex1 || cc_use_tex0alpha || cc_use_tex1alpha,
-                "textured primitive drawn but the color combiner that does not use the TEX0/TEX1/TEX0_ALPHA/TEX1_ALPHA slots");
+                "textured primitive drawn but the color combiner does not use the TEX0/TEX1/TEX0_ALPHA/TEX1_ALPHA slots");
         } else {
             VALIDATE_ERR_CC(!cc_use_tex0,
                 "cannot draw a non-textured primitive with a color combiner using the TEX0 slot");
@@ -1263,6 +1264,32 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
         }
 
     }   break;
+    }
+
+    // In 2-cycle mode, check for rgb.mul being set to COMBINED and receiving a 1 (or greater) input.
+    // Note "1" corresponds to a 256 value in the combiner unit (and not 255).
+    // Warn if that may be the case, as rgb.mul starts overflowing from 256 onwards.
+    if (rdp.som.cycle_type == 1) { // 2cyc
+        struct cc_cycle_s *ccA = &rdp.cc.cyc[0];
+        if (rdp.cc.cyc[1].rgb.mul == 0) { // combined
+            if (ccA->rgb.mul >= 16 && ccA->rgb.mul <= 31) { // zero
+                if (ccA->rgb.add == 6) { // one
+                    VALIDATE_WARN_CC(0, "combined rgb passed to mul input and evaluating to 1, overflow will occur");
+                }
+            } else {
+                // Detect a lerp (where subb == add)
+                if ((ccA->rgb.subb == 1 && ccA->rgb.add == 1) // tex0
+                    || (ccA->rgb.subb == 2 && ccA->rgb.add == 2) // tex1
+                    || (ccA->rgb.subb == 3 && ccA->rgb.add == 3) // prim
+                    || (ccA->rgb.subb == 4 && ccA->rgb.add == 4) // shade
+                    || (ccA->rgb.subb == 5 && ccA->rgb.add == 5) // env
+                    || (ccA->rgb.subb >= 8 && ccA->rgb.add == 7)) { // zero
+                    // Lerps would only be problematic if subb == add == ONE, but subb cannot take the ONE input so lerps are always fine.
+                } else {
+                    VALIDATE_WARN_CC(0, "combined rgb passed to mul input and exotic combiner detected, be mindful of overflow");
+                }
+            }
+        }
     }
 }
 
@@ -1583,8 +1610,8 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         VALIDATE_ERR(t->tmem_addr >= 0x800, "palettes must be loaded in upper half of TMEM (address >= 0x800)");
         VALIDATE_WARN(!(low&3) && !(high&3), "lowest 2 bits of palette start/stop must be 0");
         VALIDATE_ERR(low>>2 < 256, "palette start index must be < 256");
-        VALIDATE_ERR(high>>2 < 256, "palette stop index must be < 256");
         VALIDATE_CRASH(low>>2 <= high>>2, "palette stop index is lower than palette start index");
+        VALIDATE_ERR((high>>2)+1-(low>>2) <= 256, "palette length must be < 256");
     }   break;
     case 0x2F: // SET_OTHER_MODES
         validate_busy_pipe();

@@ -308,7 +308,13 @@ bool debug_init_usblog(void)
 
 bool debug_init_isviewer(void)
 {
-	if (emux_detect() & EMUX_FEAT_LOG)
+	if (emux_detect(1) & EMUX_FEAT1_EXCEPTION)
+	{
+		// Activate exceptions on console freeze
+		emux_exception_set_mask(EMUX_EXCEPTION_ERR_MASK);
+	}
+
+	if (emux_detect(1) & EMUX_FEAT1_LOG)
 	{
 		hook_init_once();
 		debug_writer[1] = emux_write;

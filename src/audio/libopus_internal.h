@@ -7,6 +7,8 @@
 #ifndef LIBDRAGON_AUDIO_LIBOPUS_INTERNAL_H
 #define LIBDRAGON_AUDIO_LIBOPUS_INTERNAL_H
 
+///@cond
+
 // Activate fixed point mode on N64. Floating point works as well in its
 // reference implementation, but our RSP-accelerated version requires
 // fixed point.
@@ -23,6 +25,8 @@
 #define HAVE_LRINTF
 #define HAVE_LRINT
 
+///@endcond
+
 #include "opus/arch.h"
 #include "opus/os_support.h"
 #include "opus/opus_custom.h"
@@ -30,10 +34,10 @@
 
 #ifdef N64
 
-// Activate RSP-specific optimizations.
-#define RSP_IMDCT           1
-#define RSP_COMB_FILTER     1
-#define RSP_DEEMPHASIS      1
+// Activate RSP ucode acceleration
+#define RSP_IMDCT           1       ///< Use RSP for IMDCT
+#define RSP_COMB_FILTER     1       ///< Use RSP for comb filter
+#define RSP_DEEMPHASIS      1       ///< Use RSP for emphasis filter
 
 void rsp_opus_init(void);
 

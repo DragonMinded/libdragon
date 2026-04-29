@@ -4,6 +4,7 @@
  */
 #include "asset.h"
 #include "asset_internal.h"
+#include "debug.h"
 #include "compress/aplib_dec_internal.h"
 #include "compress/lz4_dec_internal.h"
 #include "compress/shrinkler_dec_internal.h"
@@ -33,7 +34,6 @@
 #include <assert.h>
 /// @cond
 #define memalign(a, b) malloc(b)
-#define assertf(x, ...) assert(x)
 /// @endcond
 #endif
 
@@ -143,7 +143,7 @@ static bool decompress_full_stream(asset_compression_stream_t *algo, int fd, uin
     assertf(state, "Out of memory");
     algo->decompress_init(state, fd, winsize);
     int n = algo->decompress_read(state, buf, size);
-    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, size);
+    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, (int)size);
     free(state);
     return true;
 }
@@ -194,7 +194,7 @@ static bool decompress_full(asset_compression_full_t *algo, int fd, size_t cmp_s
         // Run the decompression.
         n = algo->decompress_full(s+cmp_offset, cmp_size, s, size); (void)n;
     }
-    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, size);
+    assertf(n == size, "asset: decompression error: corrupted? (%d/%d)", n, (int)size);
     return true;
 }
 
@@ -213,6 +213,7 @@ static int asset_read_header(int fd, asset_parsed_header_t *header, int *sz)
         header->inplace_margin = __read_varint_u64(&ptr);
         int header_size = (void*)ptr - (void*)header;
         if (header_size & 1) header_size++;
+        assertf(header_size < sizeof(asset_header_t), "header size too large");
 
         // Seek back to the actual end of the header
         int cur = lseek(fd, header_size - rdhead, SEEK_CUR); (void)cur;
@@ -324,9 +325,10 @@ void *asset_load(const char *fn, int *sz)
 
 #ifdef N64
 
+/** @brief Uncompressed file cookie for funopen() */
 typedef struct  {
-    int fd;
-    bool seeked;
+    int fd;             ///< Open file descriptor
+    bool seeked;        ///< True if the file has been seeked once
 } cookie_none_t;
 
 static fpos_t seekfn_none(void *c, fpos_t pos, int whence)
@@ -361,14 +363,15 @@ static int closefn_none(void *c)
     return 0;
 }
 
+/** @brief Compression cookie for funopen() */
 typedef struct  {
-    int fd;
-    int pos;
-    bool seeked;
-    int header_size;
-    void (*reset)(void *state);
-    ssize_t (*read)(void *state, void *buf, size_t len);
-    uint8_t alignas(16) state[];
+    int fd;                         ///< Open File descriptor
+    int pos;                        ///< Current position in the file
+    bool seeked;                    ///< True if the file has been seeked once
+    int header_size;                ///< Size of the header
+    void (*reset)(void *state);     ///< Reset function for the decompression state
+    ssize_t (*read)(void *state, void *buf, size_t len); ///< Read function for the decompression state
+    uint8_t alignas(16) state[];    ///< Decompression state (16-byte aligned)
 } cookie_cmp_t;
 
 _Static_assert(offsetof(cookie_cmp_t, state) % 16 == 0, "cookie_cmp_t.state must be 16-byte aligned");

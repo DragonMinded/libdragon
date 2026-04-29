@@ -191,6 +191,7 @@ static void __fat_stat_fill(FSIZE_t size, BYTE attr, struct stat *st)
 		st->st_mode |= S_IFDIR;
 	else
 		st->st_mode |= S_IFREG;
+	st->st_rdev = (dev_t)attr;
 }
 
 static int __fat_stat(char *name, struct stat *st, int volid)

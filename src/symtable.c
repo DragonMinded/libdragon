@@ -4,9 +4,9 @@
  * @brief SYMT symbol table access
  * @ingroup backtrace
  *
- * # N64 SYMT Format v3
+ * # N64 SYMT Format v5
  *
- * This document describes the version 3 of the Symbol Table format (SYMT) used by Libdragon for
+ * This document describes version 5 of the Symbol Table format (SYMT) used by Libdragon for
  * runtime symbolization and backtracing.
  *
  * The format is designed to be extremely compact in ROM while requiring a minimal fixed amount of
@@ -25,7 +25,7 @@
  * ```c
  * typedef struct {
  *     char magic[4];           // "SYMT"
- *     uint32_t version;        // 3
+ *     uint32_t version;        // 5
  *     uint32_t num_symbols;    // Total number of symbols
  *     uint32_t num_chunks;     // Total number of compressed symbol chunks
  *
@@ -36,7 +36,8 @@
  *     uint32_t huff_tab_off;   // Global Huffman Table
  *     uint32_t file_blob_off;  // File String Blob
  *     uint32_t func_blob_off;  // Func String Blob
- *     uint32_t stream_off;     // Compressed Symbol Stream
+ *     uint32_t stream_off;     // Compressed Symbol Stream (asset compression level 3)
+ *     uint32_t max_chunk_margin; // Max in-place decompression safety margin
  *     
  *     // Size of sections (useful for bounds checking)
  *     uint32_t num_files;      // Total number of file strings
@@ -147,21 +148,23 @@
  *
  * ### 5. Compressed Symbol Stream (`stream_off`)
  *
- * Contains the symbol data. This is a continuous stream of bytes divided into Chunks (as defined in
- * the Chunk Index). Each Chunk can be decompressed independently.
+ * Contains chunks compressed with asset compression level 3 (currently Shrinkler). 
+ * This is a continuous stream of bytes divided into Chunks
+ * (as defined in the Chunk Index). Each Chunk can be decompressed independently.
  *
- * **Chunk Layout:**
+ * **Chunk Layout (after asset compression level 3 decompression):**
  * * `FirstFuncOff` (VarInt): Offset of the first symbol in the chunk relative to the start of its
  *   function. If 0, the chunk starts exactly at a function boundary or the function base is unknown.
  * * Opcodes sequence (see below).
- * * `0x00` end-of-chunk marker, padded to 2-byte alignment.
+ * * No explicit end-of-chunk marker: the chunk ends at the decompressed chunk length.
  *
- * Inside a Chunk, symbols are stored sequentially using **Delta Encoding** relative to the previous
- * symbol's state. The state consists of:
+ * Inside a Chunk, symbols are stored sequentially using **Delta Encoding**. Address deltas are
+ * relative to the previous symbol address, while file/function/line deltas are relative to a state
+ * selected by symbol class (`inline` vs `non-inline`). The state consists of:
  * * `CurrentAddress` (Initialized to `chunk.start_addr`)
- * * `FileID` (Initialized to 0)
- * * `FuncID` (Initialized to 0)
- * * `Line` (Initialized to 0)
+ * * `FileID[2]` (Initialized to 0, index 0=`non-inline`, 1=`inline`)
+ * * `FuncID[2]` (Initialized to 0, index 0=`non-inline`, 1=`inline`)
+ * * `Line[2]` (Initialized to 0, index 0=`non-inline`, 1=`inline`)
  *
  * **Symbol Encoding:** Each symbol starts with a 1-byte **Opcode**:
  *
@@ -173,10 +176,6 @@
  * | 4 | `Is Func` | If 1, this symbol marks the start of a function. |
  * | 3 | `Is Inline` | If 1, this symbol is an inlined function instance. |
  * | 2-0 | `Addr Delta` | Addr inc. <br> `0`: 0. <br> `1..6`: (`V*4`). <br> `7`: VarInt, Delta = (`V+7`)*4. |
- *
- * The opcode value `0x18` (EOM) is used to signal the end of the chunk. This is
- * guaranteed never to appear as a valid opcode for a symbol, because a function
- * start address can never be an inlined symbol.
  *
  * ## Data Types
  *
@@ -210,11 +209,13 @@
  * 2.  **Load Chunk:**
  *     *   DMA the chunk data from `stream_off + C.stream_off` into the RAM buffer.
  * 3.  **Scan Stream:**
- *     *   Initialize state: `CurrAddr = C.start_addr`, `File=0`, `Func=0`, `Line=0`.
+ *     *   Initialize state: `CurrAddr = C.start_addr`,
+ *         `File[0..1]=0`, `Func[0..1]=0`, `Line[0..1]=0`.
  *     *   Loop through opcodes in the buffer:
  *         *   Decode Address Delta. Update `CurrAddr`.
  *         *   If `CurrAddr > SearchAddr`: Stop. The *previous* valid symbol is the match.
- *         *   Update `File`, `Func`, `Line` based on flags and VarInts.
+ *         *   Select class state with `sid = IsInline ? 1 : 0`.
+ *         *   Update `File[sid]`, `Func[sid]`, `Line[sid]` based on flags and VarInts.
  *         *   Keep track of the "Best Match" seen so far.
  *
  * ### Algorithm 2: String Fetch
@@ -257,15 +258,18 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdalign.h>
+#include <stddef.h>
 #include <string.h>
 #include <stdio.h>
 #include "symtable_internal.h"
+#include "asset_internal.h"
 #include "n64sys.h"
 #include "dma.h"
 #include "rompak_internal.h"
 #include "dlfcn_internal.h"
 #include "debug.h"
 #include "utils.h"
+#include "compress/shrinkler_dec_internal.h"
 
 /** @brief Buffer size for decompression */
 #define MAX_BUFFER_SIZE 512
@@ -283,8 +287,22 @@ extern uint32_t __text_start[];
 /** @brief End of main executable text section */
 extern uint32_t __text_end[];
 
-/** @brief Address of the SYMT symbol table in the rompak. */
-static uint32_t SYMT_ROM = 0xFFFFFFFF;
+/** @brief Serialized SYMT header size (runtime-only fields excluded). */
+#define SYMT_FILE_HEADER_SIZE ((int)offsetof(symtable_header_t, rom_offset))
+
+/**
+ * Read a 32-bit word from SYMT ROM, tolerating unaligned PI addresses.
+ * SYMT files for DSOs only have 2-byte aligned offsets.
+ */
+static uint32_t symt_read_u32(pi_addr_t pi_address)
+{
+    uint32_t base = pi_address & ~3;
+    uint32_t off = pi_address & 3;
+    uint32_t w0 = io_read(base);
+    if (off == 0) return w0;
+    uint32_t w1 = io_read(base + 4);
+    return (w0 << 16) | (w1 >> 16);
+}
 
 /** @brief Placeholder used in frames where symbols are not available */
 const char *UNKNOWN_SYMBOL = "???";
@@ -322,6 +340,7 @@ static bool is_main_exe_text_address(uint32_t addr)
 }
 
 symtable_header_t symt_open(void *addr) {
+    uint32_t sym_rom = 0;
     if(is_main_exe_text_address((uint32_t)addr)) {
         //Open SYMT from rompak
         static uint32_t mainexe_symt = 0xFFFFFFFF;
@@ -330,7 +349,7 @@ symtable_header_t symt_open(void *addr) {
             if (!mainexe_symt)
                 debugf("backtrace: no symbol table found in the rompak\n");
         }
-        SYMT_ROM = mainexe_symt;
+        sym_rom = mainexe_symt;
     } else {
         dl_module_t *module = NULL;
         if(__bt_lookup_module) {
@@ -338,31 +357,30 @@ symtable_header_t symt_open(void *addr) {
         }
         if(module && module->sym_romofs != 0) {
             //Read module SYMT
-            SYMT_ROM = module->sym_romofs;
+            sym_rom = module->sym_romofs;
         } else {
-            SYMT_ROM = 0;
+            sym_rom = 0;
         }
     }
     
-    if (!SYMT_ROM) {
+    if (!sym_rom) {
         return (symtable_header_t){0};
     }
 
     symtable_header_t symt_header;
     data_cache_hit_writeback_invalidate(&symt_header, sizeof(symt_header));
-    dma_read(&symt_header, SYMT_ROM, sizeof(symtable_header_t));
+    dma_read(&symt_header, sym_rom, SYMT_FILE_HEADER_SIZE);
 
     if (symt_header.head[0] != 'S' || symt_header.head[1] != 'Y' || symt_header.head[2] != 'M' || symt_header.head[3] != 'T') {
-        debugf("backtrace: invalid symbol table found at 0x%08lx\n", SYMT_ROM);
-        SYMT_ROM = 0;
+        debugf("backtrace: invalid symbol table found at 0x%08lx\n", sym_rom);
         return (symtable_header_t){0};
     }
-    if (symt_header.version != 3) {
+    if (symt_header.version != 5) {
         debugf("backtrace: unsupported symbol table version %ld -- please update your n64sym tool\n", symt_header.version);
-        SYMT_ROM = 0;
         return (symtable_header_t){0};
     }
 
+    symt_header.rom_offset = sym_rom;
     return symt_header;
 }
 
@@ -374,7 +392,7 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
 
     while (min < max) {
         int mid = (min + max + 1) / 2;
-        int chunk_start_addr = io_read(SYMT_ROM + symt->chunk_idx_off + mid * 8);
+        int chunk_start_addr = symt_read_u32(symt->rom_offset + symt->chunk_idx_off + mid * 8);
         if (addr < chunk_start_addr)
             max = mid - 1;
         else
@@ -382,35 +400,40 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
     }
     
     // Read the chunk entry for the found chunk
-    int chunk_start_addr = io_read(SYMT_ROM + symt->chunk_idx_off + min * 8 + 0);
-    int chunk_stream_off = io_read(SYMT_ROM + symt->chunk_idx_off + min * 8 + 4);
+    int chunk_start_addr = symt_read_u32(symt->rom_offset + symt->chunk_idx_off + min * 8 + 0);
+    uint32_t chunk_stream_off = symt_read_u32(symt->rom_offset + symt->chunk_idx_off + min * 8 + 4);
+    uint32_t next_chunk_stream_off = (min + 1 < symt->num_chunks)
+        ? symt_read_u32(symt->rom_offset + symt->chunk_idx_off + (min + 1) * 8 + 4)
+        : symt->stream_size;
     if (addr < chunk_start_addr)
         return false; // Should not happen if address is valid code
+    uint32_t cmp_size = next_chunk_stream_off - chunk_stream_off;
 
-    // Decompress the chunk
-    uint8_t alignas(16) chunk_buf[MAX_BUFFER_SIZE];
-    uint32_t stream_addr = SYMT_ROM + symt->stream_off + chunk_stream_off;
-    
-    // We don't know the exact size of the chunk, but we know it fits in MAX_BUFFER_SIZE.
-    data_cache_hit_writeback_invalidate(chunk_buf, MAX_BUFFER_SIZE);
-    dma_read(chunk_buf, stream_addr, MAX_BUFFER_SIZE);
-    
+    // Read + decompress the chunk in-place (same model as asset.c)
+    uint32_t stream_addr = symt->rom_offset + symt->stream_off + chunk_stream_off;
+    int cmp_pos = 0;
+    int work_size = asset_buf_size(MAX_BUFFER_SIZE, cmp_size, symt->max_chunk_margin, &cmp_pos);
+    uint8_t alignas(16) chunk_buf[work_size];
+    data_cache_hit_writeback_invalidate(chunk_buf, work_size);
+    dma_read(chunk_buf + cmp_pos, stream_addr, cmp_size);
+    int dec_n = decompress_shrinkler_full_inplace(chunk_buf + cmp_pos, cmp_size, chunk_buf, MAX_BUFFER_SIZE);
+
     const uint8_t *ptr = chunk_buf;
+    const uint8_t *end = chunk_buf + dec_n;
     // First field: function offset of the first symbol in chunk (VarInt)
     uint32_t chunk_func_off = __read_varint_u64(&ptr);
     
     // Iterate through symbols in the chunk
     uint32_t cur_addr = chunk_start_addr;
-    int cur_file = 0;
-    int cur_func = 0;
-    int cur_line = 0;
+    int cur_file[2] = {0, 0}; // [0]=non-inline, [1]=inline
+    int cur_func[2] = {0, 0}; // [0]=non-inline, [1]=inline
+    int cur_line[2] = {0, 0}; // [0]=non-inline, [1]=inline
     
     uint32_t last_func_addr = chunk_func_off ? (chunk_start_addr - chunk_func_off) : 0;
     int found = 0;
     
-    while (1) {
+    while (ptr < end) {
         uint8_t op = *ptr++;
-        if (op == 0x18) break; // End of chunk marker
         
         // Decode deltas
         int delta_file = (op & 0x80) ? __read_varint_s64(&ptr) : 0;
@@ -425,21 +448,23 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
             delta_addr = (op & 0x07) * 4;
         }
         
-        cur_file += delta_file;
-        cur_func += delta_func;
-        cur_line += delta_line;
-        uint32_t sym_addr = cur_addr + delta_addr;
         bool is_func = (op & 0x10);
         bool is_inline = (op & 0x08);
+        int sid = is_inline ? 1 : 0;
+
+        cur_file[sid] += delta_file;
+        cur_func[sid] += delta_func;
+        cur_line[sid] += delta_line;
+        uint32_t sym_addr = cur_addr + delta_addr;
         
         if (is_func) last_func_addr = sym_addr;
         
         // If this is the function start, record it. In case the exact symbol
-        // is not found, ee will return this approximation (funciontion start + offset)
+        // is not found, ee will return this approximation (function start + offset)
         if (sym_addr < addr && is_func) {
             last_func_addr = sym_addr;
-            entry[0].func_sidx = cur_func;
-            entry[0].file_sidx = cur_file;
+            entry[0].func_sidx = cur_func[0];
+            entry[0].file_sidx = cur_file[0];
             entry[0].line = 0;
             entry[0].func_off = addr - last_func_addr;
             entry[0].is_inline = 0;
@@ -450,9 +475,9 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
         if (sym_addr == addr) {
             if (entry[0].line == 0) found = 0; // Overwrite function-only entry
             if (found < max_entries) {
-                entry[found].func_sidx = cur_func;
-                entry[found].file_sidx = cur_file;
-                entry[found].line = cur_line;
+                entry[found].func_sidx = cur_func[sid];
+                entry[found].file_sidx = cur_file[sid];
+                entry[found].line = cur_line[sid];
                 entry[found].is_inline = is_inline;
                 if (last_func_addr) {
                     entry[found].func_off = addr - last_func_addr;
@@ -597,7 +622,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
 
     while (min < max) {
         int mid = (min + max + 1) / 2;
-        uint32_t entry_start_idx = io_read(SYMT_ROM + tab_off + mid * 8 + 0);
+        uint32_t entry_start_idx = symt_read_u32(symt->rom_offset + tab_off + mid * 8 + 0);
         if (idx < entry_start_idx)
             max = mid - 1;
         else
@@ -605,8 +630,8 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     }
     
     // Read the block entry
-    uint32_t entry_start_idx = io_read(SYMT_ROM + tab_off + min * 8 + 0);
-    uint32_t entry_blob_off = io_read(SYMT_ROM + tab_off + min * 8 + 4);
+    uint32_t entry_start_idx = symt_read_u32(symt->rom_offset + tab_off + min * 8 + 0);
+    uint32_t entry_blob_off = symt_read_u32(symt->rom_offset + tab_off + min * 8 + 4);
     if (idx < entry_start_idx) {
         snprintf(buf, size, "%s", UNKNOWN_SYMBOL);
         return buf;
@@ -616,7 +641,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     uint32_t huff_size = MIN(symt->huff_tab_size, MAX_BUFFER_SIZE);
     uint8_t alignas(16) huff_tab[huff_size] __attribute__((uninitialized));
     data_cache_hit_writeback_invalidate(huff_tab, huff_size);
-    dma_read(huff_tab, SYMT_ROM + symt->huff_tab_off, huff_size);
+    dma_read(huff_tab, symt->rom_offset + symt->huff_tab_off, huff_size);
     
     huff_decoder_t dec;
     huff_decoder_init(&dec, huff_tab, huff_size);
@@ -624,7 +649,7 @@ static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int si
     // Read string block
     uint8_t alignas(16) str_blob[MAX_BUFFER_SIZE] __attribute__((uninitialized));
     data_cache_hit_writeback_invalidate(str_blob, sizeof(str_blob));
-    dma_read(str_blob, SYMT_ROM + blob_off + entry_blob_off, sizeof(str_blob));
+    dma_read(str_blob, symt->rom_offset + blob_off + entry_blob_off, sizeof(str_blob));
     
     // Decode strings
     bit_reader_t br;

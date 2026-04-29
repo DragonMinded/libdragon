@@ -41,6 +41,19 @@ ifeq ($(OS),Windows_NT)
 	ifeq ($(CHECK_CXX),fail)
 		$(error "CXX is not set to a mingw compiler: ${CXX}")
 	endif
+
+# Define a macro with an estimate of the MSYS2 environment's age so that we can check it for compatibility reasons.
+	MSYS2_AGE := $(shell date -d "$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
+	ifeq ($(MSYS2_AGE),)
+		$(error "Failed to determine MSYS2 age. Please make sure that pacman, date, and sed are in PATH and that msys2-runtime is installed.")
+	else
+		CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
+		CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
+	endif
+else
+# When cross-building, set a default value for MSYS2_RUNTIME_PACMAN_AGE
+	CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=0
+	CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=0
 endif
 
 # Decomment to rebuild tools with ASAN
@@ -60,15 +73,17 @@ all:
 	rm -f $@
 	$(AR) rcs $@ $^
 
+
 # Avoid many warnings for vendored code that we don't intend to ever modify
 common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
 mkfont/freetype/FreeTypeAmalgam.o: CFLAGS += -Wno-all -Wno-error
 mkfont/plutosvg/plutosvg-amalgam.o:CFLAGS += -Imkfont/plutosvg -Wno-unused-function -Wno-error
 mkfont/mkfont.o:              	   CXXFLAGS += -Imkfont/plutosvg -Imkfont/freetype
-mksprite/x264_amalgam.o:           CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand
+mksprite/x264_amalgam.o:           CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand -fno-strict-aliasing
 mksprite/x264_amalgam.o:           CFLAGS += -Imksprite/x264
-mksprite/x264_amalgam2.o:          CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand
+mksprite/x264_amalgam2.o:          CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand -fno-strict-aliasing
 mksprite/x264_amalgam2.o:          CFLAGS += -Imksprite/x264
+audioconv64/libvadpcm.o:           CFLAGS += -Iaudioconv64/vadpcm
 
 
 common-clean:
@@ -106,8 +121,8 @@ mkdfs_OBJS = mkdfs/mkdfs.o
 dumpdfs_OBJS = dumpdfs/dumpdfs.o
 cpaktool_OBJS = cpaktool/cpaktool.o cpaktool/cpakcmds.o cpaktool/cpaklib.o cpaktool/cpakwrapper.o
 n64tool_OBJS = n64tool.o
-n64sym_OBJS = n64sym/n64sym.o n64sym/n64sym_huffman.o
-n64symdump_OBJS = n64sym/n64symdump.o n64sym/n64sym_huffman.o
+n64sym_OBJS = n64sym/n64sym.o n64sym/n64sym_cppshorten.o n64sym/n64sym_huffman.o common/assetcomp.a
+n64symdump_OBJS = n64sym/n64symdump.o n64sym/n64sym_huffman.o n64sym/n64sym_shrinkler_host.o
 n64metadata_OBJS = n64metadata.o
 ed64romconfig_OBJS = ed64romconfig.o
 n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a

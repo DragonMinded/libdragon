@@ -368,6 +368,21 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1)
 
 ///@endcond
 
+bool rdpq_tex_can_upload(const surface_t *tex)
+{
+    tex_format_t fmt = surface_get_format(tex);
+    int width = tex->width;
+
+    if (TEX_FORMAT_BITDEPTH(fmt) == 4)
+        width = (width + 1) & ~1;
+
+    int pitch_shift = (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? 1 : 0;
+    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width) >> pitch_shift, 8);
+    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_YUV16) ? 2048 : 4096;
+
+    return tex->height * tmem_pitch <= tmem_size;
+}
+
 int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
     last_tload = tex_loader_init(tile, tex);
@@ -589,10 +604,10 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
     fm_sincosf(parms->theta, &sin_theta, &cos_theta);
 
     float mtx[3][2] = {
-        { cos_theta * scalex, -sin_theta * scaley },
-        { sin_theta * scalex, cos_theta * scaley },
-        { x0 - cx * cos_theta * scalex - cy * sin_theta * scaley,
-          y0 + cx * sin_theta * scalex - cy * cos_theta * scaley }
+        { cos_theta * scalex, -sin_theta * scalex },
+        { sin_theta * scaley, cos_theta * scaley },
+        { x0-((cx*(cos_theta*scalex))+(cy*(sin_theta*scaley))),
+        y0-((cx*(-sin_theta*scalex))+(cy*(cos_theta*scaley)))}
     };
 
     void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
@@ -640,7 +655,7 @@ static void tex_xblit_xform(const surface_t *surf, float x0, float y0, const rdp
     float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
     float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
     rdpq_xform_push();
-    rdpq_xform_mult_rst(x0, y0, parms->theta, scalex, scaley);
+    rdpq_xform_mult_srt(x0, y0, parms->theta, scalex, scaley);
     
     void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
     {
@@ -684,13 +699,12 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
 
 void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors)
 {
-    // TODO: this is a conservative limit. It should be possible to workaround
-    // this limit by playing with the tlut pointer passed to SET_TEX_IMAGE and
-    // then adjust the first_color offset in rdpq_load_tlut_raw.
-    assertf((PhysicalAddr(tlut) & 7) == 0, "TLUT pointer must be 8-byte aligned");
-    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, 256, 1);
-    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*4*2, 256, NULL);
-    rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, 0, num_colors);
+    assert(num_colors > 0);
+    int init_offset = (PhysicalAddr(tlut) & 7) / 2;
+    tlut -= init_offset;
+    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, 256+4, 1);
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*4*2, 256+8, NULL);
+    rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, init_offset, num_colors);
 }
 
 void rdpq_tex_multi_begin(void)

@@ -124,7 +124,7 @@
     assert_eq t0, 0, 0x8101
     #endif
 
-    #D(emux_breakpoint)
+    #D(xbreak)
     li t1, 0x4000
     mtc2 t1, vgains.e3
     mtc2 gains_01, vgains.e0
@@ -166,8 +166,8 @@
     # SINGLE: 39 cycles / 8 samples
     # DUAL:   71 cycles / 8 samples
 1:
-    #emux_breakpoint
-    #D(emux_log_string "loop\n")
+    #xbreak
+    #D(xlog_string "loop\n")
 
     # Store previous loop result.
     sqv vouti, -0x10,dmem_out_i;            
@@ -191,8 +191,8 @@
     lrv vsig1f, 0x10,dmem_in_f1;            D(vmacf vgain1_inv, vwin, vgains.e5)
     lrv vsig2i, 0x10,dmem_in_i2;            D(vmudn vzero, vzero)             
     lrv vsig2f, 0x10,dmem_in_f2;            D(vmacf vgain2_inv, vwin, vgains.e6)
-    #D(emux_dump_gpr dmem_in_i0, dmem_in_f0)
-    #D(emux_dump_vpr vsig0f, vsig0i)      
+    #D(xlogregs_gpr dmem_in_i0, dmem_in_f0)
+    #D(xlogregs_vpr vsig0f, vsig0i)      
                                             # Main MAC sequence for FIR filter
     lrv vsig3i, 0x10,dmem_in_i3;            vmudn v____, vsig0f, vgain2
     lrv vsig3f, 0x10,dmem_in_f3;            vmadh v____, vsig0i, vgain2
@@ -226,8 +226,8 @@
     D(lrv vsig4f, 0x10,dmem_in2_f4)
     D(lqv vsig4i, 0x00,dmem_in2_i4)
     D(lrv vsig4i, 0x10,dmem_in2_i4)
-    #D(emux_dump_gpr dmem_in2_i0, dmem_in2_f0)
-    #D(emux_dump_vpr vsig0f, vsig0i, vsig1f, vsig1i, vsig2f, vsig2i, vsig3f, vsig3i, vsig4f, vsig4i)
+    #D(xlogregs_gpr dmem_in2_i0, dmem_in2_f0)
+    #D(xlogregs_vpr vsig0f, vsig0i, vsig1f, vsig1i, vsig2f, vsig2i, vsig3f, vsig3i, vsig4f, vsig4i)
     D(addiu dmem_in2_i0, 0x10;)             D(vmadn v____, vsig0f, vgain2_inv)
     D(addiu dmem_in2_f0, 0x10;)             D(vmadh v____, vsig0i, vgain2_inv)
     D(addiu dmem_in2_i1, 0x10;)             D(vmadn v____, vsig1f, vgain1_inv)
@@ -266,7 +266,7 @@
     lqv vsig3i, 0x00,dmem_in_i3;            vsll32f_sat voutf, voutf, 1
     lqv vsig3f, 0x00,dmem_in_f3;            vsll32i_sat vouti, vouti, 1
 
-    #D(emux_dump_vpr voutf, vouti)
+    #D(xlogregs_vpr voutf, vouti)
 
     D(addiu window, 0x10);                  D(vsub vwin_inv, vone, vwin)
 

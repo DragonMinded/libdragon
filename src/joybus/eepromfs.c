@@ -11,6 +11,12 @@
 #include "utils.h"
 #include "eeprom.h"
 #include "eepromfs.h"
+#include "debug.h"
+
+/** @brief Flags for the file */
+#define EEPFS_FLAGS_CHECKSUM    (1<<0)
+/** @brief Flags for the file */
+#define EEPFS_FLAGS_BACKUP      (1<<1)
 
 /**
  * @brief EEPROM Filesystem file descriptor.
@@ -32,11 +38,13 @@
 typedef struct eepfs_file_t
 {
     /** @brief File path */
-    const char * const path;
+    const char *path;
     /** @brief Files must start on a block boundary */
-    const size_t start_block;
+    uint16_t start_block;
     /** @brief Size of the file (in bytes) */
-    const size_t num_bytes;
+    uint16_t num_bytes;
+    /** @brief Flags for the file */
+    uint16_t flags;
 } eepfs_file_t;
 
 /**
@@ -66,6 +74,9 @@ static eepfs_file_t * eepfs_files = NULL;
  */
 static uint16_t eepfs_files_checksum = 0;
 
+/** @brief Initial value for the CRC-16 checksum */
+#define CRC16_INIT      0xFFFF
+
 /**
  * @brief Calculates a CRC-16 checksum from an array of bytes.
  * 
@@ -74,14 +85,11 @@ static uint16_t eepfs_files_checksum = 0;
  * 
  * @see https://stackoverflow.com/a/23726131
  */
-static uint16_t calculate_crc16(const uint8_t * data, size_t len)
+static uint16_t calculate_crc16(uint16_t crc, const uint8_t * data, size_t len)
 {
-    uint8_t x;
-    uint16_t crc = 0xFFFF;
-
     while ( len-- )
     {
-        x = crc >> 8 ^ *(data++);
+        uint8_t x = crc >> 8 ^ *(data++);
         x ^= x>>4;
         crc = (
             (crc << 8) ^ 
@@ -90,7 +98,6 @@ static uint16_t calculate_crc16(const uint8_t * data, size_t len)
             ((uint16_t)x)
         );
     }
-
     return crc;
 }
 
@@ -243,8 +250,10 @@ int eepfs_init(const eepfs_entry_t * entries, size_t count)
     /* Configure a file descriptor for each entry */
     for ( size_t i = 1; i < eepfs_files_count; ++i )
     {
+        uint16_t flags = 0;
         file_path = entries[i - 1].path;
         file_size = entries[i - 1].size;
+        uint16_t file_total_size = file_size;
 
         /* Sanity check the file details */
         if ( file_path == NULL || file_size == 0 )
@@ -253,19 +262,35 @@ int eepfs_init(const eepfs_entry_t * entries, size_t count)
             return EEPFS_EBADINPUT;
         }
 
+        /* If the file has a checksum, add 2 bytes for the checksum */
+        if ( entries[i - 1].checksum )
+        {
+            file_total_size += 2;
+            flags |= EEPFS_FLAGS_CHECKSUM;
+        }
+        /* If the file has a backup, add the generation count plus the copy */
+        if ( entries[i - 1].backup )
+        {
+            file_total_size += 1;
+            file_total_size = ROUND_UP(file_total_size, EEPROM_BLOCK_SIZE);
+            file_total_size *= 2;
+            flags |= EEPFS_FLAGS_BACKUP;
+        }
+
         /* Strip the leading '/' on paths for consistency */
         file_path += ( file_path[0] == '/' );
 
         /* Create a file descriptor and copy it into the table */
         const eepfs_file_t entry_file = {
-            file_path,
-            total_blocks,
-            file_size,
+            .path = file_path,
+            .start_block = total_blocks,
+            .num_bytes = file_size,
+            .flags = flags,
         };
         memcpy(&eepfs_files[i], &entry_file, sizeof(entry_file));
 
         /* Files must start on a block boundary */
-        total_blocks += DIVIDE_CEIL(file_size, EEPROM_BLOCK_SIZE);
+        total_blocks += DIVIDE_CEIL(file_total_size, EEPROM_BLOCK_SIZE);
     }
 
     /* Ensure the filesystem will actually fit in available EEPROM */
@@ -276,8 +301,15 @@ int eepfs_init(const eepfs_entry_t * entries, size_t count)
     }
 
     /* Calculate and store the CRC-16 checksum for the declared entries */
-    const size_t entries_size = sizeof(eepfs_entry_t) * count;
-    eepfs_files_checksum = calculate_crc16((void *)entries, entries_size);
+    uint16_t crc = CRC16_INIT;
+    for ( size_t i = 0; i < count; ++i )
+    {
+        crc = calculate_crc16(crc, (uint8_t *)entries[i].path, strlen(entries[i].path));
+        crc = calculate_crc16(crc, (uint8_t *)&entries[i].size, sizeof(entries[i].size));
+        crc = calculate_crc16(crc, (uint8_t *)&entries[i].checksum, sizeof(entries[i].checksum));
+        crc = calculate_crc16(crc, (uint8_t *)&entries[i].backup, sizeof(entries[i].backup));
+    }
+    eepfs_files_checksum = crc;
 
     return EEPFS_ESUCCESS;
 }
@@ -287,7 +319,7 @@ int eepfs_close(void)
     /* If eepfs was not initialized, don't do anything. */
     if ( eepfs_files == NULL || eepfs_files_count == 0 )
     {
-        return EEPFS_EBADFS;
+        return EEPFS_EBADINPUT;
     }
 
     /* Clear the file descriptor table */
@@ -297,6 +329,69 @@ int eepfs_close(void)
     eepfs_files_count = 0;
 
     return EEPFS_ESUCCESS;
+}
+
+static int read_file(size_t start_bytes, void * dest, size_t size, int flags)
+{
+    uint16_t checksum, computed_checksum = CRC16_INIT;
+    if ( flags & EEPFS_FLAGS_CHECKSUM )
+    {
+        eeprom_read_bytes(&checksum, start_bytes, 2);
+        start_bytes += 2;
+    }
+
+    if ( flags & EEPFS_FLAGS_BACKUP )
+    {
+        if ( flags & EEPFS_FLAGS_CHECKSUM )
+        {
+            uint8_t gen;
+            eeprom_read_bytes(&gen, start_bytes, 1);
+            computed_checksum = calculate_crc16(computed_checksum, (uint8_t *)&gen, 1);
+        }
+
+        start_bytes += 1;
+    }
+
+    eeprom_read_bytes(dest, start_bytes, size);
+
+    if ( flags & EEPFS_FLAGS_CHECKSUM )
+    {
+        computed_checksum = calculate_crc16(computed_checksum, (uint8_t *)dest, size);
+        if ( computed_checksum != checksum )
+        {
+            return EEPFS_CORRUPTED;
+        }
+    }
+
+    return EEPFS_ESUCCESS;
+}
+
+static uint8_t file_get_start(const eepfs_file_t * file, size_t * main_start_bytes, size_t * backup_start_bytes)
+{
+    size_t csize = file->flags & EEPFS_FLAGS_CHECKSUM ? 2 : 0;
+    size_t start1_bytes = file->start_block * EEPROM_BLOCK_SIZE;
+    size_t start2_bytes = 0;
+    uint8_t gen1 = 0, gen2 = 0;
+
+    if ( file->flags & EEPFS_FLAGS_BACKUP )
+    {
+        start2_bytes = start1_bytes + file->num_bytes + csize + 1;
+        start2_bytes = ROUND_UP(start2_bytes, EEPROM_BLOCK_SIZE);
+
+        // Read the generation counts
+        eeprom_read_bytes(&gen1, start1_bytes + csize, 1);
+        eeprom_read_bytes(&gen2, start2_bytes + csize, 1);
+
+        if ( (int8_t)(gen1 - gen2) < 0 )
+        {
+            SWAP(start1_bytes, start2_bytes);
+            SWAP(gen1, gen2);
+        }
+    }
+
+    *main_start_bytes = start1_bytes;
+    *backup_start_bytes = start2_bytes;
+    return gen1 + 1;
 }
 
 int eepfs_read(const char * path, void * dest, size_t size)
@@ -315,10 +410,19 @@ int eepfs_read(const char * path, void * dest, size_t size)
         return EEPFS_EBADINPUT;
     }
 
-    const size_t start_bytes = file->start_block * EEPROM_BLOCK_SIZE;
-    eeprom_read_bytes(dest, start_bytes, file->num_bytes);
+    /* Get the start bytes for the main and backup copies */
+    size_t main_start_bytes, backup_start_bytes;
+    file_get_start(file, &main_start_bytes, &backup_start_bytes);
 
-    return EEPFS_ESUCCESS;
+    /* Read the main copy */
+    if ( read_file(main_start_bytes, dest, size, file->flags) == EEPFS_ESUCCESS )
+        return EEPFS_ESUCCESS;
+    /* Read the backup copy if it exists */
+    if ( backup_start_bytes != 0 && read_file(backup_start_bytes, dest, size, file->flags) == EEPFS_ESUCCESS )
+        return EEPFS_ESUCCESS;
+
+    /* If both copies are corrupted, return an error */
+    return EEPFS_CORRUPTED;
 }
 
 int eepfs_write(const char * path, const void * src, size_t size)
@@ -337,8 +441,31 @@ int eepfs_write(const char * path, const void * src, size_t size)
         return EEPFS_EBADINPUT;
     }
 
-    const size_t start_bytes = file->start_block * EEPROM_BLOCK_SIZE;
-    eeprom_write_bytes(src, start_bytes, file->num_bytes);
+    /* Get the start bytes for the main and backup copies */
+    size_t main_start_bytes, backup_start_bytes;
+    uint8_t next_gen = file_get_start(file, &main_start_bytes, &backup_start_bytes);
+
+    if (backup_start_bytes == 0)
+        backup_start_bytes = main_start_bytes;
+    
+    /* Prepare the header bytes */
+    uint8_t header_bytes[3]; int header_count = 0;
+
+    if (file->flags & EEPFS_FLAGS_CHECKSUM)
+    {
+        uint16_t checksum = CRC16_INIT;
+        if ( file->flags & EEPFS_FLAGS_BACKUP )
+            checksum = calculate_crc16(checksum, (uint8_t *)&next_gen, 1);
+        checksum = calculate_crc16(checksum, (uint8_t *)src, size);
+        header_bytes[header_count++] = (uint8_t)(checksum >> 8);
+        header_bytes[header_count++] = (uint8_t)(checksum & 0xFF);
+    }
+
+    if (file->flags & EEPFS_FLAGS_BACKUP)
+        header_bytes[header_count++] = next_gen;
+
+    eeprom_write_bytes(src, backup_start_bytes + header_count, file->num_bytes);
+    eeprom_write_bytes(header_bytes, backup_start_bytes, header_count);
 
     return EEPFS_ESUCCESS;
 }
@@ -352,6 +479,17 @@ int eepfs_erase(const char * path)
     {
         /* File does not exist, return error code */
         return EEPFS_ENOFILE;
+    }
+
+    /* Calculate the total number of blocks to erase */
+    int num_bytes = file->num_bytes;
+    if (file->flags & EEPFS_FLAGS_CHECKSUM)
+        num_bytes += 2;
+    if (file->flags & EEPFS_FLAGS_BACKUP)
+    {
+        num_bytes += 1;
+        num_bytes = ROUND_UP(num_bytes, EEPROM_BLOCK_SIZE);
+        num_bytes *= 2;
     }
 
     const size_t num_blocks = DIVIDE_CEIL(file->num_bytes, EEPROM_BLOCK_SIZE);

@@ -913,7 +913,7 @@ u32 h264bsdPredModeIntra16x16(mbType_e mbType)
 
 u32 h264bsdDecodeMacroblock(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
     image_t *currImage, dpbStorage_t *dpb, i32 *qpY, u32 mbNum,
-    u32 constrainedIntraPredFlag)
+    u32 constrainedIntraPredFlag, const sliceHeader_t *pSliceHeader)
 {
 
 /* Variables */
@@ -976,7 +976,8 @@ u32 h264bsdDecodeMacroblock(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
     {
         if (h264bsdMbPartPredMode(mbType) == PRED_MODE_INTER)
         {
-            tmp = h264bsdInterPrediction(pMb, pMbLayer, dpb, mbNum, currImage);
+            tmp = h264bsdInterPrediction(pMb, pMbLayer, dpb, mbNum, currImage,
+                pSliceHeader);
             ASSERT(tmp == HANTRO_OK);
             if (tmp != HANTRO_OK) return (tmp);
         }

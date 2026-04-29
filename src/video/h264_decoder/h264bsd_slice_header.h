@@ -104,6 +104,17 @@ typedef struct
     memoryManagementOperation_t operation[MAX_NUM_MMC_OPERATIONS];
 } decRefPicMarking_t;
 
+/* stores weighted prediction parameters for list0 references in P-slices */
+typedef struct
+{
+    u32 lumaLog2WeightDenom;
+    u32 chromaLog2WeightDenom;
+    i32 lumaWeightL0[MAX_NUM_REF_PICS];
+    i32 lumaOffsetL0[MAX_NUM_REF_PICS];
+    i32 chromaWeightL0[MAX_NUM_REF_PICS][2];
+    i32 chromaOffsetL0[MAX_NUM_REF_PICS][2];
+} predWeightTable_t;
+
 /* structure to store slice header data decoded from the stream */
 typedef struct
 {
@@ -118,6 +129,7 @@ typedef struct
     u32 redundantPicCnt;
     u32 numRefIdxActiveOverrideFlag;
     u32 numRefIdxL0Active;
+    u32 weightedPredFlag;
     i32 sliceQpDelta;
     u32 disableDeblockingFilterIdc;
     i32 sliceAlphaC0Offset;
@@ -125,6 +137,7 @@ typedef struct
     u32 sliceGroupChangeCycle;
     refPicListReordering_t refPicListReordering;
     decRefPicMarking_t decRefPicMarking;
+    predWeightTable_t predWeightTable;
 } sliceHeader_t;
 
 /*------------------------------------------------------------------------------

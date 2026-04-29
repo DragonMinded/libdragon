@@ -38,7 +38,7 @@ extern "C" {
 // if typedef doesn't exist (msvc, blah)
 typedef intptr_t ssize_t;
 
-/* Fetched from: https://stackoverflow.com/a/47229318 */
+/* Implementation of 'getline' fetched from: https://stackoverflow.com/a/47229318 */
 /* The original code is public domain -- Will Hartung 4/9/09 */
 /* Modifications, public domain as well, by Antti Haapala, 11/10/17
    - Switched to getc on 5/23/19 */
@@ -91,24 +91,35 @@ static ssize_t getline(char **lineptr, size_t *n, FILE *stream) {
     return pos;
 }
 
-/* This function is original code in libdragon */
+// Provide implementation of strndup for MSYS2 environments that are missing it (before April 13 2026).
+#if defined(MSYS2_RUNTIME_PACMAN_AGE) && MSYS2_RUNTIME_PACMAN_AGE <= 20260413
 __attribute__((used))
-static char *strndup(const char *s, size_t n)
+static char *msys2_fallback_strndup(const char *s, size_t n)
 {
-  size_t len = strnlen(s, n);
-  char *ret = (char*)malloc(len + 1);
-  if (!ret) return NULL;
-  memcpy(ret, s, len);
-  ret[len] = '\0';
-  return ret;
+    size_t len = strnlen(s, n);
+    char *ret = (char*)malloc(len + 1);
+    if (!ret) return NULL;
+    memcpy(ret, s, len);
+    ret[len] = '\0';
+    return ret;
 }
 
-// tmpfile in mingw is broken (it uses msvcrt that tries to
-// create a file in C:\, which is non-writable nowadays)
-#ifdef tmpfile
-#undef tmpfile
+    #ifdef strndup
+    #undef strndup
+    #endif
+    #define strndup   msys2_fallback_strndup
 #endif
-#define tmpfile()   mingw_tmpfile()
+
+#if defined(__MSVCRT_VERSION__) && __MSVCRT_VERSION__ >= 0xE00
+    // UCRT is being used so we can use runtime-provided tmpfile() implementation
+#else
+    // tmpfile() in MINGW64 is broken for use (it uses MSVCRT that tries to
+    // create a file in C:\, which is non-writable nowadays)
+    #ifdef tmpfile
+    #undef tmpfile
+    #endif
+    #define tmpfile()   mingw_tmpfile()
+#endif
 
 typedef void* HANDLE;
 typedef const char* LPCSTR;

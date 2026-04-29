@@ -281,9 +281,11 @@ void audio_close()
     unregister_AI_handler(audio_callback);
 
     /* Stop audio DMA and clocks */
+    while (AI_regs->status & AI_STATUS_BUSY) {}
     AI_regs->control = 0;
     AI_regs->dacrate = 0;
     AI_regs->bitrate = 0;
+    AI_regs->status = 0;
 
     if(buffers)
     {

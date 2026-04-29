@@ -447,7 +447,7 @@ store_comb_2cyc:
     #
     # Let's recap the meaning of SOM blending-related flags:
     #
-    #   SOM_BLENDING: process al pixels of the triangle through the blending unit
+    #   SOM_BLENDING: process all pixels of the triangle through the blending unit
     #   SOM_AA_ENABLE: process edge pixels of the triangle through the blending unit
     #
     # So in general SOM_BLENDING is a superset of SOM_AA_ENABLE.
@@ -888,7 +888,7 @@ RDPQ_Triangle:
 
 #if 0
     mfc0 fp, COP0_DP_CLOCK
-    emux_trace_start
+    xtracestart
 #endif
 
     j half_swap
@@ -1346,12 +1346,12 @@ no_texture:
     addi s3, 0x10
 
 #if 0
-    emux_trace_stop
+    xtracestop
 
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
-    emux_log_string "RDPQ_Triangle:  "
-    emux_dump_gpr t0
+    xlog_string "RDPQ_Triangle:  "
+    xlogregs_gpr t0
 #endif
 
     jr ra

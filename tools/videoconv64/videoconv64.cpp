@@ -299,6 +299,8 @@ int main(int argc, char **argv) {
 				fatal("Invalid profile: %s", cfg.profile.c_str());
 		} else if (arg == "-Q" || arg == "--quick") {
 			cfg.quick = true;
+		} else if (arg == "--debug-weightp") {
+			cfg.debug_weightp = true;
 		} else if (arg == "--seek") {
 			if (++i >= argc) fatal("Missing argument for %s (expected seconds or file path)", arg.c_str());
 			const char *param = argv[i];

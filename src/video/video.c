@@ -89,6 +89,11 @@ static uint32_t video_seektable_lookup(video_seektable_t *tbl, int *frame_idx)
     }
 }
 
+static void video_seektable_free(video_seektable_t *tbl)
+{
+    free(tbl);
+}
+
 void video_register_codec(video_codec_t *codec)
 {
     if (codec->next_codec != NULL) {
@@ -132,10 +137,15 @@ video_t* video_open(const char *fn, const video_parms_t *parms)
     }
     
     assertf(false, "No registered codec found for video file: %s", fn);
+    return NULL;
 }
 
 void video_close(video_t *v)
 {
+    if (v->seektable) {
+        video_seektable_free(v->seektable);
+        v->seektable = NULL;
+    }
     v->codec->close(v);
 }
 

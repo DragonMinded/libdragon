@@ -31,24 +31,48 @@
  * @name EMUX opcodes
  * @{
  */
-#define EMUX_XDETECT(rd)                EMUX_OP(0x20,   rd,      0, 0x000)  ///< Detect EMUX presence
+#define EMUX_XDETECT(rd, code)          EMUX_OP(0x20,   rd,      0,  code)  ///< Detect EMUX presence
 #define EMUX_XBREAK()                   EMUX_OP(0x21,    0,      0, 0x000)  ///< Trigger a breakpoint
-#define EMUX_XLOG(addr, len)            EMUX_OP(0x25, addr,    len, 0x000)  ///< Log a string
+#define EMUX_XBREAKPOINT(addr, op)      EMUX_OP(0x22, addr,      0,    op)  ///< Configure a breakpoint/watchpoint
+#define EMUX_XTRACESTART(count)         EMUX_OP(0x23,    0,      0, count)  ///< Start tracing
+#define EMUX_XTRACESTOP()               EMUX_OP(0x24,    0,      0, 0x000)  ///< Stop tracing
+#define EMUX_XLOG(addr, len, code)      EMUX_OP(0x25, addr,    len,  code)  ///< Log a string
+#define EMUX_XLOGREGS(mask, code)       EMUX_OP(0x26, mask,      0,  code)  ///< Log registers
 #define EMUX_XHEXDUMP(addr, len)        EMUX_OP(0x27, addr,    len, 0x000)  ///< Hexdump memory region
 #define EMUX_XPROF(slot, code)          EMUX_OP(0x28, slot,      0,  code)  ///< Control profiler
-#define EMUX_XPROF_READ(slot, metric)   EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
+#define EMUX_XPROFREAD(slot, metric)    EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
+#define EMUX_XEXCEPTION(mask)           EMUX_OP(0x2A,    0,   mask, 0x000)  ///< Set exception mask
 #define EMUX_XIOCTL(code)               EMUX_OP(0x2C,    0,      0,  code)  ///< Modify emulator behavior
 /** @} */
 
-#define EMUX_FEAT_DETECT                        (cast64(1) << 0x20)    ///< EMUX detection support
-#define EMUX_FEAT_BREAK                         (cast64(1) << 0x21)    ///< Immediate breakpoint support
-#define EMUX_FEAT_BREAKPOINTS                   (cast64(1) << 0x22)    ///< Breakpoint configuration support
-#define EMUX_FEAT_TRACE                         (cast64(1) << 0x23)    ///< Tracing support
-#define EMUX_FEAT_LOG                           (cast64(1) << 0x25)    ///< Logging support
-#define EMUX_FEAT_LOGREGS                       (cast64(1) << 0x26)    ///< Register logging support
-#define EMUX_FEAT_HEXDUMP                       (cast64(1) << 0x27)    ///< Hexdump support
-#define EMUX_FEAT_PROFILER                      (cast64(1) << 0x28)    ///< Profiling support
-#define EMUX_FEAT_IOCTL                         (cast64(1) << 0x2C)    ///< Emulator behavior support
+#define EMUX_FEAT1_DETECT                       (1 << 0x0)    ///< EMUX detection support
+#define EMUX_FEAT1_BREAK                        (1 << 0x1)    ///< Immediate breakpoint support
+#define EMUX_FEAT1_BREAKPOINTS                  (1 << 0x2)    ///< Breakpoint configuration support
+#define EMUX_FEAT1_TRACE                        (1 << 0x3)    ///< Tracing support
+#define EMUX_FEAT1_LOG                          (1 << 0x5)    ///< Logging support
+#define EMUX_FEAT1_LOGREGS                      (1 << 0x6)    ///< Register logging support
+#define EMUX_FEAT1_HEXDUMP                      (1 << 0x7)    ///< Hexdump support
+#define EMUX_FEAT1_PROFILER                     (1 << 0x8)    ///< Profiling support
+#define EMUX_FEAT1_EXCEPTION                    (1 << 0xA)    ///< Exception support
+#define EMUX_FEAT1_IOCTL                        (1 << 0xC)    ///< Emulator behavior support
+
+#define EMUX_LOG_ASCIIZ                         0x000      ///< Log a zero-terminated string
+#define EMUX_LOG_LENGTH                         0x001      ///< Log a non-zero-terminated string
+
+#define EMUX_BREAKPOINT_ADD                     0x001      ///< Add instruction breakpoint
+#define EMUX_BREAKPOINT_REMOVE                  0x002      ///< Remove instruction breakpoint
+#define EMUX_WATCHPOINT_READ_ADD                0x003      ///< Add read watchpoint
+#define EMUX_WATCHPOINT_READ_REMOVE             0x004      ///< Remove read watchpoint
+#define EMUX_WATCHPOINT_WRITE_ADD               0x005      ///< Add write watchpoint
+#define EMUX_WATCHPOINT_WRITE_REMOVE            0x006      ///< Remove write watchpoint
+
+#define EMUX_LOGREGS_COP0                       0x000      ///< Dump COP0 registers
+#define EMUX_LOGREGS_COP1                       0x001      ///< Dump COP1 registers
+#define EMUX_LOGREGS_COP2                       0x002      ///< Dump COP2 registers
+#define EMUX_LOGREGS_GPR                        0x003      ///< Dump GPR registers
+#define EMUX_LOGREGS_DECIMAL                    0x004      ///< Prefer decimal formatting
+#define EMUX_LOGREGS_DOUBLE                     0x008      ///< Interpret as 64-bit floating point (COP1)
+#define EMUX_LOGREGS_EXTRA                      0x010      ///< Include extra registers
 
 #define EMUX_IOCTL_EXIT                         0x001      ///< Exit the emulator
 #define EMUX_IOCTL_FAST                         0x002      ///< Fast mode (go uncapped)
@@ -62,6 +86,8 @@
 
 #define EMUX_PROF_CYCLES                       0x0000      ///< Total CPU cycles
 #define EMUX_PROF_CYCLES_EXC                   0x0001      ///< CPU cycles within exception
+#define EMUX_PROF_INSNS                        0x0002      ///< CPU instructions executed
+#define EMUX_PROF_INSNS_EXC                    0x0003      ///< CPU instructions executed within exception
 #define EMUX_PROF_ICACHE_HITS                  0x0010      ///< Instruction cache hits
 #define EMUX_PROF_ICACHE_MISSES                0x0011      ///< Instruction cache misses
 #define EMUX_PROF_ICACHE_WBS                   0x0012      ///< Instruction cache writebacks
@@ -111,6 +137,13 @@
 #define EMUX_PROF_RAM_RDPDMA_BYTES_R           0x03A1      ///< RDRAM bytes transferred via RDP DMA (read)
 #define EMUX_PROF_RAM_RDPDMA_BYTES_W           0x03A2      ///< RDRAM bytes transferred via RDP DMA (write) (always 0)
 
+#define EMUX_EXCEPTION_ERR_MASK                0x00000000FFFFFFFFULL     ///< Mask of exceptions related to hardware errors
+#define EMUX_EXCEPTION_WARN_MASK               0xFFFFFFFF00000000ULL     ///< Mask of exceptions related to software warnings (resumable exceptions)
+
+#define EMUX_EXCEPTION_CPU_CACHED_ACCESS       (cast64(1) << 1)  ///< CPU cached access to non-RDRAM area
+#define EMUX_EXCEPTION_CPU_64BIT_READ          (cast64(1) << 2)  ///< CPU 64-bit read from non-RDRAM area
+#define EMUX_EXCEPTION_CPU_UNMAPPED_ACCESS     (cast64(1) << 3)  ///< CPU access to RCP unmapped area
+
 #ifndef __ASSEMBLER__
 
 #ifdef __cplusplus
@@ -123,9 +156,10 @@ extern "C" {
  * If this function returns zero, EMUX is not present. Otherwise, the
  * returned bitmask contains the supported features (see EMUX_FEAT_* defines).
  * 
+ * @param subcode       Index of the detection bitmask to read
  * @return uint64_t     Bitmask of supported EMUX features (see EMUX_FEAT_*)
  */
-inline uint64_t emux_detect(void)
+inline uint32_t emux_detect(int subcode)
 {
     /*
      * GCC can't easily feed the destination register number into a raw `.word`
@@ -138,7 +172,7 @@ inline uint64_t emux_detect(void)
 
     __asm__ __volatile__(
         " .word %1\n"
-        : "+r"(result) : "i"(EMUX_XDETECT(REG_T0)) : "memory");
+        : "+r"(result) : "i"(EMUX_XDETECT(REG_T0, subcode)) : "memory");
 
     return result;
 }
@@ -173,7 +207,7 @@ inline void emux_log(const char *ut8_str)
     register const char *__ut8_str asm("t0") = ut8_str;
     __asm__ __volatile__(
         " .word %1\n"
-        :: "r"(__ut8_str), "i"(EMUX_XLOG(REG_T0, 0)) : "memory");
+        :: "r"(__ut8_str), "i"(EMUX_XLOG(REG_T0, 0, EMUX_LOG_ASCIIZ)) : "memory");
 }
 
 /**
@@ -198,7 +232,7 @@ inline void emux_logn(const char *utf8_str, int len)
     register int __len asm("t1") = len;
     __asm__ __volatile__(
         " .word %2\n"
-        :: "r"(__utf8_str), "r"(__len), "i"(EMUX_XLOG(REG_T0, REG_T1)) : "memory");
+        :: "r"(__utf8_str), "r"(__len), "i"(EMUX_XLOG(REG_T0, REG_T1, EMUX_LOG_LENGTH)) : "memory");
 }
 
 /**
@@ -358,10 +392,28 @@ inline uint64_t emux_prof_read(int slot, uint32_t metric)
 
     __asm__ __volatile__(
         " .word %2\n"
-        : "+r"(__metric) : "r"(__slot), "i"(EMUX_XPROF_READ(REG_T0, REG_T1)) : "memory"
+        : "+r"(__metric) : "r"(__slot), "i"(EMUX_XPROFREAD(REG_T0, REG_T1)) : "memory"
     );
 
     return __metric;
+}
+
+/**
+ * @brief Activate emux exceptions
+ *
+ * This function allows to configure the emux exception mask, that tells the
+ * emulator which special exceptions should be generated.
+ *
+ * Emux exceptions are generated by the emulator as an alternative of properly
+ * emulating hardware freezes, to provide a better development experience.
+ *
+ * @param mask      Mask of exceptions to activate/deactivate (see EMUX_EXCEPTION_* defines)
+ */
+inline void emux_exception_set_mask(uint64_t mask)
+{
+    const int REG_T0 = 8;
+    register uint64_t __mask asm("t0") = mask;
+    __asm__ __volatile__(" .word %1\n" :: "r"(__mask), "i"(EMUX_XEXCEPTION(REG_T0)) : "memory");
 }
 
 #ifdef __cplusplus

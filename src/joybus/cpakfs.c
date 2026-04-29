@@ -433,6 +433,7 @@ static cpakfs_fat_entry_t allocate_page(cpakfs_t *fs, int bank, int page)
 
     // This should never happen, as we already checked that the bank has at least one free page
     assert(0);
+    return FAT_RESERVED;
 }
 
 /**

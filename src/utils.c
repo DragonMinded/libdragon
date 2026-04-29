@@ -5,6 +5,7 @@
  */
 
 #include "utils.h"
+#include "debug.h"
 
 uint32_t __utf8_decode(const char **str)
 {
@@ -43,9 +44,10 @@ uint64_t __read_varint_u64(const uint8_t **ptr)
     int shift = 0;
     while (1) {
         uint8_t byte = *(*ptr)++;
-        val |= (byte & 0x7F) << shift;
+        val |= (uint64_t)(byte & 0x7F) << shift;
         if (!(byte & 0x80)) break;
         shift += 7;
+        assertf(shift < 64, "Varint overflow");
     }
     return val;
 }

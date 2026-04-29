@@ -52,6 +52,7 @@
  * 
  */
 
+#include <stdbool.h>
 #include <stdint.h>
 #include "graphics.h"
 #include "rdpq_tex.h"
@@ -246,6 +247,32 @@ typedef struct yuv_fmv_parms_s {
     yuv_align_t valign;				///< Frame vertical alignment to the output buffer (default: centered)
     yuv_zoom_t zoom;				///< Frame zooming algorithm to use (default: keep aspect ratio)
     color_t bkg_color;              ///< Color to use to clear the reset of the output buffer
+    /** 
+     * @brief Display aspect ratio (DAR) of the video
+     *
+     * This should match the aspect ratio of the video file, that for instance
+     * can be read via #video_get_info (see #video_info_t::aspect_ratio).
+     *
+     * If not specified, default to video_width/video_height.
+     */
+    float video_aspect_ratio;
+    /** 
+     * @brief Aspect ratio of the output display picture
+     *
+     * This should match the aspect ratio configured via #display_init, or 
+     * read by #vi_get_aspect_ratio. If not specified, default to 4:3 just
+     * like #display_init does.
+     */
+    float display_aspect_ratio;
+    /** 
+     * @brief Enable RDP dithering (magic square) 
+     * 
+     * This is useful when drawing to a 16bpp framebuffer, to avoid banding
+     * artifacts. If possible, use in conjunction with dedithering at the VI
+     * level (see #vi_set_dedither, or pass #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER
+     * to #display_init).
+     */
+    bool enable_dithering;
 } yuv_fmv_parms_t;
 
 /** 

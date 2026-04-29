@@ -1,1 +1,1 @@
-#include "vadpcm/vadpcm.h"
+#include "vadpcm/codec/vadpcm.h"

@@ -68,14 +68,7 @@
  */
 
 #include <stdio.h>
-
-#ifdef N64
 #include "debug.h"
-#else
-/// @cond
-#define assertf(x, ...) assert(x)
-/// @endcond
-#endif
 
 #ifdef __cplusplus
 extern "C" {

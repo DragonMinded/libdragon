@@ -946,6 +946,12 @@ void vi_set_interlaced(bool interlaced);
 void vi_set_aa_mode(vi_aa_mode_t aa_mode);
 
 /**
+ * @brief Get the current VI AA mode
+ * @return the current AA mode
+ */
+vi_aa_mode_t vi_get_aa_mode(void);
+
+/**
  * @brief Enable / disable the divot filter
  * 
  * Divot filter is a post-processing filter, on top of anti-alias filters,
@@ -975,6 +981,12 @@ void vi_set_divot(bool divot);
  *       only works with #VI_AA_MODE_NONE and #VI_AA_MODE_RESAMPLE_FETCH_ALWAYS.
  */
 void vi_set_dedither(bool dedither);
+
+/**
+ * @brief Get the current VI dedither filter state
+ * @return true if dedithering is enabled
+ */
+bool vi_get_dedither(void);
 
 /**
  * @brief Enable / disable gamma correction
@@ -1080,6 +1092,16 @@ void vi_scroll_output(int deltax, int deltay);
  * @return vi_borders_t The requested border settings
  */
 vi_borders_t vi_calc_borders(float aspect_ratio, float overscan_margin);
+
+/**
+ * @brief Get the current display aspect ratio from VI configuration
+ *
+ * Recomputes the aspect ratio from the current VI output area (as returned
+ * by the internal output rectangle) and the active timing preset dimensions.
+ *
+ * @return float The current display aspect ratio (e.g. 4.0f/3.0f, 16.0f/9.0f)
+ */
+float vi_get_aspect_ratio(void);
 
 /**
  * @brief Configure the output area via the specified borders

@@ -1627,6 +1627,64 @@ void h264bsdFlushDpb(dpbStorage_t *dpb)
 
 /*------------------------------------------------------------------------------
 
+    Function: h264bsdClearDpb
+
+        Functional description:
+            Function to reset DPB logical state without freeing allocated
+            buffers. All picture slots are marked unused and counters are
+            reset. Pixel data allocations and DPB configuration (dpbSize,
+            maxRefFrames, etc.) are preserved. Intended for use during
+            video rewind/loop.
+
+------------------------------------------------------------------------------*/
+
+void h264bsdClearDpb(dpbStorage_t *dpb)
+{
+
+/* Variables */
+
+    u32 i;
+
+/* Code */
+
+    ASSERT(dpb);
+
+    if (dpb->buffer)
+    {
+        for (i = 0; i < dpb->dpbSize + 1; i++)
+        {
+            /* keep data and pAllocatedData pointers intact */
+            dpb->buffer[i].picNum = 0;
+            dpb->buffer[i].frameNum = 0;
+            dpb->buffer[i].picOrderCnt = 0;
+            dpb->buffer[i].status = UNUSED;
+            dpb->buffer[i].toBeDisplayed = 0;
+            dpb->buffer[i].inOutputBuf = 0;
+            dpb->buffer[i].picId = 0;
+            dpb->buffer[i].numErrMbs = 0;
+            dpb->buffer[i].isIdr = 0;
+        }
+    }
+
+    dpb->currentOut = NULL;
+    dpb->numOut = 0;
+    dpb->outIndex = 0;
+    dpb->numRefFrames = 0;
+    dpb->fullness = 0;
+    dpb->prevRefFrameNum = 0;
+    dpb->lastContainsMmco5 = 0;
+    dpb->flushed = 0;
+    dpb->maxLongTermFrameIdx = NO_LONG_TERM_FRAME_INDICES;
+
+    if (dpb->list)
+    {
+        H264SwDecMemset(dpb->list, 0,
+            (MAX_NUM_REF_IDX_L0_ACTIVE + 1) * sizeof(dpbPicture_t*));
+    }
+}
+
+/*------------------------------------------------------------------------------
+
     Function: h264bsdFreeDpb
 
         Functional description:

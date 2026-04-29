@@ -140,10 +140,15 @@ static void h264_rewind(video_t *v) {
     player->idx = 0;
     player->buf_len = 0;
     player->in_frame_decoding = false;
-    
-    // Reset decoder
-    h264bsdInit(&player->s, 0);
-    h264bsdSetNumBufferedPics(&player->s, (u32)player->max_buffered_pics);
+
+    if (player->s.dpb->buffer) {
+        // Rewind: reset decoder state, keep existing allocations
+        h264bsdRewindStorage(&player->s);
+    } else {
+        // First open: initialize from scratch
+        h264bsdInit(&player->s, 0);
+        h264bsdSetNumBufferedPics(&player->s, (u32)player->max_buffered_pics);
+    }
 
     rsph264_begin_frame();
     while (1) {
@@ -152,6 +157,11 @@ static void h264_rewind(video_t *v) {
             case H264BSD_RDY:
                 continue;
             case H264BSD_HDRS_RDY:
+                // First open: SPS activated for the first time
+                player->in_frame_decoding = true;
+                return;
+            case H264BSD_PIC_RDY:
+                // Rewind: SPS unchanged, first IDR decoded immediately
                 player->in_frame_decoding = true;
                 return;
             default:
@@ -193,6 +203,7 @@ static void h264_close(video_t *v) {
         close(player->fd);
         player->fd = -1;
     }
+    h264bsdShutdown(&player->s);
     free(player);
 }
 

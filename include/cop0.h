@@ -256,6 +256,50 @@
  */
 #define C0_WRITE_WIRED(x) asm volatile("mtc0 %0,$6; nop; nop"::"r"(x))
 
+/**
+ * @brief Read the COP0 PARITYERR register
+ *
+ * This register is documented as unused on VR4300.
+ */
+ #define C0_PARITYERR() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$26":"=r"(x)); \
+    x; \
+})
+
+/**
+ * @brief Read the COP0 CACHEERR register
+ *
+ * This register is unused on the hardware and always returns 0.
+ * 
+ * @note The emux homebrew spec (ab)uses this register to specify the cause of
+ *       an emux exception.
+ */
+#define C0_CACHEERR() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$27":"=r"(x)); \
+    x; \
+})
+
+/**
+ * @brief Write the COP0 PARITYERR register
+ *
+ * This register is documented as unused on VR4300. The low 8 bits 
+ * are writable and are returned on next reads, but they are not used
+ * by the hardware.
+ */
+#define C0_WRITE_PARITYERR(x)   asm volatile("mtc0 %0,$26"::"r"(x))
+
+/**
+ * @brief Write the COP0 CACHEERR register
+ *
+ * This register is unused on the hardware. Writes appear to be ignored.
+ *
+ * @note The emux homebrew spec (ab)uses this register to specify the cause of
+ *       an emux exception. Writing to it resets the value to 0.
+ */
+#define C0_WRITE_CACHEERR(x)    asm volatile("mtc0 %0,$27"::"r"(x))
+
 /** @cond */
 /* Deprecated version of macros with wrong naming that include "READ" */
 #define C0_READ_CR()         C0_CAUSE()

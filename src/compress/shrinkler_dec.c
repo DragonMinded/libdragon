@@ -13,14 +13,7 @@
 #include "shrinkler_dec_internal.h"
 #include "ringbuf_internal.h"
 #include "../utils.h"
-#ifdef N64
 #include "debug.h"
-#else
-#include <assert.h>
-/// @cond
-#define assertf(x, ...) assert(x)
-/// @endcond
-#endif
 
 /// @cond
 #if defined(__GNUC__) || defined(__clang__)
@@ -53,6 +46,7 @@
 #define CONTEXT_GROUP_LENGTH 3     ///< Context group for lengths
 
 #ifdef N64
+/** @brief Full decompression of a Shrinkler stream into a buffer */
 int decompress_shrinkler_full_inplace(const uint8_t* in, size_t cmp_size, uint8_t *out, size_t size)
 {
     extern int decompress_shrinkler_full_fast(const uint8_t* in, int insize, uint8_t *out);

@@ -140,7 +140,50 @@ typedef struct {
  */
 #define IOFAT_GET_CLUSTER_SIZE  _IO('F', 3)
 
-
+/**
+ * @brief FAT file attribute bits (matching FatFS AM_* constants)
+ *
+ * When stat() or fstat() is called on a file from a FAT-mounted volume
+ * (e.g. "sd:/path/file"), the st_rdev field contains the raw FAT attribute
+ * byte. Use these masks with #FAT_ATTR() to extract individual attributes.
+ */
+#define S_FAT_ATTR_RDO   0x01  /**< Read only */
+#define S_FAT_ATTR_HID   0x02  /**< Hidden */
+#define S_FAT_ATTR_SYS   0x04  /**< System */
+#define S_FAT_ATTR_DIR   0x10  /**< Directory */
+#define S_FAT_ATTR_ARC   0x20  /**< Archive */
+ 
+/**
+ * @brief Extract FAT attributes from a struct stat
+ * @param st  Pointer to struct stat from stat() or fstat() on a FAT file
+ * @return Raw FAT attribute byte (0x01-0x3F); only meaningful for FAT-mounted files
+ */
+#define FAT_ATTR(st)     ((unsigned int)((st)->st_rdev))
+ 
+/**
+ * @brief Test if file has FAT read-only attribute
+ * @param st  Pointer to struct stat from stat() or fstat() on a FAT file
+ */
+#define FAT_ATTR_IS_RDO(st)  (FAT_ATTR(st) & S_FAT_ATTR_RDO)
+ 
+/**
+ * @brief Test if file has FAT hidden attribute
+ * @param st  Pointer to struct stat from stat() or fstat() on a FAT file
+ */
+#define FAT_ATTR_IS_HID(st)  (FAT_ATTR(st) & S_FAT_ATTR_HID)
+ 
+/**
+ * @brief Test if file has FAT system attribute
+ * @param st  Pointer to struct stat from stat() or fstat() on a FAT file
+ */
+#define FAT_ATTR_IS_SYS(st)  (FAT_ATTR(st) & S_FAT_ATTR_SYS)
+ 
+/**
+ * @brief Test if file has FAT archive attribute
+ * @param st  Pointer to struct stat from stat() or fstat() on a FAT file
+ */
+#define FAT_ATTR_IS_ARC(st)  (FAT_ATTR(st) & S_FAT_ATTR_ARC)
+ 
 /** 
  * @brief Mount the volume only when it is accessed for the first time.
  * 

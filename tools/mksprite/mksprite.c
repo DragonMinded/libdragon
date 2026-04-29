@@ -15,6 +15,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
+#include <float.h>
 #include <sys/stat.h>
 #include "../common/binout.c"
 #include "../common/binout.h"
@@ -113,6 +114,7 @@ const char *dither_algo_name(int algo) {
 }
 
 bool flag_verbose = false;
+bool flag_lossy = false;
 bool flag_debug = false;
 
 void print_supported_formats(void) {
@@ -558,7 +560,12 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         fmt = FMT_CI8;
     if (autofmt && state.info_raw.colortype == LCT_RGBA && palout->used_colors <= 16)
         fmt = FMT_CI4;
-    
+
+    if (autofmt && flag_lossy) {
+        // Lossy format is always RGBA16
+        fmt = FMT_RGBA16;
+    }
+
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
         fprintf(stderr, "auto selected format: %s\n", tex_format_name(fmt));
@@ -996,7 +1003,7 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
 	
     uint8_t *best_rgb_img = NULL;
     int best_rgb_w = 0, best_rgb_h = 0;
-    float best_err = INT32_MAX;
+    float best_err = FLT_MAX;
     float best_ifactor = 0;
     uint8_t *best_i_img = alphausage? malloc(width * height * 2) : malloc(width * height);
     uint8_t *i_img = alphausage? malloc(width * height * 2) : malloc(width * height);
@@ -1604,6 +1611,7 @@ bool spritemaker_write(spritemaker_t *spr) {
                 int max_colors = (spr->images[0].fmt == FMT_CI4) ? 16 : 256;
                 assert(spr->palette.used_colors > 0);
                 assert(spr->palette.used_colors <= max_colors);
+                // Truncate to uint8. Notice that we use 0 to mean 256 here.
                 pal_used_colors = (uint8_t)spr->palette.used_colors;
             }
             w8(out, pal_used_colors);
@@ -2116,6 +2124,9 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 pm.lossy_quality = q;
+                if (pm.lossy_quality < 100) {
+                    flag_lossy = true;
+                }
             }
 
             /* ---------------- TEXTURE PARAMETERS console argument ------------------- */

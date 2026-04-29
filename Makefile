@@ -133,11 +133,20 @@ tools-install:
 tools-clean:
 	$(MAKE) -C tools clean
 
-install-mk: $(INSTALLDIR)/include/n64.mk
+# Install n64.mk to the install directory, always. This phony target does not
+# do any check and will always copy the file. This is what we need because the
+# installed file can be newer (timestamp wise) but different (eg: coming from
+# another branch).
+install-mk:
+	@echo "    [INSTALL] n64.mk"
+	mkdir -p $(INSTALLDIR)/include
+	install -cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
+# This target is just a convenience target to install n64.mk in case it doesn't
+# exist yet, and it's only used by the clean targets that would otherwise fail.
+# This also allows to try running those targets without sudo, as a copy isn't
+# always required.
 $(INSTALLDIR)/include/n64.mk: n64.mk
-# Always update timestamp of n64.mk. This make sure that further targets
-# depending on install-mk won't always try to re-install it.
 	mkdir -p $(INSTALLDIR)/include
 	install -cv -m 0644 n64.mk $(INSTALLDIR)/include/n64.mk
 
@@ -170,18 +179,21 @@ gen-version:
 	fi;
 
 install: install-mk libdragon
+	@echo "    [INSTALL] libdragon"
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/lib
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragon.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/$(N64_TARGET)/lib/n64.ld
 	install -Cv -m 0644 dso.ld $(INSTALLDIR)/$(N64_TARGET)/lib/dso.ld
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/$(N64_TARGET)/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragonsys.a
+	@echo "    [INSTALL] libdragon.version"
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include
 	if [ -f "$(BUILD_DIR)/libdragon.version" ]; then \
 		install -Cv -m 0644 $(BUILD_DIR)/libdragon.version $(INSTALLDIR)/$(N64_TARGET)/include/; \
 	else \
 		rm -f $(INSTALLDIR)/$(N64_TARGET)/include/libdragon.version; \
 	fi;
+	@echo "    [INSTALL] include/*.h"
 	install -Cv -m 0644 include/*.h $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/*.inc $(INSTALLDIR)/$(N64_TARGET)/include/
 	install -Cv -m 0644 include/ucode.S $(INSTALLDIR)/$(N64_TARGET)/include/
@@ -213,7 +225,7 @@ test:
 	$(MAKE) -C tests/hashtable test
 	python3 -m unittest discover tools/cpaktool/tests
 
-test-clean: install-mk
+test-clean: $(INSTALLDIR)/include/n64.mk
 	$(MAKE) -C tests clean
 
 clobber: clean examples-clean tools-clean test-clean

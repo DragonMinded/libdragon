@@ -71,6 +71,9 @@ static u32 DecRefPicMarking(strmData_t *pStrmData,
     decRefPicMarking_t *pDecRefPicMarking, nalUnitType_e nalUnitType,
     u32 numRefFrames);
 
+static u32 PredWeightTable(strmData_t *pStrmData,
+    predWeightTable_t *pPredWeightTable, u32 numRefIdxL0Active);
+
 
 /*------------------------------------------------------------------------------
 
@@ -152,6 +155,7 @@ u32 h264bsdDecodeSliceHeader(strmData_t *pStrmData, sliceHeader_t *pSliceHeader,
         EPRINT("pic_parameter_set_id");
         return(HANTRO_NOK);
     }
+    pSliceHeader->weightedPredFlag = pPicParamSet->weightedPredFlag;
 
     /* log2(maxFrameNum) -> num bits to represent frame_num */
     i = 0;
@@ -298,6 +302,14 @@ u32 h264bsdDecodeSliceHeader(strmData_t *pStrmData, sliceHeader_t *pSliceHeader,
             pSeqParamSet->maxFrameNum);
         if (tmp != HANTRO_OK)
             return(tmp);
+
+        if (pSliceHeader->weightedPredFlag)
+        {
+            tmp = PredWeightTable(pStrmData, &pSliceHeader->predWeightTable,
+                pSliceHeader->numRefIdxL0Active);
+            if (tmp != HANTRO_OK)
+                return(tmp);
+        }
     }
 
     if (pNalUnit->nalRefIdc != 0)
@@ -382,6 +394,132 @@ u32 h264bsdDecodeSliceHeader(strmData_t *pStrmData, sliceHeader_t *pSliceHeader,
 
     return(HANTRO_OK);
 
+}
+
+/*------------------------------------------------------------------------------
+
+    Function: PredWeightTable
+
+        Functional description:
+            Decode pred_weight_table syntax elements for P-slices.
+            Initializes default weights/offsets for all reference indices and
+            overrides entries present in the bitstream for list0 references.
+
+        Inputs:
+            pStrmData           pointer to stream data structure
+            numRefIdxL0Active   number of active list0 references
+
+        Outputs:
+            pPredWeightTable    decoded weight/offset data
+
+        Returns:
+            HANTRO_OK           success
+            HANTRO_NOK          invalid stream data
+
+------------------------------------------------------------------------------*/
+static u32 PredWeightTable(strmData_t *pStrmData,
+    predWeightTable_t *pPredWeightTable, u32 numRefIdxL0Active)
+{
+    u32 i, j, tmp, value;
+    i32 svalue;
+    i32 defaultLumaWeight, defaultChromaWeight;
+
+    ASSERT(pStrmData);
+    ASSERT(pPredWeightTable);
+
+    tmp = h264bsdDecodeExpGolombUnsigned(pStrmData,
+        &pPredWeightTable->lumaLog2WeightDenom);
+    if (tmp != HANTRO_OK)
+        return(tmp);
+    if (pPredWeightTable->lumaLog2WeightDenom > 7)
+    {
+        EPRINT("luma_log2_weight_denom");
+        return(HANTRO_NOK);
+    }
+
+    tmp = h264bsdDecodeExpGolombUnsigned(pStrmData,
+        &pPredWeightTable->chromaLog2WeightDenom);
+    if (tmp != HANTRO_OK)
+        return(tmp);
+    if (pPredWeightTable->chromaLog2WeightDenom > 7)
+    {
+        EPRINT("chroma_log2_weight_denom");
+        return(HANTRO_NOK);
+    }
+
+    defaultLumaWeight = 1 << pPredWeightTable->lumaLog2WeightDenom;
+    defaultChromaWeight = 1 << pPredWeightTable->chromaLog2WeightDenom;
+
+    for (i = 0; i < MAX_NUM_REF_PICS; i++)
+    {
+        pPredWeightTable->lumaWeightL0[i] = defaultLumaWeight;
+        pPredWeightTable->lumaOffsetL0[i] = 0;
+        for (j = 0; j < 2; j++)
+        {
+            pPredWeightTable->chromaWeightL0[i][j] = defaultChromaWeight;
+            pPredWeightTable->chromaOffsetL0[i][j] = 0;
+        }
+    }
+
+    for (i = 0; i < numRefIdxL0Active; i++)
+    {
+        value = h264bsdGetBits(pStrmData, 1);
+        if (value == END_OF_STREAM)
+            return(HANTRO_NOK);
+        if (value)
+        {
+            tmp = h264bsdDecodeExpGolombSigned(pStrmData, &svalue);
+            if (tmp != HANTRO_OK)
+                return(tmp);
+            if (svalue < -128 || svalue > 127)
+            {
+                EPRINT("luma_weight_l0");
+                return(HANTRO_NOK);
+            }
+            pPredWeightTable->lumaWeightL0[i] = svalue;
+
+            tmp = h264bsdDecodeExpGolombSigned(pStrmData, &svalue);
+            if (tmp != HANTRO_OK)
+                return(tmp);
+            if (svalue < -128 || svalue > 127)
+            {
+                EPRINT("luma_offset_l0");
+                return(HANTRO_NOK);
+            }
+            pPredWeightTable->lumaOffsetL0[i] = svalue;
+        }
+
+        value = h264bsdGetBits(pStrmData, 1);
+        if (value == END_OF_STREAM)
+            return(HANTRO_NOK);
+        if (value)
+        {
+            for (j = 0; j < 2; j++)
+            {
+                tmp = h264bsdDecodeExpGolombSigned(pStrmData, &svalue);
+                if (tmp != HANTRO_OK)
+                    return(tmp);
+                if (svalue < -128 || svalue > 127)
+                {
+                    EPRINT("chroma_weight_l0");
+                    return(HANTRO_NOK);
+                }
+                pPredWeightTable->chromaWeightL0[i][j] = svalue;
+
+                tmp = h264bsdDecodeExpGolombSigned(pStrmData, &svalue);
+                if (tmp != HANTRO_OK)
+                    return(tmp);
+                if (svalue < -128 || svalue > 127)
+                {
+                    EPRINT("chroma_offset_l0");
+                    return(HANTRO_NOK);
+                }
+                pPredWeightTable->chromaOffsetL0[i][j] = svalue;
+            }
+        }
+    }
+
+    return(HANTRO_OK);
 }
 
 /*------------------------------------------------------------------------------

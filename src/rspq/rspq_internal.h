@@ -25,11 +25,9 @@ enum {
     RSPQ_CMD_INVALID           = 0x00,
 
     /**
-     * @brief RSPQ command: No-op
-     * 
-     * This commands does nothing. It can be useful for debugging purposes.
+     * @brief RSPQ command: Sets a 32-bit word in DMEM
      */
-    RSPQ_CMD_NOOP              = 0x01,
+    RSPQ_CMD_WRITE_WORD        = 0x01,
 
     /**
      * @brief RSPQ command: Jump to another buffer
@@ -158,10 +156,12 @@ typedef struct rspq_block_cb_s {
  * calls (a block can call another block), up to 8 levels deep.
  */
 typedef struct rspq_block_s {
-    uint32_t nesting_level;     ///< Nesting level of the block
-    rdpq_block_t *rdp_block;    ///< Option RDP static buffer (with RDP commands)
-    rspq_block_cb_t *atexit;    ///< List of callbacks to call upon freeing the block
-    uint32_t cmds[];            ///< Block contents (commands)
+    uint8_t nesting_level;   ///< Nesting level of the block
+    uint8_t min_ph_level;    ///< Lowest slot used by any called placeholders, default: max nesting level
+    uint8_t padding[2];      ///< Padding
+    rdpq_block_t *rdp_block; ///< Option RDP static buffer (with RDP commands)
+    rspq_block_cb_t *atexit; ///< List of callbacks to call upon freeing the block
+    uint32_t cmds[];         ///< Block contents (commands)
 } rspq_block_t;
 
 /** @brief RDP render mode definition 

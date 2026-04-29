@@ -25,11 +25,12 @@
 //DSO Symbol Table Internals
 #include "../../src/dso_format.h"
 
-struct { char *key; int64_t value; } *imports_hash = NULL;
+struct { char *key; int value; } *extern_hash = NULL;
 
 dso_sym_t *export_syms = NULL;
 
-bool export_all = false;
+bool use_extern_syms = false;
+
 bool verbose_flag = false;
 const char *gccprefix_triplet = NULL;
 
@@ -123,10 +124,15 @@ void get_export_syms(char *infn)
                 line_buf[linebuf_len-2] = 0;
             }
             char *sym_name = &bind_ptr[20]; //Get symbol name pointer
-            size_t sym_value = strtoull(&line_buf[8], NULL, 16); //Read symbol value
-            //Read symbol size
-            size_t sym_size = strtoull(&line_buf[17], NULL, 0); //Read symbol size
-            add_export_sym(sym_name, sym_value, sym_size);
+            //Add externed symbols (or all if externed symbols are not used)
+            if(!use_extern_syms || stbds_shgeti(extern_hash, sym_name) != -1) {
+                
+                size_t sym_value = strtoull(&line_buf[8], NULL, 16); //Read symbol value
+                //Read symbol size
+                size_t sym_size = strtoull(&line_buf[17], NULL, 0); //Read symbol size
+                add_export_sym(sym_name, sym_value, sym_size);
+            }
+            
         }
     }
     //Free resources
@@ -187,6 +193,30 @@ void process(char *infn, char *outfn)
     write_msym(outfn);
 }
 
+void read_externs(char *infn)
+{
+    char *line_buf = NULL;
+    size_t line_buf_size = 0;
+    
+    FILE *file = fopen(infn, "r");
+    
+    
+    //Read symbol table output from readelf
+    while(getline(&line_buf, &line_buf_size, file) != -1) {
+        char *start_ptr = strstr(line_buf, "EXTERN(");
+        if(start_ptr) {
+            char *end_ptr = strchr(start_ptr, ')');
+            if(end_ptr) {
+                start_ptr += 7;
+                *end_ptr = 0;
+                stbds_shput(extern_hash, start_ptr, 0);
+            }
+        }
+    }
+    fclose(file);
+    
+}
+
 int main(int argc, char **argv)
 {
     winconsole_utf8();
@@ -214,6 +244,14 @@ int main(int argc, char **argv)
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
             //Specify verbose flag
             verbose_flag = true;
+        } else if (!strcmp(argv[i], "-e") || !strcmp(argv[i], "--externs")) {
+            if (++i == argc) {
+                fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                return 1;
+            }
+            stbds_sh_new_arena(extern_hash);
+            read_externs(argv[i]);
+            use_extern_syms = true;
         } else {
             //Output invalid flag warning
             fprintf(stderr, "invalid flag: %s\n", argv[i]);

@@ -296,10 +296,13 @@ static void yuv_tex_blit_setup(surface_t *yp, surface_t *up, surface_t *vp)
 }
 
 static void yuv_tex_blit_run(int width, int height, float x0, float y0, 
-    const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs)
+    const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs, bool enable_dithering)
 {
-    rdpq_set_mode_yuv(false);
+    rdpq_set_mode_yuv(true);
     if (cs) rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
+
+    if (enable_dithering)
+        rdpq_mode_dithering(DITHER_SQUARE_SQUARE);
 
     // To avoid the need of pre-interleaving Y and UV together, we load them
     // separately into TMEM using separate LOAD_BLOCK commands.
@@ -361,7 +364,7 @@ void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
 {
     assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
     yuv_tex_blit_setup(&frame->y, &frame->u, &frame->v);
-    yuv_tex_blit_run(frame->y.width, frame->y.height, x0, y0, parms, cs);
+    yuv_tex_blit_run(frame->y.width, frame->y.height, x0, y0, parms, cs, false);
 }
 
 yuv_blitter_t yuv_blitter_new(int video_width, int video_height, float x0, float y0, const rdpq_blitparms_t *parms,
@@ -370,7 +373,7 @@ yuv_blitter_t yuv_blitter_new(int video_width, int video_height, float x0, float
     assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
     // Compile the yuv_tex_blit_run into a block with the given parameters.
     rspq_block_begin();
-        yuv_tex_blit_run(video_width, video_height, x0, y0, parms, cs);
+        yuv_tex_blit_run(video_width, video_height, x0, y0, parms, cs, false);
     rspq_block_t *block = rspq_block_end();
     return (yuv_blitter_t){
         .block = block,
@@ -384,31 +387,45 @@ yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
     static const yuv_fmv_parms_t default_parms = {0};
     if (!parms) parms = &default_parms;
 
-    float scalew = 1.0f, scaleh = 1.0f;
-
-    if (parms->zoom != YUV_ZOOM_NONE && video_width < screen_width && video_height < screen_height) {
-        scalew = (float)screen_width / (float)video_width;
-        scaleh = (float)screen_height / (float)video_height;
-        if (parms->zoom == YUV_ZOOM_KEEP_ASPECT)
-            scalew = scaleh = MIN(scalew, scaleh);
+    int final_width, final_height;
+    if (parms->zoom == YUV_ZOOM_NONE) {
+        final_width = video_width;
+        final_height = video_height;
+    } else if (parms->zoom == YUV_ZOOM_FULL) {
+        final_width = screen_width;
+        final_height = screen_height;
+    } else {
+        /* YUV_ZOOM_KEEP_ASPECT: fit video (aspect V) inside display (aspect D) with letterbox/pillarbox */
+        float V = parms->video_aspect_ratio > 0 ? parms->video_aspect_ratio
+            : (float)video_width / (float)video_height;
+        float D = parms->display_aspect_ratio > 0 ? parms->display_aspect_ratio : (4.0f / 3.0f);
+        if (V >= D) {
+            final_width = screen_width;
+            final_height = (int)(screen_height * D / V + 0.5f); 
+        } else {
+            final_width = (int)(screen_width * V / D + 0.5f);
+            final_height = screen_height;
+        }
     }
-    float final_width = video_width * scalew;
-    float final_height = video_height * scaleh;
 
-    int x0=0, y0=0;
+    float scalew = final_width / (float)video_width;
+    float scaleh = final_height / (float)video_height;
+    bool filtering = final_width != screen_width || final_height != screen_height;
+
+    int x0 = 0, y0 = 0;
     if (screen_width) {
         switch (parms->halign) {
-        case YUV_ALIGN_CENTER: x0 = (screen_width - final_width) / 2;   break;
-        case YUV_ALIGN_MIN:    x0 = 0;                                  break;
-        case YUV_ALIGN_MAX:    x0 = screen_width - final_width;         break;
+        case YUV_ALIGN_CENTER: x0 = ((screen_width - final_width) / 2);   break;
+        case YUV_ALIGN_MIN:    x0 = 0;                                    break;
+        case YUV_ALIGN_MAX:    x0 = (screen_width - final_width);         break;
         default: assertf(0, "invalid yuv config: halign=%d", parms->halign);
         }
     }
     if (screen_height) {
         switch (parms->valign) {
-        case YUV_ALIGN_CENTER: y0 = (screen_height - final_height) / 2; break;
-        case YUV_ALIGN_MIN:    y0 = 0;                                  break;
-        case YUV_ALIGN_MAX:    y0 = screen_height - final_height;       break;
+        case YUV_ALIGN_CENTER: y0 = ((screen_height - final_height) / 2); break;
+        case YUV_ALIGN_MIN:    y0 = 0;                                    break;
+        case YUV_ALIGN_MAX:    y0 = (screen_height - final_height);       break;
         default: assertf(0, "invalid yuv config: valign=%d", parms->valign);
         }
     }
@@ -417,22 +434,23 @@ yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
 
         // Clear the screen. To save fillrate, we just clear the part outside
         // of the image that we will draw (if any).
-        if (screen_height > final_height || screen_width > final_width) {
+        int fw = (int)final_width, fh = (int)final_height;
+        if (screen_height > fh || screen_width > fw) {
             rdpq_set_mode_fill(parms->bkg_color);
             if (y0 > 0)
                 rdpq_fill_rectangle(0, 0, screen_width, y0);
-            if (y0+final_height < screen_height)
-                rdpq_fill_rectangle(0, y0+final_height, screen_width, screen_height);
+            if (y0 + fh < screen_height)
+                rdpq_fill_rectangle(0, y0 + fh, screen_width, screen_height);
             if (x0 > 0)
-                rdpq_fill_rectangle(0, y0, x0, y0+final_height);
-            if (x0+final_width < screen_width)
-                rdpq_fill_rectangle(x0+final_width, y0, screen_width, y0+final_height);
+                rdpq_fill_rectangle(0, y0, x0, y0 + fh);
+            if (x0 + fw < screen_width)
+                rdpq_fill_rectangle(x0 + fw, y0, screen_width, y0 + fh);
         }
 
         // Do the blit (optionally scaling)
         yuv_tex_blit_run(video_width, video_height, x0, y0, &(rdpq_blitparms_t){
-            .scale_x = scalew, .scale_y = scaleh,
-        }, parms->cs);
+            .scale_x = scalew, .scale_y = scaleh, .filtering = filtering,
+        }, parms->cs, parms->enable_dithering);
 
     rspq_block_t *block = rspq_block_end();
     return (yuv_blitter_t){

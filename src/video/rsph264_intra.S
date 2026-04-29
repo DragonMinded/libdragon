@@ -13,17 +13,17 @@
         RSPQ_DefineCommand OMX_IntraPredictChroma8x8,            32
         RSPQ_DefineCommand Task_ProcessLumaIntra4x4Residual,     40
         RSPQ_DefineCommand Task_ProcessLumaIntra16x16Residual,   32
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand RSPQCmd_Noop,                        4
-        RSPQ_DefineCommand Task_SetPackedDeltaBuffer,           4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand Task_SetPackedDeltaBuffer,             4
     RSPQ_EndOverlayHeader
 
 #if 0

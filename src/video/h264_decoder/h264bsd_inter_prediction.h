@@ -36,6 +36,7 @@
 #include "h264bsd_image.h"
 #include "h264bsd_macroblock_layer.h"
 #include "h264bsd_dpb.h"
+#include "h264bsd_slice_header.h"
 
 /*------------------------------------------------------------------------------
     2. Module defines
@@ -50,7 +51,8 @@
 ------------------------------------------------------------------------------*/
 
 u32 h264bsdInterPrediction(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
-    dpbStorage_t *dpb, u32 mbNum, image_t *image);
+    dpbStorage_t *dpb, u32 mbNum, image_t *image,
+    const sliceHeader_t *pSliceHeader);
 
 #endif /* #ifdef H264SWDEC_INTER_PREDICTION_H */
 

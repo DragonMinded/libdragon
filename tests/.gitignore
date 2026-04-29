@@ -3,3 +3,4 @@ filesystem/*.dso.sym
 filesystem/*.sprite
 filesystem/*.mdb
 filesystem/texdb/
+filesystem/test_dir/

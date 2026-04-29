@@ -11,10 +11,13 @@
 #define _GNU_SOURCE
 #endif
 #include <assert.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <string.h>
+#include <strings.h>
 
 #include <math.h>
 #include <stdlib.h>
@@ -23,6 +26,7 @@
 #include "../common/polyfill.h"
 #include "../common/utils.h"
 #include "../common/binout.h"
+#include "../common/assetcomp.h"
 #include "n64sym_huffman.h"
 
 #include "../common/binout.c"
@@ -32,18 +36,24 @@
 // is sufficient. Testing shows that growing after 512 has very minimal size
 // savings.
 #define MAX_BUFFER_SIZE  512
+#define SYMT_VERSION     5
 
-bool flag_verbose = false;
-int flag_max_sym_len = 64;
+int flag_verbose = 0;
+int flag_max_sym_len = 96;
+bool flag_all = false;
 bool flag_inlines = true;
+bool flag_cpp_shorten = true;
 const char *gccprefix_triplet = NULL;
 
+// C++ symbol shortening function (n64sym_cppshorten.c)
+char *cpp_shorten_symbol(const char *sym, int max_len);
+
 // Printf if verbose
-void verbose(const char *fmt, ...) {
-    if (flag_verbose) {
+void verbose(int level, const char *fmt, ...) {
+    if (flag_verbose >= level) {
         va_list args;
         va_start(args, fmt);
-        vprintf(fmt, args);
+        vfprintf(stderr, fmt, args);
         va_end(args);
     }
 }
@@ -56,7 +66,9 @@ void usage(const char *progname)
     fprintf(stderr, "\n");
     fprintf(stderr, "Command-line flags:\n");
     fprintf(stderr, "   -v/--verbose          Verbose output\n");
-    fprintf(stderr, "   -m/--max-len <N>      Maximum symbol length (default: 64)\n");
+    fprintf(stderr, "   -a/--all              Add line info for exception-prone instructions\n");
+    fprintf(stderr, "   -m/--max-len <N>      Maximum symbol length (default: 96)\n");
+    fprintf(stderr, "   --cpp-shorten <0|1>   C++ demangled symbol shortening (default: true)\n");
     fprintf(stderr, "   --no-inlines          Do not export inlined symbols\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "This program requires a libdragon toolchain installed in $N64_INST.\n");
@@ -202,13 +214,22 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         n--;
         if (line_buf[n-1] == '\r') n--; // Remove trailing \r (Windows)
 
-        // If the function of name is longer than 64 bytes, truncate it. This also
-        // avoid paradoxically long function names like in C++ that can even be
-        // several thousands of characters long.
-        // Also ensure it fits in the runtime buffer.
+        // Normalize/truncate function names to bounded length.
         int max_len = MIN(flag_max_sym_len, MAX_BUFFER_SIZE - 8);
-        char *func = strndup(line_buf, MIN(n, max_len));
-        if (n > max_len) strcpy(&func[max_len-3], "...");
+        char *func_raw = strndup(line_buf, n);
+        char *func = NULL;
+        if (flag_cpp_shorten) {
+            func = cpp_shorten_symbol(func_raw, max_len);
+            verbose(2, "C++ shortening:\n");
+            verbose(2, "  in  = %s\n", func_raw);
+            verbose(2, "  out = %s\n", func);
+        } else if (n <= max_len) {
+            func = strdup(func_raw);
+        } else {
+            func = strndup(func_raw, max_len);
+            if (max_len > 3) strcpy(&func[max_len-3], "...");
+        }
+        free(func_raw);
 
         // Second line is the file name and line number
         int ret = getline(&line_buf, &line_buf_size, addr2line_r);
@@ -248,7 +269,7 @@ void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
 {
     char *cmd = NULL;
     asprintf(&cmd, "%sobjdump -t %s", gccprefix_triplet, elf);
-    verbose("Running: %s\n", cmd);
+    verbose(1, "Running: %s\n", cmd);
     FILE *f = popen(cmd, "r");
     if (!f) {
         fprintf(stderr, "Error: cannot run: %s\n", cmd);
@@ -271,16 +292,109 @@ void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
     pclose(f);
 }
 
+static bool symbol_add_unique(const char *elf, uint32_t addr, bool is_func, struct addr_map **emitted_addrs)
+{
+    if (stbds_hmgeti(*emitted_addrs, addr) >= 0) {
+        assert(!is_func && "duplicate address reached with is_func=true; function symbol must be emitted first");
+        return false;
+    }
+
+    stbds_hmput(*emitted_addrs, addr, 1);
+    symbol_add(elf, addr, is_func);
+    return true;
+}
+
+static bool disasm_get_fields(const char *line, char **mnemonic_out, char **operands_out)
+{
+    *mnemonic_out = NULL;
+    *operands_out = NULL;
+
+    // Keep parsing simple: split objdump line by tabs and take fields.
+    // Format is usually: ADDR: \t ENCODING \t MNEMONIC \t OPERANDS
+    char *tmp = strdup(line);
+    if (!tmp) return false;
+
+    char *saveptr = NULL;
+    char *f_addr = strtok_r(tmp, "\t", &saveptr);
+    char *f_encoding = strtok_r(NULL, "\t", &saveptr);
+    char *f_mnemonic = strtok_r(NULL, "\t", &saveptr);
+    char *f_operands = strtok_r(NULL, "\t", &saveptr);
+    if (!f_addr || !f_encoding || !f_mnemonic) {
+        free(tmp);
+        return false;
+    }
+
+    if (!f_mnemonic[0]) {
+        free(tmp);
+        return false;
+    }
+
+    *mnemonic_out = strdup(f_mnemonic);
+    if (f_operands && f_operands[0]) {
+        *operands_out = strdup(f_operands);
+    }
+    free(tmp);
+    return *mnemonic_out != NULL;
+}
+
+// Returns true if the mnemonic can generate an exception at runtime. This is
+// a "pragmatic" version, as all opcodes could theoretically trap in weird cases
+// (eg when run via an invalid TLB). But we want to keep SYM to a decent size, so
+// we want to cover the "99% common" cases here. This means:
+//  * FPU opcodes as they can always trigger exceptions for invalid operands
+//  * Memory accesses. We ignore accesses via sp (stack) and gp (small data), as
+//    those are extremely unlikely to trigger exceptions. Normally, crashes are
+//    because of invalid pointers built at runtime by user code, and those will
+//    go through different registers.
+//  * Explicitly trapping instructions like teq / tne, etc. These are rare anyway.
+static bool mnemonic_can_trap(const char *mn, const char *ops)
+{
+    static const char *memory_mnemonics[] = {
+        "lb", "lbu", "lh", "lhu", "lw", "lwl", "lwr", "ld",
+        "sb", "sh", "sw", "swl", "swr", "sd",
+        "ll", "sc",
+        "lwc1", "swc1", "ldc1", "sdc1",
+    };
+    static const char *fault_mnemonics[] = {
+        "syscall", "break",
+        "teq", "tne", "tge", "tgeu", "tlt", "tltu",
+        "teqi", "tnei", "tgei", "tgeiu", "tlti", "tltiu",
+    };
+    static const char *fpu_mnemonics[] = {
+        "add.", "sub.", "mul.", "div.", "sqrt.", "abs.", "mov.", "neg.",
+        "round.", "trunc.", "ceil.", "floor.", "cvt.", "c.",
+    };
+
+    for (size_t i = 0; i < sizeof(memory_mnemonics) / sizeof(memory_mnemonics[0]); i++) {
+        if (strcmp(mn, memory_mnemonics[i]) == 0) {
+            if (strstr(ops, "(sp)") || strstr(ops, "($sp)")) return false;
+            if (strstr(ops, "(gp)") || strstr(ops, "($gp)")) return false;
+            return true;
+        }
+    }
+    for (size_t i = 0; i < sizeof(fault_mnemonics) / sizeof(fault_mnemonics[0]); i++) {
+        if (strcmp(mn, fault_mnemonics[i]) == 0) return true;
+    }
+
+    for (size_t i = 0; i < sizeof(fpu_mnemonics) / sizeof(fpu_mnemonics[0]); i++) {
+        size_t n = strlen(fpu_mnemonics[i]);
+        if (strncmp(mn, fpu_mnemonics[i], n) == 0) return true;
+    }
+
+    return false;
+}
+
 bool elf_find_callsites(const char *elf)
 {
     struct addr_map *all_functions = NULL;
+    struct addr_map *emitted_addrs = NULL;
     elf_read_function_symbols(elf, &all_functions);
-    verbose("Found %d function symbols\n", stbds_hmlen(all_functions));
+    verbose(1, "Found %d function symbols\n", stbds_hmlen(all_functions));
 
     // Start objdump to parse the disassembly of the ELF file
     char *cmd = NULL;
     asprintf(&cmd, "%sobjdump -d %s", gccprefix_triplet, elf);
-    verbose("Running: %s\n", cmd);
+    verbose(1, "Running: %s\n", cmd);
     FILE *disasm = popen(cmd, "r");
     if (!disasm) {
         fprintf(stderr, "Error: cannot run: %s\n", cmd);
@@ -295,18 +409,35 @@ bool elf_find_callsites(const char *elf)
         if (strstr(line, ">:")) {
             uint32_t addr = strtoul(line, NULL, 16);
             if (stbds_hmgeti(all_functions, addr) >= 0) {
-                symbol_add(elf, addr, true);
+                symbol_add_unique(elf, addr, true, &emitted_addrs);
             }
         }
-        // Find the callsites
-        if (strstr(line, "\tjal\t") || strstr(line, "\tjalr\t") || strstr(line, "\tsyscall")) {
-            uint32_t addr = strtoul(line, NULL, 16);
-            symbol_add(elf, addr, false);
+
+        char *mn = NULL;
+        char *ops = NULL;
+        if (!disasm_get_fields(line, &mn, &ops)) continue;
+
+        bool should_emit = false;
+        if (strcmp(mn, "jal") == 0 || strcmp(mn, "jalr") == 0 || strcmp(mn, "syscall") == 0) {
+            // Keep default behavior for callsites regardless of --all.
+            should_emit = true;
+        } else if (flag_all) {
+            if (mnemonic_can_trap(mn, ops)) {
+                should_emit = true;
+            }
         }
+
+        if (should_emit) {
+            uint32_t addr = strtoul(line, NULL, 16);
+            symbol_add_unique(elf, addr, false, &emitted_addrs);
+        }
+        free(mn);
+        free(ops);
     }
     free(line);
     free(cmd);
     stbds_hmfree(all_functions);
+    stbds_hmfree(emitted_addrs);
     int status = pclose(disasm);
 #ifdef __MINGW32__
     return status == 0;
@@ -429,14 +560,14 @@ void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, u
     int stats_huff_bytes = (stats_huff_bits + 7) / 8;
     int stats_front_coding_size = stats_raw_suffix_len + stats_varint_bytes;
 
-    verbose("  Huffman Stats:\n");
-    verbose("    Raw suffixes: %d bytes\n", stats_raw_suffix_len);
-    verbose("    Equivalent Front Coding Size: %d bytes\n", stats_front_coding_size);
-    verbose("    Compressed suffixes (Huffman): %d bytes (%.1f%%)\n", 
+    verbose(1, "  Huffman Stats:\n");
+    verbose(1, "    Raw suffixes: %d bytes\n", stats_raw_suffix_len);
+    verbose(1, "    Equivalent Front Coding Size: %d bytes\n", stats_front_coding_size);
+    verbose(1, "    Compressed suffixes (Huffman): %d bytes (%.1f%%)\n", 
         stats_huff_bytes, 100.0 * stats_huff_bytes / (stats_raw_suffix_len ? stats_raw_suffix_len : 1));
-    verbose("    Overhead: VarInts: %d bytes, Padding: %d bytes\n", 
+    verbose(1, "    Overhead: VarInts: %d bytes, Padding: %d bytes\n", 
         stats_varint_bytes, stats_padding_bytes);
-    verbose("    Total Blob Size: %d bytes (%.1f%% of Front Coding)\n", 
+    verbose(1, "    Total Blob Size: %d bytes (%.1f%% of Front Coding)\n", 
         stbds_arrlen(*blob), 100.0 * stbds_arrlen(*blob) / (stats_front_coding_size ? stats_front_coding_size : 1));
 }
 
@@ -458,9 +589,9 @@ int compress_symbols(
     
     // State machine
     uint32_t state_addr = chunk_start_addr;
-    int state_file = 0;
-    int state_func = 0;
-    int state_line = 0;
+    int state_file[2] = {0, 0}; // [0]=non-inline, [1]=inline
+    int state_func[2] = {0, 0}; // [0]=non-inline, [1]=inline
+    int state_line[2] = {0, 0}; // [0]=non-inline, [1]=inline
 
     // Write per-chunk header: func offset of first symbol (VarInt)
     uint32_t chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
@@ -482,13 +613,6 @@ int compress_symbols(
         bool flush = (stbds_arrlen(chunk_buf) > MAX_BUFFER_SIZE - 32);
         
         if (flush) {
-            // End of chunk marker (EOM)
-            stbds_arrput(chunk_buf, 0x18);
-
-            // Pad chunk to 2 bytes alignment for DMA
-            if (stbds_arrlen(chunk_buf) % 2 != 0)
-                stbds_arrput(chunk_buf, 0x00);
-
             // Flush chunk
             stbds_arrput(*chunk_index, chunk_start_addr);
             stbds_arrput(*chunk_index, stbds_arrlen(*stream));
@@ -503,17 +627,19 @@ int compress_symbols(
             stbds_arrsetlen(chunk_buf, 0);
             chunk_start_addr = sym->addr;
             state_addr = sym->addr;
-            state_file = 0;
-            state_func = 0;
-            state_line = 0;
+            state_file[0] = state_file[1] = 0;
+            state_func[0] = state_func[1] = 0;
+            state_line[0] = state_line[1] = 0;
             chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
             w_varint(&chunk_buf, chunk_func_off);
         }
         
+        int sid = sym->is_inline ? 1 : 0;
+
         // Calculate deltas
-        int delta_file = file_idx - state_file;
-        int delta_func = func_idx - state_func;
-        int delta_line = sym->line - state_line;
+        int delta_file = file_idx - state_file[sid];
+        int delta_func = func_idx - state_func[sid];
+        int delta_line = sym->line - state_line[sid];
         uint32_t delta_addr = sym->addr - state_addr;
         
         // Encode to temp buffer
@@ -537,7 +663,6 @@ int compress_symbols(
             has_addr_param = true;
         }
         
-        assert(op != 0x18 && "Opcode should never be 0x18 (EOM) within the stream");
         stbds_arrput(chunk_buf, op);
         if (delta_file != 0) w_signed_varint(&chunk_buf, delta_file);
         if (delta_func != 0) w_signed_varint(&chunk_buf, delta_func);
@@ -547,9 +672,9 @@ int compress_symbols(
         emitted++;
         
         state_addr = sym->addr;
-        state_file = file_idx;
-        state_func = func_idx;
-        state_line = sym->line;
+        state_file[sid] = file_idx;
+        state_func[sid] = func_idx;
+        state_line[sid] = sym->line;
 
         if (sym->is_func)
             last_func_addr = sym->addr;
@@ -559,10 +684,6 @@ int compress_symbols(
     if (stbds_arrlen(chunk_buf) > 0) {
         stbds_arrput(*chunk_index, chunk_start_addr);
         stbds_arrput(*chunk_index, stbds_arrlen(*stream));
-        stbds_arrput(chunk_buf, 0x18); // EOM
-        // Pad chunk to 2 bytes alignment for DMA
-        if (stbds_arrlen(chunk_buf) % 2 != 0)
-            stbds_arrput(chunk_buf, 0x00);
         int cur_len = stbds_arrlen(*stream);
         int chunk_len = stbds_arrlen(chunk_buf);
         stbds_arrsetlen(*stream, cur_len + chunk_len);
@@ -573,8 +694,55 @@ int compress_symbols(
     return emitted;
 }
 
+static void compress_symbol_chunks(
+    uint8_t *plain_stream, uint32_t *plain_chunk_index,
+    uint8_t **cmp_stream, uint32_t **cmp_chunk_index,
+    uint32_t *max_chunk_margin)
+{
+    int num_chunks = stbds_arrlen(plain_chunk_index) / 2;
+    *max_chunk_margin = 0;
+
+    for (int i = 0; i < num_chunks; i++) {
+        uint32_t start_addr = plain_chunk_index[i * 2 + 0];
+        uint32_t plain_off = plain_chunk_index[i * 2 + 1];
+        uint32_t plain_end = (i + 1 < num_chunks) ? plain_chunk_index[(i + 1) * 2 + 1] : stbds_arrlen(plain_stream);
+        assert(plain_end >= plain_off);
+        uint32_t plain_size = plain_end - plain_off;
+
+        int cmp_size = 0;
+        int winsize = 0;
+        int margin = 0;
+        uint8_t *cmp_buf = NULL;
+        asset_compress_mem_raw(3, plain_stream + plain_off, (int)plain_size, &cmp_buf, &cmp_size, &winsize, &margin);
+        if (!cmp_buf || cmp_size <= 0) {
+            fprintf(stderr, "Error: compression failed for chunk %d\n", i);
+            exit(1);
+        }
+
+        // Keep compressed chunk sizes even so the next chunk offset preserves
+        // ROM/RAM parity constraints required by dma_read().
+        if (cmp_size & 1) {
+            cmp_buf = realloc(cmp_buf, cmp_size + 1);
+            cmp_buf[cmp_size++] = 0;
+        }
+
+        if ((uint32_t)margin > *max_chunk_margin)
+            *max_chunk_margin = margin;
+
+        stbds_arrput(*cmp_chunk_index, start_addr);
+        stbds_arrput(*cmp_chunk_index, stbds_arrlen(*cmp_stream));
+
+        int cur_len = stbds_arrlen(*cmp_stream);
+        stbds_arrsetlen(*cmp_stream, cur_len + cmp_size);
+        memcpy(*cmp_stream + cur_len, cmp_buf, cmp_size);
+
+        free(cmp_buf);
+    }
+}
+
 void write_sym_file(const char *outfn, 
     int num_symbols, int num_chunks, int num_files, int num_funcs,
+    uint32_t max_chunk_margin,
     uint32_t *chunk_index,
     uint32_t *file_offsets, uint8_t *file_blob,
     uint32_t *func_offsets, uint8_t *func_blob,
@@ -587,9 +755,9 @@ void write_sym_file(const char *outfn,
         exit(1);
     }
     
-    // Write V3 Header
+    // Write SYMT header
     fwrite("SYMT", 4, 1, out);
-    w32(out, 3); // Version 3
+    w32(out, SYMT_VERSION);
     w32(out, num_symbols);
     w32(out, num_chunks);
     
@@ -601,6 +769,7 @@ void write_sym_file(const char *outfn,
     int file_blob_off_ph = w32_placeholder(out);
     int func_blob_off_ph = w32_placeholder(out);
     int stream_off_ph = w32_placeholder(out);
+    w32(out, max_chunk_margin);
     
     // Sizes
     w32(out, num_files);
@@ -642,14 +811,14 @@ void write_sym_file(const char *outfn,
     fwrite(stream, stbds_arrlen(stream), 1, out);
     
     int size = ftell(out);
-    verbose("  Total File Size: %d bytes\n", size);
+    verbose(1, "  Total File Size: %d bytes\n", size);
 
     fclose(out);
 }
 
 void process(const char *infn, const char *outfn)
 {
-    verbose("Processing: %s -> %s\n", infn, outfn);
+    verbose(1, "Processing: %s -> %s\n", infn, outfn);
 
     // First, find all functions and call sites. We do this by disassembling
     // the ELF file and grepping it.
@@ -657,11 +826,11 @@ void process(const char *infn, const char *outfn)
         fprintf(stderr, "Error: objdump failed\n");
         exit(1);
     }
-    verbose("Found %d callsites\n", stbds_arrlen(symtable));
+    verbose(1, "Found %d callsites\n", stbds_arrlen(symtable));
 
     // If the symtable is empty, there's nothing else to do
     if (stbds_arrlen(symtable) == 0) {
-        verbose("No symbols found\n");
+        verbose(1, "No symbols found\n");
         return;
     }
 
@@ -719,7 +888,7 @@ void process(const char *infn, const char *outfn)
     for (int i=0; i<nfuncs; i++) stbds_shput(func_map, unique_funcs[i], i);
     
     // Shared Huffman Table
-    verbose("Calculating shared Huffman table...\n");
+    verbose(1, "Calculating shared Huffman table...\n");
     int shared_freqs[256] = {0};
     collect_string_freqs(unique_files, shared_freqs);
     collect_string_freqs(unique_funcs, shared_freqs);
@@ -735,30 +904,39 @@ void process(const char *infn, const char *outfn)
     write_huff_header(&shared_ct, &huff_blob);
     
     // Compress string blobs using shared table (no headers)
-    verbose("Compressing strings (Shared Table)...\n");
+    verbose(1, "Compressing strings (Shared Table)...\n");
     compress_strings(unique_files, shared_huff_table, &file_blob, &file_offsets);
     compress_strings(unique_funcs, shared_huff_table, &func_blob, &func_offsets);
     
     free(shared_ct.symbols);
     
     // Compress Symbols
+    uint8_t *plain_stream = NULL;
+    uint32_t *plain_chunk_index = NULL; // Stores (start_addr, offset) pairs
+    verbose(1, "Compressing symbols...\n");
+    int num_emitted = compress_symbols(symtable, stbds_arrlen(symtable), file_map, func_map, &plain_stream, &plain_chunk_index);
+
     uint8_t *stream = NULL;
-    uint32_t *chunk_index = NULL; // Stores (start_addr, offset) pairs    
-    verbose("Compressing symbols...\n");
-    int num_emitted = compress_symbols(symtable, stbds_arrlen(symtable), file_map, func_map, &stream, &chunk_index);
+    uint32_t *chunk_index = NULL; // Stores (start_addr, compressed offset) pairs
+    uint32_t max_chunk_margin = 0;
+    verbose(1, "Applying compression to symbol chunks...\n");
+    compress_symbol_chunks(plain_stream, plain_chunk_index, &stream, &chunk_index, &max_chunk_margin);
     
-    verbose("Stats:\n");
-    verbose("  Chunk Index: %zu bytes\n", stbds_arrlen(chunk_index) * 4);
-    verbose("  File Tab: %zu bytes\n", stbds_arrlen(file_offsets) * 4);
-    verbose("  Func Tab: %zu bytes\n", stbds_arrlen(func_offsets) * 4);
-    verbose("  Shared Huffman Table: %zu bytes\n", stbds_arrlen(huff_blob));
-    verbose("  File Blob: %zu bytes\n", stbds_arrlen(file_blob));
-    verbose("  Func Blob: %zu bytes\n", stbds_arrlen(func_blob));
-    verbose("  Stream: %zu bytes\n", stbds_arrlen(stream));
+    verbose(1, "Stats:\n");
+    verbose(1, "  Chunk Index: %zu bytes\n", stbds_arrlen(chunk_index) * 4);
+    verbose(1, "  File Tab: %zu bytes\n", stbds_arrlen(file_offsets) * 4);
+    verbose(1, "  Func Tab: %zu bytes\n", stbds_arrlen(func_offsets) * 4);
+    verbose(1, "  Shared Huffman Table: %zu bytes\n", stbds_arrlen(huff_blob));
+    verbose(1, "  File Blob: %zu bytes\n", stbds_arrlen(file_blob));
+    verbose(1, "  Func Blob: %zu bytes\n", stbds_arrlen(func_blob));
+    verbose(1, "  Stream (plain): %zu bytes\n", stbds_arrlen(plain_stream));
+    verbose(1, "  Stream (compressed): %zu bytes\n", stbds_arrlen(stream));
+    verbose(1, "  Max Chunk Margin: %u bytes\n", max_chunk_margin);
 
     write_sym_file(outfn, 
         num_emitted,  stbds_arrlen(chunk_index)/2, 
         stbds_arrlen(unique_files), stbds_arrlen(unique_funcs), 
+        max_chunk_margin,
         chunk_index,
         file_offsets, file_blob,
         func_offsets, func_blob,
@@ -770,6 +948,8 @@ void process(const char *infn, const char *outfn)
     stbds_arrfree(huff_blob);
     stbds_arrfree(file_offsets);
     stbds_arrfree(func_offsets);
+    stbds_arrfree(plain_stream);
+    stbds_arrfree(plain_chunk_index);
     stbds_arrfree(stream);
     stbds_arrfree(chunk_index);
     stbds_arrfree(unique_files);
@@ -790,9 +970,24 @@ int main(int argc, char *argv[])
             usage(argv[0]);
             return 0;
         } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
-            flag_verbose = true;
+            flag_verbose++;
+        } else if (!strcmp(argv[i], "-a") || !strcmp(argv[i], "--all")) {
+            flag_all = true;
         } else if (!strcmp(argv[i], "--no-inlines")) {
             flag_inlines = false;
+        } else if (!strcmp(argv[i], "--cpp-shorten")) {
+            if (++i == argc) {
+                fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                return 1;
+            }
+            if (strcmp(argv[i], "0") == 0 || strcmp(argv[i], "false") == 0 || strcmp(argv[i], "no") == 0 || strcmp(argv[i], "off") == 0) {
+                flag_cpp_shorten = false;
+            } else if (strcmp(argv[i], "1") == 0 || strcmp(argv[i], "true") == 0 || strcmp(argv[i], "yes") == 0 || strcmp(argv[i], "on") == 0) {
+                flag_cpp_shorten = true;
+            } else {
+                fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
+                return 1;
+            }
         } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
             if (++i == argc) {
                 fprintf(stderr, "missing argument for %s\n", argv[i-1]);

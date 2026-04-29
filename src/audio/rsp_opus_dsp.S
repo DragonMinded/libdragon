@@ -150,7 +150,7 @@ OPUS_32to16:
     andi t0, dmem_in0, 0xF
     assert_eq t0, 0, 0x1234
 
-    #emux_dump_gpr dmem_out0, dmem_out1
+    #xlogregs_gpr dmem_out0, dmem_out1
 
     addiu dmem_in1, dmem_in0, 1
     addiu dmem_in2, dmem_in1, 1
@@ -197,7 +197,7 @@ OPUS_32to16_loop:
     srv vsigf.e0, 0x10,dmem_out1
     addiu dmem_out0, 0x10
     addiu dmem_out1, 0x10
-    #emux_dump_vpr vsigi, vsigf
+    #xlogregs_vpr vsigi, vsigf
 
     jr ra
     nop
@@ -251,8 +251,8 @@ OPUS_comb_fetch:
     srl dmem_idx, a1, 16
     sll dmem_idx, 1
 
-    #emux_log_string "OPUS_comb_fetch\n"
-    #emux_dump_gpr dmem_idx, samples_left
+    #xlog_string "OPUS_comb_fetch\n"
+    #xlogregs_gpr dmem_idx, samples_left
 
     #if RSPQ_DEBUG
     andi t0, a0, 7

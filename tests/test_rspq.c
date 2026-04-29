@@ -516,6 +516,113 @@ void test_rspq_block(TestContext *ctx)
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
+static int rspq_block_reuse_atexit_count;
+
+static void rspq_block_reuse_atexit_cb(void *ctx)
+{
+    rspq_block_reuse_atexit_count++;
+    (void)ctx;
+}
+
+void test_rspq_block_begin_reuse(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    // begin_reuse(NULL) should behave like rspq_block_begin (same effect on RSP side).
+    rspq_block_begin_reuse(NULL);
+    rspq_test_8(1);
+    rspq_test_8(2);
+    rspq_block_t *b_reuse_null = rspq_block_end();
+    DEFER(rspq_block_free(b_reuse_null));
+
+    rspq_block_begin();
+    rspq_test_8(1);
+    rspq_test_8(2);
+    rspq_block_t *b_traditional = rspq_block_end();
+    DEFER(rspq_block_free(b_traditional));
+
+    uint64_t sum_reuse[2] __attribute__((aligned(16))) = {0};
+    uint64_t sum_trad[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(sum_reuse, 16);
+    data_cache_hit_writeback_invalidate(sum_trad, 16);
+
+    rspq_test_reset();
+    rspq_block_run(b_reuse_null);
+    rspq_test_output(sum_reuse);
+    rspq_wait();
+
+    rspq_test_reset();
+    rspq_block_run(b_traditional);
+    rspq_test_output(sum_trad);
+    rspq_wait();
+    ASSERT_EQUAL_UNSIGNED(sum_reuse[0], sum_trad[0], "begin_reuse(NULL) block differs from rspq_block_begin");
+
+    // Same pointer after re-recording; second recording still runs.
+    rspq_block_begin();
+    rspq_test_8(7);
+    rspq_block_t *p = rspq_block_end();
+    rspq_block_begin_reuse(p);
+    rspq_test_8(8);
+    rspq_block_t *p2 = rspq_block_end();
+    ASSERT(p == p2, "begin_reuse must keep the same block pointer");
+
+    data_cache_hit_invalidate(sum_reuse, 16);
+    rspq_test_reset();
+    rspq_block_run(p2);
+    rspq_test_output(sum_reuse);
+    rspq_wait();
+    data_cache_hit_invalidate(sum_reuse, 16);
+    ASSERT_EQUAL_UNSIGNED(sum_reuse[0], 8u, "reused block wrong sum");
+
+    DEFER(rspq_block_free(p2));
+
+    // Large block (extra RSP chain chunks), then reuse and run again.
+    rspq_block_begin();
+    for (uint32_t i = 0; i < 4096; i++) {
+        rspq_test_8(1);
+        if (i % 256 == 0)
+            rspq_test_wait(0x10);
+    }
+    rspq_block_t *big = rspq_block_end();
+    rspq_block_begin_reuse(big);
+    for (uint32_t i = 0; i < 4096; i++) {
+        rspq_test_8(1);
+        if (i % 256 == 0)
+            rspq_test_wait(0x10);
+    }
+    rspq_block_t *big2 = rspq_block_end();
+    ASSERT(big == big2, "large block pointer must be stable");
+
+    data_cache_hit_invalidate(sum_trad, 16);
+    rspq_test_reset();
+    rspq_block_run(big2);
+    rspq_test_output(sum_trad);
+    rspq_wait();
+    data_cache_hit_invalidate(sum_trad, 16);
+    ASSERT_EQUAL_UNSIGNED(sum_trad[0], 4096u, "large reused block wrong sum");
+
+    DEFER(rspq_block_free(big2));
+
+    // atexit runs on begin_reuse (tear down old content) and on free.
+    rspq_block_reuse_atexit_count = 0;
+    rspq_block_begin();
+    rspq_block_atexit(rspq_block_reuse_atexit_cb, NULL);
+    rspq_test_8(1);
+    rspq_block_t *ac = rspq_block_end();
+    ASSERT_EQUAL_UNSIGNED((unsigned)rspq_block_reuse_atexit_count, 0u, "atexit before reuse");
+    rspq_block_begin_reuse(ac);
+    ASSERT_EQUAL_UNSIGNED((unsigned)rspq_block_reuse_atexit_count, 1u, "atexit not run on begin_reuse");
+    rspq_block_atexit(rspq_block_reuse_atexit_cb, NULL);
+    rspq_block_end();
+    ASSERT_EQUAL_UNSIGNED((unsigned)rspq_block_reuse_atexit_count, 1u, "atexit must not run on end");
+    rspq_block_free(ac);
+    ASSERT_EQUAL_UNSIGNED((unsigned)rspq_block_reuse_atexit_count, 2u, "atexit not run on free");
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
 void test_rspq_wait_sync_in_block(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();

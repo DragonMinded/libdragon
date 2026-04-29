@@ -52,6 +52,27 @@ typedef struct fmv_parms_s {
     /** @brief Disable subtitle rendering (even though a subtitle file is present) */
     bool disable_subtitles;
     /** 
+     * @brief Disable configuration of display mode.
+     *
+     * By default, #fmv_play will call #display_init to configure a "perfect",
+     * resolution for the video playback. This will be a custom VI resolution
+     * to perfectly match the video resolution *and* aspect ratio, so that any
+     * required letterboxing will be be performed at zero cost by VI itself.
+     * The resolution will use 32 bpp to achieve the best quality.
+     *
+     * Alternatively, #fmv_play can also render the video over an existing display
+     * configuration. This is mostly useful for cases where you need a smooth
+     * transition between the video playback and some other graphics, as calling
+     * display_close() will always incur in a black flash (because of framebuffer
+     * deallocation and reallocation).
+     *
+     * In this case, the video will be automatically scaled to the display size,
+     * and aspect ratio will be preserved by actively drawing black bars into
+     * the framebuffers. Moreover, if the display is 16 bpp, RDP dithering will
+     * and VI dedithering will be activated.
+     */
+    bool disable_display_init;
+    /** 
      * @brief Disable frame skipping to keep audio in sync.
      * 
      * Note that disabling this can cause video and audio to go out of sync,
@@ -78,7 +99,7 @@ typedef struct fmv_parms_s {
     /** The mixer channel to use for audio playback (default: 0) */
     int audio_mixer_channel;
 
-    /** @brief Enable CRT overscan margins */
+    /** @brief Enable CRT overscan margins (only if display_init is not disabled) */
     bool crt_margin;
 
     /** @brief Continue playback from the start when the end of the video is reached */

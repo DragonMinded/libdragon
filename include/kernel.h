@@ -14,6 +14,10 @@
 #include "exception.h"
 #include "n64sys.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @defgroup kernel Multi-threading kernel
  * @ingroup libdragon
@@ -595,5 +599,9 @@ void kcond_signal(kcond_t *cond);
 void kcond_broadcast(kcond_t *cond);
 
 /** @} */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* KERNEL_H */

@@ -14,6 +14,7 @@
 #include "debug.h"
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
+#include "mi.h"
 #include "accounting_internal.h"
 #include <stdbool.h>
 #include <assert.h>
@@ -219,8 +220,11 @@ static void __vblank_interrupt(void*)
     }
 
     // If blank mode is active, set VI_H_VIDEO to 0 to disable any framebuffer sampling
+    // Also disable AA as we can hit hard-to-reproduce VI crashes when switching
+    // from AA blank mode, to a non-AA non-blank mode.
     if (UNLIKELY(blank_mode)) {
         *VI_H_VIDEO = 0;
+        *VI_CTRL |= VI_AA_MODE_NONE;
     }
 
     // VI adjustments in case of serration, to achieve the interlaced effect.
@@ -279,6 +283,13 @@ static void __vblank_interrupt(void*)
             *VI_V_BURST = v_burst_mpal_values[field];
         }
     }
+
+#ifndef NDEBUG
+    int line = vi_get_scanline(NULL);
+    if (line > VI_V_CURRENT_VBLANK + 8) {
+        debugf("VI WARNING: __vblank_interrupt outside of vblank period: %d\n", line);
+    }
+#endif
 }
 
 /** @brief VI interrupt handler for line interrupts */
@@ -461,6 +472,11 @@ void vi_set_aa_mode(vi_aa_mode_t mode)
     vi_write_masked(VI_CTRL, VI_AA_MODE_MASK, mode);
 }
 
+vi_aa_mode_t vi_get_aa_mode(void)
+{
+    return (vi_aa_mode_t)(vi_read(VI_CTRL) & VI_AA_MODE_MASK);
+}
+
 void vi_set_divot(bool enable)
 {
     vi_write_masked(VI_CTRL, VI_DIVOT_ENABLE, enable ? VI_DIVOT_ENABLE : 0);
@@ -469,6 +485,11 @@ void vi_set_divot(bool enable)
 void vi_set_dedither(bool enable)
 {
     vi_write_masked(VI_CTRL, VI_DEDITHER_FILTER_ENABLE, enable ? VI_DEDITHER_FILTER_ENABLE : 0);
+}
+
+bool vi_get_dedither(void)
+{
+    return (vi_read(VI_CTRL) & VI_DEDITHER_FILTER_ENABLE) != 0;
 }
 
 void vi_set_gamma(vi_gamma_t gamma)
@@ -589,6 +610,22 @@ vi_borders_t vi_get_borders(void)
     return b;
 }
 
+float vi_get_aspect_ratio(void)
+{
+    int vi_width = preset->display.width;
+    int vi_height = preset->display.height;
+
+    int x0, y0, x1, y1;
+    __get_output(&x0, &y0, &x1, &y1);
+    int vis_w = x1 - x0;
+    int vis_h = y1 - y0;
+
+    float correction = (float)vis_w / (float)vis_h;
+    const float vi_dar = 4.0f / 3.0f;
+    float vi_par = (float)vi_width / (float)vi_height;
+    return correction * vi_dar / vi_par;
+}
+
 vi_borders_t vi_calc_borders(float aspect_ratio, float overscan_margin)
 {
     const int vi_width = preset->display.width;
@@ -644,8 +681,10 @@ void vi_blank(bool set_blank)
 {
     disable_interrupts();
     blank_mode = set_blank;
-    if (!blank_mode)
+    if (!blank_mode) {
         vi_write(VI_H_VIDEO, vi_read(VI_H_VIDEO));
+        vi_write(VI_CTRL, vi_read(VI_CTRL));
+    }
     enable_interrupts();
 }
 
@@ -656,7 +695,10 @@ void vi_wait_vblank(void)
     if ((ctrl & VI_CTRL_TYPE) == VI_CTRL_TYPE_OFF)
         return;
 
-    if (__kernel) {
+    // For the kernel we can avoid spin-waiting by using 'kirq_wait'.
+    // However, if VI interrupts are disabled we would wait forever if no other thread turns it on again.
+    // To avoid hanging up here, fallback to the regular logic
+    if (__kernel && (*MI_MASK & MI_MASK_VI)) {
         kirq_wait_t w = kirq_begin_wait_vi();
         kirq_wait(&w);
         return;
@@ -674,6 +716,8 @@ void vi_wait_vblank(void)
             if ((c0_status & C0_STATUS_IE) == 0 || ((c0_status & (C0_STATUS_EXL|C0_STATUS_ERL)) != 0)) {
                 __vblank_interrupt(NULL);
             }
+
+            assert(cfg_pending == 0);
         }
     }
 }
@@ -725,26 +769,32 @@ void vi_debug_dump(int verbose)
 
 void vi_install_vblank_handler(void (*handler)(void *), void *arg)
 {
+    disable_interrupts();
     for (int i=0; i<MAX_VBLANK_HANDLERS; i++) {
         if (vblank_handlers[i].handler == NULL) {
             vblank_handlers[i].handler = handler;
             vblank_handlers[i].arg = arg;
+            enable_interrupts();
             return;
         }
     }
     assertf(false, "Too many vblank handlers");
+    enable_interrupts();
 }
 
 void vi_uninstall_vblank_handler(void (*handler)(void *), void *arg)
 {
+    disable_interrupts();
     for (int i=0; i<MAX_VBLANK_HANDLERS; i++) {
         if (vblank_handlers[i].handler == handler && vblank_handlers[i].arg == arg) {
             vblank_handlers[i].handler = NULL;
             vblank_handlers[i].arg = NULL;
+            enable_interrupts();
             return;
         }
     }
     assertf(false, "VBlank handler not found");
+    enable_interrupts();
 }
 
 void vi_set_line_interrupt(int line, void (*handler)(void*), void *arg)
@@ -833,6 +883,9 @@ void vi_reset(void)
     // VI will be programmed at next vblank.
     cfg_pending = (1 << VI_REGISTERS_COUNT) - 1;
 
+    // Set the vblank interrupt to the beginning of the vblank period
+    vi_write(VI_V_INTR, VI_V_CURRENT_VBLANK);
+
     // Set the timing preset according to the current TV type
     vi_set_timing_preset(default_presets[get_tv_type()]);
 
@@ -872,7 +925,7 @@ void vi_init(void)
 
     disable_interrupts();
     register_VI_handler(__vi_interrupt);
-    set_VI_interrupt(1, VI_V_CURRENT_VBLANK);
+    set_VI_interrupt(1, vi_read(VI_V_INTR));
     enable_interrupts();
 }
 

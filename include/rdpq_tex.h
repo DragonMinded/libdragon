@@ -191,6 +191,18 @@ int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_
 int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
 
 /**
+ * @brief Check if a surface can be fully uploaded to TMEM
+ *
+ * This helper verifies whether a full-surface upload via #rdpq_tex_upload
+ * would fit in TMEM for the surface format.
+ *
+ * @param tex        Surface to check
+ * @return true      The surface fits in TMEM
+ * @return false     The surface does not fit in TMEM
+ */
+bool rdpq_tex_can_upload(const surface_t *tex);
+
+/**
  * @brief Load one or more palettes into TMEM
  * 
  * This function allows to load one or more palettes into TMEM.
@@ -318,8 +330,8 @@ typedef struct rdpq_blitparms_s {
 
     int cx;             ///< Transformation center (aka "hotspot") X coordinate, relative to (s0, t0). Used for all transformations
     int cy;             ///< Transformation center (aka "hotspot") X coordinate, relative to (s0, t0). Used for all transformations
-    float scale_x;      ///< Horizontal scale factor to apply to the surface. This scaling is applied along the X axis after rotation. If 0, no scaling is performed (the same as 1.0f). If negative, horizontal flipping is applied
-    float scale_y;      ///< Vertical scale factor to apply to the surface. This scaling is applied along the Y axis after rotation. If 0, no scaling is performed (the same as 1.0f). If negative, vertical flipping is applied
+    float scale_x;      ///< Horizontal scale factor to apply to the surface. This scaling is applied along the X axis before rotation. If 0, no scaling is performed (the same as 1.0f). If negative, horizontal flipping is applied
+    float scale_y;      ///< Vertical scale factor to apply to the surface. This scaling is applied along the Y axis before rotation. If 0, no scaling is performed (the same as 1.0f). If negative, vertical flipping is applied
     float theta;        ///< Counter-clockwise rotation angle in radians
     
     bool allow_xform;   ///< True if blit should be affected by transforms applied by rdpq_xform

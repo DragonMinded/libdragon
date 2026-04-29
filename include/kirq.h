@@ -22,6 +22,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 ///@cond
 typedef struct kcond_s kcond_t;
 ///@endcond
@@ -90,5 +94,9 @@ kirq_wait_t kirq_begin_wait_pi(void);
  * @param wait 
  */
 void kirq_wait(kirq_wait_t *wait);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

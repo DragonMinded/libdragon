@@ -167,6 +167,7 @@ typedef struct
 
 void h264bsdInitStorage(storage_t *pStorage);
 void h264bsdResetStorage(storage_t *pStorage);
+void h264bsdRewindStorage(storage_t *pStorage);
 u32 h264bsdIsStartOfPicture(storage_t *pStorage);
 u32 h264bsdIsEndOfPicture(storage_t *pStorage);
 u32 h264bsdStoreSeqParamSet(storage_t *pStorage, seqParamSet_t *pSeqParamSet);
