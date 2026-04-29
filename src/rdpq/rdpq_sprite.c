@@ -15,20 +15,49 @@
 #include "sprite_internal.h"
 #include "yuv.h"
 
+static const yuv_colorspace_t *sprite_lookup_yuv_colorspace(sprite_ext_t *sx)
+{
+    if (!sx) return &YUV_BT601_TV;
+    switch (sx->colorspace) {
+    case SPRITE_COLORSPACE_BT601_FULL: return &YUV_BT601_FULL;
+    case SPRITE_COLORSPACE_BT709_TV:   return &YUV_BT709_TV;
+    case SPRITE_COLORSPACE_BT709_FULL: return &YUV_BT709_FULL;
+    default:                           return &YUV_BT601_TV;
+    }
+}
+
 static void sprite_setup_yuv_mode(sprite_t *sprite)
 {
     rdpq_set_mode_yuv(true);
-    const yuv_colorspace_t *cs = &YUV_BT601_TV;
-    sprite_ext_t *sx = __sprite_ext(sprite);
-    if (sx) {
-        switch (sx->colorspace) {
-        case SPRITE_COLORSPACE_BT601_FULL: cs = &YUV_BT601_FULL; break;
-        case SPRITE_COLORSPACE_BT709_TV:   cs = &YUV_BT709_TV;   break;
-        case SPRITE_COLORSPACE_BT709_FULL: cs = &YUV_BT709_FULL; break;
-        default: break;
-        }
-    }
+    const yuv_colorspace_t *cs = sprite_lookup_yuv_colorspace(__sprite_ext(sprite));
     rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
+}
+
+static void sprite_blit_planar_yuv(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms_in)
+{
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    int padded_w = (int)sx->texparms.s.translate;
+    int padded_h = (int)sx->texparms.t.translate;
+    uint8_t *base = (uint8_t*)sprite + sx->data_ptr;
+    size_t y_bytes  = (size_t)padded_w * padded_h;
+    size_t uv_bytes = (size_t)(padded_w / 2) * (padded_h / 2);
+
+    yuv_frame_t frame = {
+        .y = surface_make_linear(base,                         FMT_I8, padded_w,     padded_h),
+        .u = surface_make_linear(base + y_bytes,               FMT_I8, padded_w / 2, padded_h / 2),
+        .v = surface_make_linear(base + y_bytes + uv_bytes,    FMT_I8, padded_w / 2, padded_h / 2),
+    };
+
+    // Crop from the padded plane to the sprite's visible region. If the caller
+    // already supplied width/height, respect those; otherwise pin to the
+    // sprite dims.
+    rdpq_blitparms_t parms;
+    if (parms_in) parms = *parms_in;
+    else memset(&parms, 0, sizeof(parms));
+    if (parms.width  == 0) parms.width  = sprite->width;
+    if (parms.height == 0) parms.height = sprite->height;
+
+    yuv_tex_blit(&frame, x0, y0, &parms, sprite_lookup_yuv_colorspace(sx));
 }
 
 static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
@@ -56,6 +85,9 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
 /** @brief Internal implementation of #rdpq_sprite_upload that will optionally skip setting render modes */
 int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t *parms, bool set_mode)
 {
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    assertf(!sx || !(sx->flags & SPRITE_FLAG_YUV_PLANAR),
+        "planar YUV sprites cannot be uploaded to TMEM as a single texture; use rdpq_sprite_blit");
     assertf(sprite_fits_tmem(sprite), "sprite doesn't fit in TMEM");
 
     // Load main sprite surface
@@ -161,6 +193,15 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
 void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms)
 {
     assertf(!sprite_is_shq(sprite), "SHQ sprites only work with rdpq_sprite_upload, not rdpq_sprite_blit");
+
+    // Planar YUV sprites can't be uploaded as a single texture (the Y and UV
+    // halves are loaded separately into the two TMEM banks). Hand off to
+    // yuv_tex_blit, which sets up its own render mode and colorspace.
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    if (sx && (sx->flags & SPRITE_FLAG_YUV_PLANAR)) {
+        sprite_blit_planar_yuv(sprite, x0, y0, parms);
+        return;
+    }
 
     // For YUV sprites, configure the RDP YUV render mode + colorspace from
     // the sprite's metadata so the caller doesn't need to set it up.

@@ -24,6 +24,7 @@
 #include "sprite_internal.h"
 #include "n64sys.h"
 #include "surface.h"
+#include "yuv.h"
 #include "debug.h"
 
 #include <string.h>
@@ -196,19 +197,30 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     size_t pic_size = 0;
     lspr_decode_intra_slice(payload, payload_size, width, height, &pic, &pic_size);
 
-    assertf((orig_w & 1) == 0, "LSPR: orig_width must be even for FMT_YUV16 (got %u)", orig_w);
-
     int mb_w = (width + 15) / 16;
     int mb_h = (height + 15) / 16;
     int stride = mb_w * 16;
     int luma_h = mb_h * 16;
-    int chroma_stride = stride / 2;
 
-    size_t pixel_bytes = (size_t)orig_w * (size_t)orig_h * 2;
-    size_t pixel_bytes_aligned = (pixel_bytes + 15) & ~(size_t)15;
+    // yuv_tex_blit asserts (Y width % 32) == 0 (in addition to height % 16,
+    // which is always satisfied since luma_h = mb_h*16). LSPR-aware encoders
+    // pad accordingly; if not, this fires loudly rather than producing a
+    // garbled blit.
+    assertf((stride % 32) == 0,
+            "LSPR: padded width %d not multiple of 32 (yuv_tex_blit constraint); pad encoder output to %d",
+            stride, (stride + 31) & ~31);
+
+    // The decoder lays out Y, then U, then V — contiguously, with row strides
+    // of `stride` and `stride/2`. That's exactly the layout we want in the
+    // sprite buffer, so a single memcpy moves all three planes. Total payload:
+    // stride * luma_h * 3/2 (one Y plane plus two quarter-size chroma planes).
+    size_t y_bytes  = (size_t)stride * luma_h;
+    size_t uv_bytes = (size_t)(stride / 2) * (luma_h / 2);
+    size_t plane_bytes = y_bytes + 2 * uv_bytes;
+    size_t plane_bytes_aligned = (plane_bytes + 15) & ~(size_t)15;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
     size_t pixel_off = (header_bytes + 63) & ~(size_t)63;
-    size_t total_bytes = pixel_off + pixel_bytes_aligned;
+    size_t total_bytes = pixel_off + plane_bytes_aligned;
     sprite_t *spr = (sprite_t*)memalign(64, total_bytes);
     assertf(spr, "Out of memory");
     memset(spr, 0, pixel_off);
@@ -221,83 +233,20 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     sprite_ext_t *sx = (sprite_ext_t*)spr->data;
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
+    sx->flags = SPRITE_FLAG_YUV_PLANAR;
     sx->colorspace = SPRITE_COLORSPACE_BT709_FULL;
     sx->data_ptr = (uint32_t)pixel_off;
+    // Stash the padded plane dimensions for the renderer. The texparms fields
+    // are otherwise unread (SPRITE_FLAG_HAS_TEXPARMS is not set).
+    sx->texparms.s.translate = (float)stride;
+    sx->texparms.t.translate = (float)luma_h;
 
-    // Pack the 4:2:0 planar YUV that the H.264 decoder produced directly into
-    // UYVY 4:2:2 (FMT_YUV16) — the RDP-native packed layout. The crop from
-    // padded MB-aligned dimensions to (orig_w, orig_h) happens inline by
-    // iterating only over the visible pixels.
-    //
-    // pic lives in uncached memory, so every byte read pays full RDRAM
-    // latency. Process 4 pixels per inner iteration: one 32-bit Y load
-    // plus two 16-bit chroma loads produce two 32-bit big-endian UYVY
-    // stores. Two output rows are processed per outer iteration so each
-    // chroma load is shared across the 4:2:0 vertical pair.
-    uint8_t *dst_base = (uint8_t*)spr + pixel_off;
-    size_t dst_stride = (size_t)orig_w * 2;
-    const uint8_t *u_plane = pic + (size_t)stride * luma_h;
-    const uint8_t *v_plane = u_plane + (size_t)chroma_stride * (luma_h / 2);
-    int orig_w_fast = orig_w & ~3;
-    int orig_h_pairs = orig_h & ~1;
-    for (int y = 0; y < orig_h_pairs; y += 2) {
-        const uint8_t *yrow0 = pic + (size_t)y * stride;
-        const uint8_t *yrow1 = yrow0 + stride;
-        const uint8_t *urow  = u_plane + (size_t)(y >> 1) * chroma_stride;
-        const uint8_t *vrow  = v_plane + (size_t)(y >> 1) * chroma_stride;
-        uint8_t *dst0 = dst_base + (size_t)y * dst_stride;
-        uint8_t *dst1 = dst0 + dst_stride;
-        int x = 0;
-        for (; x < orig_w_fast; x += 4) {
-            uint32_t y0 = *(const uint32_t*)(yrow0 + x);
-            uint32_t y1 = *(const uint32_t*)(yrow1 + x);
-            uint32_t u2 = *(const uint16_t*)(urow + (x >> 1));
-            uint32_t v2 = *(const uint16_t*)(vrow + (x >> 1));
-            uint32_t U0 = (u2 & 0xff00) << 16; // U_even -> byte 0
-            uint32_t U1 = (u2 & 0x00ff) << 24; // U_odd  -> byte 0
-            uint32_t V0 = (v2 & 0xff00);       // V_even -> byte 2
-            uint32_t V1 = (v2 & 0x00ff) << 8;  // V_odd  -> byte 2
-            *(uint32_t*)(dst0 + (x << 1) + 0) = U0 | ((y0 >> 8) & 0x00ff0000) | V0 | ((y0 >> 16) & 0xff);
-            *(uint32_t*)(dst0 + (x << 1) + 4) = U1 | ((y0 << 8) & 0x00ff0000) | V1 | ( y0        & 0xff);
-            *(uint32_t*)(dst1 + (x << 1) + 0) = U0 | ((y1 >> 8) & 0x00ff0000) | V0 | ((y1 >> 16) & 0xff);
-            *(uint32_t*)(dst1 + (x << 1) + 4) = U1 | ((y1 << 8) & 0x00ff0000) | V1 | ( y1        & 0xff);
-        }
-        for (; x < orig_w; x += 2) {
-            uint8_t U = urow[x >> 1], V = vrow[x >> 1];
-            dst0[(x << 1) + 0] = U; dst0[(x << 1) + 1] = yrow0[x];
-            dst0[(x << 1) + 2] = V; dst0[(x << 1) + 3] = yrow0[x + 1];
-            dst1[(x << 1) + 0] = U; dst1[(x << 1) + 1] = yrow1[x];
-            dst1[(x << 1) + 2] = V; dst1[(x << 1) + 3] = yrow1[x + 1];
-        }
-    }
-    if (orig_h & 1) {
-        int y = orig_h_pairs;
-        const uint8_t *yrow = pic + (size_t)y * stride;
-        const uint8_t *urow = u_plane + (size_t)(y >> 1) * chroma_stride;
-        const uint8_t *vrow = v_plane + (size_t)(y >> 1) * chroma_stride;
-        uint8_t *dst = dst_base + (size_t)y * dst_stride;
-        int x = 0;
-        for (; x < orig_w_fast; x += 4) {
-            uint32_t y4 = *(const uint32_t*)(yrow + x);
-            uint32_t u2 = *(const uint16_t*)(urow + (x >> 1));
-            uint32_t v2 = *(const uint16_t*)(vrow + (x >> 1));
-            uint32_t U0 = (u2 & 0xff00) << 16;
-            uint32_t U1 = (u2 & 0x00ff) << 24;
-            uint32_t V0 = (v2 & 0xff00);
-            uint32_t V1 = (v2 & 0x00ff) << 8;
-            *(uint32_t*)(dst + (x << 1) + 0) = U0 | ((y4 >> 8) & 0x00ff0000) | V0 | ((y4 >> 16) & 0xff);
-            *(uint32_t*)(dst + (x << 1) + 4) = U1 | ((y4 << 8) & 0x00ff0000) | V1 | ( y4        & 0xff);
-        }
-        for (; x < orig_w; x += 2) {
-            dst[(x << 1) + 0] = urow[x >> 1];
-            dst[(x << 1) + 1] = yrow[x];
-            dst[(x << 1) + 2] = vrow[x >> 1];
-            dst[(x << 1) + 3] = yrow[x + 1];
-        }
-    }
-    // The RDP will load_block the packed pixels via DMA; flush the CPU
-    // writes so the RDP sees them.
-    data_cache_hit_writeback(dst_base, pixel_bytes_aligned);
+    // Copy the 4:2:0 planar payload from the uncached decoder buffer into the
+    // sprite's cached plane area. The RDP will read the planes via DMA after
+    // CPU cache writeback.
+    uint8_t *plane_base = (uint8_t*)spr + pixel_off;
+    memcpy(plane_base, pic, plane_bytes);
+    data_cache_hit_writeback(plane_base, plane_bytes_aligned);
 
     free_uncached(pic);
 
