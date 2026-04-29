@@ -225,20 +225,70 @@ sprite_t *__lossysprite_decode_buf(const void *buf, int sz) {
     sx->data_ptr = (uint32_t)pixel_off;
 
     // Pack the 4:2:0 planar YUV that the H.264 decoder produced directly into
-    // UYVY 4:2:2 (FMT_YUV16) — the RDP-native packed layout. Each chroma row
-    // is reused for two luma rows (4:2:0 → 4:2:2 vertical doubling), and the
-    // crop from padded MB-aligned dimensions to (orig_w, orig_h) happens
-    // inline by iterating only over the visible pixels.
+    // UYVY 4:2:2 (FMT_YUV16) — the RDP-native packed layout. The crop from
+    // padded MB-aligned dimensions to (orig_w, orig_h) happens inline by
+    // iterating only over the visible pixels.
+    //
+    // pic lives in uncached memory, so every byte read pays full RDRAM
+    // latency. Process 4 pixels per inner iteration: one 32-bit Y load
+    // plus two 16-bit chroma loads produce two 32-bit big-endian UYVY
+    // stores. Two output rows are processed per outer iteration so each
+    // chroma load is shared across the 4:2:0 vertical pair.
     uint8_t *dst_base = (uint8_t*)spr + pixel_off;
     size_t dst_stride = (size_t)orig_w * 2;
     const uint8_t *u_plane = pic + (size_t)stride * luma_h;
     const uint8_t *v_plane = u_plane + (size_t)chroma_stride * (luma_h / 2);
-    for (int y = 0; y < orig_h; y++) {
+    int orig_w_fast = orig_w & ~3;
+    int orig_h_pairs = orig_h & ~1;
+    for (int y = 0; y < orig_h_pairs; y += 2) {
+        const uint8_t *yrow0 = pic + (size_t)y * stride;
+        const uint8_t *yrow1 = yrow0 + stride;
+        const uint8_t *urow  = u_plane + (size_t)(y >> 1) * chroma_stride;
+        const uint8_t *vrow  = v_plane + (size_t)(y >> 1) * chroma_stride;
+        uint8_t *dst0 = dst_base + (size_t)y * dst_stride;
+        uint8_t *dst1 = dst0 + dst_stride;
+        int x = 0;
+        for (; x < orig_w_fast; x += 4) {
+            uint32_t y0 = *(const uint32_t*)(yrow0 + x);
+            uint32_t y1 = *(const uint32_t*)(yrow1 + x);
+            uint32_t u2 = *(const uint16_t*)(urow + (x >> 1));
+            uint32_t v2 = *(const uint16_t*)(vrow + (x >> 1));
+            uint32_t U0 = (u2 & 0xff00) << 16; // U_even -> byte 0
+            uint32_t U1 = (u2 & 0x00ff) << 24; // U_odd  -> byte 0
+            uint32_t V0 = (v2 & 0xff00);       // V_even -> byte 2
+            uint32_t V1 = (v2 & 0x00ff) << 8;  // V_odd  -> byte 2
+            *(uint32_t*)(dst0 + (x << 1) + 0) = U0 | ((y0 >> 8) & 0x00ff0000) | V0 | ((y0 >> 16) & 0xff);
+            *(uint32_t*)(dst0 + (x << 1) + 4) = U1 | ((y0 << 8) & 0x00ff0000) | V1 | ( y0        & 0xff);
+            *(uint32_t*)(dst1 + (x << 1) + 0) = U0 | ((y1 >> 8) & 0x00ff0000) | V0 | ((y1 >> 16) & 0xff);
+            *(uint32_t*)(dst1 + (x << 1) + 4) = U1 | ((y1 << 8) & 0x00ff0000) | V1 | ( y1        & 0xff);
+        }
+        for (; x < orig_w; x += 2) {
+            uint8_t U = urow[x >> 1], V = vrow[x >> 1];
+            dst0[(x << 1) + 0] = U; dst0[(x << 1) + 1] = yrow0[x];
+            dst0[(x << 1) + 2] = V; dst0[(x << 1) + 3] = yrow0[x + 1];
+            dst1[(x << 1) + 0] = U; dst1[(x << 1) + 1] = yrow1[x];
+            dst1[(x << 1) + 2] = V; dst1[(x << 1) + 3] = yrow1[x + 1];
+        }
+    }
+    if (orig_h & 1) {
+        int y = orig_h_pairs;
         const uint8_t *yrow = pic + (size_t)y * stride;
         const uint8_t *urow = u_plane + (size_t)(y >> 1) * chroma_stride;
         const uint8_t *vrow = v_plane + (size_t)(y >> 1) * chroma_stride;
         uint8_t *dst = dst_base + (size_t)y * dst_stride;
-        for (int x = 0; x < orig_w; x += 2) {
+        int x = 0;
+        for (; x < orig_w_fast; x += 4) {
+            uint32_t y4 = *(const uint32_t*)(yrow + x);
+            uint32_t u2 = *(const uint16_t*)(urow + (x >> 1));
+            uint32_t v2 = *(const uint16_t*)(vrow + (x >> 1));
+            uint32_t U0 = (u2 & 0xff00) << 16;
+            uint32_t U1 = (u2 & 0x00ff) << 24;
+            uint32_t V0 = (v2 & 0xff00);
+            uint32_t V1 = (v2 & 0x00ff) << 8;
+            *(uint32_t*)(dst + (x << 1) + 0) = U0 | ((y4 >> 8) & 0x00ff0000) | V0 | ((y4 >> 16) & 0xff);
+            *(uint32_t*)(dst + (x << 1) + 4) = U1 | ((y4 << 8) & 0x00ff0000) | V1 | ( y4        & 0xff);
+        }
+        for (; x < orig_w; x += 2) {
             dst[(x << 1) + 0] = urow[x >> 1];
             dst[(x << 1) + 1] = yrow[x];
             dst[(x << 1) + 2] = vrow[x >> 1];
