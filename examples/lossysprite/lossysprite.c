@@ -8,7 +8,8 @@ int main(void)
     dfs_init(DFS_DEFAULT_LOCATION);
     rdpq_init();
 
-    sprite_t *bkg  = lossysprite_load("rom:/background.sprite");
+    sprite_init_lossy();
+    sprite_t *bkg  = sprite_load("rom:/background.sprite");
     sprite_t *brew = sprite_load("rom:/n64brew.sprite");
 
     const int sw = display_get_width();

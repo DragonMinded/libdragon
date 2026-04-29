@@ -91,6 +91,16 @@ typedef struct sprite_detail_s
 
 
 /**
+ * @brief Initialize support for lossy sprites.
+ */
+void sprite_init_lossy(void);
+
+/**
+ * @brief Deinitialize support for lossy sprites.
+ */
+void sprite_close_lossy(void);
+
+/**
  * @brief Load a sprite from a filesystem (eg: ROM)
  * 
  * This function loads a full sprite from a filesystem. Notice that there is no

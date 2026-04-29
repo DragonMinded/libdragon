@@ -64,16 +64,63 @@ bool __sprite_upgrade(sprite_t *sprite)
     return false;
 }
 
+typedef sprite_t *(*sprite_decode_fn)(const void *buf, int sz);
+
+struct sprite_decoder_s {
+    const char *magic;
+    int magic_len;
+    sprite_decode_fn decode;
+    struct sprite_decoder_s *next;
+};
+
+static struct sprite_decoder_s *sprite_decoders = NULL;
+
+static void sprite_decoder_register(const char *magic, sprite_decode_fn decode)
+{
+    struct sprite_decoder_s *d = malloc(sizeof(struct sprite_decoder_s));
+    d->magic = magic;
+    d->magic_len = strlen(magic);
+    d->decode = decode;
+    d->next = sprite_decoders;
+    sprite_decoders = d;
+}
+
+static int sprite_decoder_unregister(const char *magic)
+{
+    struct sprite_decoder_s **d = &sprite_decoders;
+    while (*d) {
+        if (strcmp((*d)->magic, magic) == 0) {
+            struct sprite_decoder_s *to_free = *d;
+            *d = (*d)->next;
+            free(to_free);
+            return 0;
+        }
+        d = &(*d)->next;
+    }
+    return -1;
+}
+
+void sprite_init_lossy(void)
+{
+    sprite_decoder_register("LSPR", __lossysprite_decode_buf);
+}
+
+void sprite_close_lossy(void)
+{
+    sprite_decoder_unregister("LSPR");
+}
+
 sprite_t *sprite_load_buf(void *buf, int sz)
 {
-    assertf(sz > 4, "Sprite buffer too small (sz=%d)", sz);
-    if (memcmp(buf, "LSPR", 4) == 0)
-    {
-        // LSPR is a compressed format: it can't be used in-place. Decode it
-        // into a freshly allocated FMT_YUV16 sprite. Caller retains ownership
-        // of the source buffer, which can be freed after this call.
-        return __lossysprite_decode_buf(buf, sz);
+    // Attempt to decode the sprite with a custom decoder using on magic header detection.
+    struct sprite_decoder_s *d = sprite_decoders;
+    while (d) {
+        if (sz > d->magic_len && memcmp(buf, d->magic, d->magic_len) == 0) {
+            return d->decode(buf, sz);
+        }
+        d = d->next;
     }
+    // No decoder matched. Try to load as a normal sprite (with possible header upgrade).
     assertf(sz >= sizeof(sprite_t), "Sprite buffer too small (sz=%d)", sz);
     sprite_t *s = buf;
     __sprite_upgrade(s);
