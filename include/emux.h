@@ -3,7 +3,7 @@
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Implementation of the N64 emulator extensions
  * @ingroup emux
- * @defgroup emux
+ * @defgroup emux emux
  * 
  * EMUX is an open spec for emulators to provide extensions to the emulated
  * N64 system, allowing advanced profiling and debugging features.
