@@ -40,7 +40,7 @@ int main()
     // Initialize systems
     console_init();
     console_set_debug(true);
-	debug_init_isviewer();
+	debug_init(DEBUG_FEATURE_LOG_EMULATOR_BEST);
 	debug_init_usblog();
 
     // Initialize the "vec" library that this example is based on (see vec.h)

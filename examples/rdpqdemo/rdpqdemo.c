@@ -98,7 +98,7 @@ void render(int cur_frame)
 
 int main()
 {
-    debug_init_isviewer();
+    debug_init(DEBUG_FEATURE_LOG_EMULATOR_BEST);
     debug_init_usblog();
 
     display_init(RESOLUTION_320x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
