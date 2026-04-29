@@ -34,13 +34,13 @@
 #define EMUX_XDETECT(rd, code)          EMUX_OP(0x20,   rd,      0,  code)  ///< Detect EMUX presence
 #define EMUX_XBREAK()                   EMUX_OP(0x21,    0,      0, 0x000)  ///< Trigger a breakpoint
 #define EMUX_XBREAKPOINT(addr, op)      EMUX_OP(0x22, addr,      0,    op)  ///< Configure a breakpoint/watchpoint
-#define EMUX_XTRACE_START(count)        EMUX_OP(0x23,    0,      0, count)  ///< Start tracing
-#define EMUX_XTRACE_STOP()              EMUX_OP(0x24,    0,      0, 0x000)  ///< Stop tracing
+#define EMUX_XTRACESTART(count)         EMUX_OP(0x23,    0,      0, count)  ///< Start tracing
+#define EMUX_XTRACESTOP()               EMUX_OP(0x24,    0,      0, 0x000)  ///< Stop tracing
 #define EMUX_XLOG(addr, len, code)      EMUX_OP(0x25, addr,    len,  code)  ///< Log a string
 #define EMUX_XLOGREGS(mask, code)       EMUX_OP(0x26, mask,      0,  code)  ///< Log registers
 #define EMUX_XHEXDUMP(addr, len)        EMUX_OP(0x27, addr,    len, 0x000)  ///< Hexdump memory region
 #define EMUX_XPROF(slot, code)          EMUX_OP(0x28, slot,      0,  code)  ///< Control profiler
-#define EMUX_XPROF_READ(slot, metric)   EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
+#define EMUX_XPROFREAD(slot, metric)    EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
 #define EMUX_XEXCEPTION(mask)           EMUX_OP(0x2A,    0,   mask, 0x000)  ///< Set exception mask
 #define EMUX_XIOCTL(code)               EMUX_OP(0x2C,    0,      0,  code)  ///< Modify emulator behavior
 /** @} */
@@ -392,7 +392,7 @@ inline uint64_t emux_prof_read(int slot, uint32_t metric)
 
     __asm__ __volatile__(
         " .word %2\n"
-        : "+r"(__metric) : "r"(__slot), "i"(EMUX_XPROF_READ(REG_T0, REG_T1)) : "memory"
+        : "+r"(__metric) : "r"(__slot), "i"(EMUX_XPROFREAD(REG_T0, REG_T1)) : "memory"
     );
 
     return __metric;

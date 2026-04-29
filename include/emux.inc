@@ -17,16 +17,12 @@
     .word EMUX_XBREAKPOINT(\rd, \op)
 .endm
 
-.macro xtrace_start
-    .word EMUX_XTRACE_START(0)
+.macro xtracestart num_insn=0
+    .word EMUX_XTRACESTART(\num_insn)
 .endm
 
-.macro xtrace_count num_insn
-    .word EMUX_XTRACE_START(\num_insn)
-.endm
-
-.macro xtrace_stop
-    .word EMUX_XTRACE_STOP()
+.macro xtracestop
+    .word EMUX_XTRACESTOP()
 .endm
 
 .macro xlog_string str

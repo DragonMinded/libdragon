@@ -195,7 +195,7 @@ RDPQ_Triangle_Send_Async:
 
 #if RDPQ_TRIANGLE_PROFILE
     mfc0 fp, COP0_DP_CLOCK
-    xtrace_start
+    xtracestart
 #endif
 
     #define vall1    $v01
@@ -638,7 +638,7 @@ rdpq_triangle_change_buffer_done:
                                                     sdv vzout1.e0, 0x00,z_dmem
 
 #if RDPQ_TRIANGLE_PROFILE
-    xtrace_stop
+    xtracestop
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
     xlog_string "RDPQ_Triangle:  "

@@ -888,7 +888,7 @@ RDPQ_Triangle:
 
 #if 0
     mfc0 fp, COP0_DP_CLOCK
-    xtrace_start
+    xtracestart
 #endif
 
     j half_swap
@@ -1342,7 +1342,7 @@ no_texture:
     addi s3, 0x10
 
 #if 0
-    xtrace_stop
+    xtracestop
 
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
