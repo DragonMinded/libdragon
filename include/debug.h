@@ -60,6 +60,11 @@ extern "C" {
  */
 #define DEBUG_FEATURE_LOG_ISVIEWER  (1 << 1)
 
+/**
+ * @brief Activate the best available logging channel for in-emulator development.
+ */
+#define DEBUG_FEATURE_LOG_EMULATOR_BEST DEBUG_FEATURE_LOG_ISVIEWER
+
 /** 
  * @brief Flag to activate the logging on CompactFlash/SD card.
  *
