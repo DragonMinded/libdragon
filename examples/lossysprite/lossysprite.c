@@ -1,5 +1,7 @@
 #include <libdragon.h>
 
+#define BG_COUNT 4
+
 int main(void)
 {
     debug_init_isviewer();
@@ -13,18 +15,20 @@ int main(void)
     lossysprite_init();
 
     // Load the lossily-compressed background sprites
-    sprite_t *bg_sprites[] = {
-        sprite_load("rom:/bg0.sprite"),
-        sprite_load("rom:/bg1.sprite"),
-        sprite_load("rom:/bg2.sprite"),
-        sprite_load("rom:/bg3.sprite"),
-    };
+    sprite_t *bg_sprites[BG_COUNT];
+    bg_sprites[0] = sprite_load("rom:/bg0.sprite");
+    bg_sprites[1] = sprite_load("rom:/bg1.sprite");
+    bg_sprites[2] = sprite_load("rom:/bg2.sprite");
+    bg_sprites[3] = sprite_load("rom:/bg3.sprite");
 
     // Verify that the background sprites were loaded with the expected formats
     assertf(sprite_is_yuv_nv12(bg_sprites[0]), "bg0.sprite should be NV12");
     assertf(sprite_get_format(bg_sprites[1]) == FMT_YUV16, "bg1.sprite should be YUV16");
     assertf(sprite_get_format(bg_sprites[2]) == FMT_RGBA16, "bg2.sprite should be RGBA16");
     assertf(sprite_get_format(bg_sprites[3]) == FMT_RGBA32, "bg3.sprite should be RGBA32");
+
+    // Prepare a YUV blitter for the NV12 background sprite for optimized rendering
+    yuv_blitter_t bg0_blitter = rdpq_sprite_yuv_blitter_new(bg_sprites[0], 0, 0, NULL);
 
     // Load the losslessly-compressed brew sprite
     sprite_t *brew_sprite = sprite_load("rom:/n64brew.sprite");
@@ -50,16 +54,20 @@ int main(void)
         // Draw the current background and the brew sprite on top
         surface_t *screen = display_get();
         rdpq_attach(screen, NULL);
+        if (bg_idx == 0) {
+            rdpq_sprite_yuv_blitter_run(&bg0_blitter, bg_sprites[0]);
+        } else {
+            rdpq_sprite_blit(bg_sprites[bg_idx], 0, 0, NULL);
+        }
         rdpq_set_mode_standard();
         rdpq_mode_alphacompare(1); // colorkey (draw pixel with alpha >= 1)
-        rdpq_sprite_blit(bg_sprites[bg_idx],  0, 0, NULL);
         rdpq_sprite_blit(brew_sprite, x, y, NULL);
         rdpq_detach_show();
 
         // Cycle background images on input
         joypad_poll();
         joypad_buttons_t btn = joypad_get_buttons_pressed(JOYPAD_PORT_1);
-        if (btn.r || btn.a) bg_idx = (bg_idx + 1) % 4;
-        if (btn.l || btn.z || btn.b) bg_idx = (bg_idx - 1 + 4) % 4;
+        if (btn.r || btn.a) bg_idx = (bg_idx + 1) % BG_COUNT;
+        if (btn.l || btn.z || btn.b) bg_idx = (bg_idx - 1 + BG_COUNT) % BG_COUNT;
     }
 }
