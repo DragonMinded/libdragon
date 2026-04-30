@@ -335,7 +335,7 @@ static const struct Testsuite
 int main() {
 	console_init();
 	console_set_debug(false);
-	debug_init_isviewer();
+	debug_init_emulog();
 	debug_init_usblog();
 
 	if (dfs_init( DFS_DEFAULT_LOCATION ) != DFS_ESUCCESS) {

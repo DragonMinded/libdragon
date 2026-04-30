@@ -65,7 +65,7 @@ void update(void)
 int main()
 {
     //Init logging
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
     
     //Init display

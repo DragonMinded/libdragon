@@ -40,8 +40,9 @@ extern "C" {
 #define DEBUG_FEATURE_LOG_USB       (1 << 0)
 
 /** 
- * @brief Flag to activate the ISViewer logging channel.
+ * @brief Flag to activate the logging channel in emulators.
  *
+ * Currently relies on ISViewer support from the emulator.
  * ISViewer was a real development cartridge that was used in the 90s
  * to debug N64 development. It is emulated by a few emulators to ease
  * the work of homebrew developers.
@@ -58,7 +59,7 @@ extern "C" {
  *   * dgb-n64 (https://github.com/Dillonb/n64)
  *
  */
-#define DEBUG_FEATURE_LOG_ISVIEWER  (1 << 1)
+#define DEBUG_FEATURE_LOG_EMU       (1 << 1)
 
 /** 
  * @brief Flag to activate the logging on CompactFlash/SD card.
@@ -130,11 +131,21 @@ extern "C" {
 #define DEBUG_FEATURE_ALL           0xFF
 
 
+/**
+ * @deprecated Use #DEBUG_FEATURE_LOG_EMU instead.
+ */
+#define DEBUG_FEATURE_LOG_ISVIEWER DEBUG_FEATURE_LOG_EMU
+/**
+ * @deprecated Use #debug_init_emulog instead.
+ */
+#define debug_init_isviewer debug_init_emulog
+
+
 #ifndef NDEBUG
 	/** @brief Initialize USB logging. */
 	bool debug_init_usblog(void);
-	/** @brief Initialize ISViewer logging. */
-	bool debug_init_isviewer(void);
+	/** @brief Initialize emulator logging. */
+	bool debug_init_emulog(void);
 	/** @brief Initialize SD logging. */
 	bool debug_init_sdlog(const char *fn, const char *openfmt);
 	/** @brief Initialize SD filesystem */
@@ -159,8 +170,8 @@ extern "C" {
 		bool ok = false; 
 		if (features & DEBUG_FEATURE_LOG_USB)
 			ok = debug_init_usblog() || ok;
-		if (features & DEBUG_FEATURE_LOG_ISVIEWER)
-			ok = debug_init_isviewer() || ok;
+		if (features & DEBUG_FEATURE_LOG_EMU)
+			ok = debug_init_emulog() || ok;
 		if (features & DEBUG_FEATURE_FILE_SD)
 			ok = debug_init_sdfs("sd:/", -1) || ok;
 		if (features & DEBUG_FEATURE_LOG_SD)
@@ -200,7 +211,7 @@ extern "C" {
 #else
 	#define debug_init(ch)             ({ false; })
 	#define debug_init_usblog()        ({ false; })
-	#define debug_init_isviewer()      ({ false; })
+	#define debug_init_emulog()        ({ false; })
 	#define debug_init_sdlog(fn,fmt)   ({ false; })
 	#define debug_init_sdfs(prefix,np) ({ false; })
 	#define debugf(msg, ...)           ({ })
