@@ -21,6 +21,9 @@
 #include "video/rsph264_internal.h"
 #include "asset.h"
 #include "graphics.h"
+#include "rdpq.h"
+#include "rdpq_attach.h"
+#include "rdpq_mode.h"
 #include "sprite.h"
 #include "sprite_internal.h"
 #include "n64sys.h"
@@ -231,45 +234,6 @@ static void lspr_decode_intra_slice(
     *out_yuv_size = yuv_size;
 }
 
-// Walk an orig_w x orig_h crop of the I420 reconstruction. (U,V) are shared
-// across each 2x2 block at (x/2, y/2).
-static void lspr_i420_to_rgba32(const uint8_t *y_plane, const uint8_t *u_plane, const uint8_t *v_plane,
-                                int stride, int uv_stride,
-                                int w, int h,
-                                const yuv_colorspace_t *cs,
-                                uint8_t *dst) {
-    for (int py = 0; py < h; py++) {
-        const uint8_t *yrow = y_plane + (size_t)py * stride;
-        const uint8_t *urow = u_plane + (size_t)(py / 2) * uv_stride;
-        const uint8_t *vrow = v_plane + (size_t)(py / 2) * uv_stride;
-        uint8_t *drow = dst + (size_t)py * w * 4;
-        for (int px = 0; px < w; px++) {
-            color_t c = yuv_to_rgb(yrow[px], urow[px / 2], vrow[px / 2], cs);
-            drow[px * 4 + 0] = c.r;
-            drow[px * 4 + 1] = c.g;
-            drow[px * 4 + 2] = c.b;
-            drow[px * 4 + 3] = 0xFF;
-        }
-    }
-}
-
-static void lspr_i420_to_rgba16(const uint8_t *y_plane, const uint8_t *u_plane, const uint8_t *v_plane,
-                                int stride, int uv_stride,
-                                int w, int h,
-                                const yuv_colorspace_t *cs,
-                                uint16_t *dst) {
-    for (int py = 0; py < h; py++) {
-        const uint8_t *yrow = y_plane + (size_t)py * stride;
-        const uint8_t *urow = u_plane + (size_t)(py / 2) * uv_stride;
-        const uint8_t *vrow = v_plane + (size_t)(py / 2) * uv_stride;
-        uint16_t *drow = dst + (size_t)py * w;
-        for (int px = 0; px < w; px++) {
-            color_t c = yuv_to_rgb(yrow[px], urow[px / 2], vrow[px / 2], cs);
-            drow[px] = color_to_packed16(c);
-        }
-    }
-}
-
 // Vertically upsample chroma (4:2:0 -> 4:2:2) by reusing the same source
 // (U,V) row across both vertical neighbors. Output byte order is U,Y0,V,Y1
 // per pixel pair, matching the FMT_YUV16 (UYVY) layout the RDP expects.
@@ -434,19 +398,40 @@ static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
                 "LSPR: UYVY target requires even width (got %d)", orig_w);
         lspr_i420_to_uyvy(y_plane, u_plane, v_plane,
                           stride, uv_stride, orig_w, orig_h, dst);
+        data_cache_hit_writeback(dst, pixel_bytes_aligned);
     } else {
+        // RGBA targets: let the RDP YUV combiner do the conversion. We
+        // attach the destination pixel buffer as a render surface and ask
+        // yuv_tex_blit to draw the I420 reconstruction onto it. This skips
+        // the CPU YUV→RGB pass entirely (which on uncached `pic` reads was
+        // the dominant cost in this path) and gets bilinear chroma upsample
+        // for free as a side benefit.
+        //
+        // Requires rdpq_init() to have been called by the application.
+        // rdpq_attach asserts on that. yuv_init() is refcounted: the first
+        // call loads the YUV RSP overlay, subsequent calls are no-ops.
+        yuv_init();
+
+        yuv_frame_t frame = {
+            .format = YUV_I420,
+            .y = surface_make_linear((void*)y_plane, FMT_I8, stride,    luma_h),
+            .u = surface_make_linear((void*)u_plane, FMT_I8, uv_stride, luma_h / 2),
+            .v = surface_make_linear((void*)v_plane, FMT_I8, uv_stride, luma_h / 2),
+        };
+
+        // The RDP writes through to RAM bypassing the CPU cache. Discard
+        // any (possibly speculative) cached lines for the destination so a
+        // future read of `dst` doesn't return stale data.
+        data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
+
+        surface_t target_surf = surface_make_linear(dst, fmt, orig_w, orig_h);
         const yuv_colorspace_t *cs = __sprite_colorspace(sx->colorspace);
-        if (target == LSPR_TARGET_RGBA32) {
-            lspr_i420_to_rgba32(y_plane, u_plane, v_plane,
-                                stride, uv_stride, orig_w, orig_h, cs, dst);
-        } else {
-            lspr_i420_to_rgba16(y_plane, u_plane, v_plane,
-                                stride, uv_stride, orig_w, orig_h, cs,
-                                (uint16_t*)dst);
-        }
+        rdpq_attach(&target_surf, NULL);
+        yuv_tex_blit(&frame, 0, 0, NULL, cs);
+        rdpq_detach_wait();
+        yuv_close();
     }
 
-    data_cache_hit_writeback(dst, pixel_bytes_aligned);
     return spr;
 }
 
