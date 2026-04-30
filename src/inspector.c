@@ -20,6 +20,7 @@
 #include "cop0.h"
 #include "n64sys.h"
 #include "mi.h"
+#include "emux.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -851,5 +852,11 @@ void __inspector_init(void) {
         if (code == 2) inspector(ex, MODE_CPP_EXCEPTION);
     }
     register_syscall_handler(handler, 0x00001, 0x00002);
+
+	if (emux_detect(1) & EMUX_FEAT1_EXCEPTION)
+	{
+		// Activate exceptions on console freeze
+		emux_exception_set_mask(EMUX_EXCEPTION_ERR_MASK);
+	}
 }
 #endif
