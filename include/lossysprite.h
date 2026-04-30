@@ -15,17 +15,24 @@
  * - default / `--format=RGBA16` -> #FMT_RGBA16 sprite
  * - `--format=RGBA32`           -> #FMT_RGBA32 sprite
  * - `--format=UYVY`             -> #FMT_YUV16 sprite (packed 4:2:2)
- * - `--format=NV12`             -> NV12 sprite: Y plane (#FMT_I8) +
- *                                  interleaved UV plane (#FMT_IA16),
- *                                  tagged as #FMT_YUV16 with
- *                                  #SPRITE_FLAG_YUV_NV12 set internally
+ * - `--format=NV12`             -> semi-planar 4:2:0 sprite: Y plane
+ *                                  (#FMT_I8) + interleaved UV plane
+ *                                  (#FMT_IA16, half height), tagged as
+ *                                  #FMT_YUV16 with the semi-planar layout
+ *                                  recorded in #sprite_ext_t::yuv_attrs
+ * - `--format=NV16`             -> semi-planar 4:2:2 sprite: Y plane
+ *                                  (#FMT_I8) + interleaved UV plane
+ *                                  (#FMT_IA16, full height) — chroma is
+ *                                  vertically upsampled from the I420
+ *                                  reconstruction at decode time
  *
  * The first three render through the standard sprite paths
- * (#rdpq_sprite_blit and #rdpq_sprite_upload). NV12 is a special case: it
- * routes #rdpq_sprite_blit through #yuv_tex_blit (with #YUV_NV12) using
- * the colorspace stored in the file header. Because NV12 splits the image
- * across two TMEM banks, NV12 sprites are not compatible with
- * #rdpq_sprite_upload — they must be drawn via #rdpq_sprite_blit.
+ * (#rdpq_sprite_blit and #rdpq_sprite_upload). The semi-planar formats
+ * (NV12 and NV16) are special cases: #rdpq_sprite_blit dispatches them
+ * through #yuv_tex_blit using the colorspace stored in the file header.
+ * Because semi-planar sprites split the image across two TMEM banks, they
+ * are not compatible with #rdpq_sprite_upload — they must be drawn via
+ * #rdpq_sprite_blit.
  *
  * Typical usage goes through #sprite_load, which sniffs the LSPR magic and
  * dispatches here automatically once #lossysprite_init has registered the

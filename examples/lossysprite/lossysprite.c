@@ -2,32 +2,56 @@
 
 typedef struct {
     const char *filename;
-    tex_format_t expected_format;
-    bool is_yuv_nv12;
+    tex_format_t tex_format;
+    yuv_format_t yuv_format;
 } bg_info_t;
 
 static const bg_info_t bg_info[] = {
-    { "rom:/bg0.sprite", FMT_YUV16, true },
-    { "rom:/bg1.sprite", FMT_YUV16, false },
-    { "rom:/bg2.sprite", FMT_RGBA16, false },
-    { "rom:/bg3.sprite", FMT_RGBA32, false },
+    { "rom:/bg0.sprite", FMT_YUV16, YUV_NV12 },
+    { "rom:/bg1.sprite", FMT_YUV16, YUV_NV16 },
+    { "rom:/bg2.sprite", FMT_YUV16, YUV_UYVY },
+    { "rom:/bg3.sprite", FMT_RGBA16 },
+    { "rom:/bg4.sprite", FMT_RGBA32 },
+    { "rom:/bg5.sprite", FMT_RGBA16 },
 };
 
 static const int BG_COUNT = sizeof(bg_info) / sizeof(bg_info[0]);
 
 int bg_idx = 0;
 sprite_t *bg_sprite = NULL;
+// Prepare a YUV blitter for the semi-planar background sprite for optimized
+// rendering (the rspq block from the YUV setup is recorded once and replayed).
+yuv_blitter_t bg_blitter;
 
 void switch_bg(int direction) {
+    // The previous frame's blitter block and sprite pixels may still be
+    // in flight on the RSP/RDP. Drain before freeing either, otherwise
+    // the RSP reads stale data from the freed block and crashes with a
+    // bogus "overlay X not registered" assertion.
+    rspq_wait();
     if (bg_sprite) {
         sprite_free(bg_sprite);
-        bg_sprite = NULL;
+    }
+    if (bg_blitter.block) {
+        yuv_blitter_free(&bg_blitter);
     }
     bg_idx = (bg_idx + direction + BG_COUNT) % BG_COUNT;
+    debugf("Loading background sprite: %s\n", bg_info[bg_idx].filename);
     bg_sprite = sprite_load(bg_info[bg_idx].filename);
     // Verify that the background sprites were loaded with the expected formats
-    assertf(sprite_get_format(bg_sprite) == bg_info[bg_idx].expected_format, "%s has unexpected format", bg_info[bg_idx].filename);
-    assertf(sprite_is_yuv_nv12(bg_sprite) == bg_info[bg_idx].is_yuv_nv12, "%s should be NV12", bg_info[bg_idx].filename);
+    assertf(
+        sprite_get_format(bg_sprite) == bg_info[bg_idx].tex_format,
+        "%s has unexpected format", bg_info[bg_idx].filename
+    );
+    if (bg_info[bg_idx].tex_format == FMT_YUV16) {
+        assertf(
+            sprite_get_yuv_format(bg_sprite) == bg_info[bg_idx].yuv_format,
+            "%s YUV format mismatch", bg_info[bg_idx].filename
+        );
+    }
+    if (sprite_is_yuv_semiplanar(bg_sprite)) {
+        bg_blitter = rdpq_sprite_yuv_blitter_new(bg_sprite, 0, 0, NULL);
+    }
 }
 
 int main(void)
@@ -71,7 +95,7 @@ int main(void)
         rdpq_attach(screen, NULL);
         {
             // Draw the background
-            if (bg_info[bg_idx].is_yuv_nv12) {
+            if (bg_blitter.block) {
                 rdpq_sprite_yuv_blitter_run(&bg_blitter, bg_sprite);
             } else {
                 rdpq_sprite_blit(bg_sprite, 0, 0, NULL);

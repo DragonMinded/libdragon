@@ -16,33 +16,80 @@
 #define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
 #define SPRITE_FLAG_FITS_TMEM               0x0020   ///< Set if the sprite does fit TMEM without splitting
 #define SPRITE_FLAG_SHQ                     0x0040   ///< Sprite is in special SHQ format (2 mipmap levels with subtractive blending)
-#define SPRITE_FLAG_YUV_NV12                0x0080   ///< Sprite is stored as YUV 4:2:0 in NV12 layout
 
-/** @brief YUV colorspace identifier stored in #sprite_ext_t::colorspace.
- *
- * Only meaningful for #FMT_YUV16 sprites; ignored otherwise. The default
- * value (0) maps to BT.601 TV-range to match the previous behavior of
- * #rdpq_set_mode_yuv when no colorspace was specified.
+/**
+ * @anchor SPRITE_YUV
+ * @name Bit allocation for #sprite_ext_t::yuv_attrs.
  * 
- * This must mirror enum sprite_colorspace_e in tools/mksprite/mksprite_lossy.cpp
+ * Only meaningful for #FMT_YUV16 sprites; ignored otherwise. Three orthogonal
+ * fields are packed into a single byte: the YUV colorspace ID, the chroma
+ * subsampling, and the chroma plane layout. The all-zero value (BT.601 TV /
+ * 4:2:0 / packed) decodes as packed UYVY, matching the historical behavior of
+ * lossless YUV16 sprites that left this byte unset.
+ *
+ * These bit positions and the matching enums must mirror the encoder side
+ * in tools/mksprite/mksprite_lossy.cpp.
+ * 
+ * @{
  */
-enum sprite_colorspace_e {
-    SPRITE_COLORSPACE_BT601_TV   = 0,
-    SPRITE_COLORSPACE_BT601_FULL = 1,
-    SPRITE_COLORSPACE_BT709_TV   = 2,
-    SPRITE_COLORSPACE_BT709_FULL = 3,
+//                                                  bit
+//                                                  76543210
+#define SPRITE_YUV_COLORSPACE_SHIFT  0           // ......XX
+#define SPRITE_YUV_COLORSPACE_MASK   (0x3 << SPRITE_YUV_COLORSPACE_SHIFT)
+#define SPRITE_YUV_CHROMA_SHIFT      2           // ....XX..
+#define SPRITE_YUV_CHROMA_MASK       (0x3 << SPRITE_YUV_CHROMA_SHIFT)
+#define SPRITE_YUV_LAYOUT_SHIFT      4           // ..XX....
+#define SPRITE_YUV_LAYOUT_MASK       (0x3 << SPRITE_YUV_LAYOUT_SHIFT)
+// bits 7:6 reserved for future expansion.
+/** @} */
+
+/**
+ * @brief YUV colorspace identifiers for #sprite_ext_t::yuv_attrs.
+ * 
+ * This must mirror enum sprite_yuv_colorspace_e in tools/mksprite/mksprite_lossy.cpp
+ */
+enum sprite_yuv_colorspace_e {
+    SPRITE_YUV_COLORSPACE_BT601_TV   = 0,
+    SPRITE_YUV_COLORSPACE_BT601_FULL = 1,
+    SPRITE_YUV_COLORSPACE_BT709_TV   = 2,
+    SPRITE_YUV_COLORSPACE_BT709_FULL = 3,
+};
+
+/** @brief Chroma subsampling for a YUV sprite.
+ *
+ * Encoded into bits [3:2] of #sprite_ext_t::yuv_attrs. Only 4:2:0 and 4:2:2
+ * have producers today; 4:4:4 and 4:0:0 (Y-only) are reserved.
+ */
+enum sprite_yuv_chroma_e {
+    SPRITE_YUV_CHROMA_420 = 0,    ///< 4:2:0 (chroma at half width and half height)
+    SPRITE_YUV_CHROMA_422 = 1,    ///< 4:2:2 (chroma at half width, full height)
+    SPRITE_YUV_CHROMA_444 = 2,    ///< Reserved: 4:4:4 (chroma at full resolution)
+    SPRITE_YUV_CHROMA_400 = 3,    ///< Reserved: 4:0:0 (luma only / grayscale)
+};
+
+/** @brief Memory layout of the YUV planes in a sprite.
+ *
+ * Encoded into bits [5:4] of #sprite_ext_t::yuv_attrs. PACKED is the only
+ * layout that uses #FMT_YUV16 directly; SEMIPLANAR sprites store a Y plane
+ * followed by an interleaved UV plane. PLANAR is reserved.
+ */
+enum sprite_yuv_layout_e {
+    SPRITE_YUV_LAYOUT_PACKED      = 0,  ///< Single FMT_YUV16 surface (UYVY)
+    SPRITE_YUV_LAYOUT_SEMIPLANAR  = 1,  ///< Y plane + interleaved UV plane (NV12 / NV16)
+    SPRITE_YUV_LAYOUT_PLANAR      = 2,  ///< Reserved: separate Y, U, V planes (I420 / I422)
 };
 
 /**
- * @brief Get a pointer to the #yuv_colorspace_t corresponding to a given sprite colorspace enum value.
+ * @brief Get a pointer to the #yuv_colorspace_t identified by the colorspace
+ *        bits of #sprite_ext_t::yuv_attrs.
  */
-static inline const yuv_colorspace_t *__sprite_colorspace(enum sprite_colorspace_e cs)
+static inline const yuv_colorspace_t *__sprite_yuv_colorspace(uint8_t yuv_attrs)
 {
-    switch (cs) {
-    case SPRITE_COLORSPACE_BT601_FULL: return &YUV_BT601_FULL;
-    case SPRITE_COLORSPACE_BT709_TV:   return &YUV_BT709_TV;
-    case SPRITE_COLORSPACE_BT709_FULL: return &YUV_BT709_FULL;
-    default:                           return &YUV_BT601_TV;
+    switch ((yuv_attrs & SPRITE_YUV_COLORSPACE_MASK) >> SPRITE_YUV_COLORSPACE_SHIFT) {
+    case SPRITE_YUV_COLORSPACE_BT601_FULL: return &YUV_BT601_FULL;
+    case SPRITE_YUV_COLORSPACE_BT709_TV:   return &YUV_BT709_TV;
+    case SPRITE_YUV_COLORSPACE_BT709_FULL: return &YUV_BT709_FULL;
+    default:                               return &YUV_BT601_TV;
     }
 }
 
@@ -68,7 +115,7 @@ typedef struct sprite_ext_s {
     struct {
         uint16_t flags;             ///< Generic Flags for the sprite
         uint8_t  pal_used_colors;   ///< Number of colors actually used in palette
-        uint8_t  colorspace;        ///< YUV colorspace ID (#sprite_colorspace_e); only used for FMT_YUV16
+        uint8_t  yuv_attrs;         ///< Packed YUV attributes: colorspace, chroma subsampling, layout (only used for FMT_YUV16)
     };
     /// @brief RDP texture parameters
     struct texparms_s {
@@ -103,7 +150,7 @@ sprite_ext_t *__sprite_ext(sprite_t *sprite);
 static inline const yuv_colorspace_t *sprite_ext_yuv_colorspace(sprite_ext_t *sx)
 {
     if (!sx) return &YUV_BT601_TV;
-    return __sprite_colorspace(sx->colorspace);
+    return __sprite_yuv_colorspace(sx->yuv_attrs);
 }
 
 /** @brief Function pointer type for a sprite decoder function */

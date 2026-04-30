@@ -57,7 +57,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 
     yuv_init();
     yuv_blitter_t yuv = yuv_blitter_new_fmv(
-        info.width, info.height,
+        info.width, info.height, YUV_I420,
         display_get_width(), display_get_height(),
         &(yuv_fmv_parms_t){
             .cs = &info.colorspace,

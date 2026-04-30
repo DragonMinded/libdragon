@@ -10,6 +10,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <surface.h>
+#include "yuv_format.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -290,19 +291,36 @@ bool sprite_fits_tmem(sprite_t *sprite);
 bool sprite_is_shq(sprite_t *sprite);
 
 /**
- * @brief Return true if the sprite is stored as YUV NV12 format
- * 
- * This is a special sprite format where the pixel data is stored as YUV 4:2:0
- * in NV12 layout, which can be directly uploaded to the RDP with #yuv_tex_blit
- * (using #YUV_NV12).
- * 
- * This format is used by lossy sprites with the NV12 target, and can be created
- * by the mksprite tool with the `--format NV12` option.
- * 
- * @param sprite        The sprite to access
- * @return              True if the sprite is in YUV NV12 format, false otherwise
+ * @brief Get the YUV layout of a #FMT_YUV16 sprite.
+ *
+ * Decodes the sprite's #sprite_ext_t::yuv_attrs byte (set at sprite-build
+ * time by mksprite / mksprite_lossy) into a #yuv_format_t suitable for
+ * passing to #yuv_tex_blit or #yuv_blitter_new. Calling this on a non-YUV
+ * sprite is a programming error and asserts.
+ *
+ * Today this returns one of:
+ * - #YUV_UYVY for packed sprites (`--format=YUV16` in mksprite)
+ * - #YUV_NV12 for semi-planar 4:2:0 sprites (`--format=NV12` in mksprite_lossy)
+ * - #YUV_NV16 for semi-planar 4:2:2 sprites (`--format=NV16` in mksprite_lossy)
+ *
+ * @param sprite        The sprite to inspect (must be #FMT_YUV16)
+ * @return              The #yuv_format_t identifying the on-disk layout
  */
-bool sprite_is_yuv_nv12(sprite_t *sprite);
+yuv_format_t sprite_get_yuv_format(sprite_t *sprite);
+
+/**
+ * @brief Return true if the sprite stores its YUV chroma in a semi-planar
+ *        layout (NV12 or NV16).
+ *
+ * Semi-planar sprites cannot be uploaded to TMEM as a single texture
+ * (the Y and UV halves load into separate TMEM banks); use
+ * #rdpq_sprite_blit, which dispatches to #yuv_tex_blit internally.
+ *
+ * @param sprite        The sprite to inspect
+ * @return              True if the sprite is NV12 or NV16; false otherwise
+ *                      (including non-YUV sprites and packed UYVY)
+ */
+bool sprite_is_yuv_semiplanar(sprite_t *sprite);
 
 #ifdef __cplusplus
 }

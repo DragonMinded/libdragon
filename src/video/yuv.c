@@ -77,10 +77,11 @@ static int ovl_yuv;
 DEFINE_RSP_UCODE(rsp_yuv,
     .assert_handler = yuv_assert_handler);
 
-#define CMD_YUV_SET_INPUT          0x0
-#define CMD_YUV_SET_OUTPUT         0x1
-#define CMD_YUV_INTERLEAVE4_32X16  0x2
-#define CMD_YUV_INTERLEAVE2_32X16  0x3
+#define CMD_YUV_SET_INPUT              0x0
+#define CMD_YUV_SET_OUTPUT             0x1
+#define CMD_YUV_INTERLEAVE4_32X16      0x2
+#define CMD_YUV_INTERLEAVE2_32X16      0x3
+#define CMD_YUV_INTERLEAVE2_32X16_422  0x4
 
 static int8_t yuv_initialized = 0;
 
@@ -264,17 +265,28 @@ void rsp_yuv_interleave2_block_32x16(int x0, int y0)
         (x0<<12) | y0);
 }
 
-// Setup for YUV_I420 (3-plane planar 4:2:0): interleave U and V on the RSP
-// into the internal IA16 buffer, then publish Y + interleaved UV to the RDP
-// lookup slots that yuv_tex_blit_run consumes.
-static inline void yuv_setup_i420(surface_t *yp, surface_t *up, surface_t *vp)
+void rsp_yuv_interleave2_422_block_32x16(int x0, int y0)
 {
-    assertf(yp->width == up->width*2 && yp->height == up->height*2,
-        "wrong plane sizes: only YUV 4:2:0 is supported (Y:%dx%d U:%dx%d)",
-        yp->width, yp->height, up->width, up->height);
-    assertf(yp->width == vp->width*2 && yp->height == vp->height*2,
-        "wrong plane sizes: only YUV 4:2:0 is supported (Y:%dx%d V:%dx%d)",
-        yp->width, yp->height, vp->width, vp->height);
+    rspq_write(ovl_yuv, CMD_YUV_INTERLEAVE2_32X16_422,
+        (x0<<12) | y0);
+}
+
+// Shared planar (I420/I422) setup: interleave U and V on the RSP into the
+// internal IA16 buffer, then publish Y + interleaved UV to the RDP lookup
+// slots that yuv_tex_blit_run consumes. The chroma row count differs:
+// 4:2:0 has half-height chroma; 4:2:2 has full-height chroma.
+static inline void yuv_setup_planar(surface_t *yp, surface_t *up, surface_t *vp,
+    int chroma_h_shift)
+{
+    int expected_chroma_h = yp->height >> chroma_h_shift;
+    assertf(yp->width == up->width*2 && expected_chroma_h == up->height,
+        "wrong plane sizes (Y:%dx%d U:%dx%d, expected U:%dx%d)",
+        yp->width, yp->height, up->width, up->height,
+        yp->width/2, expected_chroma_h);
+    assertf(yp->width == vp->width*2 && expected_chroma_h == vp->height,
+        "wrong plane sizes (Y:%dx%d V:%dx%d, expected V:%dx%d)",
+        yp->width, yp->height, vp->width, vp->height,
+        yp->width/2, expected_chroma_h);
 
     // Make sure we have the internal buffer ready. We will interleave U and V
     // planes so we need a buffer that handles two of those planes at the same time.
@@ -286,8 +298,10 @@ static inline void yuv_setup_i420(surface_t *yp, surface_t *up, surface_t *vp)
     assert((yp->height % 16) == 0 && (yp->width % 32) == 0);
     for (int y=0; y < yp->height; y += 16) {
         for (int x=0; x < yp->width; x += 32) {
-            // FIXME: for now this only works with subsampling 4:2:0
-            rsp_yuv_interleave2_block_32x16(x, y);
+            if (chroma_h_shift)
+                rsp_yuv_interleave2_block_32x16(x, y);
+            else
+                rsp_yuv_interleave2_422_block_32x16(x, y);
         }
         rspq_flush();
     }
@@ -298,34 +312,53 @@ static inline void yuv_setup_i420(surface_t *yp, surface_t *up, surface_t *vp)
     rdpq_set_lookup_address(2, internal_buffer.buffer);
 }
 
-// Setup for YUV_NV12 (semi-planar 4:2:0): chroma is already interleaved
+// Shared semi-planar (NV12/NV16) setup: chroma is already interleaved
 // into a single FMT_IA16 plane, so plug it straight into the RDP lookup
 // slot and skip the RSP overlay.
-static inline void yuv_setup_nv12(surface_t *yp, surface_t *uvp)
+static inline void yuv_setup_semiplanar(surface_t *yp, surface_t *uvp,
+    int chroma_h_shift)
 {
-    assertf(yp->width == uvp->width*2 && yp->height == uvp->height*2,
-        "wrong plane sizes: only YUV 4:2:0 is supported (Y:%dx%d UV:%dx%d)",
-        yp->width, yp->height, uvp->width, uvp->height);
+    int expected_chroma_h = yp->height >> chroma_h_shift;
+    assertf(yp->width == uvp->width*2 && expected_chroma_h == uvp->height,
+        "wrong plane sizes (Y:%dx%d UV:%dx%d, expected UV:%dx%d)",
+        yp->width, yp->height, uvp->width, uvp->height,
+        yp->width/2, expected_chroma_h);
     rdpq_set_lookup_address(1, yp->buffer);
     rdpq_set_lookup_address(2, uvp->buffer);
 }
 
-static void yuv_tex_blit_setup(yuv_frame_t *frame)
+// Returns the chroma vertical subsampling shift: 1 for 4:2:0 (half-height
+// chroma), 0 for 4:2:2 (full-height chroma). Threaded into yuv_tex_blit_run
+// to drive the per-row TMEM chroma load index.
+static int yuv_tex_blit_setup(yuv_frame_t *frame)
 {
     switch (frame->format) {
     case YUV_I420:
         assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
-        yuv_setup_i420(&frame->y, &frame->u, &frame->v);
-        break;
+        yuv_setup_planar(&frame->y, &frame->u, &frame->v, 1);
+        return 1;
     case YUV_NV12:
-        yuv_setup_nv12(&frame->y, &frame->u);
-        break;
-    default:
-        assertf(0, "yuv_tex_blit: unsupported yuv_format_t %d", frame->format);
+        yuv_setup_semiplanar(&frame->y, &frame->u, 1);
+        return 1;
+    case YUV_NV16:
+        yuv_setup_semiplanar(&frame->y, &frame->u, 0);
+        return 0;
+    case YUV_I422:
+        assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
+        yuv_setup_planar(&frame->y, &frame->u, &frame->v, 0);
+        return 0;
+    case YUV_UYVY:
+        // Packed UYVY is handled directly by yuv_tex_blit before reaching
+        // this function; reaching it here is a bug.
+        assertf(0, "yuv_tex_blit_setup: YUV_UYVY must be dispatched earlier");
+        return 0;
     }
+    assertf(0, "yuv_tex_blit: unsupported yuv_format_t %d", frame->format);
+    return 0;
 }
 
-static void yuv_tex_blit_run(int width, int height, float x0, float y0, 
+static void yuv_tex_blit_run(int width, int height, int chroma_h_shift,
+    float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs, bool enable_dithering)
 {
     rdpq_set_mode_yuv(true);
@@ -354,9 +387,10 @@ static void yuv_tex_blit_run(int width, int height, float x0, float y0,
     rdpq_set_tile(TILE6, FMT_I8,   2048,      0, NULL);
 
     surface_t yp = surface_make_placeholder_linear(1, FMT_I8, width, height);
-    surface_t uvp = surface_make_placeholder_linear(2, FMT_IA16, width/2, height/2);
+    surface_t uvp = surface_make_placeholder_linear(2, FMT_IA16,
+        width/2, height >> chroma_h_shift);
 
-    void ltd_yuv2(rdpq_tile_t tile, const surface_t *_, int s0, int t0, int s1, int t1, 
+    void ltd_yuv2(rdpq_tile_t tile, const surface_t *_, int s0, int t0, int s1, int t1,
         void (*draw_cb)(rdpq_tile_t tile, int s0, int t0, int s1, int t1), bool filtering)
     {
         for (int y=t0; y<t1; y+=2) {
@@ -365,11 +399,14 @@ static void yuv_tex_blit_run(int width, int height, float x0, float y0,
             rdpq_set_texture_image(&yp);
             rdpq_load_block_fx(TILE6, 0, y, width*2, 0);
 
-            // Load one UV line two times, with two LOAD_BLOCK commands, from the
-            // surface configured in lookup block 2. subsequent offsets in TMEM.
+            // Load the chroma rows from the surface configured in lookup
+            // block 2. For 4:2:0 (chroma_h_shift=1) both loads collapse to
+            // y/2 (since y is even), reusing the same chroma row across two
+            // Y lines. For 4:2:2 (chroma_h_shift=0) we load successive
+            // chroma rows, one for each Y line.
             rdpq_set_texture_image(&uvp);
-            rdpq_load_block_fx(TILE4, 0, y/2, width, 0);
-            rdpq_load_block_fx(TILE5, 0, y/2, width, 0);
+            rdpq_load_block_fx(TILE4, 0,  y    >> chroma_h_shift, width, 0);
+            rdpq_load_block_fx(TILE5, 0, (y+1) >> chroma_h_shift, width, 0);
 
             // Configure TILE0/1 to match the two YUV lines that we prepared in TMEM.
             rdpq_set_tile_size(TILE0, 0, y,   width, y+1);
@@ -392,23 +429,59 @@ static void yuv_tex_blit_run(int width, int height, float x0, float y0,
 void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs)
 {
-    yuv_tex_blit_setup(frame);
-    yuv_tex_blit_run(frame->y.width, frame->y.height, x0, y0, parms, cs, false);
+    if (frame->format == YUV_UYVY) {
+        rdpq_set_mode_yuv(true);
+        if (cs) rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
+        rdpq_tex_blit(&frame->y, x0, y0, parms);
+    } else {
+        int chroma_h_shift = yuv_tex_blit_setup(frame);
+        yuv_tex_blit_run(frame->y.width, frame->y.height, chroma_h_shift,
+            x0, y0, parms, cs, false);
+    }
 }
 
-yuv_blitter_t yuv_blitter_new(int video_width, int video_height, float x0, float y0, const rdpq_blitparms_t *parms,
+// Map a yuv_format_t to its chroma vertical subsampling shift (1 for 4:2:0,
+// 0 for 4:2:2). UYVY is 4:2:2 but doesn't go through the split-plane recorder.
+static int yuv_format_chroma_h_shift(yuv_format_t format)
+{
+    switch (format) {
+    case YUV_I420: case YUV_NV12: return 1;
+    case YUV_UYVY: case YUV_NV16: case YUV_I422: return 0;
+    }
+    assertf(0, "yuv_blitter: unsupported yuv_format_t %d", format);
+    return 0;
+}
+
+yuv_blitter_t yuv_blitter_new(int video_width, int video_height, yuv_format_t format,
+    float x0, float y0, const rdpq_blitparms_t *parms,
     const yuv_colorspace_t *cs)
 {
-    // Compile the yuv_tex_blit_run into a block with the given parameters.
+    // Compile the blit operation into a block. The recorded block hardcodes
+    // the TMEM access pattern, so it is locked to the chroma subsampling
+    // (and packed-vs-split layout) of @p format.
     rspq_block_begin();
-        yuv_tex_blit_run(video_width, video_height, x0, y0, parms, cs, false);
+        if (format == YUV_UYVY) {
+            // Packed UYVY: simulate yuv_tex_blit_uyvy with a placeholder
+            // surface published in lookup slot 1 at run time by
+            // yuv_blitter_run.
+            rdpq_set_mode_yuv(true);
+            if (cs) rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
+            surface_t uyvy = surface_make_placeholder_linear(1, FMT_YUV16,
+                video_width, video_height);
+            rdpq_tex_blit(&uyvy, x0, y0, parms);
+        } else {
+            int chroma_h_shift = yuv_format_chroma_h_shift(format);
+            yuv_tex_blit_run(video_width, video_height, chroma_h_shift,
+                x0, y0, parms, cs, false);
+        }
     rspq_block_t *block = rspq_block_end();
     return (yuv_blitter_t){
         .block = block,
+        .format = format,
     };
 }
 
-yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
+yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height, yuv_format_t format,
     int screen_width, int screen_height, const yuv_fmv_parms_t *parms)
 {
     assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
@@ -476,19 +549,43 @@ yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
         }
 
         // Do the blit (optionally scaling)
-        yuv_tex_blit_run(video_width, video_height, x0, y0, &(rdpq_blitparms_t){
-            .scale_x = scalew, .scale_y = scaleh, .filtering = filtering,
-        }, parms->cs, parms->enable_dithering);
+        if (format == YUV_UYVY) {
+            rdpq_set_mode_yuv(true);
+            if (parms->cs) rdpq_set_yuv_parms(parms->cs->k0, parms->cs->k1,
+                parms->cs->k2, parms->cs->k3, parms->cs->k4, parms->cs->k5);
+            if (parms->enable_dithering)
+                rdpq_mode_dithering(DITHER_SQUARE_SQUARE);
+            surface_t uyvy = surface_make_placeholder_linear(1, FMT_YUV16,
+                video_width, video_height);
+            rdpq_tex_blit(&uyvy, x0, y0, &(rdpq_blitparms_t){
+                .scale_x = scalew, .scale_y = scaleh, .filtering = filtering,
+            });
+        } else {
+            yuv_tex_blit_run(video_width, video_height,
+                yuv_format_chroma_h_shift(format), x0, y0, &(rdpq_blitparms_t){
+                .scale_x = scalew, .scale_y = scaleh, .filtering = filtering,
+            }, parms->cs, parms->enable_dithering);
+        }
 
     rspq_block_t *block = rspq_block_end();
     return (yuv_blitter_t){
         .block = block,
+        .format = format,
     };
 }
 
 void yuv_blitter_run(yuv_blitter_t *blitter, yuv_frame_t *frame)
 {
-    yuv_tex_blit_setup(frame);
+    assertf(frame->format == blitter->format,
+        "yuv_blitter_run: frame format %d does not match blitter format %d",
+        frame->format, blitter->format);
+    if (frame->format == YUV_UYVY) {
+        // Publish the packed UYVY surface to the lookup slot the recorded
+        // rdpq_tex_blit references (slot 1).
+        rdpq_set_lookup_address(1, frame->y.buffer);
+    } else {
+        yuv_tex_blit_setup(frame);
+    }
     rspq_block_run(blitter->block);
 }
 

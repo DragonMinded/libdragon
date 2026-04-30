@@ -293,12 +293,40 @@ bool sprite_is_shq(sprite_t *sprite)
     return (sx->flags & SPRITE_FLAG_SHQ) != 0;
 }
 
-bool sprite_is_yuv_nv12(sprite_t *sprite)
+yuv_format_t sprite_get_yuv_format(sprite_t *sprite)
+{
+    assertf(sprite_get_format(sprite) == FMT_YUV16,
+        "sprite_get_yuv_format called on non-YUV sprite (format %d)",
+        sprite_get_format(sprite));
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    // No extended header: pre-yuv_attrs sprites were always packed UYVY.
+    if (!sx) return YUV_UYVY;
+    enum sprite_yuv_layout_e layout =
+        (sx->yuv_attrs & SPRITE_YUV_LAYOUT_MASK) >> SPRITE_YUV_LAYOUT_SHIFT;
+    enum sprite_yuv_chroma_e chroma =
+        (sx->yuv_attrs & SPRITE_YUV_CHROMA_MASK) >> SPRITE_YUV_CHROMA_SHIFT;
+    switch (layout) {
+    case SPRITE_YUV_LAYOUT_PACKED:
+        return YUV_UYVY;
+    case SPRITE_YUV_LAYOUT_SEMIPLANAR:
+        return chroma == SPRITE_YUV_CHROMA_422 ? YUV_NV16 : YUV_NV12;
+    case SPRITE_YUV_LAYOUT_PLANAR:
+        // No producer for planar-in-a-sprite today.
+        assertf(0, "sprite_get_yuv_format: planar layout not implemented");
+        return YUV_UYVY;
+    }
+    assertf(0, "sprite_get_yuv_format: invalid layout %d", layout);
+    return YUV_UYVY;
+}
+
+bool sprite_is_yuv_semiplanar(sprite_t *sprite)
 {
     if (sprite_get_format(sprite) != FMT_YUV16) return false;
     sprite_ext_t *sx = __sprite_ext(sprite);
     if (!sx) return false;
-    return (sx->flags & SPRITE_FLAG_YUV_NV12) != 0;
+    enum sprite_yuv_layout_e layout =
+        (sx->yuv_attrs & SPRITE_YUV_LAYOUT_MASK) >> SPRITE_YUV_LAYOUT_SHIFT;
+    return layout == SPRITE_YUV_LAYOUT_SEMIPLANAR;
 }
 
 extern inline tex_format_t sprite_get_format(sprite_t *sprite);

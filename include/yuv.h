@@ -56,6 +56,7 @@
 #include <stdint.h>
 #include "graphics.h"
 #include "rdpq_tex.h"
+#include "yuv_format.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -212,34 +213,8 @@ yuv_colorspace_t yuv_new_colorspace(float Kr, float Kb, int y0, int yrange, int 
  */
 color_t yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v, const yuv_colorspace_t *cs);
 
-/**
- * @brief YUV chroma subsampling and memory layout.
- *
- * Selects how the chroma planes of a #yuv_frame_t are laid out in memory.
- * This determines what #yuv_tex_blit (and #yuv_blitter_run) expects to find
- * in the frame's surfaces and whether an RSP-side interleave pass is needed
- * before the RDP draw.
- *
- * The default value (0) matches the historical behavior, so existing callers
- * that build a #yuv_frame_t with designated initializers do not need to set
- * @ref yuv_frame_t::format explicitly.
- */
-typedef enum yuv_format_e {
-    /** @brief 3-plane planar 4:2:0 (I420).
-     *
-     *  Y, U, and V are three separate #FMT_I8 surfaces; U and V are at half
-     *  width and half height. RSP interleaves U+V into a temporary IA16
-     *  buffer before the RDP draw, so #yuv_init must have been called. */
-    YUV_I420 = 0,
-    /** @brief Semi-planar 4:2:0 (NV12).
-     *
-     *  Y is a #FMT_I8 surface; U+V are pre-interleaved into a single
-     *  #FMT_IA16 surface (U in the high byte, V in the low byte) at half
-     *  width and half height. The RSP interleave step is skipped, so this
-     *  layout does not require #yuv_init.
-     *  The @ref yuv_frame_t::v surface is unused. */
-    YUV_NV12 = 1,
-} yuv_format_t;
+// #yuv_format_t lives in yuv_format.h so that public headers (such as
+// sprite.h) can refer to the enum without dragging in rdpq.
 
 /**
  * @brief A YUV frame.
@@ -249,9 +224,9 @@ typedef enum yuv_format_e {
  */
 typedef struct yuv_frame_s {
     yuv_format_t format;   ///< Chroma subsampling / memory layout (default #YUV_I420)
-	surface_t y;           ///< Luminance plane (Y)
-    surface_t u;           ///< Chrominance plane: U for #YUV_I420, interleaved UV (#FMT_IA16) for #YUV_NV12
-    surface_t v;           ///< Chrominance plane (V); unused for #YUV_NV12
+	surface_t y;           ///< Luminance plane (Y), or the packed UYVY surface for #YUV_UYVY
+    surface_t u;           ///< Chrominance plane: U for #YUV_I420 / #YUV_I422, interleaved UV (#FMT_IA16) for #YUV_NV12 / #YUV_NV16, unused for #YUV_UYVY
+    surface_t v;           ///< Chrominance plane (V); unused for #YUV_NV12, #YUV_NV16, #YUV_UYVY
 } yuv_frame_t;
 
 /** @brief YUV blitter zoom configuration */
@@ -327,13 +302,14 @@ typedef struct yuv_fmv_parms_s {
  */
 typedef struct yuv_blitter_s {
     rspq_block_t *block;            ///< RSPQ block containing the blitting operation
+    yuv_format_t format;            ///< YUV layout the blitter was recorded for
 } yuv_blitter_t;
 
 
 /**
- * @brief Create a YUV blitter optimized for rendering multiple frames with 
+ * @brief Create a YUV blitter optimized for rendering multiple frames with
  *        some possible transformation.
- * 
+ *
  * This function is similar to #yuv_blitter_new_fmv but initializes the
  * blitter using the same interface of #yuv_tex_blit or #rdpq_tex_blit. The
  * interface allows to handle on-the-fly arbitrary transformations of the
@@ -341,15 +317,21 @@ typedef struct yuv_blitter_s {
  * a superset of what is possible through #yuv_blitter_new_fmv, but its API
  * might be a bit harder to use for people that just want to do a full-motion
  * video player.
- * 
+ *
  * In general, refer to #rdpq_tex_blit for more in-depth documentation
  * related to @p x0 , @p y0 , and @p parms .
- * 
+ *
+ * The chroma vertical subsampling and TMEM access pattern are baked into
+ * the recorded block at creation time, so a blitter can only consume frames
+ * whose @ref yuv_frame_t::format matches @p format .
+ *
  * The blitter initialized by this function must be freed with #yuv_blitter_free
  * to release all allocated memory.
- * 
+ *
  * @param video_width           Width of the video in pixels
  * @param video_height          Height of the video in pixels
+ * @param format                YUV layout the blitter will consume (every frame
+ *                              passed to #yuv_blitter_run must use this layout)
  * @param x0                    X coordinate on the framebuffer where to draw the surface
  * @param y0                    Y coordinate on the framebuffer where to draw the surface
  * @param parms                 Parameters for the blit operation (or NULL for default)
@@ -359,36 +341,42 @@ typedef struct yuv_blitter_s {
  * @see #yuv_blitter_new_fmv
  * @see #yuv_blitter_run
  */
-yuv_blitter_t yuv_blitter_new(int video_width, int video_height,
+yuv_blitter_t yuv_blitter_new(int video_width, int video_height, yuv_format_t format,
     float x0, float y0, const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 
 /**
  * @brief Create a YUV blitter optimized for FMV drawing (full screen movie player)
- * 
+ *
  * This function creates a YUV blitter, using a configuration that is suited
  * for full motion videos. By default (passing NULL as @p parms ), the blitter
  * will draw each frame centered on the screen, and zooming it while maintaining
  * its aspect ratio. Moreover, areas outside of the video will be filled with
  * the black color. This is a good default for a full screen video player.
- * 
+ *
  * By configuring @p parms , it is possible to tune the behavior of the player
  * in several details: color space, alignment of the frame, type of zoom,
  * and fill color.
- * 
+ *
+ * The chroma vertical subsampling and TMEM access pattern are baked into
+ * the recorded block at creation time, so a blitter can only consume frames
+ * whose @ref yuv_frame_t::format matches @p format .
+ *
  * The blitter initialized by this function must be freed with #yuv_blitter_free
  * to release all allocated memory.
- * 
+ *
  * @param video_width           Width of the video in pixels
  * @param video_height          Height of the video in pixels
+ * @param format                YUV layout the blitter will consume (every frame
+ *                              passed to #yuv_blitter_run must use this layout)
  * @param screen_width          Width of the screen in pixels
  * @param screen_height         Height of the screen in pixels
  * @param parms                 Optional parameters (can be NULL)
  * @return                      An initialized blitter instance.
- * 
+ *
  * @see #yuv_blitter_new
  * @see #yuv_blitter_run
  */
-yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
+yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height, yuv_format_t format,
     int screen_width, int screen_height, const yuv_fmv_parms_t *parms);
 
 
@@ -424,11 +412,13 @@ void yuv_blitter_free(yuv_blitter_t *blitter);
  *
  * This function is similar to #rdpq_tex_blit, but it accepts a YUV frame
  * stored in any of the layouts described by #yuv_format_t. For #YUV_I420
- * the three planes are interleaved on the RSP before the RDP draw; for
- * #YUV_NV12 the chroma plane is already interleaved, so the RSP step is
- * skipped (and #yuv_init does not need to have been called). Either way is
- * faster than first merging into a single buffer (as required by
- * #FMT_YUV16) and then blitting it.
+ * and #YUV_I422 the three planes are interleaved on the RSP before the RDP
+ * draw; for #YUV_NV12 and #YUV_NV16 the chroma plane is already
+ * interleaved, so the RSP step is skipped (and #yuv_init does not need to
+ * have been called). For #YUV_UYVY the packed surface is drawn directly,
+ * so no plane-splitting or RSP work is required at all. Any split-plane
+ * variant is faster than first merging into a single buffer (as required
+ * by #FMT_YUV16) and then blitting it.
  *
  * This is an all-in-one function that avoids creating a #yuv_blitter_t instance,
  * using it and then freeing it. On the other hand, it performs a lot of work

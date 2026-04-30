@@ -122,6 +122,7 @@ void print_supported_formats(void) {
     fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, UYVY, IA16, CI8, I8, IA8, CI4, I4, IA4, ZBUF, IHQ\n");
     fprintf(stderr, "                   (YUV16 is a deprecated alias for UYVY)\n");
     fprintf(stderr, "                   (NV12 is lossy-only: semi-planar 4:2:0)\n");
+    fprintf(stderr, "                   (NV16 is lossy-only: semi-planar 4:2:2)\n");
 }
 
 void print_supported_mipmap(void) {
@@ -2034,9 +2035,15 @@ int main(int argc, char *argv[])
                 }
                 if (!strcasecmp(argv[i], "NV12")) {
                     pm.lossy_nv12 = true;
+                    pm.lossy_nv16 = false;
+                    pm.outfmt = FMT_NONE;
+                } else if (!strcasecmp(argv[i], "NV16")) {
+                    pm.lossy_nv12 = false;
+                    pm.lossy_nv16 = true;
                     pm.outfmt = FMT_NONE;
                 } else {
                     pm.lossy_nv12 = false;
+                    pm.lossy_nv16 = false;
                     pm.outfmt = tex_format_from_name(argv[i]);
                     if (pm.outfmt == FMT_NONE && strcasecmp(argv[i], "AUTO") != 0) {
                         fprintf(stderr, "invalid argument for %s: %s\n", argv[i-1], argv[i]);
@@ -2230,8 +2237,9 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
-        if (pm.lossy_nv12 && pm.lossy_quality >= 100) {
-            fprintf(stderr, "NV12 is only valid with --lossy\n");
+        if ((pm.lossy_nv12 || pm.lossy_nv16) && pm.lossy_quality >= 100) {
+            fprintf(stderr, "%s is only valid with --lossy\n",
+                    pm.lossy_nv16 ? "NV16" : "NV12");
             free(outfn);
             error = true;
             continue;
@@ -2268,8 +2276,9 @@ int main(int argc, char *argv[])
         setmode(1, _O_BINARY);
         #endif
 
-        if (pm.lossy_nv12 && pm.lossy_quality >= 100) {
-            fprintf(stderr, "NV12 is only valid with --lossy\n");
+        if ((pm.lossy_nv12 || pm.lossy_nv16) && pm.lossy_quality >= 100) {
+            fprintf(stderr, "%s is only valid with --lossy\n",
+                    pm.lossy_nv16 ? "NV16" : "NV12");
             error = true;
         } else if (pm.lossy_quality < 100) {
             if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {

@@ -41,18 +41,18 @@ extern "C" {
 #include "mksprite.h"
 #include "x264/x264.h"
 
-// Must mirror enum sprite_colorspace_e in src/sprite_internal.h
-enum sprite_colorspace_e {
-    SPRITE_COLORSPACE_BT601_TV   = 0,
-    SPRITE_COLORSPACE_BT601_FULL = 1,
-    SPRITE_COLORSPACE_BT709_TV   = 2,
-    SPRITE_COLORSPACE_BT709_FULL = 3,
+// Must mirror enum sprite_yuv_colorspace_e in src/sprite_internal.h
+enum sprite_yuv_colorspace_e {
+    SPRITE_YUV_COLORSPACE_BT601_TV   = 0,
+    SPRITE_YUV_COLORSPACE_BT601_FULL = 1,
+    SPRITE_YUV_COLORSPACE_BT709_TV   = 2,
+    SPRITE_YUV_COLORSPACE_BT709_FULL = 3,
 };
 
 // LSPR header flags layout (16 bits):
 //   bits [1:0]  YUV chroma subsampling (LSPR_YUV_*)
-//   bits [3:2]  YUV colorspace (SPRITE_COLORSPACE_*; values must match
-//               sprite_colorspace_e in src/sprite_internal.h)
+//   bits [3:2]  YUV colorspace (SPRITE_YUV_COLORSPACE_*; values must match
+//               sprite_yuv_colorspace_e in src/sprite_internal.h)
 //   bits [7:4]  Target memory format (LSPR_TARGET_*)
 // Must mirror enum lspr_chroma_e in src/lossysprite.c
 enum lspr_chroma_e {
@@ -64,14 +64,15 @@ enum lspr_chroma_e {
 
 // Target memory format the runtime decoder converts the YUV reconstruction to.
 // Default (RGBA16 = 0) means an all-zero target field decodes to the new
-// default. NV12 reproduces the original semi-planar runtime layout that the
-// FMT_YUV16 + SPRITE_FLAG_YUV_NV12 render path consumes.
+// default. NV12/NV16 produce semi-planar layouts that the FMT_YUV16
+// render path consumes via yuv_tex_blit.
 // Must mirror enum lspr_target_e in src/lossysprite.c
 enum lspr_target_e {
     LSPR_TARGET_RGBA16 = 0, // 5:5:5:1 RGBA (default)
     LSPR_TARGET_RGBA32 = 1, // 8:8:8:8 RGBA
     LSPR_TARGET_UYVY   = 2, // packed 4:2:2 (also known as FMT_YUV16)
     LSPR_TARGET_NV12   = 3, // semi-planar 4:2:0
+    LSPR_TARGET_NV16   = 4, // semi-planar 4:2:2
 };
 
 #define LSPR_FLAGS_COLORSPACE_SHIFT 2
@@ -341,6 +342,9 @@ extern "C" int mksprite_convert_lossy(
     if (pm->lossy_nv12) {
         target_code = LSPR_TARGET_NV12;
         target_name = "NV12";
+    } else if (pm->lossy_nv16) {
+        target_code = LSPR_TARGET_NV16;
+        target_name = "NV16";
     } else {
         switch (pm->outfmt) {
         case FMT_NONE:   target_code = LSPR_TARGET_RGBA16; target_name = "RGBA16"; break;
@@ -348,7 +352,7 @@ extern "C" int mksprite_convert_lossy(
         case FMT_RGBA32: target_code = LSPR_TARGET_RGBA32; target_name = "RGBA32"; break;
         case FMT_YUV16:  target_code = LSPR_TARGET_UYVY;   target_name = "UYVY";   break;
         default:
-            fprintf(stderr, "mksprite: lossy --format only supports RGBA32, RGBA16, UYVY, NV12\n");
+            fprintf(stderr, "mksprite: lossy --format only supports RGBA32, RGBA16, UYVY, NV12, NV16\n");
             return 1;
         }
     }
@@ -505,7 +509,7 @@ extern "C" int mksprite_convert_lossy(
     // i.e. BT.709 full range. If that conversion is ever changed, update the
     // colorspace tag here too so the decoder picks the matching K0..K5.
     uint16_t lspr_flags = LSPR_YUV_420 |
-        (SPRITE_COLORSPACE_BT709_FULL << LSPR_FLAGS_COLORSPACE_SHIFT) |
+        (SPRITE_YUV_COLORSPACE_BT709_FULL << LSPR_FLAGS_COLORSPACE_SHIFT) |
         ((uint16_t)target_code << LSPR_FLAGS_TARGET_SHIFT);
 
     w8(f, 'L'); w8(f, 'S'); w8(f, 'P'); w8(f, 'R');

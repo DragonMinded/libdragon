@@ -41,8 +41,9 @@
 
 // LSPR header flags layout (16 bits) — must match tools/mksprite/mksprite_lossy.cpp:
 //   bits [1:0]  YUV chroma subsampling (LSPR_YUV_*)
-//   bits [3:2]  YUV colorspace; values match sprite_colorspace_e and so are
-//               assigned directly into sprite_ext_t::colorspace.
+//   bits [3:2]  YUV colorspace; values match sprite_yuv_colorspace_e and so
+//               are assigned directly into the colorspace field of
+//               sprite_ext_t::yuv_attrs.
 //   bits [7:4]  Target memory format (LSPR_TARGET_*)
 // Must mirror the enum in tools/mksprite/mksprite_lossy.cpp
 enum lspr_chroma_e {
@@ -59,6 +60,7 @@ enum lspr_target_e {
     LSPR_TARGET_RGBA32 = 1, // 8:8:8:8 RGBA
     LSPR_TARGET_UYVY   = 2, // packed 4:2:2 (also known as FMT_YUV16)
     LSPR_TARGET_NV12   = 3, // semi-planar 4:2:0
+    LSPR_TARGET_NV16   = 4, // semi-planar 4:2:2
 };
 
 /**
@@ -95,7 +97,7 @@ static inline enum lspr_target_e lspr_target(uint16_t flags) {
 }
 
 /** @brief Extract the YUV colorspace from the LSPR flags. */
-static inline enum sprite_colorspace_e lspr_colorspace(uint16_t flags) {
+static inline enum sprite_yuv_colorspace_e lspr_colorspace(uint16_t flags) {
     return (flags & LSPR_FLAGS_COLORSPACE_MASK) >> LSPR_FLAGS_COLORSPACE_SHIFT;
 }
 
@@ -290,28 +292,36 @@ static void lspr_i420_to_uyvy(const uint8_t *y_plane, const uint8_t *u_plane, co
     }
 }
 
-static sprite_t *lspr_build_nv12_sprite(const uint8_t *pic,
-                                        uint16_t orig_w, uint16_t orig_h,
-                                        int stride, int luma_h,
-                                        uint16_t flags) {
-    // yuv_tex_blit (NV12 path) asserts (Y width % 32) == 0 (in addition to
-    // height % 16, which is always satisfied since luma_h = mb_h*16).
-    // LSPR-aware encoders pad accordingly; if not, this fires loudly
-    // rather than producing a garbled blit.
+static sprite_t *lspr_build_semi_planar_sprite(const uint8_t *pic,
+                                               uint16_t orig_w, uint16_t orig_h,
+                                               int stride, int luma_h,
+                                               uint16_t flags,
+                                               yuv_format_t fmt) {
+    // yuv_tex_blit (semi-planar path) asserts (Y width % 32) == 0 (in
+    // addition to height % 16, which is always satisfied since
+    // luma_h = mb_h*16). LSPR-aware encoders pad accordingly; if not, this
+    // fires loudly rather than producing a garbled blit.
     assertf((stride % 32) == 0,
             "LSPR: padded width %d not multiple of 32 (yuv_tex_blit constraint); pad encoder output to %d",
             stride, (stride + 31) & ~31);
+    assertf(fmt == YUV_NV12 || fmt == YUV_NV16,
+            "LSPR: lspr_build_semi_planar_sprite called with non-semi-planar format %d", (int)fmt);
 
     // Sprite layout: Y plane (FMT_I8, stride x luma_h) followed by an
-    // interleaved UV plane (FMT_IA16, stride/2 x luma_h/2 with U in the
-    // high byte and V in the low byte of each pixel). This matches the
-    // byte layout that the RSP UV interleaver in yuv.c produces, so the
-    // RDP can load it directly via yuv_tex_blit without a
-    // per-frame interleave pass. Total bytes match a fully-planar Y+U+V
-    // layout: y_bytes + 2*uv_bytes.
+    // interleaved UV plane (FMT_IA16, stride/2 x uv_h with U in the high
+    // byte and V in the low byte of each pixel). For NV12 (4:2:0), uv_h is
+    // luma_h/2; for NV16 (4:2:2), uv_h is luma_h (chroma vertically
+    // upsampled at decode time by row replication). This matches the byte
+    // layout that the RSP UV interleaver in yuv.c produces, so the RDP can
+    // load it directly via yuv_tex_blit without a per-frame interleave
+    // pass.
+    int uv_h = (fmt == YUV_NV16) ? luma_h : luma_h / 2;
     size_t y_bytes  = (size_t)stride * luma_h;
-    size_t uv_bytes = (size_t)(stride / 2) * (luma_h / 2);
-    size_t plane_bytes = y_bytes + 2 * uv_bytes;
+    // The H.264 reconstruction is 4:2:0, so source U/V planes are always at
+    // luma_h/2 rows. NV16 destination has twice as many UV rows.
+    size_t src_uv_bytes = (size_t)(stride / 2) * (luma_h / 2);
+    size_t dst_uv_bytes = (size_t)(stride / 2) * uv_h;
+    size_t plane_bytes = y_bytes + 2 * dst_uv_bytes;
     size_t plane_bytes_aligned = (plane_bytes + 15) & ~(size_t)15;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
     size_t pixel_off = (header_bytes + 63) & ~(size_t)63;
@@ -328,10 +338,12 @@ static sprite_t *lspr_build_nv12_sprite(const uint8_t *pic,
     sprite_ext_t *sx = (sprite_ext_t*)spr->data;
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
-    sx->flags = SPRITE_FLAG_YUV_NV12;
-    // Colorspace ID is encoded directly into sprite_colorspace_e values, so
-    // the bit field maps 1:1 into sx->colorspace.
-    sx->colorspace = lspr_colorspace(flags);
+    sx->flags = 0;
+    sx->yuv_attrs =
+        (lspr_colorspace(flags)                                  << SPRITE_YUV_COLORSPACE_SHIFT) |
+        (((fmt == YUV_NV16) ? SPRITE_YUV_CHROMA_422
+                            : SPRITE_YUV_CHROMA_420)             << SPRITE_YUV_CHROMA_SHIFT) |
+        (SPRITE_YUV_LAYOUT_SEMIPLANAR                            << SPRITE_YUV_LAYOUT_SHIFT);
     sx->data_ptr = (uint32_t)pixel_off;
     // Stash the padded plane dimensions for the renderer. The texparms fields
     // are otherwise unread (SPRITE_FLAG_HAS_TEXPARMS is not set).
@@ -342,31 +354,54 @@ static sprite_t *lspr_build_nv12_sprite(const uint8_t *pic,
     // buffer into a single IA16 plane in the sprite's cached storage. The
     // chroma loop reads in 4-byte chunks: each K1 byte load pays full RAM
     // latency, so coalescing 4 byte loads into one `lw` cuts the dominant
-    // RDRAM-transaction cost by 4×. uv_bytes is always a multiple of 64
-    // (uv_stride = mb_w*8, height = mb_h*8) so the word loop covers it
-    // exactly without a tail.
+    // RDRAM-transaction cost by 4×. src_uv_bytes is always a multiple of 64
+    // (uv_stride = mb_w*8, mb_h*8 rows for 4:2:0) so the word loop covers
+    // each source row block exactly without a tail.
+    //
+    // For NV16 we replicate each I420 chroma row across two destination
+    // rows (the same simple vertical chroma upsample as
+    // lspr_i420_to_uyvy). The two destination rows for a given source row
+    // are emitted as one back-to-back word loop pair.
     uint8_t *plane_base = (uint8_t*)spr + pixel_off;
     uint8_t *uv_dst = plane_base + y_bytes;
     const uint8_t *u_src = pic + y_bytes;
-    const uint8_t *v_src = u_src + uv_bytes;
+    const uint8_t *v_src = u_src + src_uv_bytes;
     memcpy(plane_base, pic, y_bytes);
-    const uint32_t *u32 = (const uint32_t *)u_src;
-    const uint32_t *v32 = (const uint32_t *)v_src;
-    uint32_t *uv32 = (uint32_t *)uv_dst;
-    size_t uv_words = uv_bytes / 4;
-    for (size_t i = 0; i < uv_words; i++) {
-        uint32_t u = u32[i];
-        uint32_t v = v32[i];
-        // Big-endian byte order: byte at lower address = high byte of word.
-        // Build U[0]V[0]U[1]V[1] and U[2]V[2]U[3]V[3] from u={U0U1U2U3}, v={V0V1V2V3}.
-        uv32[2*i + 0] = ( u        & 0xFF000000)
-                      | ((v >>  8) & 0x00FF0000)
-                      | ((u >>  8) & 0x0000FF00)
-                      | ((v >> 16) & 0x000000FF);
-        uv32[2*i + 1] = ((u << 16) & 0xFF000000)
-                      | ((v <<  8) & 0x00FF0000)
-                      | ((u <<  8) & 0x0000FF00)
-                      | ( v        & 0x000000FF);
+
+    // Iterations per row: each iter consumes 4 source U bytes (one word) and
+    // 4 V bytes, and writes 8 dest bytes (two interleaved IA16 words). One
+    // source row is uv_stride = stride/2 bytes, so iter count = uv_stride/4.
+    int uv_row_words = (stride / 2) / 4;
+    int src_uv_rows = luma_h / 2;
+    for (int r = 0; r < src_uv_rows; r++) {
+        const uint32_t *u32 = (const uint32_t *)(u_src + (size_t)r * (stride / 2));
+        const uint32_t *v32 = (const uint32_t *)(v_src + (size_t)r * (stride / 2));
+        int dst_row = (fmt == YUV_NV16) ? (r * 2) : r;
+        uint32_t *uv32 = (uint32_t *)(uv_dst + (size_t)dst_row * (stride / 2) * 2);
+        uint32_t *uv32_dup = (fmt == YUV_NV16)
+            ? (uint32_t *)(uv_dst + (size_t)(dst_row + 1) * (stride / 2) * 2)
+            : NULL;
+        for (int i = 0; i < uv_row_words; i++) {
+            uint32_t u = u32[i];
+            uint32_t v = v32[i];
+            // Big-endian byte order: byte at lower address = high byte of word.
+            // Build U[0]V[0]U[1]V[1] and U[2]V[2]U[3]V[3] from
+            // u={U0U1U2U3}, v={V0V1V2V3}.
+            uint32_t w0 = ( u        & 0xFF000000)
+                        | ((v >>  8) & 0x00FF0000)
+                        | ((u >>  8) & 0x0000FF00)
+                        | ((v >> 16) & 0x000000FF);
+            uint32_t w1 = ((u << 16) & 0xFF000000)
+                        | ((v <<  8) & 0x00FF0000)
+                        | ((u <<  8) & 0x0000FF00)
+                        | ( v        & 0x000000FF);
+            uv32[2*i + 0] = w0;
+            uv32[2*i + 1] = w1;
+            if (uv32_dup) {
+                uv32_dup[2*i + 0] = w0;
+                uv32_dup[2*i + 1] = w1;
+            }
+        }
     }
     data_cache_hit_writeback(plane_base, plane_bytes_aligned);
 
@@ -415,7 +450,13 @@ static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
     sx->flags = 0; // not semi-planar; ordinary blit path
-    sx->colorspace = lspr_colorspace(flags);
+    // For YUV16 (UYVY) targets, encode layout=PACKED + chroma=4:2:2 + colorspace.
+    if (fmt == FMT_YUV16) {
+        sx->yuv_attrs =
+            (lspr_colorspace(flags)         << SPRITE_YUV_COLORSPACE_SHIFT) |
+            (SPRITE_YUV_CHROMA_422          << SPRITE_YUV_CHROMA_SHIFT) |
+            (SPRITE_YUV_LAYOUT_PACKED       << SPRITE_YUV_LAYOUT_SHIFT);
+    }
     sx->data_ptr = (uint32_t)pixel_off;
 
     // Convert from the I420 reconstruction the H.264 decoder produced.
@@ -460,9 +501,15 @@ static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
         data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
 
         surface_t target_surf = surface_make_linear(dst, fmt, orig_w, orig_h);
-        const yuv_colorspace_t *cs = __sprite_colorspace(sx->colorspace);
+        const yuv_colorspace_t *cs = __sprite_yuv_colorspace(sx->yuv_attrs);
         rdpq_attach(&target_surf, NULL);
+        // yuv_tex_blit puts the RDP in YUV mode. Without push/pop the YUV
+        // combiner state leaks back to the caller's render mode, which makes
+        // the next non-YUV draw on the screen surface emit magenta/purple
+        // pixels until the caller next sets a render mode.
+        rdpq_mode_push();
         yuv_tex_blit(&frame, 0, 0, NULL, cs);
+        rdpq_mode_pop();
         rdpq_detach_wait();
         yuv_close();
     }
@@ -510,8 +557,11 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
     int luma_h = mb_h * 16;
 
     sprite_t *spr;
-    if (lspr_target(hdr->flags) == LSPR_TARGET_NV12) {
-        spr = lspr_build_nv12_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags);
+    enum lspr_target_e target = lspr_target(hdr->flags);
+    if (target == LSPR_TARGET_NV12) {
+        spr = lspr_build_semi_planar_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags, YUV_NV12);
+    } else if (target == LSPR_TARGET_NV16) {
+        spr = lspr_build_semi_planar_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags, YUV_NV16);
     } else {
         spr = lspr_build_target_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags);
     }
