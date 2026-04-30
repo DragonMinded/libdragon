@@ -213,7 +213,7 @@ void game_draw()
 
 int main(void)
 {
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
     
     joypad_init();

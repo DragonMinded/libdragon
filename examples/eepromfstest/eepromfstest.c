@@ -452,7 +452,7 @@ static int validate_eeprom(eeprom_type_t eeprom_type)
 
 int main(void)
 {
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
 
     /* Initialize peripherals */

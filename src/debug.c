@@ -45,7 +45,7 @@
  *    developer to inspect the application while it is running and
  *    afterwards. Logging can be performed through the USB channel
  *    of a supported cartridge (#DEBUG_FEATURE_LOG_USB), or through
- *    N64 emulators on PC (#DEBUG_FEATURE_LOG_ISVIEWER), or even
+ *    N64 emulators on PC (#DEBUG_FEATURE_LOG_EMU), or even
  *    redirected to a file on a SD card inserted into the development
  *    cartridge (#DEBUG_FEATURE_LOG_SD).
  *    On N64, logging can simply be performed by writing to stderr,
@@ -306,7 +306,7 @@ bool debug_init_usblog(void)
 	return true;
 }
 
-bool debug_init_isviewer(void)
+bool debug_init_emulog(void)
 {
 	if (emux_detect(1) & EMUX_FEAT1_EXCEPTION)
 	{
