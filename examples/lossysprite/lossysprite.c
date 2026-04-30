@@ -1,6 +1,34 @@
 #include <libdragon.h>
 
-#define BG_COUNT 4
+typedef struct {
+    const char *filename;
+    tex_format_t expected_format;
+    bool is_yuv_nv12;
+} bg_info_t;
+
+static const bg_info_t bg_info[] = {
+    { "rom:/bg0.sprite", FMT_YUV16, true },
+    { "rom:/bg1.sprite", FMT_YUV16, false },
+    { "rom:/bg2.sprite", FMT_RGBA16, false },
+    { "rom:/bg3.sprite", FMT_RGBA32, false },
+};
+
+static const int BG_COUNT = sizeof(bg_info) / sizeof(bg_info[0]);
+
+int bg_idx = 0;
+sprite_t *bg_sprite = NULL;
+
+void switch_bg(int direction) {
+    if (bg_sprite) {
+        sprite_free(bg_sprite);
+        bg_sprite = NULL;
+    }
+    bg_idx = (bg_idx + direction + BG_COUNT) % BG_COUNT;
+    bg_sprite = sprite_load(bg_info[bg_idx].filename);
+    // Verify that the background sprites were loaded with the expected formats
+    assertf(sprite_get_format(bg_sprite) == bg_info[bg_idx].expected_format, "%s has unexpected format", bg_info[bg_idx].filename);
+    assertf(sprite_is_yuv_nv12(bg_sprite) == bg_info[bg_idx].is_yuv_nv12, "%s should be NV12", bg_info[bg_idx].filename);
+}
 
 int main(void)
 {
@@ -15,20 +43,10 @@ int main(void)
     lossysprite_init();
 
     // Load the lossily-compressed background sprites
-    sprite_t *bg_sprites[BG_COUNT];
-    bg_sprites[0] = sprite_load("rom:/bg0.sprite");
-    bg_sprites[1] = sprite_load("rom:/bg1.sprite");
-    bg_sprites[2] = sprite_load("rom:/bg2.sprite");
-    bg_sprites[3] = sprite_load("rom:/bg3.sprite");
-
-    // Verify that the background sprites were loaded with the expected formats
-    assertf(sprite_is_yuv_nv12(bg_sprites[0]), "bg0.sprite should be NV12");
-    assertf(sprite_get_format(bg_sprites[1]) == FMT_YUV16, "bg1.sprite should be YUV16");
-    assertf(sprite_get_format(bg_sprites[2]) == FMT_RGBA16, "bg2.sprite should be RGBA16");
-    assertf(sprite_get_format(bg_sprites[3]) == FMT_RGBA32, "bg3.sprite should be RGBA32");
+    switch_bg(0); // load the first background sprite
 
     // Prepare a YUV blitter for the NV12 background sprite for optimized rendering
-    yuv_blitter_t bg0_blitter = rdpq_sprite_yuv_blitter_new(bg_sprites[0], 0, 0, NULL);
+    yuv_blitter_t bg_blitter = rdpq_sprite_yuv_blitter_new(bg_sprite, 0, 0, NULL);
 
     // Load the losslessly-compressed brew sprite
     sprite_t *brew_sprite = sprite_load("rom:/n64brew.sprite");
@@ -41,8 +59,6 @@ int main(void)
     float x = 100.0f, y = 80.0f;
     float vx = 2.5f,  vy = 2.0f;
 
-    int bg_idx = 0;
-
     while (1) {
         // Bounce the brew sprite around the screen edges
         x += vx; y += vy;
@@ -51,23 +67,26 @@ int main(void)
         if (x + bw > sw)  { x = sw - bw;  vx = -vx; }
         if (y + bh > sh)  { y = sh - bh;  vy = -vy; }
 
-        // Draw the current background and the brew sprite on top
         surface_t *screen = display_get();
         rdpq_attach(screen, NULL);
-        if (bg_idx == 0) {
-            rdpq_sprite_yuv_blitter_run(&bg0_blitter, bg_sprites[0]);
-        } else {
-            rdpq_sprite_blit(bg_sprites[bg_idx], 0, 0, NULL);
+        {
+            // Draw the background
+            if (bg_info[bg_idx].is_yuv_nv12) {
+                rdpq_sprite_yuv_blitter_run(&bg_blitter, bg_sprite);
+            } else {
+                rdpq_sprite_blit(bg_sprite, 0, 0, NULL);
+            }
+            // Draw the brew sprite
+            rdpq_set_mode_standard();
+            rdpq_mode_alphacompare(1); // colorkey (draw pixel with alpha >= 1)
+            rdpq_sprite_blit(brew_sprite, x, y, NULL);
         }
-        rdpq_set_mode_standard();
-        rdpq_mode_alphacompare(1); // colorkey (draw pixel with alpha >= 1)
-        rdpq_sprite_blit(brew_sprite, x, y, NULL);
         rdpq_detach_show();
 
         // Cycle background images on input
         joypad_poll();
         joypad_buttons_t btn = joypad_get_buttons_pressed(JOYPAD_PORT_1);
-        if (btn.r || btn.a) bg_idx = (bg_idx + 1) % BG_COUNT;
-        if (btn.l || btn.z || btn.b) bg_idx = (bg_idx - 1 + BG_COUNT) % BG_COUNT;
+        if (btn.r || btn.a) switch_bg(1);
+        if (btn.l || btn.z || btn.b) switch_bg(-1);
     }
 }
