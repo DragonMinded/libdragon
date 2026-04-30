@@ -184,34 +184,48 @@ static void lspr_decode_intra_slice(
 
     i32 qpY = (i32)pps.picInitQp + slice.sliceQpDelta;
     u32 currMbAddr = 0;
-    macroblockLayer_t mbLayer;
-    memset(&mbLayer, 0, sizeof(mbLayer));
+
+    // Rotating ring of mbLayer instances. Each MB writes its CAVLC packed
+    // delta records into mbLayer.residual.posCoefBuf, which the RSP later
+    // DMAs asynchronously. Using a single mbLayer would race MB N+1's CAVLC
+    // writes against MB N's pending DMA; rotating gives the RSP enough lag
+    // to consume each MB's buffer before its slot is reused. This mirrors
+    // the video-player path (h264bsdDecodeSliceData uses the same idiom
+    // with NUM_PARALLEL_MACROBLOCKS).
+    #define LSPR_MB_RING_SIZE 32
+    macroblockLayer_t *mbLayers = (macroblockLayer_t*)calloc(LSPR_MB_RING_SIZE, sizeof(macroblockLayer_t));
+    assertf(mbLayers, "LSPR: out of memory");
+    u32 ring_idx = 0;
 
     while (currMbAddr < pic_size_in_mbs) {
+        macroblockLayer_t *mbLayer = &mbLayers[ring_idx];
+        ring_idx = (ring_idx + 1) % LSPR_MB_RING_SIZE;
+
         lspr_set_mb_params(mb + currMbAddr, &slice, 1, pps.chromaQpIndexOffset);
-        u32 mb_layer_status = h264bsdDecodeMacroblockLayer(&strm, &mbLayer, mb + currMbAddr,
-                                                           slice.sliceType, slice.numRefIdxL0Active);
+        u32 mb_layer_status = h264bsdDecodeMacroblockLayer(&strm, mbLayer, mb + currMbAddr,
+                                                            slice.sliceType, slice.numRefIdxL0Active);
         assertf(mb_layer_status == HANTRO_OK, "LSPR: macroblock layer decode failed at mb=%lu",
                 (unsigned long)currMbAddr);
-        assertf(IS_INTRA_MB(mbLayer), "LSPR: inter MB not supported (mb=%lu type=%d)",
-                (unsigned long)currMbAddr, (int)mbLayer.mbType);
-        u32 mb_status = h264bsdDecodeMacroblock(mb + currMbAddr, &mbLayer, &image, NULL,
-                                                &qpY, currMbAddr, pps.constrainedIntraPredFlag,
-                                                &slice);
+        assertf(IS_INTRA_MB(*mbLayer), "LSPR: inter MB not supported (mb=%lu type=%d)",
+                (unsigned long)currMbAddr, (int)mbLayer->mbType);
+        u32 mb_status = h264bsdDecodeMacroblock(mb + currMbAddr, mbLayer, &image, NULL,
+                                                 &qpY, currMbAddr, pps.constrainedIntraPredFlag,
+                                                 &slice);
         assertf(mb_status == HANTRO_OK, "LSPR: macroblock decode failed at mb=%lu",
                 (unsigned long)currMbAddr);
-        // Drain the RSP queue between MBs. The CAVLC residual buffer
-        // (mbLayer.residual.posCoefBuf) is reused across MBs, and the RSP's
-        // SET_PACKED_DELTA_BUFFER task DMAs from it asynchronously; without a
-        // sync, MB N+1's CAVLC writes can race the DMA for MB N's residual.
-        rsph264_sync();
         currMbAddr++;
         if (!h264bsdMoreRbspData(&strm))
             break;
     }
 
+    // Drain the RSP queue once at slice end. The YUV→target conversion
+    // below reads `pic`, which is the destination of all queued residual /
+    // intra-pred tasks; we must wait for them before the CPU reads it.
+    rsph264_sync();
+
     assertf(currMbAddr == pic_size_in_mbs, "LSPR: incomplete slice");
 
+    free(mbLayers);
     free(mb);
 
     *out_yuv = yuv;
@@ -327,15 +341,34 @@ static sprite_t *lspr_build_nv12_sprite(const uint8_t *pic,
     sx->texparms.t.translate = (float)luma_h;
 
     // Copy Y verbatim; interleave the U/V planes from the uncached decoder
-    // buffer into a single IA16 plane in the sprite's cached storage.
+    // buffer into a single IA16 plane in the sprite's cached storage. The
+    // chroma loop reads in 4-byte chunks: each K1 byte load pays full RAM
+    // latency, so coalescing 4 byte loads into one `lw` cuts the dominant
+    // RDRAM-transaction cost by 4×. uv_bytes is always a multiple of 64
+    // (uv_stride = mb_w*8, height = mb_h*8) so the word loop covers it
+    // exactly without a tail.
     uint8_t *plane_base = (uint8_t*)spr + pixel_off;
     uint8_t *uv_dst = plane_base + y_bytes;
     const uint8_t *u_src = pic + y_bytes;
     const uint8_t *v_src = u_src + uv_bytes;
     memcpy(plane_base, pic, y_bytes);
-    for (size_t i = 0; i < uv_bytes; i++) {
-        uv_dst[i*2 + 0] = u_src[i];
-        uv_dst[i*2 + 1] = v_src[i];
+    const uint32_t *u32 = (const uint32_t *)u_src;
+    const uint32_t *v32 = (const uint32_t *)v_src;
+    uint32_t *uv32 = (uint32_t *)uv_dst;
+    size_t uv_words = uv_bytes / 4;
+    for (size_t i = 0; i < uv_words; i++) {
+        uint32_t u = u32[i];
+        uint32_t v = v32[i];
+        // Big-endian byte order: byte at lower address = high byte of word.
+        // Build U[0]V[0]U[1]V[1] and U[2]V[2]U[3]V[3] from u={U0U1U2U3}, v={V0V1V2V3}.
+        uv32[2*i + 0] = ( u        & 0xFF000000)
+                      | ((v >>  8) & 0x00FF0000)
+                      | ((u >>  8) & 0x0000FF00)
+                      | ((v >> 16) & 0x000000FF);
+        uv32[2*i + 1] = ((u << 16) & 0xFF000000)
+                      | ((v <<  8) & 0x00FF0000)
+                      | ((u <<  8) & 0x0000FF00)
+                      | ( v        & 0x000000FF);
     }
     data_cache_hit_writeback(plane_base, plane_bytes_aligned);
 
