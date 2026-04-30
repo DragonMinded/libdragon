@@ -60,7 +60,7 @@ void rsp_blend_process_line(surface_t *dest, int x0, int y0, int numlines) {
 }
 
 int main(void) {
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
     display_init(RESOLUTION_640x480, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_DISABLED);
     dfs_init(DFS_DEFAULT_LOCATION);

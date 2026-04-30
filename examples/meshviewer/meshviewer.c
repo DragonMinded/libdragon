@@ -251,7 +251,7 @@ static void setup_gl(void)
 
 static void init(void)
 {
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
 
     dfs_init(DFS_DEFAULT_LOCATION);

@@ -127,7 +127,7 @@ int file_size(const char *fn) {
 
 int main(void) {
     debug_init_usblog();
-    debug_init_isviewer();
+    debug_init_emulog();
 
     console_init();
     console_set_debug(true);

@@ -430,7 +430,7 @@ static const struct Testsuite
 int main() {
 	console_init();
 	console_set_debug(false);
-	debug_init_isviewer();
+	debug_init_emulog();
 	debug_init_usblog();
 	emux_ioctl_fast(); // ask emulator to run as fast as possible
 

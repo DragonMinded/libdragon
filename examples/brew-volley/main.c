@@ -449,7 +449,7 @@ void render(int cur_frame)
 
 int main()
 {
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
 
     display_init(RESOLUTION_640x480, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_DEDITHER);

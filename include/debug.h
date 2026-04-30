@@ -42,7 +42,10 @@ extern "C" {
 #define DEBUG_FEATURE_LOG_USB       (1 << 0)
 
 /** 
- * @brief Flag to activate the ISViewer logging channel.
+ * @brief Flag to activate the logging channel in emulators.
+ *
+ * The logging is done using @ref emux if available,
+ * or through ISViewer otherwise if available.
  *
  * ISViewer was a real development cartridge that was used in the 90s
  * to debug N64 development. It is emulated by a few emulators to ease
@@ -54,13 +57,13 @@ extern "C" {
  *
  * Supported emulators:
  *
- *   * cen64 (https://github.com/n64dev/cen64) - run with -is-viewer command line flag
- *   * Ares (https://ares-emulator.github.io)
- *   * simple64 (https://simple64.github.io)
- *   * dgb-n64 (https://github.com/Dillonb/n64)
+ *   * cen64 (https://github.com/n64dev/cen64) - ISViewer only. Run with -is-viewer command line flag
+ *   * Ares (https://ares-emulator.github.io) - emux and ISViewer
+ *   * Gopher64 (https://loganmc10.itch.io/gopher64) - ISViewer only
+ *   * dgb-n64 (https://github.com/Dillonb/n64) - ISViewer only
  *
  */
-#define DEBUG_FEATURE_LOG_ISVIEWER  (1 << 1)
+#define DEBUG_FEATURE_LOG_EMU       (1 << 1)
 
 /** 
  * @brief Flag to activate the logging on CompactFlash/SD card.
@@ -132,6 +135,16 @@ extern "C" {
 #define DEBUG_FEATURE_ALL           0xFF
 
 
+/**
+ * @deprecated Use #DEBUG_FEATURE_LOG_EMU instead.
+ */
+#define DEBUG_FEATURE_LOG_ISVIEWER DEBUG_FEATURE_LOG_EMU
+/**
+ * @deprecated Use #debug_init_emulog instead.
+ */
+#define debug_init_isviewer debug_init_emulog
+
+
 #ifndef NDEBUG
 	/** 
 	 * @brief Initialize USB logging. 
@@ -151,7 +164,7 @@ extern "C" {
 	 *
 	 * @return true if the ISViewer logging channel was initialized successfully, false otherwise
 	 */
-	bool debug_init_isviewer(void);
+	bool debug_init_emulog(void);
 	/** @brief Initialize SD logging. */
 	bool debug_init_sdlog(const char *fn, const char *openfmt);
 	/** @brief Initialize SD filesystem */
@@ -176,8 +189,8 @@ extern "C" {
 		bool ok = false; 
 		if (features & DEBUG_FEATURE_LOG_USB)
 			ok = debug_init_usblog() || ok;
-		if (features & DEBUG_FEATURE_LOG_ISVIEWER)
-			ok = debug_init_isviewer() || ok;
+		if (features & DEBUG_FEATURE_LOG_EMU)
+			ok = debug_init_emulog() || ok;
 		if (features & DEBUG_FEATURE_FILE_SD)
 			ok = debug_init_sdfs("sd:/", -1) || ok;
 		if (features & DEBUG_FEATURE_LOG_SD)
@@ -222,7 +235,7 @@ extern "C" {
 #else
 	#define debug_init(ch)             ((void)(false), false)
 	#define debug_init_usblog()        ((void)(false), false)
-	#define debug_init_isviewer()      ((void)(false), false)
+	#define debug_init_emulog()        ((void)(false), false)
 	#define debug_init_sdlog(fn,fmt)   ((void)(false), false)
 	#define debug_init_sdfs(prefix,np) ((void)(false), false)
 	#define debugf(msg, ...)           ({ })
