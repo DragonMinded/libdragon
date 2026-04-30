@@ -293,7 +293,8 @@ bool sprite_is_shq(sprite_t *sprite);
  * @brief Return true if the sprite is stored as YUV NV12 format
  * 
  * This is a special sprite format where the pixel data is stored as YUV 4:2:0
- * in NV12 layout, which can be directly uploaded to the RDP with #yuv_tex_blit_nv12.
+ * in NV12 layout, which can be directly uploaded to the RDP with #yuv_tex_blit
+ * (using #YUV_NV12).
  * 
  * This format is used by lossy sprites with the NV12 target, and can be created
  * by the mksprite tool with the `--format NV12` option.

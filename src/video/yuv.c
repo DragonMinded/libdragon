@@ -264,12 +264,15 @@ void rsp_yuv_interleave2_block_32x16(int x0, int y0)
         (x0<<12) | y0);
 }
 
-static void yuv_tex_blit_setup(surface_t *yp, surface_t *up, surface_t *vp)
+// Setup for YUV_I420 (3-plane planar 4:2:0): interleave U and V on the RSP
+// into the internal IA16 buffer, then publish Y + interleaved UV to the RDP
+// lookup slots that yuv_tex_blit_run consumes.
+static inline void yuv_setup_i420(surface_t *yp, surface_t *up, surface_t *vp)
 {
-    assertf(yp->width == up->width*2 && yp->height == up->height*2, 
+    assertf(yp->width == up->width*2 && yp->height == up->height*2,
         "wrong plane sizes: only YUV 4:2:0 is supported (Y:%dx%d U:%dx%d)",
         yp->width, yp->height, up->width, up->height);
-    assertf(yp->width == vp->width*2 && yp->height == vp->height*2, 
+    assertf(yp->width == vp->width*2 && yp->height == vp->height*2,
         "wrong plane sizes: only YUV 4:2:0 is supported (Y:%dx%d V:%dx%d)",
         yp->width, yp->height, vp->width, vp->height);
 
@@ -293,6 +296,33 @@ static void yuv_tex_blit_setup(surface_t *yp, surface_t *up, surface_t *vp)
     // later. This way, we can compile yuv_tex_blit_run in a block.
     rdpq_set_lookup_address(1, yp->buffer);
     rdpq_set_lookup_address(2, internal_buffer.buffer);
+}
+
+// Setup for YUV_NV12 (semi-planar 4:2:0): chroma is already interleaved
+// into a single FMT_IA16 plane, so plug it straight into the RDP lookup
+// slot and skip the RSP overlay.
+static inline void yuv_setup_nv12(surface_t *yp, surface_t *uvp)
+{
+    assertf(yp->width == uvp->width*2 && yp->height == uvp->height*2,
+        "wrong plane sizes: only YUV 4:2:0 is supported (Y:%dx%d UV:%dx%d)",
+        yp->width, yp->height, uvp->width, uvp->height);
+    rdpq_set_lookup_address(1, yp->buffer);
+    rdpq_set_lookup_address(2, uvp->buffer);
+}
+
+static void yuv_tex_blit_setup(yuv_frame_t *frame)
+{
+    switch (frame->format) {
+    case YUV_I420:
+        assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
+        yuv_setup_i420(&frame->y, &frame->u, &frame->v);
+        break;
+    case YUV_NV12:
+        yuv_setup_nv12(&frame->y, &frame->u);
+        break;
+    default:
+        assertf(0, "yuv_tex_blit: unsupported yuv_format_t %d", frame->format);
+    }
 }
 
 static void yuv_tex_blit_run(int width, int height, float x0, float y0, 
@@ -362,29 +392,13 @@ static void yuv_tex_blit_run(int width, int height, float x0, float y0,
 void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs)
 {
-    assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
-    yuv_tex_blit_setup(&frame->y, &frame->u, &frame->v);
+    yuv_tex_blit_setup(frame);
     yuv_tex_blit_run(frame->y.width, frame->y.height, x0, y0, parms, cs, false);
-}
-
-void yuv_tex_blit_nv12(surface_t *y, surface_t *uv, float x0, float y0,
-    const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs)
-{
-    assertf(y->width == uv->width*2 && y->height == uv->height*2,
-        "wrong plane sizes: only YUV 4:2:0 is supported (Y:%dx%d UV:%dx%d)",
-        y->width, y->height, uv->width, uv->height);
-    // The interleave step in yuv_tex_blit_setup is what populates the
-    // RDP lookup slots; do the same setup here directly from the
-    // caller-provided buffers, then reuse the regular run path.
-    rdpq_set_lookup_address(1, y->buffer);
-    rdpq_set_lookup_address(2, uv->buffer);
-    yuv_tex_blit_run(y->width, y->height, x0, y0, parms, cs, false);
 }
 
 yuv_blitter_t yuv_blitter_new(int video_width, int video_height, float x0, float y0, const rdpq_blitparms_t *parms,
     const yuv_colorspace_t *cs)
 {
-    assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
     // Compile the yuv_tex_blit_run into a block with the given parameters.
     rspq_block_begin();
         yuv_tex_blit_run(video_width, video_height, x0, y0, parms, cs, false);
@@ -474,7 +488,7 @@ yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
 
 void yuv_blitter_run(yuv_blitter_t *blitter, yuv_frame_t *frame)
 {
-    yuv_tex_blit_setup(&frame->y, &frame->u, &frame->v);
+    yuv_tex_blit_setup(frame);
     rspq_block_run(blitter->block);
 }
 

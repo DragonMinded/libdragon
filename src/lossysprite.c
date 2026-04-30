@@ -282,7 +282,7 @@ static sprite_t *lspr_build_nv12_sprite(const uint8_t *pic,
                                         uint16_t orig_w, uint16_t orig_h,
                                         int stride, int luma_h,
                                         uint16_t flags) {
-    // yuv_tex_blit_nv12 asserts (Y width % 32) == 0 (in addition to
+    // yuv_tex_blit (NV12 path) asserts (Y width % 32) == 0 (in addition to
     // height % 16, which is always satisfied since luma_h = mb_h*16).
     // LSPR-aware encoders pad accordingly; if not, this fires loudly
     // rather than producing a garbled blit.
@@ -294,7 +294,7 @@ static sprite_t *lspr_build_nv12_sprite(const uint8_t *pic,
     // interleaved UV plane (FMT_IA16, stride/2 x luma_h/2 with U in the
     // high byte and V in the low byte of each pixel). This matches the
     // byte layout that the RSP UV interleaver in yuv.c produces, so the
-    // RDP can load it directly via yuv_tex_blit_nv12 without a
+    // RDP can load it directly via yuv_tex_blit without a
     // per-frame interleave pass. Total bytes match a fully-planar Y+U+V
     // layout: y_bytes + 2*uv_bytes.
     size_t y_bytes  = (size_t)stride * luma_h;

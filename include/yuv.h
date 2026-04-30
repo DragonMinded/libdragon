@@ -212,11 +212,46 @@ yuv_colorspace_t yuv_new_colorspace(float Kr, float Kb, int y0, int yrange, int 
  */
 color_t yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v, const yuv_colorspace_t *cs);
 
-/** @brief A YUV frame, made of three distinct planes */
+/**
+ * @brief YUV chroma subsampling and memory layout.
+ *
+ * Selects how the chroma planes of a #yuv_frame_t are laid out in memory.
+ * This determines what #yuv_tex_blit (and #yuv_blitter_run) expects to find
+ * in the frame's surfaces and whether an RSP-side interleave pass is needed
+ * before the RDP draw.
+ *
+ * The default value (0) matches the historical behavior, so existing callers
+ * that build a #yuv_frame_t with designated initializers do not need to set
+ * @ref yuv_frame_t::format explicitly.
+ */
+typedef enum yuv_format_e {
+    /** @brief 3-plane planar 4:2:0 (I420).
+     *
+     *  Y, U, and V are three separate #FMT_I8 surfaces; U and V are at half
+     *  width and half height. RSP interleaves U+V into a temporary IA16
+     *  buffer before the RDP draw, so #yuv_init must have been called. */
+    YUV_I420 = 0,
+    /** @brief Semi-planar 4:2:0 (NV12).
+     *
+     *  Y is a #FMT_I8 surface; U+V are pre-interleaved into a single
+     *  #FMT_IA16 surface (U in the high byte, V in the low byte) at half
+     *  width and half height. The RSP interleave step is skipped, so this
+     *  layout does not require #yuv_init.
+     *  The @ref yuv_frame_t::v surface is unused. */
+    YUV_NV12 = 1,
+} yuv_format_t;
+
+/**
+ * @brief A YUV frame.
+ *
+ * The set of planes that need to be populated and the meaning of the chroma
+ * surfaces depend on @ref format; see #yuv_format_t.
+ */
 typedef struct yuv_frame_s {
+    yuv_format_t format;   ///< Chroma subsampling / memory layout (default #YUV_I420)
 	surface_t y;           ///< Luminance plane (Y)
-    surface_t u;           ///< Chrominance plane (U)
-    surface_t v;           ///< Chrominance plane (V)
+    surface_t u;           ///< Chrominance plane: U for #YUV_I420, interleaved UV (#FMT_IA16) for #YUV_NV12
+    surface_t v;           ///< Chrominance plane (V); unused for #YUV_NV12
 } yuv_frame_t;
 
 /** @brief YUV blitter zoom configuration */
@@ -385,59 +420,37 @@ void yuv_blitter_run(yuv_blitter_t *blitter, yuv_frame_t *frame);
 void yuv_blitter_free(yuv_blitter_t *blitter);
 
 /**
- * @brief Blit a 3-planes YUV frame into the current RDP framebuffer.
- * 
- * This function is similar to #rdpq_tex_blit, but it allows to blit
- * a YUV frame split into 3 planes. This is faster than first merging the
- * 3 planes into a single buffer (as required by #FMT_YUV16) and then blit it.
- * 
+ * @brief Blit a YUV frame into the current RDP framebuffer.
+ *
+ * This function is similar to #rdpq_tex_blit, but it accepts a YUV frame
+ * stored in any of the layouts described by #yuv_format_t. For #YUV_I420
+ * the three planes are interleaved on the RSP before the RDP draw; for
+ * #YUV_NV12 the chroma plane is already interleaved, so the RSP step is
+ * skipped (and #yuv_init does not need to have been called). Either way is
+ * faster than first merging into a single buffer (as required by
+ * #FMT_YUV16) and then blitting it.
+ *
  * This is an all-in-one function that avoids creating a #yuv_blitter_t instance,
  * using it and then freeing it. On the other hand, it performs a lot of work
  * on the CPU which the blitter does only one time (at creation time). Unless you
  * only need to convert one frame, you should consider using the blitter
  * for improved speed.
- * 
+ *
  * For more information on how to use this function, see #rdpq_tex_blit.
- * 
+ *
  * @param frame         YUV frame to blit
  * @param x0 		    X coordinate where to blit the frame
  * @param y0            Y coordinate where to blit the frame
  * @param parms         Optional blitting parameters (see #rdpq_blitparms_t)
  * @param cs            Optional colorspace to use for the conversion. If NULL,
  * 						the default is #YUV_BT601_TV.
- * 
+ *
  * @see #rdpq_tex_blit
  * @see #yuv_blitter_t
  * @see #yuv_blitter_new
  * @see #yuv_blitter_new_fmv
  */
 void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
-    const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
-
-/**
- * @brief Blit an NV12 (4:2:0 semi-planar) YUV frame: Y plane + interleaved UV.
- *
- * This is a variant of #yuv_tex_blit for callers whose source data is
- * already in NV12 layout: a Y plane plus a single FMT_IA16 plane that
- * interleaves U and V (U in the high byte, V in the low byte of each
- * pixel — the byte layout that the RSP UV interleaver inside
- * #yuv_tex_blit produces). It skips the RSP interleave pass and goes
- * straight to the RDP upload + draw, so #yuv_init does not need to
- * have been called.
- *
- * The @p uv plane must have half the width and half the height of the
- * @p y plane (4:2:0 subsampling), with one IA16 pixel per (U,V) pair.
- *
- * @param y         Y plane (FMT_I8, full resolution)
- * @param uv        Interleaved UV plane (FMT_IA16, half resolution)
- * @param x0        X coordinate where to blit the frame
- * @param y0        Y coordinate where to blit the frame
- * @param parms     Optional blitting parameters (see #rdpq_blitparms_t)
- * @param cs        Optional colorspace (NULL = #YUV_BT601_TV)
- *
- * @see #yuv_tex_blit
- */
-void yuv_tex_blit_nv12(surface_t *y, surface_t *uv, float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 
 

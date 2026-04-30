@@ -16,7 +16,7 @@
 #define SPRITE_FLAG_HAS_DETAIL              0x0010   ///< Sprite contains detail texture
 #define SPRITE_FLAG_FITS_TMEM               0x0020   ///< Set if the sprite does fit TMEM without splitting
 #define SPRITE_FLAG_SHQ                     0x0040   ///< Sprite is in special SHQ format (2 mipmap levels with subtractive blending)
-#define SPRITE_FLAG_YUV_NV12                0x0080   ///< Sprite is stored as YUV 4:2:0 in NV12 layout for use with #yuv_tex_blit_nv12
+#define SPRITE_FLAG_YUV_NV12                0x0080   ///< Sprite is stored as YUV 4:2:0 in NV12 layout
 
 /** @brief YUV colorspace identifier stored in #sprite_ext_t::colorspace.
  *
@@ -98,6 +98,13 @@ bool __sprite_upgrade(sprite_t *sprite);
 
 /** @brief Access the sprite extended structure, or NULL if it does not exist. */
 sprite_ext_t *__sprite_ext(sprite_t *sprite);
+
+/** @brief Get the YUV colorspace of a sprite from its extended header */
+static inline const yuv_colorspace_t *sprite_ext_yuv_colorspace(sprite_ext_t *sx)
+{
+    if (!sx) return &YUV_BT601_TV;
+    return __sprite_colorspace(sx->colorspace);
+}
 
 /** @brief Function pointer type for a sprite decoder function */
 typedef sprite_t *(*sprite_decode_fn)(const void *buf, int sz);

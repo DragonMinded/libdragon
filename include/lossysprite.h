@@ -22,10 +22,10 @@
  *
  * The first three render through the standard sprite paths
  * (#rdpq_sprite_blit and #rdpq_sprite_upload). NV12 is a special case: it
- * routes #rdpq_sprite_blit through #yuv_tex_blit_nv12 with the colorspace
- * stored in the file header. Because NV12 splits the image across two TMEM
- * banks, NV12 sprites are not compatible with #rdpq_sprite_upload — they
- * must be drawn via #rdpq_sprite_blit.
+ * routes #rdpq_sprite_blit through #yuv_tex_blit (with #YUV_NV12) using
+ * the colorspace stored in the file header. Because NV12 splits the image
+ * across two TMEM banks, NV12 sprites are not compatible with
+ * #rdpq_sprite_upload — they must be drawn via #rdpq_sprite_blit.
  *
  * Typical usage goes through #sprite_load, which sniffs the LSPR magic and
  * dispatches here automatically once #lossysprite_init has registered the

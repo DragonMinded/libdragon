@@ -15,20 +15,15 @@
 #include "sprite_internal.h"
 #include "yuv.h"
 
-static inline const yuv_colorspace_t *sprite_lookup_yuv_colorspace(sprite_ext_t *sx)
-{
-    if (!sx) return &YUV_BT601_TV;
-    return __sprite_colorspace(sx->colorspace);
-}
 
-static void sprite_setup_yuv_mode(sprite_t *sprite)
+static void rdpq_sprite_set_yuv_mode(sprite_t *sprite)
 {
     rdpq_set_mode_yuv(true);
-    const yuv_colorspace_t *cs = sprite_lookup_yuv_colorspace(__sprite_ext(sprite));
+    const yuv_colorspace_t *cs = sprite_ext_yuv_colorspace(__sprite_ext(sprite));
     rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
 }
 
-static void sprite_blit_yuv_nv12(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms_in)
+static void rdpq_sprite_yuv_nv12_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms_in)
 {
     sprite_ext_t *sx = __sprite_ext(sprite);
     int padded_w = (int)sx->texparms.s.translate;
@@ -39,8 +34,11 @@ static void sprite_blit_yuv_nv12(sprite_t *sprite, float x0, float y0, const rdp
     // Y plane is FMT_I8; UV plane is FMT_IA16 with U in the high byte and
     // V in the low byte of each pixel — the layout that the LSPR decoder
     // pre-interleaves at decode time.
-    surface_t y_surf  = surface_make_linear(base,           FMT_I8,   padded_w,     padded_h);
-    surface_t uv_surf = surface_make_linear(base + y_bytes, FMT_IA16, padded_w / 2, padded_h / 2);
+    yuv_frame_t frame = {
+        .format = YUV_NV12,
+        .y = surface_make_linear(base,           FMT_I8,   padded_w,     padded_h),
+        .u = surface_make_linear(base + y_bytes, FMT_IA16, padded_w / 2, padded_h / 2)
+    };
 
     // Crop from the padded plane to the sprite's visible region. If the caller
     // already supplied width/height, respect those; otherwise pin to the
@@ -52,10 +50,10 @@ static void sprite_blit_yuv_nv12(sprite_t *sprite, float x0, float y0, const rdp
     if (parms.height == 0) parms.height = sprite->height;
 
     // Save/restore the caller's render mode around the YUV blit so the
-    // YUV combiner + SOM bits set inside yuv_tex_blit_run don't leak into
+    // YUV combiner + SOM bits set inside yuv_tex_blit don't leak into
     // subsequent non-YUV draws.
     rdpq_mode_push();
-    yuv_tex_blit_nv12(&y_surf, &uv_surf, x0, y0, &parms, sprite_lookup_yuv_colorspace(sx));
+    yuv_tex_blit(&frame, x0, y0, &parms, sprite_ext_yuv_colorspace(sx));
     rdpq_mode_pop();
 }
 
@@ -164,7 +162,7 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
         // from the sprite's metadata. This must happen before mipmap/tlut
         // tweaks below, since rdpq_set_mode_yuv resets the SOM.
         if (sprite_get_format(sprite) == FMT_YUV16)
-            sprite_setup_yuv_mode(sprite);
+            rdpq_sprite_set_yuv_mode(sprite);
 
         // Enable/disable mipmapping
         if(is_shq) {
@@ -193,20 +191,22 @@ void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms
 
     // NV12 YUV sprites can't be uploaded as a single texture (the Y and UV
     // halves are loaded separately into the two TMEM banks). Hand off to
-    // yuv_tex_blit_nv12, which sets up its own render mode and colorspace.
+    // yuv_tex_blit (with YUV_NV12), which sets up its own render mode and
+    // colorspace.
     if (sprite_is_yuv_nv12(sprite)) {
-        sprite_blit_yuv_nv12(sprite, x0, y0, parms);
+        rdpq_sprite_yuv_nv12_blit(sprite, x0, y0, parms);
         return;
     }
 
+    bool should_pop = false;
     // For YUV sprites, configure the RDP YUV render mode + colorspace from
     // the sprite's metadata so the caller doesn't need to set it up. Save
     // the caller's render mode around the blit so the YUV combiner + SOM
     // bits don't leak into subsequent non-YUV draws.
-    bool is_yuv = sprite_get_format(sprite) == FMT_YUV16;
-    if (is_yuv) {
+    if (sprite_get_format(sprite) == FMT_YUV16) {
         rdpq_mode_push();
-        sprite_setup_yuv_mode(sprite);
+        should_pop = true;
+        rdpq_sprite_set_yuv_mode(sprite);
     }
 
     // Upload the palette and configure the render mode
@@ -216,6 +216,38 @@ void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms
     surface_t surf = sprite_get_pixels(sprite);
     rdpq_tex_blit(&surf, x0, y0, parms);
 
-    // Restore the caller's render mode if we changed it for YUV
-    if (is_yuv) rdpq_mode_pop();
+    // Restore the caller's render mode
+    if (should_pop) {
+        rdpq_mode_pop();
+    }
+}
+
+yuv_blitter_t rdpq_sprite_yuv_blitter_new(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms)
+{
+    assertf(sprite_is_yuv_nv12(sprite), "sprite is not YUV NV12 format");
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    int padded_w = (int)sx->texparms.s.translate;
+    int padded_h = (int)sx->texparms.t.translate;
+    return yuv_blitter_new(padded_w, padded_h, x0, y0, parms, sprite_ext_yuv_colorspace(sx));
+}
+
+void rdpq_sprite_yuv_blitter_run(yuv_blitter_t *blitter, sprite_t *sprite)
+{
+    assertf(sprite_is_yuv_nv12(sprite), "sprite is not YUV NV12 format");
+    sprite_ext_t *sx = __sprite_ext(sprite);
+    int padded_w = (int)sx->texparms.s.translate;
+    int padded_h = (int)sx->texparms.t.translate;
+    uint8_t *base = (uint8_t*)sprite + sx->data_ptr;
+    size_t y_bytes = (size_t)padded_w * padded_h;
+
+    // Y plane is FMT_I8; UV plane is FMT_IA16 with U in the high byte and
+    // V in the low byte of each pixel — the layout that the LSPR decoder
+    // pre-interleaves at decode time.
+    yuv_frame_t frame = {
+        .format = YUV_NV12,
+        .y = surface_make_linear(base,           FMT_I8,   padded_w,     padded_h),
+        .u = surface_make_linear(base + y_bytes, FMT_IA16, padded_w / 2, padded_h / 2)
+    };
+
+    yuv_blitter_run(blitter, &frame);
 }

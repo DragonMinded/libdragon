@@ -14,6 +14,7 @@
 #define LIBDRAGON_RDPQ_SPRITE_H
 
 #include <stdint.h>
+#include "yuv.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -121,6 +122,26 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
  * @param parms     Parameters for the blit operation (or NULL for default)
  */
 void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms);
+
+/**
+ * @brief Create a YUV blitter optimized for rendering an NV12 sprite
+ * 
+ * In general, refer to #rdpq_tex_blit for more in-depth documentation
+ * related to @p x0 , @p y0 , and @p parms .
+ * 
+ * The blitter initialized by this function must be freed with #yuv_blitter_free
+ * to release all allocated memory.
+ * 
+ * @see #yuv_blitter_new
+ */
+yuv_blitter_t rdpq_sprite_yuv_blitter_new(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms);
+
+/**
+ * @brief Perform a YUV blit of an NV12 sprite using a blitter
+ * 
+ * @see #yuv_blitter_run
+ */
+void rdpq_sprite_yuv_blitter_run(yuv_blitter_t *blitter, sprite_t *sprite);
 
 #ifdef __cplusplus
 }
