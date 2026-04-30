@@ -69,9 +69,6 @@ int main(void)
     // Load the lossily-compressed background sprites
     switch_bg(0); // load the first background sprite
 
-    // Prepare a YUV blitter for the NV12 background sprite for optimized rendering
-    yuv_blitter_t bg_blitter = rdpq_sprite_yuv_blitter_new(bg_sprite, 0, 0, NULL);
-
     // Load the losslessly-compressed brew sprite
     sprite_t *brew_sprite = sprite_load("rom:/n64brew.sprite");
 
