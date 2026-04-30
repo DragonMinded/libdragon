@@ -82,6 +82,8 @@ DEFINE_RSP_UCODE(rsp_yuv,
 #define CMD_YUV_INTERLEAVE4_32X16      0x2
 #define CMD_YUV_INTERLEAVE2_32X16      0x3
 #define CMD_YUV_INTERLEAVE2_32X16_422  0x4
+#define CMD_YUV_INTERLEAVE2_32X16_NV16 0x5
+#define CMD_YUV_COPY_32X16             0x6
 
 static int8_t yuv_initialized = 0;
 
@@ -269,6 +271,97 @@ void rsp_yuv_interleave2_422_block_32x16(int x0, int y0)
 {
     rspq_write(ovl_yuv, CMD_YUV_INTERLEAVE2_32X16_422,
         (x0<<12) | y0);
+}
+
+static void rsp_yuv_interleave2_nv16_block_32x16(int x0, int y0)
+{
+    rspq_write(ovl_yuv, CMD_YUV_INTERLEAVE2_32X16_NV16,
+        (x0<<12) | y0);
+}
+
+static void rsp_yuv_copy_block_32x16(int x0, int y0)
+{
+    rspq_write(ovl_yuv, CMD_YUV_COPY_32X16,
+        (x0<<12) | y0);
+}
+
+void yuv_i420_to_uyvy(const uint8_t *y, const uint8_t *cb, const uint8_t *cr,
+                      int y_pitch,
+                      uint8_t *dst, int dst_pitch,
+                      int width, int height)
+{
+    assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
+    assertf((width  % BLOCK_W) == 0, "width %d not multiple of %d",  width,  BLOCK_W);
+    assertf((height % BLOCK_H) == 0, "height %d not multiple of %d", height, BLOCK_H);
+
+    rsp_yuv_set_input_buffer((uint8_t*)y, (uint8_t*)cb, (uint8_t*)cr, y_pitch);
+    rsp_yuv_set_output_buffer(dst, dst_pitch);
+    for (int ty = 0; ty < height; ty += BLOCK_H) {
+        for (int tx = 0; tx < width; tx += BLOCK_W) {
+            rsp_yuv_interleave4_block_32x16(tx, ty);
+        }
+        rspq_flush();
+    }
+}
+
+// Shared body for chroma-only I420->NV12/NV16 dispatch. The two layouts
+// differ only in the per-tile RSP cmd (the 4:2:0 NV12 cmd already exists
+// for the I420 RDP path; the NV16 cmd is a sibling that duplicates each
+// chroma row so the destination plane has full luma height).
+static void yuv_i420_chroma_to_nv(const uint8_t *u, const uint8_t *v, int chroma_pitch,
+                                  uint8_t *dst, int dst_pitch,
+                                  int luma_w, int luma_h,
+                                  void (*tile_cmd)(int, int))
+{
+    assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
+    assertf((luma_w % BLOCK_W) == 0, "luma_w %d not multiple of %d",  luma_w, BLOCK_W);
+    assertf((luma_h % BLOCK_H) == 0, "luma_h %d not multiple of %d", luma_h, BLOCK_H);
+
+    // The RSP overlay derives chroma stride internally as y_pitch/2, so we
+    // pass 2*chroma_pitch. The Y plane pointer is unread by the chroma-only
+    // commands; pass NULL.
+    rsp_yuv_set_input_buffer(NULL, (uint8_t*)u, (uint8_t*)v, 2 * chroma_pitch);
+    rsp_yuv_set_output_buffer(dst, dst_pitch);
+    for (int ty = 0; ty < luma_h; ty += BLOCK_H) {
+        for (int tx = 0; tx < luma_w; tx += BLOCK_W) {
+            tile_cmd(tx, ty);
+        }
+        rspq_flush();
+    }
+}
+
+void yuv_i420_chroma_to_nv12(const uint8_t *u, const uint8_t *v, int chroma_pitch,
+                             uint8_t *dst, int dst_pitch,
+                             int luma_w, int luma_h)
+{
+    yuv_i420_chroma_to_nv(u, v, chroma_pitch, dst, dst_pitch, luma_w, luma_h,
+                          rsp_yuv_interleave2_block_32x16);
+}
+
+void yuv_i420_chroma_to_nv16(const uint8_t *u, const uint8_t *v, int chroma_pitch,
+                             uint8_t *dst, int dst_pitch,
+                             int luma_w, int luma_h)
+{
+    yuv_i420_chroma_to_nv(u, v, chroma_pitch, dst, dst_pitch, luma_w, luma_h,
+                          rsp_yuv_interleave2_nv16_block_32x16);
+}
+
+void yuv_plane_copy(const uint8_t *src, int src_pitch,
+                    uint8_t *dst, int dst_pitch,
+                    int width, int height)
+{
+    assertf(yuv_initialized, "yuv not initialized, call yuv_init() first");
+    assertf((width  % BLOCK_W) == 0, "width %d not multiple of %d",  width,  BLOCK_W);
+    assertf((height % BLOCK_H) == 0, "height %d not multiple of %d", height, BLOCK_H);
+
+    rsp_yuv_set_input_buffer((uint8_t*)src, NULL, NULL, src_pitch);
+    rsp_yuv_set_output_buffer(dst, dst_pitch);
+    for (int ty = 0; ty < height; ty += BLOCK_H) {
+        for (int tx = 0; tx < width; tx += BLOCK_W) {
+            rsp_yuv_copy_block_32x16(tx, ty);
+        }
+        rspq_flush();
+    }
 }
 
 // Shared planar (I420/I422) setup: interleave U and V on the RSP into the

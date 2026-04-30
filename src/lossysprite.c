@@ -19,6 +19,7 @@
 #include "video/h264_decoder/h264bsd_slice_header.h"
 #include "video/h264_decoder/h264bsd_util.h"
 #include "video/rsph264_internal.h"
+#include "video/yuv_internal.h"
 #include "asset.h"
 #include "graphics.h"
 #include "rdpq.h"
@@ -169,6 +170,8 @@ static void lspr_decode_intra_slice(
     strm.pCurr = ((u64)(uintptr_t)rbsp) << 3;
     strm.pEnd = ((u64)(uintptr_t)(rbsp + rbsp_size)) << 3;
 
+    uint64_t t_hdr_start = get_ticks_us();
+
     sliceHeader_t slice = {0};
     u32 slice_status = h264bsdDecodeSliceHeader(&strm, &slice, &sps, &pps, &nal);
     assertf(slice_status == HANTRO_OK, "LSPR: slice header decode failed");
@@ -201,6 +204,8 @@ static void lspr_decode_intra_slice(
     assertf(mbLayers, "LSPR: out of memory");
     u32 ring_idx = 0;
 
+    uint64_t t_mb_start = get_ticks_us();
+
     while (currMbAddr < pic_size_in_mbs) {
         macroblockLayer_t *mbLayer = &mbLayers[ring_idx];
         ring_idx = (ring_idx + 1) % LSPR_MB_RING_SIZE;
@@ -227,7 +232,15 @@ static void lspr_decode_intra_slice(
     // intra-pred tasks; we must wait for them before the CPU reads it.
     rsph264_sync();
 
+    uint64_t t_mb_end = get_ticks_us();
+
     assertf(currMbAddr == pic_size_in_mbs, "LSPR: incomplete slice");
+
+    debugf("LSPR decode %dx%d (%lu MBs): hdr+setup=%luus mb_loop=%luus\n",
+           (unsigned)width, (unsigned)height,
+           (unsigned long)pic_size_in_mbs,
+           (unsigned long)(t_mb_start - t_hdr_start),
+           (unsigned long)(t_mb_end - t_mb_start));
 
     free(mbLayers);
     free(mb);
@@ -350,60 +363,33 @@ static sprite_t *lspr_build_semi_planar_sprite(const uint8_t *pic,
     sx->texparms.s.translate = (float)stride;
     sx->texparms.t.translate = (float)luma_h;
 
-    // Copy Y verbatim; interleave the U/V planes from the uncached decoder
-    // buffer into a single IA16 plane in the sprite's cached storage. The
-    // chroma loop reads in 4-byte chunks: each K1 byte load pays full RAM
-    // latency, so coalescing 4 byte loads into one `lw` cuts the dominant
-    // RDRAM-transaction cost by 4×. src_uv_bytes is always a multiple of 64
-    // (uv_stride = mb_w*8, mb_h*8 rows for 4:2:0) so the word loop covers
-    // each source row block exactly without a tail.
-    //
-    // For NV16 we replicate each I420 chroma row across two destination
-    // rows (the same simple vertical chroma upsample as
-    // lspr_i420_to_uyvy). The two destination rows for a given source row
-    // are emitted as one back-to-back word loop pair.
+    // Copy Y and interleave U+V (NV12/NV16) entirely on the RSP. The CPU's
+    // alternative is a memcpy from uncached `pic`, which pays full RDRAM
+    // latency per load; RSP DMA does cache-line bursts at near-peak RDRAM
+    // bandwidth. Both `stride % 32` and `luma_h % 16` are guaranteed by the
+    // mb-padded layout (and the assert at the top of this function), so the
+    // 32x16 RSP tile loop fits the frame exactly.
     uint8_t *plane_base = (uint8_t*)spr + pixel_off;
     uint8_t *uv_dst = plane_base + y_bytes;
     const uint8_t *u_src = pic + y_bytes;
     const uint8_t *v_src = u_src + src_uv_bytes;
-    memcpy(plane_base, pic, y_bytes);
 
-    // Iterations per row: each iter consumes 4 source U bytes (one word) and
-    // 4 V bytes, and writes 8 dest bytes (two interleaved IA16 words). One
-    // source row is uv_stride = stride/2 bytes, so iter count = uv_stride/4.
-    int uv_row_words = (stride / 2) / 4;
-    int src_uv_rows = luma_h / 2;
-    for (int r = 0; r < src_uv_rows; r++) {
-        const uint32_t *u32 = (const uint32_t *)(u_src + (size_t)r * (stride / 2));
-        const uint32_t *v32 = (const uint32_t *)(v_src + (size_t)r * (stride / 2));
-        int dst_row = (fmt == YUV_NV16) ? (r * 2) : r;
-        uint32_t *uv32 = (uint32_t *)(uv_dst + (size_t)dst_row * (stride / 2) * 2);
-        uint32_t *uv32_dup = (fmt == YUV_NV16)
-            ? (uint32_t *)(uv_dst + (size_t)(dst_row + 1) * (stride / 2) * 2)
-            : NULL;
-        for (int i = 0; i < uv_row_words; i++) {
-            uint32_t u = u32[i];
-            uint32_t v = v32[i];
-            // Big-endian byte order: byte at lower address = high byte of word.
-            // Build U[0]V[0]U[1]V[1] and U[2]V[2]U[3]V[3] from
-            // u={U0U1U2U3}, v={V0V1V2V3}.
-            uint32_t w0 = ( u        & 0xFF000000)
-                        | ((v >>  8) & 0x00FF0000)
-                        | ((u >>  8) & 0x0000FF00)
-                        | ((v >> 16) & 0x000000FF);
-            uint32_t w1 = ((u << 16) & 0xFF000000)
-                        | ((v <<  8) & 0x00FF0000)
-                        | ((u <<  8) & 0x0000FF00)
-                        | ( v        & 0x000000FF);
-            uv32[2*i + 0] = w0;
-            uv32[2*i + 1] = w1;
-            if (uv32_dup) {
-                uv32_dup[2*i + 0] = w0;
-                uv32_dup[2*i + 1] = w1;
-            }
-        }
+    // Invalidate the entire plane region so the RSP DMA-out wins against
+    // any cached lines (RSP DMA bypasses the CPU cache).
+    yuv_init();
+    data_cache_hit_writeback_invalidate(plane_base, plane_bytes_aligned);
+    yuv_plane_copy(pic, stride, plane_base, stride, stride, luma_h);
+    if (fmt == YUV_NV16) {
+        yuv_i420_chroma_to_nv16(u_src, v_src, stride / 2,
+                                uv_dst, stride, stride, luma_h);
+    } else if (fmt == YUV_NV12) {
+        yuv_i420_chroma_to_nv12(u_src, v_src, stride / 2,
+                                uv_dst, stride, stride, luma_h);
+    } else {
+        assertf(0, "LSPR: unsupported semi-planar format %d", (int)fmt);
     }
-    data_cache_hit_writeback(plane_base, plane_bytes_aligned);
+    rspq_wait();
+    yuv_close();
 
     return spr;
 }
@@ -472,9 +458,24 @@ static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
     if (target == LSPR_TARGET_UYVY) {
         assertf((orig_w & 1) == 0,
                 "LSPR: UYVY target requires even width (got %d)", orig_w);
-        lspr_i420_to_uyvy(y_plane, u_plane, v_plane,
-                          stride, uv_stride, orig_w, orig_h, dst);
-        data_cache_hit_writeback(dst, pixel_bytes_aligned);
+        if ((orig_w % 32) == 0 && (orig_h % 16) == 0) {
+            // RSP fast path: the existing rsp_yuv `interleave4` command
+            // already emits packed UYVY (32x16 px tiles). Source planes
+            // live in uncached `pic`, so the RSP DMA-in reads fresh data
+            // without a writeback. Invalidate dst so the RSP DMA-out
+            // (which writes through to RAM) wins against any cached
+            // lines.
+            yuv_init();
+            data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
+            yuv_i420_to_uyvy(y_plane, u_plane, v_plane, stride,
+                             dst, orig_w * 2, orig_w, orig_h);
+            rspq_wait();
+            yuv_close();
+        } else {
+            lspr_i420_to_uyvy(y_plane, u_plane, v_plane,
+                              stride, uv_stride, orig_w, orig_h, dst);
+            data_cache_hit_writeback(dst, pixel_bytes_aligned);
+        }
     } else {
         // RGBA targets: let the RDP YUV combiner do the conversion. We
         // attach the destination pixel buffer as a render surface and ask
@@ -528,6 +529,8 @@ void lossysprite_close(void)
 }
 
 sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
+    uint64_t t0 = get_ticks_us();
+
     assertf(buf && sz >= (int)sizeof(lspr_header_t), "Invalid LSPR buffer");
 
     const lspr_header_t *hdr = (const lspr_header_t *)buf;
@@ -546,10 +549,12 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
 
     rsph264_init();
     rsph264_begin_frame();
+    uint64_t t1 = get_ticks_us();
 
     uint8_t *pic = NULL;
     size_t pic_size = 0;
     lspr_decode_intra_slice(payload, payload_size, width, height, &pic, &pic_size);
+    uint64_t t2 = get_ticks_us();
 
     int mb_w = (width + 15) / 16;
     int mb_h = (height + 15) / 16;
@@ -565,8 +570,19 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
     } else {
         spr = lspr_build_target_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags);
     }
+    uint64_t t3 = get_ticks_us();
 
     free_uncached(pic);
+    uint64_t t4 = get_ticks_us();
+
+    debugf("LSPR %dx%d: init=%luus decode=%luus convert=%luus cleanup=%luus total=%luus\n",
+           (unsigned)width, (unsigned)height,
+           (unsigned long)(t1 - t0),
+           (unsigned long)(t2 - t1),
+           (unsigned long)(t3 - t2),
+           (unsigned long)(t4 - t3),
+           (unsigned long)(t4 - t0));
+
     return spr;
 }
 
