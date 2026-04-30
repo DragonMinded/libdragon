@@ -237,16 +237,51 @@ static void lspr_decode_intra_slice(
 // Vertically upsample chroma (4:2:0 -> 4:2:2) by reusing the same source
 // (U,V) row across both vertical neighbors. Output byte order is U,Y0,V,Y1
 // per pixel pair, matching the FMT_YUV16 (UYVY) layout the RDP expects.
+//
+// `pic` is uncached, so per-byte reads each pay one full RDRAM transaction.
+// We coalesce by reading luma as uint32_t (4 px / transaction) and chroma as
+// uint16_t (2 px / transaction), and write the packed UYVY output as
+// uint32_t (1 word = 2 px). For 4 input pixels this becomes 3 read + 2 write
+// word/halfword transactions.
+//
+// Strides/alignment: stride is mb_w*16 (always 4-byte aligned), uv_stride
+// is stride/2 = mb_w*8 (2-byte aligned), and dst is 64-byte aligned at the
+// row start with row pitch w*2 (caller asserts w is even, so 4-byte
+// aligned).
 static void lspr_i420_to_uyvy(const uint8_t *y_plane, const uint8_t *u_plane, const uint8_t *v_plane,
                               int stride, int uv_stride,
                               int w, int h,
                               uint8_t *dst) {
+    int w4 = w & ~3;  // largest multiple of 4 <= w
     for (int py = 0; py < h; py++) {
-        const uint8_t *yrow = y_plane + (size_t)py * stride;
-        const uint8_t *urow = u_plane + (size_t)(py / 2) * uv_stride;
-        const uint8_t *vrow = v_plane + (size_t)(py / 2) * uv_stride;
-        uint8_t *drow = dst + (size_t)py * w * 2;
-        for (int px = 0; px < w; px += 2) {
+        const uint32_t *yrow32 = (const uint32_t *)(y_plane + (size_t)py * stride);
+        const uint16_t *urow16 = (const uint16_t *)(u_plane + (size_t)(py / 2) * uv_stride);
+        const uint16_t *vrow16 = (const uint16_t *)(v_plane + (size_t)(py / 2) * uv_stride);
+        uint32_t *drow32 = (uint32_t *)(dst + (size_t)py * w * 2);
+        int n = w4 / 4;
+        for (int q = 0; q < n; q++) {
+            uint32_t y4 = yrow32[q];   // Y0 Y1 Y2 Y3 (big-endian byte order)
+            uint32_t u2 = urow16[q];   // U0 in bits 15..8, U1 in bits 7..0
+            uint32_t v2 = vrow16[q];
+            // Word 0: U0 Y0 V0 Y1
+            drow32[q * 2 + 0] = ((u2 << 16) & 0xFF000000)
+                              | ((y4 >>  8) & 0x00FF0000)
+                              | ( v2        & 0x0000FF00)
+                              | ((y4 >> 16) & 0x000000FF);
+            // Word 1: U1 Y2 V1 Y3
+            drow32[q * 2 + 1] = ((u2 << 24) & 0xFF000000)
+                              | ((y4 <<  8) & 0x00FF0000)
+                              | ((v2 <<  8) & 0x0000FF00)
+                              | ( y4        & 0x000000FF);
+        }
+        // Tail: caller asserts w is even, so the only possible remainder
+        // is exactly 2 pixels.
+        if (w & 2) {
+            int px = w4;
+            const uint8_t *yrow = y_plane + (size_t)py * stride;
+            const uint8_t *urow = u_plane + (size_t)(py / 2) * uv_stride;
+            const uint8_t *vrow = v_plane + (size_t)(py / 2) * uv_stride;
+            uint8_t *drow = dst + (size_t)py * w * 2;
             drow[px * 2 + 0] = urow[px / 2];
             drow[px * 2 + 1] = yrow[px];
             drow[px * 2 + 2] = vrow[px / 2];
