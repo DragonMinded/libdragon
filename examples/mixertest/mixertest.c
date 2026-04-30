@@ -7,7 +7,7 @@
 
 int main(void) {
 	debug_init_usblog();
-	debug_init_isviewer();
+	debug_init_emulog();
 	joypad_init();
 	display_init(RESOLUTION_512x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
 

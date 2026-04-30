@@ -594,7 +594,7 @@ void font_atlas_render(font_atlas *atlas, int x, int y)
 
 int main()
 {
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
     joypad_init();
 

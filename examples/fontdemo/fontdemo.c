@@ -80,7 +80,7 @@ void run_benchmark(void)
 
 int main()
 {
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
     joypad_init();
 
