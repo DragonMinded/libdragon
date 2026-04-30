@@ -7,12 +7,13 @@ typedef struct {
 } bg_info_t;
 
 static const bg_info_t bg_info[] = {
-    { "rom:/bg0.sprite", FMT_YUV16, YUV_NV12 },
-    { "rom:/bg1.sprite", FMT_YUV16, YUV_NV16 },
-    { "rom:/bg2.sprite", FMT_YUV16, YUV_UYVY },
-    { "rom:/bg3.sprite", FMT_RGBA16 },
-    { "rom:/bg4.sprite", FMT_RGBA32 },
-    { "rom:/bg5.sprite", FMT_RGBA16 },
+    { .filename = "rom:/bg0.sprite", .tex_format = FMT_YUV16, .yuv_format = YUV_NV12 },
+    { .filename = "rom:/bg1.sprite", .tex_format = FMT_YUV16, .yuv_format = YUV_NV16 },
+    { .filename = "rom:/bg2.sprite", .tex_format = FMT_YUV16, .yuv_format = YUV_UYVY },
+    { .filename = "rom:/bg3.sprite", .tex_format = FMT_RGBA16 },
+    { .filename = "rom:/bg4.sprite", .tex_format = FMT_RGBA32 },
+    { .filename = "rom:/bg5.sprite", .tex_format = FMT_YUV16, .yuv_format = YUV_NV12 },
+    { .filename = "rom:/bg6.sprite", .tex_format = FMT_YUV16, .yuv_format = YUV_NV12 },
 };
 
 static const int BG_COUNT = sizeof(bg_info) / sizeof(bg_info[0]);

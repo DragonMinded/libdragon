@@ -9,12 +9,14 @@ assets_conv = $(addprefix filesystem/,$(notdir $(assets_png:%.png=%.sprite)))
 all: lossysprite.z64
 
 # Lossily-compress the background sprites and specify various post-decode formats
+# Photos are royalty-free images under the Pexels license: https://www.pexels.com/license/
 filesystem/bg0.sprite: MKSPRITE_FLAGS=--format NV12 --lossy 75 --compress 3
 filesystem/bg1.sprite: MKSPRITE_FLAGS=--format NV16 --lossy 75 --compress 3
 filesystem/bg2.sprite: MKSPRITE_FLAGS=--format YUV16 --lossy 75 --compress 3
 filesystem/bg3.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 3
 filesystem/bg4.sprite: MKSPRITE_FLAGS=--format RGBA32 --lossy 75 --compress 3
-filesystem/bg5.sprite: MKSPRITE_FLAGS=--format RGBA16 --compress
+filesystem/bg5.sprite: MKSPRITE_FLAGS=--format NV12 --lossy 75 --compress 3
+filesystem/bg6.sprite: MKSPRITE_FLAGS=--format NV12 --lossy 75 --compress 3
 # Losslessly-compress the brew sprite in standard RGBA16 format
 filesystem/n64brew.sprite: MKSPRITE_FLAGS=--format RGBA16 --compress
 
