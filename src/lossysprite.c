@@ -132,7 +132,6 @@ static void lspr_decode_intra_slice(
     size_t yuv_size = (size_t)pic_size_in_mbs * 256 + (size_t)pic_size_in_mbs * 64 * 2;
     uint8_t *yuv = (uint8_t*)malloc_uncached(yuv_size);
     assertf(yuv, "LSPR: out of memory");
-    memset(yuv, 0, yuv_size);
 
     seqParamSet_t sps = {
         .profileIdc = 66,
