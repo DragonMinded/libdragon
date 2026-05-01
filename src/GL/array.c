@@ -220,6 +220,10 @@ static void set_array_data_dirty(gl_array_object_t *obj, gl_array_type_t array_t
 {
     data_cache_t *data_cache = get_data_cache(obj, array_type);
     data_cache_set_data_dirty(data_cache);
+
+    if (data_cache == &obj->mtx_index_data_cache) {
+        draw_call_cache_set_data_dirty(&obj->draw_call_cache);
+    }
 }
 
 static void set_array_dirty(gl_array_object_t *obj, gl_array_type_t array_type)
