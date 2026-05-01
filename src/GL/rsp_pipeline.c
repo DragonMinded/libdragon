@@ -126,7 +126,7 @@ DEFINE_READ_FUNC(mtx_index_read_u8, uint8_t,  uint8_t,   MTX_INDEX_CONVERT, 1, v
 DEFINE_READ_FUNC(mtx_index_read_u16, uint8_t, uint16u_t, MTX_INDEX_CONVERT, 1, vtx_default)
 DEFINE_READ_FUNC(mtx_index_read_u32, uint8_t, uint32u_t, MTX_INDEX_CONVERT, 1, vtx_default)
 
-const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
+const rsp_read_attrib_func rsp_read_funcs[ARRAY_COUNT][ATTRIB_TYPE_COUNT] = {
     {
         (rsp_read_attrib_func)vtx_read_i8,
         NULL,
@@ -254,7 +254,7 @@ static uint32_t get_client_flags()
 {
     uint32_t client_flags = 0;
     if (state->begin_end_active) client_flags |= CLIENT_FLAG_BEGIN_END;
-    if (state->array_object->arrays[ATTRIB_COLOR].enabled) client_flags |= CLIENT_FLAG_COLOR_ARRAY;
+    if (state->array_object->arrays[ARRAY_COLOR].enabled) client_flags |= CLIENT_FLAG_COLOR_ARRAY;
     return client_flags;
 }
 
@@ -388,26 +388,26 @@ static void begin_end_advance()
     }
 }
 
-static void *get_attrib_dst(gl_array_type_t array_type)
+static void *get_attrib_dst(array_type_t array_type)
 {
     switch (array_type)
     {
-    case ATTRIB_VERTEX:
+    case ARRAY_VERTEX:
         return state->current_attribs.position;
-    case ATTRIB_NORMAL:
+    case ARRAY_NORMAL:
         return &state->current_attribs.normal;
-    case ATTRIB_COLOR:
+    case ARRAY_COLOR:
         return &state->current_attribs.color;
-    case ATTRIB_TEXCOORD:
+    case ARRAY_TEXCOORD:
         return state->current_attribs.texcoord;
-    case ATTRIB_MTX_INDEX:
+    case ARRAY_MTX_INDEX:
         return state->current_attribs.mtx_index;
     default:
         return NULL;
     }
 }
 
-void rsp_read_attrib(gl_array_type_t array_type, GLenum type, const void *value, uint32_t size)
+void rsp_read_attrib(array_type_t array_type, GLenum type, const void *value, uint32_t size)
 {
     rsp_read_attrib_func read_func = rsp_read_funcs[array_type][gl_type_to_index(type)];
     assertf(read_func != NULL, "Could not find read func");
@@ -419,7 +419,7 @@ void rsp_read_attrib(gl_array_type_t array_type, GLenum type, const void *value,
 
 static void gl_rsp_vertex(const void *value, GLenum type, uint32_t size)
 {
-    rsp_read_attrib(ATTRIB_VERTEX, type, value, size);
+    rsp_read_attrib(ARRAY_VERTEX, type, value, size);
     begin_end_advance();
 }
 
@@ -450,26 +450,26 @@ static void get_array_element_convert_parms(array_convert_parms_t *parms, uint32
         .stride = sizeof(native_vertex_t)
     };
 
-    for (gl_array_type_t i = 0; i < ATTRIB_COUNT; i++)
+    for (array_type_t i = 0; i < ARRAY_COUNT; i++)
     {
         parms->arrays[i] = &state->array_object->arrays[i];
     }
 
-    parms->array_count = ATTRIB_COUNT;
+    parms->array_count = ARRAY_COUNT;
     parms->out_layout = &layout;
     parms->out_buffer = &state->current_attribs;
     parms->range.first = index;
     parms->range.count = 1;
 }
 
-static bool is_array_enabled(gl_array_type_t type)
+static bool is_array_enabled(array_type_t type)
 {
     return state->array_object->arrays[type].enabled;
 }
 
 static bool is_vertex_array_enabled()
 {
-    return is_array_enabled(ATTRIB_VERTEX);
+    return is_array_enabled(ARRAY_VERTEX);
 }
 
 static void gl_rsp_array_element(uint32_t index)
@@ -478,7 +478,7 @@ static void gl_rsp_array_element(uint32_t index)
     get_array_element_convert_parms(&convert_parms, index);
     array_convert(&convert_parms);
 
-    if (is_array_enabled(ATTRIB_MTX_INDEX)) {
+    if (is_array_enabled(ARRAY_MTX_INDEX)) {
         gl_rsp_mtx_index(state->current_attribs.mtx_index);
     }
 

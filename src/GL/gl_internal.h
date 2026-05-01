@@ -547,7 +547,6 @@ void gl_matrix_init();
 void gl_texture_init();
 void gl_lighting_init();
 void gl_rendermode_init();
-void gl_array_init();
 void gl_primitive_init();
 void gl_pixel_init();
 void gl_list_init();
@@ -576,15 +575,13 @@ uint32_t gl_get_type_size(GLenum type);
 
 void set_can_use_rsp_dirty();
 
-void gl_update_array_pointers(gl_array_object_t *obj);
-
-void gl_fill_attrib_defaults(gl_array_type_t array_type, uint32_t size);
-void gl_fill_all_attrib_defaults(const gl_array_t *arrays);
-void gl_load_attribs(const gl_array_t *arrays, uint32_t index);
+void gl_fill_attrib_defaults(array_type_t array_type, uint32_t size);
+void gl_fill_all_attrib_defaults(const array_t *arrays);
+void gl_load_attribs(const array_t *arrays, uint32_t index);
 bool gl_get_cache_index(uint32_t vertex_id, uint8_t *cache_index);
 bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices);
-void gl_read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size);
-void rsp_read_attrib(gl_array_type_t array_type, GLenum type, const void *value, uint32_t size);
+void gl_read_attrib(array_type_t array_type, const void *value, GLenum type, uint32_t size);
+void rsp_read_attrib(array_type_t array_type, GLenum type, const void *value, uint32_t size);
 
 void gl_pre_init_pipe(GLenum primitive_mode);
 
@@ -624,7 +621,7 @@ inline uint32_t gl_type_to_index(GLenum type)
 
 #define next_prim_id() (state->prim_id++)
 
-inline const void *gl_get_attrib_element(const gl_array_t *src, uint32_t index)
+inline const void *gl_get_attrib_element(const array_t *src, uint32_t index)
 {
     return src->final_pointer + index * src->final_stride;
 }
@@ -734,18 +731,18 @@ inline void gl_update_texture_completeness(uint32_t offset)
     gl_write(GL_CMD_UPDATE, _carg(GL_UPDATE_TEXTURE_COMPLETENESS, 0x7FF, 13) | (offset - offsetof(gl_server_state_t, bound_textures)));
 }
 
-inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t array_type)
+inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, array_type_t array_type)
 {
     switch (array_type) {
-    case ATTRIB_VERTEX:
+    case ARRAY_VERTEX:
         return attribs->position;
-    case ATTRIB_NORMAL:
+    case ARRAY_NORMAL:
         return attribs->normal;
-    case ATTRIB_COLOR:
+    case ARRAY_COLOR:
         return attribs->color;
-    case ATTRIB_TEXCOORD:
+    case ARRAY_TEXCOORD:
         return attribs->texcoord;
-    case ATTRIB_MTX_INDEX:
+    case ARRAY_MTX_INDEX:
         return attribs->mtx_index;
     default:
         assert(0);

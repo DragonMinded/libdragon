@@ -110,7 +110,7 @@ static void read_packed565n(GLfloat *dst, const uint16u_t *src, uint32_t count)
     dst[2] = ((v>>0)&0x1F) / 15.5f;
 }
 
-const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
+const cpu_read_attrib_func cpu_read_funcs[ARRAY_COUNT][ATTRIB_TYPE_COUNT] = {
     {
         (cpu_read_attrib_func)read_i8,
         NULL,
@@ -973,7 +973,7 @@ static void submit_vertex(uint32_t cache_index)
     }
 }
 
-static void draw_vertex_from_arrays(const gl_array_t *arrays, uint32_t id, uint32_t index)
+static void draw_vertex_from_arrays(const array_t *arrays, uint32_t id, uint32_t index)
 {
     uint8_t cache_index;
     if (gl_get_cache_index(id, &cache_index))
@@ -1012,12 +1012,12 @@ static void gl_cpu_end()
     gl_set_current_mtx_index(state->current_attributes.mtx_index);
 }
 
-void gl_read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size)
+void gl_read_attrib(array_type_t array_type, const void *value, GLenum type, uint32_t size)
 {
     cpu_read_attrib_func read_func = cpu_read_funcs[array_type][gl_type_to_index(type)];
     void *dst = gl_get_attrib_pointer(&state->current_attributes, array_type);
     read_func(dst, value, size);
-    if (array_type != ATTRIB_MTX_INDEX) {
+    if (array_type != ARRAY_MTX_INDEX) {
         gl_fill_attrib_defaults(array_type, size);
     }
 }
@@ -1027,8 +1027,8 @@ static void gl_cpu_vertex(const void *value, GLenum type, uint32_t size)
     uint8_t cache_index;
     if (gl_get_cache_index(next_prim_id(), &cache_index)) {
 
-        gl_fill_attrib_defaults(ATTRIB_VERTEX, size);
-        gl_read_attrib(ATTRIB_VERTEX, value, type, size);
+        gl_fill_attrib_defaults(ARRAY_VERTEX, size);
+        gl_read_attrib(ARRAY_VERTEX, value, type, size);
         gl_vertex_pre_tr(cache_index);
     }
 
@@ -1052,7 +1052,7 @@ static void gl_cpu_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
 
     gl_fill_all_attrib_defaults(state->array_object->arrays);
 
-    if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
+    if (state->array_object->arrays[ARRAY_VERTEX].enabled) {
         for (uint32_t i = 0; i < count; i++)
         {
             draw_vertex_from_arrays(state->array_object->arrays, next_prim_id(), first + i);
@@ -1108,7 +1108,7 @@ static void gl_cpu_draw_elements(GLenum mode, uint32_t count, const void* indice
 
     gl_fill_all_attrib_defaults(state->array_object->arrays);
 
-    if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
+    if (state->array_object->arrays[ARRAY_VERTEX].enabled) {
         for (uint32_t i = 0; i < count; i++)
         {
             uint32_t index = read_index(indices, i);

@@ -12,25 +12,25 @@ void vertex_layout_cache_set_dirty(vertex_layout_cache_t *cache)
     cache->dirty = true;
 }
 
-void vertex_layout_cache_update(vertex_layout_cache_t *cache, const gl_array_t *arrays)
+void vertex_layout_cache_update(vertex_layout_cache_t *cache, const array_t *arrays)
 {
     if (!cache->dirty) {
         return;
     }
 
-    assertf(arrays[ATTRIB_VERTEX].enabled, "The vertex array must be enabled!");
+    assertf(arrays[ARRAY_VERTEX].enabled, "The vertex array must be enabled!");
 
     vertex_layout *layout = &cache->layout;
 
     vertex_layout_init(layout);
-    vertex_layout_append(layout, GLP_ATTRIBUTE_POS_NORM, array_type_get_stride(ATTRIB_VERTEX));
+    vertex_layout_append(layout, GLP_ATTRIBUTE_POS_NORM, array_type_get_stride(ARRAY_VERTEX));
 
-    if (arrays[ATTRIB_COLOR].enabled) {
-        vertex_layout_append(layout, GLP_ATTRIBUTE_COLOR, array_type_get_stride(ATTRIB_COLOR));
+    if (arrays[ARRAY_COLOR].enabled) {
+        vertex_layout_append(layout, GLP_ATTRIBUTE_COLOR, array_type_get_stride(ARRAY_COLOR));
     }
 
-    if (arrays[ATTRIB_TEXCOORD].enabled) {
-        vertex_layout_append(layout, GLP_ATTRIBUTE_TEXCOORD, array_type_get_stride(ATTRIB_TEXCOORD));
+    if (arrays[ARRAY_TEXCOORD].enabled) {
+        vertex_layout_append(layout, GLP_ATTRIBUTE_TEXCOORD, array_type_get_stride(ARRAY_TEXCOORD));
     }
 
     cache->dirty = false;

@@ -118,7 +118,7 @@ void glDeleteBuffersARB(GLsizei n, const GLuint *buffers)
         buffer_object_unbind(obj, &state->array_object->element_array_buffer);
 
         // Deleting a buffer object will automatically unbind it from all arrays in the currently bound VAO
-        for (gl_array_type_t a = 0; a < ATTRIB_COUNT; a++) {
+        for (array_type_t a = 0; a < ARRAY_COUNT; a++) {
             if (state->array_object->arrays[a].binding == obj) {
                 array_object_set_buffer_binding(state->array_object, a, NULL);
             }

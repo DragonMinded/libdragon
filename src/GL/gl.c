@@ -17,7 +17,7 @@
 #include <malloc.h>
 #include "gl_internal.h"
 #include "buffer.h"
-#include "array.h"
+#include "array_module.h"
 #include "../magma/magma_internal.h"
 
 DEFINE_RSP_UCODE(rsp_gl);
@@ -154,7 +154,7 @@ void gl_init()
     gl_matrix_init();
     gl_lighting_init();
     gl_rendermode_init();
-    gl_array_init();
+    array_module_init();
     gl_primitive_init();
     gl_pixel_init();
     gl_list_init();
@@ -182,6 +182,7 @@ void gl_close()
 
     gl_list_close();
     gl_primitive_close();
+    array_module_close();
     gl_texture_close();
     rspq_overlay_unregister(gl2_overlay_id);
     rspq_overlay_unregister(gl_overlay_id);
@@ -578,6 +579,6 @@ extern inline void gl_set_current_texcoords(GLfloat *texcoords);
 extern inline void gl_set_current_normal(GLfloat *normal);
 extern inline void gl_pre_init_pipe(GLenum primitive_mode);
 extern inline int gl_get_rdpcmds_for_update_func(gl_update_func_t update_func);
-extern inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t array_type);
+extern inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, array_type_t array_type);
 extern inline uint32_t gl_type_to_index(GLenum type);
 extern inline void gl_set_current_mtx_index(GLubyte *index);

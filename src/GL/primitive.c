@@ -157,7 +157,7 @@ static void prepare_drawing(GLenum mode)
     state->current_pipeline = state->can_use_rsp ? &gl_rsp_pipeline : &gl_cpu_pipeline;
 
     gl_pre_init_pipe(mode);
-    gl_update_array_pointers(state->array_object);
+    array_object_update_pointers(state->array_object);
 }
 
 static bool validate_mode(GLenum mode)
@@ -200,11 +200,11 @@ void glEnd(void)
     state->begin_end_active = false;
 }
 
-void gl_load_attribs(const gl_array_t *arrays, uint32_t index)
+void gl_load_attribs(const array_t *arrays, uint32_t index)
 {
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    for (uint32_t i = 0; i < ARRAY_COUNT; i++)
     {
-        const gl_array_t *array = &arrays[i];
+        const array_t *array = &arrays[i];
         if (!array->enabled) {
             continue;
         }
@@ -216,15 +216,15 @@ void gl_load_attribs(const gl_array_t *arrays, uint32_t index)
     }
 }
 
-void gl_fill_attrib_defaults(gl_array_type_t array_type, uint32_t size)
+void gl_fill_attrib_defaults(array_type_t array_type, uint32_t size)
 {
     static const GLfloat default_attribute_value[] = {0.0f, 0.0f, 0.0f, 1.0f};
     uint32_t element_size = sizeof(GLfloat);
 
     switch (array_type) {
-    case ATTRIB_VERTEX:
-    case ATTRIB_COLOR:
-    case ATTRIB_TEXCOORD:
+    case ARRAY_VERTEX:
+    case ARRAY_COLOR:
+    case ARRAY_TEXCOORD:
         break;
     default:
         return;
@@ -235,12 +235,12 @@ void gl_fill_attrib_defaults(gl_array_type_t array_type, uint32_t size)
     memcpy(dst, src, (4 - size) * element_size);
 }
 
-void gl_fill_all_attrib_defaults(const gl_array_t *arrays)
+void gl_fill_all_attrib_defaults(const array_t *arrays)
 {
     // There are no default values for the matrix index because it is always specified fully.
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    for (uint32_t i = 0; i < ARRAY_COUNT; i++)
     {
-        const gl_array_t *array = &arrays[i];
+        const array_t *array = &arrays[i];
         if (!arrays[i].enabled) {
             continue;
         }
@@ -283,7 +283,7 @@ void glArrayElement(GLint i)
 {
     // Calling glArrayElement while the vertex array is enabled has, among other things,
     // the same effect as glVertex. See __gl_vertex for that function's behavior.
-    assertf(!state->array_object->arrays[ATTRIB_VERTEX].enabled || state->begin_end_active, 
+    assertf(!state->array_object->arrays[ARRAY_VERTEX].enabled || state->begin_end_active, 
         "glArrayElement was called outside of glBegin/glEnd while vertex array was enabled");
 
     if (i < 0) {
@@ -304,7 +304,7 @@ void __gl_vertex(GLenum type, const void *value, uint32_t size)
     state->current_pipeline->vertex(value, type, size);
 }
 
-static void read_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size)
+static void read_attrib(array_type_t array_type, const void *value, GLenum type, uint32_t size)
 {
     gl_read_attrib(array_type, value, type, size);
     rsp_read_attrib(array_type, type, value, size);
@@ -312,7 +312,7 @@ static void read_attrib(gl_array_type_t array_type, const void *value, GLenum ty
 
 void __gl_normal(GLenum type, const void *value, uint32_t size)
 {
-    read_attrib(ATTRIB_NORMAL, value, type, size);
+    read_attrib(ARRAY_NORMAL, value, type, size);
     if (!state->begin_end_active) {
         gl_set_current_normal(state->current_attributes.normal);
     }
@@ -320,7 +320,7 @@ void __gl_normal(GLenum type, const void *value, uint32_t size)
 
 void __gl_color(GLenum type, const void *value, uint32_t size)
 {
-    read_attrib(ATTRIB_COLOR, value, type, size);
+    read_attrib(ARRAY_COLOR, value, type, size);
     if (!state->begin_end_active) {
         gl_set_current_color(state->current_attributes.color);
     }
@@ -328,7 +328,7 @@ void __gl_color(GLenum type, const void *value, uint32_t size)
 
 void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
 {
-    read_attrib(ATTRIB_TEXCOORD, value, type, size);
+    read_attrib(ARRAY_TEXCOORD, value, type, size);
     if (!state->begin_end_active) {
         gl_set_current_texcoords(state->current_attributes.texcoord);
     }
@@ -341,7 +341,7 @@ void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
         return;
     }
 
-    read_attrib(ATTRIB_MTX_INDEX, value, type, size);
+    read_attrib(ARRAY_MTX_INDEX, value, type, size);
     if (!state->begin_end_active) {
         gl_set_current_mtx_index(state->current_attributes.mtx_index);
     }

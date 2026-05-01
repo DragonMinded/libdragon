@@ -6,7 +6,7 @@
 #include "data_source.h"
 
 typedef struct array_convert_parms_s {
-    const gl_array_t *arrays[ATTRIB_COUNT];
+    const array_t *arrays[ARRAY_COUNT];
     uint32_t array_count;
     const data_layout_t *out_layout;
     index_bounds_t range;

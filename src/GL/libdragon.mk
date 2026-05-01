@@ -1,7 +1,7 @@
 LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/GL/array_convert.o \
+	$(BUILD_DIR)/GL/array_module.o \
 	$(BUILD_DIR)/GL/array_object.o \
-	$(BUILD_DIR)/GL/array.o \
 	$(BUILD_DIR)/GL/buffer.o \
 	$(BUILD_DIR)/GL/cpu_pipeline.o \
 	$(BUILD_DIR)/GL/data_cache.o \
