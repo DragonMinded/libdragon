@@ -22,17 +22,17 @@ typedef struct gl_array_object_s {
 extern "C" {
 #endif
 
-void array_object_init(gl_array_object_t *obj);
-void array_object_destroy(gl_array_object_t *obj);
+void array_object_init(gl_array_object_t *array_object);
+void array_object_destroy(gl_array_object_t *array_object);
 
-void array_object_set_array_enabled(gl_array_object_t *obj, array_type_t array_type, bool enabled);
-void array_object_set_array_params(gl_array_object_t *obj, array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
+void array_object_set_array_enabled(gl_array_object_t *array_object, array_type_t array_type, bool enabled);
+void array_object_set_array_params(gl_array_object_t *array_object, array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 
-void array_object_set_buffer_binding(gl_array_object_t *obj, array_type_t array_type, gl_buffer_object_t *buffer);
-void array_object_set_buffer_dirty(gl_array_object_t *obj, gl_buffer_object_t *buffer);
+void array_object_set_buffer_binding(gl_array_object_t *array_object, array_type_t array_type, gl_buffer_object_t *buffer);
+void array_object_set_buffer_dirty(gl_array_object_t *array_object, gl_buffer_object_t *buffer);
 void array_object_validate_drawing(gl_array_object_t *array_object, bool indexed);
 
-void array_object_update_pointers(gl_array_object_t *obj);
+void array_object_update_pointers(gl_array_object_t *array_object);
 
 draw_call_cache_t *array_object_get_draw_call_cache(gl_array_object_t *array_object);
 mg_input_assembly_parms_t array_object_get_input_assembly_parms(gl_array_object_t *array_object, GLenum mode, index_bounds_t bounds);

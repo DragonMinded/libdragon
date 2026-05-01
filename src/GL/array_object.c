@@ -53,53 +53,53 @@ static void update_array(array_t *array, array_type_t array_type)
     assertf(array->rsp_read_func != NULL, "RSP read function is missing");
 }
 
-void array_object_init(gl_array_object_t *obj)
+void array_object_init(gl_array_object_t *array_object)
 {
-    obj->arrays[ARRAY_VERTEX].size = 4;
-    obj->arrays[ARRAY_VERTEX].type = GL_FLOAT;
-    obj->arrays[ARRAY_NORMAL].size = 3;
-    obj->arrays[ARRAY_NORMAL].type = GL_FLOAT;
-    obj->arrays[ARRAY_NORMAL].normalize = true;
-    obj->arrays[ARRAY_COLOR].size = 4;
-    obj->arrays[ARRAY_COLOR].type = GL_FLOAT;
-    obj->arrays[ARRAY_COLOR].normalize = true;
-    obj->arrays[ARRAY_TEXCOORD].size = 4;
-    obj->arrays[ARRAY_TEXCOORD].type = GL_FLOAT;
-    obj->arrays[ARRAY_MTX_INDEX].size = 0;
-    obj->arrays[ARRAY_MTX_INDEX].type = GL_UNSIGNED_BYTE;
+    array_object->arrays[ARRAY_VERTEX].size = 4;
+    array_object->arrays[ARRAY_VERTEX].type = GL_FLOAT;
+    array_object->arrays[ARRAY_NORMAL].size = 3;
+    array_object->arrays[ARRAY_NORMAL].type = GL_FLOAT;
+    array_object->arrays[ARRAY_NORMAL].normalize = true;
+    array_object->arrays[ARRAY_COLOR].size = 4;
+    array_object->arrays[ARRAY_COLOR].type = GL_FLOAT;
+    array_object->arrays[ARRAY_COLOR].normalize = true;
+    array_object->arrays[ARRAY_TEXCOORD].size = 4;
+    array_object->arrays[ARRAY_TEXCOORD].type = GL_FLOAT;
+    array_object->arrays[ARRAY_MTX_INDEX].size = 0;
+    array_object->arrays[ARRAY_MTX_INDEX].type = GL_UNSIGNED_BYTE;
 
     for (array_type_t i = 0; i < ARRAY_COUNT; i++)
     {
-        update_array(&obj->arrays[i], i);
+        update_array(&array_object->arrays[i], i);
     }
 
-    data_source_init(&obj->vertex_data_source, obj->arrays, ARRAY_MASK_VERTEX | ARRAY_MASK_NORMAL | ARRAY_MASK_COLOR | ARRAY_MASK_TEXCOORD);
-    data_source_init(&obj->mtx_index_data_source, obj->arrays, ARRAY_MASK_MTX_INDEX);
+    data_source_init(&array_object->vertex_data_source, array_object->arrays, ARRAY_MASK_VERTEX | ARRAY_MASK_NORMAL | ARRAY_MASK_COLOR | ARRAY_MASK_TEXCOORD);
+    data_source_init(&array_object->mtx_index_data_source, array_object->arrays, ARRAY_MASK_MTX_INDEX);
 
-    data_cache_init(&obj->vertex_data_cache, &obj->vertex_data_source);
-    data_cache_init(&obj->mtx_index_data_cache, &obj->mtx_index_data_source);
+    data_cache_init(&array_object->vertex_data_cache, &array_object->vertex_data_source);
+    data_cache_init(&array_object->mtx_index_data_cache, &array_object->mtx_index_data_source);
 
-    vertex_layout_cache_init(&obj->layout_cache);
+    vertex_layout_cache_init(&array_object->layout_cache);
 }
 
-void array_object_destroy(gl_array_object_t *obj)
+void array_object_destroy(gl_array_object_t *array_object)
 {
-    if (obj->draw_call_cache != NULL) {
-        draw_call_cache_free(obj->draw_call_cache);
+    if (array_object->draw_call_cache != NULL) {
+        draw_call_cache_free(array_object->draw_call_cache);
     }
 
-    data_cache_destroy(&obj->mtx_index_data_cache);
-    data_cache_destroy(&obj->vertex_data_cache);
+    data_cache_destroy(&array_object->mtx_index_data_cache);
+    data_cache_destroy(&array_object->vertex_data_cache);
 
-    buffer_object_set_binding(NULL, &obj->element_array_buffer);
+    buffer_object_set_binding(NULL, &array_object->element_array_buffer);
 
     for (array_type_t i = 0; i < ARRAY_COUNT; i++)
     {
-        array_object_set_buffer_binding(obj, i, NULL);
+        array_object_set_buffer_binding(array_object, i, NULL);
     }
 }
 
-static data_source_t *get_data_source(gl_array_object_t *obj, array_type_t array_type)
+static data_source_t *get_data_source(gl_array_object_t *array_object, array_type_t array_type)
 {
     switch (array_type)
     {
@@ -107,15 +107,15 @@ static data_source_t *get_data_source(gl_array_object_t *obj, array_type_t array
         case ARRAY_NORMAL:
         case ARRAY_COLOR:
         case ARRAY_TEXCOORD:
-            return &obj->vertex_data_source;
+            return &array_object->vertex_data_source;
         case ARRAY_MTX_INDEX:
-            return &obj->mtx_index_data_source;
+            return &array_object->mtx_index_data_source;
         default:
             assertf(0, "invalid array type");
     }
 }
 
-static data_cache_t *get_data_cache(gl_array_object_t *obj, array_type_t array_type)
+static data_cache_t *get_data_cache(gl_array_object_t *array_object, array_type_t array_type)
 {
     switch (array_type)
     {
@@ -123,43 +123,43 @@ static data_cache_t *get_data_cache(gl_array_object_t *obj, array_type_t array_t
         case ARRAY_NORMAL:
         case ARRAY_COLOR:
         case ARRAY_TEXCOORD:
-            return &obj->vertex_data_cache;
+            return &array_object->vertex_data_cache;
         case ARRAY_MTX_INDEX:
-            return &obj->mtx_index_data_cache;
+            return &array_object->mtx_index_data_cache;
         default:
             assertf(0, "invalid array type");
     }
 }
 
-static void set_array_data_dirty(gl_array_object_t *obj, array_type_t array_type)
+static void set_array_data_dirty(gl_array_object_t *array_object, array_type_t array_type)
 {
-    data_cache_t *data_cache = get_data_cache(obj, array_type);
+    data_cache_t *data_cache = get_data_cache(array_object, array_type);
     data_cache_set_data_dirty(data_cache);
 
-    if (data_cache == &obj->mtx_index_data_cache && obj->draw_call_cache != NULL) {
-        draw_call_cache_set_data_dirty(obj->draw_call_cache);
+    if (data_cache == &array_object->mtx_index_data_cache && array_object->draw_call_cache != NULL) {
+        draw_call_cache_set_data_dirty(array_object->draw_call_cache);
     }
 }
 
-static void set_array_dirty(gl_array_object_t *obj, array_type_t array_type)
+static void set_array_dirty(gl_array_object_t *array_object, array_type_t array_type)
 {
-    data_source_t *data_source = get_data_source(obj, array_type);
+    data_source_t *data_source = get_data_source(array_object, array_type);
     data_source_set_arrays_dirty(data_source);
 
-    set_array_data_dirty(obj, array_type);
+    set_array_data_dirty(array_object, array_type);
 }
 
-void array_object_set_array_enabled(gl_array_object_t *obj, array_type_t array_type, bool enabled)
+void array_object_set_array_enabled(gl_array_object_t *array_object, array_type_t array_type, bool enabled)
 {
-    array_t *array = &obj->arrays[array_type];
+    array_t *array = &array_object->arrays[array_type];
     if (array->enabled != enabled) {
         array->enabled = enabled;
-        set_array_dirty(obj, array_type);
-        vertex_layout_cache_set_dirty(&obj->layout_cache);
+        set_array_dirty(array_object, array_type);
+        vertex_layout_cache_set_dirty(&array_object->layout_cache);
     }
 }
 
-void array_object_set_array_params(gl_array_object_t *obj, array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
+void array_object_set_array_params(gl_array_object_t *array_object, array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
     if (stride < 0) {
         gl_set_error(GL_INVALID_VALUE, "Stride must not be negative");
@@ -173,51 +173,51 @@ void array_object_set_array_params(gl_array_object_t *obj, array_type_t array_ty
     // ARRAY_BUFFER buffer object, and the pointer is not NULL[fn].
     //     [fn: This error makes it impossible to create a vertex array
     //           object containing client array pointers.]
-    if (obj != &state->default_array_object && state->array_buffer == NULL && pointer != NULL) {
+    if (array_object != &state->default_array_object && state->array_buffer == NULL && pointer != NULL) {
         gl_set_error(GL_INVALID_OPERATION, "Vertex array objects can only be used in conjunction with vertex buffer objects");
         return;
     }
 
-    array_t *array = &obj->arrays[array_type];
+    array_t *array = &array_object->arrays[array_type];
 
     array->size = size;
     array->type = type;
     array->stride = stride;
     array->pointer = pointer;
-    array_object_set_buffer_binding(obj, array_type, state->array_buffer);
+    array_object_set_buffer_binding(array_object, array_type, state->array_buffer);
 
     update_array(array, array_type);
-    set_array_dirty(obj, array_type);
+    set_array_dirty(array_object, array_type);
 }
 
-void array_object_set_buffer_binding(gl_array_object_t *obj, array_type_t array_type, gl_buffer_object_t *buffer)
+void array_object_set_buffer_binding(gl_array_object_t *array_object, array_type_t array_type, gl_buffer_object_t *buffer)
 {
-    array_t *array = &obj->arrays[array_type];
+    array_t *array = &array_object->arrays[array_type];
     if (array->binding == buffer) return;
 
     gl_buffer_object_t *old_binding = array->binding;
     if (old_binding != NULL) {
-        gl_buffer_remove_array_ref(old_binding, obj);
+        gl_buffer_remove_array_ref(old_binding, array_object);
     }
     if (buffer != NULL) {
-        gl_buffer_add_array_ref(buffer, obj);
+        gl_buffer_add_array_ref(buffer, array_object);
     }
     array->binding = buffer;
 
-    set_array_dirty(obj, array_type);
+    set_array_dirty(array_object, array_type);
 }
 
-void array_object_set_buffer_dirty(gl_array_object_t *obj, gl_buffer_object_t *buffer)
+void array_object_set_buffer_dirty(gl_array_object_t *array_object, gl_buffer_object_t *buffer)
 {
     for (array_type_t i = 0; i < ARRAY_COUNT; i++)
     {
-        if (obj->arrays[i].binding == buffer) {
-            set_array_data_dirty(obj, i);
+        if (array_object->arrays[i].binding == buffer) {
+            set_array_data_dirty(array_object, i);
         }
     }
 
-    if (obj->element_array_buffer == buffer && obj->draw_call_cache != NULL) {
-        draw_call_cache_set_data_dirty(obj->draw_call_cache);
+    if (array_object->element_array_buffer == buffer && array_object->draw_call_cache != NULL) {
+        draw_call_cache_set_data_dirty(array_object->draw_call_cache);
     }
 }
 
@@ -245,11 +245,11 @@ static void update_array_pointer(array_t *array)
     }
 }
 
-void array_object_update_pointers(gl_array_object_t *obj)
+void array_object_update_pointers(gl_array_object_t *array_object)
 {
     for (array_type_t i = 0; i < ARRAY_COUNT; i++)
     {
-        update_array_pointer(&obj->arrays[i]);
+        update_array_pointer(&array_object->arrays[i]);
     }
 }
 
