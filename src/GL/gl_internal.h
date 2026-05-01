@@ -79,8 +79,6 @@
 
 extern uint32_t gl_overlay_id;
 extern uint32_t gl2_overlay_id;
-extern phys_addr_t gl_rsp_state;
-extern phys_addr_t magma_rsp_state;
 
 #define gl_write(cmd_id, ...)               rspq_write(gl_overlay_id, cmd_id, ##__VA_ARGS__)
 #define gl2_write(cmd_id, ...)               rspq_write(gl2_overlay_id, cmd_id, ##__VA_ARGS__)
@@ -399,7 +397,7 @@ typedef struct {
     uint32_t begin_end_multiple;
     bool begin_end_need_save;
     bool begin_end_restore;
-    vertex_layout begin_end_layout;
+    vertex_layout_t begin_end_layout;
     gl_texture_object_t *texture_1d_object;
     gl_texture_object_t *texture_2d_object;
 

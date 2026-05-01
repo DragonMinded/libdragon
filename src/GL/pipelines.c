@@ -2,7 +2,6 @@
 #include "gl_constants.h"
 #include "gl_internal.h"
 #include "utils.h"
-#include "fnv1a.h"
 #include "../magma/magma_internal.h"
 
 extern gl_state_t *state;
@@ -19,25 +18,12 @@ static rsp_ucode_t *pipeline_ucodes[] = {
     &rsp_gl_pipeline_env_nrm
 };
 
-static uint32_t get_pipeline_key(const mg_vertex_layout_t *layout)
-{
-    // Get pipeline key by creating a hash from all pipeline parameters using FNV-1a hash
-    uint32_t key = fnv1a_init();
-    for (size_t i = 0; i < layout->attribute_count; i++)
-    {
-        fnv1a_step(&key, layout->attributes[i].input);
-        fnv1a_step(&key, layout->attributes[i].offset);
-    }
-    fnv1a_step(&key, layout->stride);
-    return key;
-}
-
 static rsp_ucode_t *get_pipeline_ucode(uint32_t features)
 {
     return pipeline_ucodes[features];
 }
 
-static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
+static mg_pipeline_t **create_pipelines(const vertex_layout_t *layout)
 {
     mg_pipeline_t **pipelines = calloc(PIPELINE_COUNT, sizeof(mg_pipeline_t*));
 
@@ -53,9 +39,9 @@ static mg_pipeline_t **create_pipelines(const vertex_layout *layout)
     return pipelines;
 }
 
-static mg_pipeline_t **get_or_create_pipelines(const vertex_layout *layout)
+static mg_pipeline_t **get_or_create_pipelines(const vertex_layout_t *layout)
 {
-    uint32_t key = get_pipeline_key(&layout->vertex_layout); // TODO: Cache this as well
+    uint32_t key = vertex_layout_get_hash(layout);
 
     mg_pipeline_t **pipelines = hashtable_lookup(&state->pipeline_cache, key);
     if (pipelines == NULL) {
@@ -75,7 +61,7 @@ static void assign_pipelines(mg_pipeline_t **pipelines)
     }
 }
 
-void update_pipelines_from_layout(vertex_layout *vertex_layout)
+void update_pipelines_from_layout(const vertex_layout_t *vertex_layout)
 {
     mg_pipeline_t **pipelines = get_or_create_pipelines(vertex_layout);
     assign_pipelines(pipelines);

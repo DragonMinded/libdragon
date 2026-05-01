@@ -78,6 +78,8 @@ void array_object_init(gl_array_object_t *obj)
 
     data_cache_init(&obj->vertex_data_cache, &obj->vertex_data_source);
     data_cache_init(&obj->mtx_index_data_cache, &obj->mtx_index_data_source);
+
+    vertex_layout_cache_init(&obj->layout_cache);
 }
 
 void array_object_destroy(gl_array_object_t *obj)

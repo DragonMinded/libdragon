@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include "GL/gl.h"
-#include "types.h"
 
 typedef enum {
     ARRAY_VERTEX,

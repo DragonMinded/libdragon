@@ -25,8 +25,6 @@ DEFINE_RSP_UCODE(rsp_gl2);
 
 uint32_t gl_overlay_id;
 uint32_t gl2_overlay_id;
-phys_addr_t gl_rsp_state;
-phys_addr_t magma_rsp_state;
 
 gl_state_t *state;
 
@@ -63,8 +61,6 @@ void gl_init()
 
     state = calloc(1, sizeof(gl_state_t));
     assertf(state, "Out of memory");
-
-    hashtable_init(&state->pipeline_cache, MAX_PIPELINE_COUNT, NULL);
 
     gl_texture_init();
 
@@ -148,8 +144,6 @@ void gl_init()
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
     gl2_overlay_id = rspq_overlay_register(&rsp_gl2);
     rspq_overlay_share_state(&rsp_gl2, &rsp_gl);
-    gl_rsp_state = PhysicalAddr(gl_overlay_state);
-    magma_rsp_state = PhysicalAddr(mg_get_rsp_state());
 
     gl_matrix_init();
     gl_lighting_init();
@@ -163,17 +157,6 @@ void gl_init()
     glClearDepth(1.0);
     glCullFace(GL_BACK);
     glFrontFace(GL_CCW);
-}
-
-
-static void free_pipeline_visitor(uint32_t key, void *value, int refcount)
-{
-    mg_pipeline_t **pipelines = value;
-    for (size_t i = 0; i < PIPELINE_COUNT; i++)
-    {
-        mg_pipeline_free(pipelines[i]);
-    }
-    free(pipelines);
 }
 
 void gl_close()
@@ -195,9 +178,6 @@ void gl_close()
     free_uncached(state->matrix_stacks[1]);
     free_uncached(state->matrix_stacks[2]);
     free_uncached(state->matrix_palette);    
-
-    hashtable_visit(&state->pipeline_cache, free_pipeline_visitor);
-    hashtable_free(&state->pipeline_cache);
 
     free(state);
 }

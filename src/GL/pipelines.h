@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-void update_pipelines_from_layout(vertex_layout *vertex_layout);
+void update_pipelines_from_layout(const vertex_layout_t *vertex_layout);
 const mg_uniform_t *get_matrices_uniform();
 
 #ifdef __cplusplus

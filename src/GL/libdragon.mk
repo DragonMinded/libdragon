@@ -27,4 +27,5 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/GL/rsp_gl_pipeline.o \
 	$(BUILD_DIR)/GL/rsp_pipeline.o \
 	$(BUILD_DIR)/GL/texture.o \
-	$(BUILD_DIR)/GL/vertex_layout_cache.o
+	$(BUILD_DIR)/GL/vertex_layout_cache.o \
+	$(BUILD_DIR)/GL/vertex_layout.o

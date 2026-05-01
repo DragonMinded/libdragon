@@ -4,7 +4,6 @@
 void vertex_layout_cache_init(vertex_layout_cache_t *cache)
 {
     vertex_layout_cache_set_dirty(cache);
-    vertex_layout_init(&cache->layout);
 }
 
 void vertex_layout_cache_set_dirty(vertex_layout_cache_t *cache)
@@ -20,7 +19,7 @@ void vertex_layout_cache_update(vertex_layout_cache_t *cache, const array_t *arr
 
     assertf(arrays[ARRAY_VERTEX].enabled, "The vertex array must be enabled!");
 
-    vertex_layout *layout = &cache->layout;
+    vertex_layout_t *layout = &cache->layout;
 
     vertex_layout_init(layout);
     vertex_layout_append(layout, GLP_ATTRIBUTE_POS_NORM, array_type_get_stride(ARRAY_VERTEX));
@@ -32,6 +31,8 @@ void vertex_layout_cache_update(vertex_layout_cache_t *cache, const array_t *arr
     if (arrays[ARRAY_TEXCOORD].enabled) {
         vertex_layout_append(layout, GLP_ATTRIBUTE_TEXCOORD, array_type_get_stride(ARRAY_TEXCOORD));
     }
+
+    vertex_layout_finalize(layout);
 
     cache->dirty = false;
 }

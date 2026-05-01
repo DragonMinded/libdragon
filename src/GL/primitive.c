@@ -14,6 +14,7 @@
 #include <malloc.h>
 #include <string.h>
 #include "array.h"
+#include "rsp_pipeline.h"
 
 _Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_DEPTH_TEST     >> TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_ZBUF << 8));
 _Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_TEXTURE_ACTIVE >> TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_TEX  << 8));
@@ -24,6 +25,8 @@ extern gl_state_t *state;
 
 void gl_primitive_init()
 {
+    rsp_pipeline_init();
+
     state->tex_gen[0].mode = GL_EYE_LINEAR;
     state->tex_gen[0].object_plane[0] = 1;
     state->tex_gen[0].eye_plane[0] = 1;
@@ -51,19 +54,11 @@ void gl_primitive_init()
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
     set_can_use_rsp_dirty();
-
-    vertex_layout_init(&state->begin_end_layout);
-    vertex_layout_add(&state->begin_end_layout, GLP_ATTRIBUTE_POS_NORM, offsetof(native_vertex_t, position), sizeof(int16_t)*4);
-    vertex_layout_add(&state->begin_end_layout, GLP_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
-    vertex_layout_add(&state->begin_end_layout, GLP_ATTRIBUTE_TEXCOORD, offsetof(native_vertex_t, texcoord), sizeof(int16_t)*2);
-    state->begin_end_layout.vertex_layout.stride = sizeof(native_vertex_t);
 }
 
 void gl_primitive_close()
 {
-    if (state->begin_end_buffer.buffer != NULL) {
-        ringbuffer_free(&state->begin_end_buffer);
-    }
+    rsp_pipeline_close();
 }
 
 bool gl_can_use_rsp_pipeline(GLenum mode)

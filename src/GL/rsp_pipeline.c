@@ -25,6 +25,8 @@ _Static_assert(BEGIN_END_BUFFER_SIZE <= MG_VERTEX_CACHE_COUNT);
 
 extern gl_state_t *state;
 
+static phys_addr_t magma_rsp_state;
+
 #define DEFINE_READ_FUNC(name, dst_type, src_type, convert, max_size, default) \
     static void name(dst_type *dst, const src_type *src, uint32_t count) \
     { \
@@ -188,6 +190,43 @@ const rsp_read_attrib_func rsp_read_funcs[ARRAY_COUNT][ATTRIB_TYPE_COUNT] = {
         NULL,
     },
 };
+
+static void create_begin_end_layout(vertex_layout_t *layout)
+{
+    vertex_layout_init(layout);
+    vertex_layout_add(layout, GLP_ATTRIBUTE_POS_NORM, offsetof(native_vertex_t, position), sizeof(int16_t)*4);
+    vertex_layout_add(layout, GLP_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
+    vertex_layout_add(layout, GLP_ATTRIBUTE_TEXCOORD, offsetof(native_vertex_t, texcoord), sizeof(int16_t)*2);
+    vertex_layout_set_stride(layout, sizeof(native_vertex_t));
+    vertex_layout_finalize(layout);
+}
+
+void rsp_pipeline_init()
+{
+    magma_rsp_state = PhysicalAddr(mg_get_rsp_state());
+    hashtable_init(&state->pipeline_cache, MAX_PIPELINE_COUNT, NULL);
+    create_begin_end_layout(&state->begin_end_layout);
+}
+
+static void free_pipeline_visitor(uint32_t key, void *value, int refcount)
+{
+    mg_pipeline_t **pipelines = value;
+    for (size_t i = 0; i < PIPELINE_COUNT; i++)
+    {
+        mg_pipeline_free(pipelines[i]);
+    }
+    free(pipelines);
+}
+
+void rsp_pipeline_close()
+{
+    if (state->begin_end_buffer.buffer != NULL) {
+        ringbuffer_free(&state->begin_end_buffer);
+    }
+
+    hashtable_visit(&state->pipeline_cache, free_pipeline_visitor);
+    hashtable_free(&state->pipeline_cache);
+}
 
 static void begin_end_next_buffer()
 {
@@ -505,7 +544,7 @@ static data_view_t get_vertex_data_for_block(gl_array_object_t *array_object, in
 static void update_pipelines(gl_array_object_t *array_object)
 {
     vertex_layout_cache_update(&array_object->layout_cache, array_object->arrays);
-    vertex_layout *vertex_layout = vertex_layout_cache_get_layout(&array_object->layout_cache);
+    const vertex_layout_t *vertex_layout = vertex_layout_cache_get_layout(&array_object->layout_cache);
     update_pipelines_from_layout(vertex_layout);
 }
 

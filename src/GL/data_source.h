@@ -3,7 +3,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "types.h"
 #include "indices.h"
 #include "array.h"
 
