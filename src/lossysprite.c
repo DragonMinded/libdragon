@@ -38,7 +38,7 @@
 #include <malloc.h>
 
 #define LSPR_MAGIC "LSPR"
-#define LSPR_VERSION 4
+#define LSPR_VERSION 5
 
 // LSPR header flags layout (16 bits) — must match tools/mksprite/mksprite_lossy.cpp:
 //   bits [1:0]  YUV chroma subsampling (LSPR_YUV_*)
@@ -77,7 +77,12 @@ typedef struct lspr_header_s {
     uint16_t height;
     uint16_t orig_width;
     uint16_t orig_height;
-    uint8_t payload[];
+    // x264-emitted PPS values that the runtime decoder needs to match the
+    // dequant scale used at encode time. Not derivable from the bitstream
+    // because mksprite strips the SPS/PPS NALs (only the IDR slice ships).
+    uint8_t  pic_init_qp;            // 0..51
+    int8_t   chroma_qp_index_offset; // -12..12
+    uint8_t  payload[];
 } lspr_header_t;
 
 #define LSPR_FLAGS_CHROMA_SHIFT     0
@@ -116,6 +121,8 @@ static void lspr_decode_intra_slice(
     size_t payload_size,
     uint16_t width,
     uint16_t height,
+    uint8_t pic_init_qp,
+    int8_t chroma_qp_index_offset,
     uint8_t **out_yuv,
     size_t *out_yuv_size
 ) {
@@ -158,8 +165,8 @@ static void lspr_decode_intra_slice(
         .sliceGroupMapType = 0,
         .picSizeInMapUnits = (u32)pic_size_in_mbs,
         .numRefIdxL0Active = 1,
-        .picInitQp = 26,
-        .chromaQpIndexOffset = 0,
+        .picInitQp = pic_init_qp,
+        .chromaQpIndexOffset = chroma_qp_index_offset,
         .deblockingFilterControlPresentFlag = 1,
         .constrainedIntraPredFlag = 0,
         .redundantPicCntPresentFlag = 0,
@@ -535,9 +542,9 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
 
     const lspr_header_t *hdr = (const lspr_header_t *)buf;
     assertf(memcmp(hdr->magic, LSPR_MAGIC, 4) == 0, "Invalid LSPR magic");
-    // Accept v3 (legacy: implicit RGBA16 target) and v4 (explicit target field).
-    assertf(hdr->version == 3 || hdr->version == LSPR_VERSION,
-            "Invalid LSPR version %u", (unsigned)hdr->version);
+    assertf(hdr->version == LSPR_VERSION,
+            "Invalid LSPR version %u (expected %u)",
+            (unsigned)hdr->version, (unsigned)LSPR_VERSION);
     assertf(lspr_chroma(hdr->flags) == LSPR_YUV_420, "Invalid LSPR YUV format");
 
     uint16_t width = hdr->width;
@@ -553,7 +560,9 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
 
     uint8_t *pic = NULL;
     size_t pic_size = 0;
-    lspr_decode_intra_slice(payload, payload_size, width, height, &pic, &pic_size);
+    lspr_decode_intra_slice(payload, payload_size, width, height,
+                            hdr->pic_init_qp, hdr->chroma_qp_index_offset,
+                            &pic, &pic_size);
     uint64_t t2 = get_ticks_us();
 
     int mb_w = (width + 15) / 16;

@@ -78,7 +78,7 @@ enum lspr_target_e {
 #define LSPR_FLAGS_COLORSPACE_SHIFT 2
 #define LSPR_FLAGS_TARGET_SHIFT     4
 
-#define LSPR_VERSION 4
+#define LSPR_VERSION 5
 
 static void verbose(const char *str, ...) {
     if (!flag_verbose) return;
@@ -470,6 +470,23 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
+    // Snapshot the parameters as adjusted by x264_encoder_open. The "stillimage"
+    // tune drives f_psy_rd/f_psy_trellis up, which causes the encoder to silently
+    // shift i_chroma_qp_offset (encoder.c:1226-1230). For CRF mode without
+    // b_stitchable, x264 also writes pic_init_qp = SPEC_QP(i_qp_constant) — not
+    // the libdragon-conventional 26. Both values must travel out-of-band so the
+    // runtime decoder can apply the same dequant scale x264 used.
+    x264_param_t adjusted;
+    x264_encoder_parameters(enc, &adjusted);
+    int pic_init_qp = (adjusted.rc.i_rc_method == X264_RC_ABR || adjusted.b_stitchable)
+                      ? 26
+                      : adjusted.rc.i_qp_constant;
+    if (pic_init_qp < 0) pic_init_qp = 0;
+    if (pic_init_qp > 51) pic_init_qp = 51;
+    int chroma_qp_offset = adjusted.analyse.i_chroma_qp_offset;
+    if (chroma_qp_offset < -12) chroma_qp_offset = -12;
+    if (chroma_qp_offset > 12) chroma_qp_offset = 12;
+
     x264_picture_t pic;
     x264_picture_t pic_out;
     x264_picture_init(&pic);
@@ -519,6 +536,8 @@ extern "C" int mksprite_convert_lossy(
     w16(f, img.height);
     w16(f, orig_w);
     w16(f, orig_h);
+    w8(f, (uint8_t)pic_init_qp);
+    w8(f, (uint8_t)(int8_t)chroma_qp_offset);
 
     x264_nal_t *nals = NULL;
     int i_nals = 0;
