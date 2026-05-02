@@ -165,3 +165,9 @@ void hashtable_visit(hashtable_t *h, void (*visitor)(uint32_t key, void *value, 
         visitor(k, cached_addr(v), refcount(v));
     }
 }
+
+void hashtable_clear(hashtable_t *h)
+{
+    memset(h->entries, 0, sizeof(uint32_t) * h->capacity * 2);
+    h->size = 0;
+}
