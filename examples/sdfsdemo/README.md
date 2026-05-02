@@ -1,4 +1,4 @@
-# SD Card I/O Example
+# SD Card Filesystem Example
 
 An example project that demonstrates how to set up saving and reading a file from an SD card with libdragon.
 
@@ -23,24 +23,10 @@ Press Z to take a RGBA5551 screenshot (.raw)
 - Make
 
 ## How to Build
-This tutorial assumes you have your N64 Toolchain set up including GCC for MIPS.
-Make sure you are on the preview branch of libdragon.
+This tutorial assumes you have your N64 Toolchain and libdragon set up including GCC for MIPS.
 
-Clone this repository with `--recurse-submodules` or if you haven't run:
-
-```bash
-
-git submodule update --init
-```
----
-Initialize libdragon:
-```bash
-libdragon init
-```
-Then run make to build this project:
+Run this command below to build this program
 
 ```bash
-libdragon make
+make
 ```
-
----
