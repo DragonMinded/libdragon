@@ -62,6 +62,7 @@ void assert_draw(const uint32_t *expected_commands, uint32_t expected_commands_c
     rspq_block_begin();
         mg_draw(input_assembly_parms, count, offset);
     rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
 
     assert_block_contents(expected_commands, expected_commands_count, block, ctx);
 }
@@ -71,6 +72,7 @@ void assert_draw_indexed(const uint32_t *expected_commands, uint32_t expected_co
     rspq_block_begin();
         mg_draw_indexed(input_assembly_parms, indices, count, offset);
     rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
 
     assert_block_contents(expected_commands, expected_commands_count, block, ctx);
 }
