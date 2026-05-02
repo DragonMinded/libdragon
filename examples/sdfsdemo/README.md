@@ -16,7 +16,7 @@ Press Z to take a RGBA5551 screenshot (.raw)
 
 ## Requirements
 
-- A real N64, don't run this on emulators like ares because they don't support SD cards
+- A real N64; don't run this on emulators like ares because they don't support SD cards
 - A flashcart with SD card support
 - Libdragon Preview branch
 - MIPS64 C compiler
