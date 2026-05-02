@@ -19,7 +19,7 @@
     #define joypad_init() ({ __debug_init_cpp(); joypad_init(); })
     #define timer_init() ({ __debug_init_cpp(); timer_init(); })
     #define display_init(a,b,c,d,e) ({ __debug_init_cpp(); display_init(a,b,c,d,e); })
-    #define debug_init_isviewer() ({ __debug_init_cpp(); debug_init_isviewer(); })
+    #define debug_init_emulog() ({ __debug_init_cpp(); debug_init_emulog(); })
     #define debug_init_usblog() ({ __debug_init_cpp(); debug_init_usblog(); })
     ///@endcond
 #endif

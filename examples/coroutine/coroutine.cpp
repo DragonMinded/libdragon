@@ -24,7 +24,7 @@ void worker(void* arg) {
 
 int main()
 {
-  debug_init_isviewer();
+  debug_init_emulog();
   debug_init_usblog();
   console_init();
   console_set_render_mode(RENDER_MANUAL);

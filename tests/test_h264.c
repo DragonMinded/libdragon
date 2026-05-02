@@ -1213,7 +1213,7 @@ bool exhaustive_decoderesidual_test(int numtests, int verbose) {
 
 int main(void)
 {
-    debug_init_isviewer();
+    debug_init_emulog();
     debug_init_usblog();
 
     timer_init();
