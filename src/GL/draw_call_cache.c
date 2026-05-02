@@ -84,8 +84,8 @@ static cached_draw_call_t *create_draw_call(draw_call_cache_t *cache, const draw
 
 static rspq_block_t *create_block(const draw_call_parms_t *parms, const void *index_data, gl_array_object_t *array_object, index_bounds_t index_range)
 {
-    rspq_block_begin();
     mg_input_assembly_parms_t input_assembly_parms = array_object_get_input_assembly_parms(array_object, parms->mode, index_range);
+    rspq_block_begin();
     mg_draw_indexed(&input_assembly_parms, index_data, parms->count, -index_range.first);
     return rspq_block_end();
 }
