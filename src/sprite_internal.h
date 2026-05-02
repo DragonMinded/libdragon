@@ -153,21 +153,23 @@ static inline const yuv_colorspace_t *sprite_ext_yuv_colorspace(sprite_ext_t *sx
     return __sprite_yuv_colorspace(sx->yuv_attrs);
 }
 
+/** @brief Function pointer type for a sprite decodable test function */
+typedef bool (*sprite_decodable_fn)(const void *buf, int sz);
+
 /** @brief Function pointer type for a sprite decoder function */
 typedef sprite_t *(*sprite_decode_fn)(const void *buf, int sz);
 
 /** @brief Internal structure for registered sprite decoders */
-struct sprite_decoder_s {
-    const char *magic;
-    int magic_len;
+typedef struct sprite_decoder_s {
+    sprite_decodable_fn decodable;
     sprite_decode_fn decode;
     struct sprite_decoder_s *next;
-};
+} sprite_decoder_t;
 
 /** @brief Register a sprite decoder for a specific magic string. */
-void sprite_decoder_register(const char *magic, sprite_decode_fn decode);
+sprite_decoder_t *sprite_decoder_register(sprite_decodable_fn decodable, sprite_decode_fn decode);
 
 /** @brief Unregister the sprite decoder for a specific magic string. */
-int sprite_decoder_unregister(const char *magic);
+int sprite_decoder_unregister(sprite_decoder_t *decoder);
 
 #endif

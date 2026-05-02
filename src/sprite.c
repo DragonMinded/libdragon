@@ -66,21 +66,21 @@ bool __sprite_upgrade(sprite_t *sprite)
 
 static struct sprite_decoder_s *sprite_decoders = NULL;
 
-void sprite_decoder_register(const char *magic, sprite_decode_fn decode)
+sprite_decoder_t *sprite_decoder_register(sprite_decodable_fn decodable, sprite_decode_fn decode)
 {
     struct sprite_decoder_s *d = malloc(sizeof(struct sprite_decoder_s));
-    d->magic = magic;
-    d->magic_len = strlen(magic);
+    d->decodable = decodable;
     d->decode = decode;
     d->next = sprite_decoders;
     sprite_decoders = d;
+    return d;
 }
 
-int sprite_decoder_unregister(const char *magic)
+int sprite_decoder_unregister(sprite_decoder_t *decoder)
 {
     struct sprite_decoder_s **d = &sprite_decoders;
     while (*d) {
-        if (strcmp((*d)->magic, magic) == 0) {
+        if (*d == decoder) {
             struct sprite_decoder_s *to_free = *d;
             *d = (*d)->next;
             free(to_free);
@@ -96,7 +96,7 @@ sprite_t *sprite_load_buf(void *buf, int sz)
     // Attempt to decode the sprite with a custom decoder using on magic header detection.
     struct sprite_decoder_s *d = sprite_decoders;
     while (d) {
-        if (sz > d->magic_len && memcmp(buf, d->magic, d->magic_len) == 0) {
+        if (d->decodable(buf, sz)) {
             return d->decode(buf, sz);
         }
         d = d->next;

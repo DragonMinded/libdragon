@@ -43,11 +43,18 @@
 #define __LIBDRAGON_LOSSYSPRITE_H
 
 #include <stdbool.h>
+#include <stddef.h>
 #include "sprite.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Required alignment of the destination buffer for
+ *        #lossysprite_decode_into.
+ */
+#define LOSSYSPRITE_DECODE_ALIGN 64
 
 
 /**
@@ -103,6 +110,58 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz);
  * @return      The loaded sprite (free with #sprite_free)
  */
 sprite_t* lossysprite_load(const char *fn);
+
+/**
+ * @brief Test whether @p buf holds an LSPR-encoded sprite.
+ *
+ * Cheap header-only check: validates the LSPR magic and version. Returns
+ * false for non-LSPR data without asserting, so it is safe to use as a
+ * dispatch test on a buffer that may or may not be LSPR-encoded.
+ *
+ * @param buf   Pointer to the buffer to inspect (may be NULL)
+ * @param sz    Size of @p buf in bytes
+ * @return      true if @p buf is a recognized LSPR file, false otherwise
+ */
+bool lossysprite_is_encoded(const void *buf, int sz);
+
+/**
+ * @brief Compute the size of the decoded sprite for an LSPR buffer.
+ *
+ * Reads only the LSPR header (no H.264 decode). The returned size is the
+ * number of bytes #lossysprite_decode_into needs in its output buffer to
+ * hold the fully decoded #sprite_t (including its `sprite_ext_t` and
+ * pixel/plane data).
+ *
+ * Asserts if @p buf is not a valid LSPR file; call #lossysprite_is_encoded
+ * first if the buffer's contents are not yet known.
+ *
+ * @param buf   Pointer to the LSPR buffer
+ * @param sz    Size of @p buf in bytes
+ * @return      Number of bytes required for the decoded sprite
+ */
+size_t lossysprite_get_decoded_size(const void *buf, int sz);
+
+/**
+ * @brief Decode an LSPR buffer into a caller-provided output buffer.
+ *
+ * Same decode pipeline as #lossysprite_decode_buf, but writes the decoded
+ * #sprite_t into @p out instead of allocating a fresh buffer with
+ * `memalign`. The returned sprite does NOT have #SPRITE_FLAGS_OWNEDBUFFER
+ * set — the caller owns @p out and is responsible for freeing it.
+ * Calling #sprite_free on the returned sprite is therefore a no-op (other
+ * than dropping any internal references).
+ *
+ * The output buffer must be at least
+ * #lossysprite_get_decoded_size bytes long and aligned to
+ * #LOSSYSPRITE_DECODE_ALIGN bytes. Both conditions are asserted.
+ *
+ * @param buf       Pointer to the encoded LSPR file contents
+ * @param sz        Size of @p buf in bytes
+ * @param out       Pointer to the output buffer (64-byte aligned)
+ * @param out_sz    Size of @p out in bytes
+ * @return          The decoded sprite (lives in @p out)
+ */
+sprite_t *lossysprite_decode_into(const void *buf, int sz, void *out, size_t out_sz);
 
 #ifdef __cplusplus
 }

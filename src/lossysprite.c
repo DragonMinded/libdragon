@@ -312,7 +312,82 @@ static void lspr_i420_to_uyvy(const uint8_t *y_plane, const uint8_t *u_plane, co
     }
 }
 
-static sprite_t *lspr_build_semi_planar_sprite(const uint8_t *pic,
+// Compute the byte sizes the semi-planar build path needs for a given
+// (stride, luma_h, fmt). Shared by lspr_compute_decoded_size (header-only
+// pre-pass) and lspr_build_semi_planar_sprite_into (the actual builder), so
+// the two cannot drift.
+static void lspr_semi_planar_layout(int stride, int luma_h, yuv_format_t fmt,
+                                    size_t *out_y_bytes,
+                                    size_t *out_src_uv_bytes,
+                                    size_t *out_dst_uv_bytes,
+                                    size_t *out_plane_bytes_aligned) {
+    int uv_h = (fmt == YUV_NV16) ? luma_h : luma_h / 2;
+    size_t y_bytes = (size_t)stride * luma_h;
+    size_t src_uv_bytes = (size_t)(stride / 2) * (luma_h / 2);
+    size_t dst_uv_bytes = (size_t)(stride / 2) * uv_h;
+    size_t plane_bytes = y_bytes + 2 * dst_uv_bytes;
+    size_t plane_bytes_aligned = (plane_bytes + 15) & ~(size_t)15;
+    if (out_y_bytes) *out_y_bytes = y_bytes;
+    if (out_src_uv_bytes) *out_src_uv_bytes = src_uv_bytes;
+    if (out_dst_uv_bytes) *out_dst_uv_bytes = dst_uv_bytes;
+    if (out_plane_bytes_aligned) *out_plane_bytes_aligned = plane_bytes_aligned;
+}
+
+// Same idea for the packed/RGBA target build path.
+static void lspr_target_layout(uint16_t orig_w, uint16_t orig_h,
+                               enum lspr_target_e target,
+                               tex_format_t *out_fmt,
+                               size_t *out_pixel_bytes_aligned) {
+    tex_format_t fmt;
+    size_t pixel_bytes;
+    switch (target) {
+    case LSPR_TARGET_RGBA32:
+        fmt = FMT_RGBA32;
+        pixel_bytes = (size_t)orig_w * orig_h * 4;
+        break;
+    case LSPR_TARGET_RGBA16:
+        fmt = FMT_RGBA16;
+        pixel_bytes = (size_t)orig_w * orig_h * 2;
+        break;
+    case LSPR_TARGET_UYVY:
+        fmt = FMT_YUV16;
+        pixel_bytes = (size_t)orig_w * orig_h * 2;
+        break;
+    default:
+        assertf(0, "LSPR: unsupported target format %d", (int)target);
+        fmt = 0;
+        pixel_bytes = 0;
+        break;
+    }
+    if (out_fmt) *out_fmt = fmt;
+    if (out_pixel_bytes_aligned) *out_pixel_bytes_aligned = (pixel_bytes + 15) & ~(size_t)15;
+}
+
+// Compute total decoded sprite size (header + ext + aligned pixel/plane
+// data) from the LSPR header alone.
+static size_t lspr_compute_decoded_size(const lspr_header_t *hdr) {
+    int mb_w = (hdr->width + 15) / 16;
+    int mb_h = (hdr->height + 15) / 16;
+    int stride = mb_w * 16;
+    int luma_h = mb_h * 16;
+    enum lspr_target_e target = lspr_target(hdr->flags);
+
+    size_t aligned_bytes;
+    if (target == LSPR_TARGET_NV12) {
+        lspr_semi_planar_layout(stride, luma_h, YUV_NV12, NULL, NULL, NULL, &aligned_bytes);
+    } else if (target == LSPR_TARGET_NV16) {
+        lspr_semi_planar_layout(stride, luma_h, YUV_NV16, NULL, NULL, NULL, &aligned_bytes);
+    } else {
+        lspr_target_layout(hdr->orig_width, hdr->orig_height, target, NULL, &aligned_bytes);
+    }
+
+    size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
+    size_t pixel_off = (header_bytes + 63) & ~(size_t)63;
+    return pixel_off + aligned_bytes;
+}
+
+static void lspr_build_semi_planar_sprite_into(sprite_t *spr,
+                                               const uint8_t *pic,
                                                uint16_t orig_w, uint16_t orig_h,
                                                int stride, int luma_h,
                                                uint16_t flags,
@@ -335,23 +410,19 @@ static sprite_t *lspr_build_semi_planar_sprite(const uint8_t *pic,
     // layout that the RSP UV interleaver in yuv.c produces, so the RDP can
     // load it directly via yuv_tex_blit without a per-frame interleave
     // pass.
-    int uv_h = (fmt == YUV_NV16) ? luma_h : luma_h / 2;
-    size_t y_bytes  = (size_t)stride * luma_h;
-    // The H.264 reconstruction is 4:2:0, so source U/V planes are always at
-    // luma_h/2 rows. NV16 destination has twice as many UV rows.
-    size_t src_uv_bytes = (size_t)(stride / 2) * (luma_h / 2);
-    size_t dst_uv_bytes = (size_t)(stride / 2) * uv_h;
-    size_t plane_bytes = y_bytes + 2 * dst_uv_bytes;
-    size_t plane_bytes_aligned = (plane_bytes + 15) & ~(size_t)15;
+    size_t y_bytes, src_uv_bytes, dst_uv_bytes, plane_bytes_aligned;
+    lspr_semi_planar_layout(stride, luma_h, fmt, &y_bytes, &src_uv_bytes,
+                            &dst_uv_bytes, &plane_bytes_aligned);
+    (void)dst_uv_bytes;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
     size_t pixel_off = (header_bytes + 63) & ~(size_t)63;
-    size_t total_bytes = pixel_off + plane_bytes_aligned;
-    sprite_t *spr = (sprite_t*)memalign(64, total_bytes);
-    assertf(spr, "Out of memory");
     memset(spr, 0, pixel_off);
     spr->width = orig_w;
     spr->height = orig_h;
-    spr->flags = SPRITE_FLAGS_OWNEDBUFFER | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_YUV16;
+    // Caller owns the buffer; OWNEDBUFFER is set later by lossysprite_decode_buf
+    // when it allocated via memalign. Callers of lossysprite_decode_into keep
+    // ownership and the flag stays clear.
+    spr->flags = SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_YUV16;
     spr->hslices = 1;
     spr->vslices = 1;
 
@@ -397,45 +468,27 @@ static sprite_t *lspr_build_semi_planar_sprite(const uint8_t *pic,
     }
     rspq_wait();
     yuv_close();
-
-    return spr;
 }
 
-static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
+static void lspr_build_target_sprite_into(sprite_t *spr,
+                                          const uint8_t *pic,
                                           uint16_t orig_w, uint16_t orig_h,
                                           int stride, int luma_h,
                                           uint16_t flags) {
     tex_format_t fmt;
-    size_t pixel_bytes;
+    size_t pixel_bytes_aligned;
     enum lspr_target_e target = lspr_target(flags);
-    switch (target) {
-    case LSPR_TARGET_RGBA32:
-        fmt = FMT_RGBA32;
-        pixel_bytes = (size_t)orig_w * orig_h * 4;
-        break;
-    case LSPR_TARGET_RGBA16:
-        fmt = FMT_RGBA16;
-        pixel_bytes = (size_t)orig_w * orig_h * 2;
-        break;
-    case LSPR_TARGET_UYVY:
-        fmt = FMT_YUV16;
-        pixel_bytes = (size_t)orig_w * orig_h * 2;
-        break;
-    default:
-        assertf(0, "LSPR: unsupported target format %d", target);
-        return NULL;
-    }
+    lspr_target_layout(orig_w, orig_h, target, &fmt, &pixel_bytes_aligned);
 
-    size_t pixel_bytes_aligned = (pixel_bytes + 15) & ~(size_t)15;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
     size_t pixel_off = (header_bytes + 63) & ~(size_t)63;
-    size_t total_bytes = pixel_off + pixel_bytes_aligned;
-    sprite_t *spr = (sprite_t*)memalign(64, total_bytes);
-    assertf(spr, "Out of memory");
     memset(spr, 0, pixel_off);
     spr->width = orig_w;
     spr->height = orig_h;
-    spr->flags = SPRITE_FLAGS_OWNEDBUFFER | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | fmt;
+    // Caller owns the buffer; OWNEDBUFFER is set later by lossysprite_decode_buf
+    // when it allocated via memalign. Callers of lossysprite_decode_into keep
+    // ownership and the flag stays clear.
+    spr->flags = SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | fmt;
     spr->hslices = 1;
     spr->vslices = 1;
 
@@ -444,11 +497,12 @@ static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
     sx->version = SPRITE_EXT_VERSION;
     sx->flags = 0; // not semi-planar; ordinary blit path
     // For YUV16 (UYVY) targets, encode layout=PACKED + chroma=4:2:2 + colorspace.
+    uint8_t yuv_attrs = 
+        (lspr_colorspace(flags)         << SPRITE_YUV_COLORSPACE_SHIFT) |
+        (SPRITE_YUV_CHROMA_422          << SPRITE_YUV_CHROMA_SHIFT) |
+        (SPRITE_YUV_LAYOUT_PACKED       << SPRITE_YUV_LAYOUT_SHIFT);
     if (fmt == FMT_YUV16) {
-        sx->yuv_attrs =
-            (lspr_colorspace(flags)         << SPRITE_YUV_COLORSPACE_SHIFT) |
-            (SPRITE_YUV_CHROMA_422          << SPRITE_YUV_CHROMA_SHIFT) |
-            (SPRITE_YUV_LAYOUT_PACKED       << SPRITE_YUV_LAYOUT_SHIFT);
+        sx->yuv_attrs = yuv_attrs;
     }
     sx->data_ptr = (uint32_t)pixel_off;
 
@@ -509,7 +563,7 @@ static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
         data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
 
         surface_t target_surf = surface_make_linear(dst, fmt, orig_w, orig_h);
-        const yuv_colorspace_t *cs = __sprite_yuv_colorspace(sx->yuv_attrs);
+        const yuv_colorspace_t *cs = __sprite_yuv_colorspace(yuv_attrs);
         rdpq_attach(&target_surf, NULL);
         // yuv_tex_blit puts the RDP in YUV mode. Without push/pop the YUV
         // combiner state leaks back to the caller's render mode, which makes
@@ -521,21 +575,35 @@ static sprite_t *lspr_build_target_sprite(const uint8_t *pic,
         rdpq_detach_wait();
         yuv_close();
     }
-
-    return spr;
 }
+
+static sprite_decoder_t *lossysprite_decoder = NULL;
 
 void lossysprite_init(void)
 {
-    sprite_decoder_register(LSPR_MAGIC, lossysprite_decode_buf);
+    assertf(!lossysprite_decoder, "lossysprite_init is already initialized");
+    lossysprite_decoder = sprite_decoder_register(lossysprite_is_encoded, lossysprite_decode_buf);
 }
 
 void lossysprite_close(void)
 {
-    sprite_decoder_unregister(LSPR_MAGIC);
+    sprite_decoder_unregister(lossysprite_decoder);
+    lossysprite_decoder = NULL;
 }
 
-sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
+bool lossysprite_is_encoded(const void *buf, int sz) {
+    if (!buf || sz < (int)sizeof(lspr_header_t)) return false;
+    const lspr_header_t *hdr = (const lspr_header_t *)buf;
+    return memcmp(hdr->magic, LSPR_MAGIC, 4) == 0 && hdr->version == LSPR_VERSION;
+}
+
+size_t lossysprite_get_decoded_size(const void *buf, int sz) {
+    assertf(lossysprite_is_encoded(buf, sz),
+            "lossysprite_get_decoded_size: not an LSPR buffer");
+    return lspr_compute_decoded_size((const lspr_header_t *)buf);
+}
+
+sprite_t *lossysprite_decode_into(const void *buf, int sz, void *out, size_t out_sz) {
     uint64_t t0 = get_ticks_us();
 
     assertf(buf && sz >= (int)sizeof(lspr_header_t), "Invalid LSPR buffer");
@@ -546,6 +614,15 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
             "Invalid LSPR version %u (expected %u)",
             (unsigned)hdr->version, (unsigned)LSPR_VERSION);
     assertf(lspr_chroma(hdr->flags) == LSPR_YUV_420, "Invalid LSPR YUV format");
+
+    size_t total_bytes = lspr_compute_decoded_size(hdr);
+    assertf(out, "lossysprite_decode_into: NULL output buffer");
+    assertf(out_sz >= total_bytes,
+            "lossysprite_decode_into: output buffer too small (%u < %u)",
+            (unsigned)out_sz, (unsigned)total_bytes);
+    assertf(((uintptr_t)out & (LOSSYSPRITE_DECODE_ALIGN - 1)) == 0,
+            "lossysprite_decode_into: output buffer must be %d-byte aligned",
+            LOSSYSPRITE_DECODE_ALIGN);
 
     uint16_t width = hdr->width;
     uint16_t height = hdr->height;
@@ -570,14 +647,14 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
     int stride = mb_w * 16;
     int luma_h = mb_h * 16;
 
-    sprite_t *spr;
+    sprite_t *spr = (sprite_t *)out;
     enum lspr_target_e target = lspr_target(hdr->flags);
     if (target == LSPR_TARGET_NV12) {
-        spr = lspr_build_semi_planar_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags, YUV_NV12);
+        lspr_build_semi_planar_sprite_into(spr, pic, orig_w, orig_h, stride, luma_h, hdr->flags, YUV_NV12);
     } else if (target == LSPR_TARGET_NV16) {
-        spr = lspr_build_semi_planar_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags, YUV_NV16);
+        lspr_build_semi_planar_sprite_into(spr, pic, orig_w, orig_h, stride, luma_h, hdr->flags, YUV_NV16);
     } else {
-        spr = lspr_build_target_sprite(pic, orig_w, orig_h, stride, luma_h, hdr->flags);
+        lspr_build_target_sprite_into(spr, pic, orig_w, orig_h, stride, luma_h, hdr->flags);
     }
     uint64_t t3 = get_ticks_us();
 
@@ -592,6 +669,18 @@ sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
            (unsigned long)(t4 - t3),
            (unsigned long)(t4 - t0));
 
+    return spr;
+}
+
+sprite_t *lossysprite_decode_buf(const void *buf, int sz) {
+    assertf(buf && sz >= (int)sizeof(lspr_header_t), "Invalid LSPR buffer");
+    const lspr_header_t *hdr = (const lspr_header_t *)buf;
+    size_t total_bytes = lspr_compute_decoded_size(hdr);
+    sprite_t *spr = (sprite_t *)memalign(LOSSYSPRITE_DECODE_ALIGN, total_bytes);
+    assertf(spr, "Out of memory");
+    lossysprite_decode_into(buf, sz, spr, total_bytes);
+    // decode_into leaves OWNEDBUFFER clear; we allocated, so set it.
+    spr->flags |= SPRITE_FLAGS_OWNEDBUFFER;
     return spr;
 }
 
