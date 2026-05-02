@@ -21,7 +21,7 @@ extern "C" {
 
 void data_cache_init(data_cache_t *cache, data_source_t *source);
 void data_cache_destroy(data_cache_t *cache);
-void data_cache_set_data_dirty(data_cache_t *cache);
+void data_cache_invalidate(data_cache_t *cache);
 data_view_t data_cache_prepare_at_bounds(data_cache_t *cache, index_bounds_t bounds);
 
 #ifdef __cplusplus

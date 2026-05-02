@@ -16,10 +16,8 @@ typedef struct draw_call_parms_s {
 } draw_call_parms_t;
 
 typedef struct cached_draw_call_s {
-    draw_call_parms_t parms;
     index_bounds_t index_range;
     rspq_block_t *block;
-    bool is_data_dirty;
 } cached_draw_call_t;
 
 typedef struct draw_call_cache_s {
@@ -35,12 +33,10 @@ extern "C" {
 draw_call_cache_t *draw_call_cache_create();
 void draw_call_cache_free(draw_call_cache_t *cache);
 
-void draw_call_cache_set_data_dirty(draw_call_cache_t *cache);
+void draw_call_cache_invalidate_indices(draw_call_cache_t *cache);
+void draw_call_cache_invalidate_mtx_indices(draw_call_cache_t *cache);
 
-cached_draw_call_t *draw_call_cache_get_or_create(draw_call_cache_t *cache, const draw_call_parms_t *parms);
-
-bool draw_call_needs_update(cached_draw_call_t *draw_call);
-void draw_call_update(cached_draw_call_t *draw_call, const void *index_data, gl_array_object_t *array_object);
+cached_draw_call_t *draw_call_cache_get_or_create(draw_call_cache_t *cache, const draw_call_parms_t *parms, const void *index_data, gl_array_object_t *array_object);
 
 void draw_call_run(cached_draw_call_t *draw_call);
 

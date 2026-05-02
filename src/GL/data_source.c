@@ -12,7 +12,7 @@ void data_source_init(data_source_t *data_source, const array_t *arrays, array_m
     data_source->arrays_dirty = true;
 }
 
-void data_source_set_arrays_dirty(data_source_t *data_source)
+void data_source_invalidate_arrays(data_source_t *data_source)
 {
     data_source->arrays_dirty = true;
 }

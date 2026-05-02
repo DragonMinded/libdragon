@@ -3,10 +3,10 @@
 
 void vertex_layout_cache_init(vertex_layout_cache_t *cache)
 {
-    vertex_layout_cache_set_dirty(cache);
+    vertex_layout_cache_invalidate(cache);
 }
 
-void vertex_layout_cache_set_dirty(vertex_layout_cache_t *cache)
+void vertex_layout_cache_invalidate(vertex_layout_cache_t *cache)
 {
     cache->dirty = true;
 }

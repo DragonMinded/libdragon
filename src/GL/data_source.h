@@ -32,7 +32,7 @@ extern "C" {
 #endif
 
 void data_source_init(data_source_t *data_source, const array_t *arrays, array_mask_t array_mask);
-void data_source_set_arrays_dirty(data_source_t *data_source);
+void data_source_invalidate_arrays(data_source_t *data_source);
 bool data_source_is_fully_internal(data_source_t *data_source);
 void data_source_pull(data_source_t *data_source, void *buffer, index_bounds_t bounds);
 uint32_t data_source_get_stride(data_source_t *data_source);

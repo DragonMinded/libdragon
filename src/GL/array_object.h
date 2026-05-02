@@ -29,7 +29,7 @@ void array_object_set_array_enabled(gl_array_object_t *array_object, array_type_
 void array_object_set_array_params(gl_array_object_t *array_object, array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer);
 
 void array_object_set_buffer_binding(gl_array_object_t *array_object, array_type_t array_type, gl_buffer_object_t *buffer);
-void array_object_set_buffer_dirty(gl_array_object_t *array_object, gl_buffer_object_t *buffer);
+void array_object_invalidate_buffer_data(gl_array_object_t *array_object, gl_buffer_object_t *buffer);
 void array_object_validate_drawing(gl_array_object_t *array_object, bool indexed);
 
 void array_object_update_pointers(gl_array_object_t *array_object);

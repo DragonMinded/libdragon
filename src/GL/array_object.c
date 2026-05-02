@@ -131,22 +131,22 @@ static data_cache_t *get_data_cache(gl_array_object_t *array_object, array_type_
     }
 }
 
-static void set_array_data_dirty(gl_array_object_t *array_object, array_type_t array_type)
+static void invalidate_array_data(gl_array_object_t *array_object, array_type_t array_type)
 {
     data_cache_t *data_cache = get_data_cache(array_object, array_type);
-    data_cache_set_data_dirty(data_cache);
+    data_cache_invalidate(data_cache);
 
     if (data_cache == &array_object->mtx_index_data_cache && array_object->draw_call_cache != NULL) {
-        draw_call_cache_set_data_dirty(array_object->draw_call_cache);
+        draw_call_cache_invalidate_mtx_indices(array_object->draw_call_cache);
     }
 }
 
-static void set_array_dirty(gl_array_object_t *array_object, array_type_t array_type)
+static void invalidate_array(gl_array_object_t *array_object, array_type_t array_type)
 {
     data_source_t *data_source = get_data_source(array_object, array_type);
-    data_source_set_arrays_dirty(data_source);
+    data_source_invalidate_arrays(data_source);
 
-    set_array_data_dirty(array_object, array_type);
+    invalidate_array_data(array_object, array_type);
 }
 
 void array_object_set_array_enabled(gl_array_object_t *array_object, array_type_t array_type, bool enabled)
@@ -154,8 +154,8 @@ void array_object_set_array_enabled(gl_array_object_t *array_object, array_type_
     array_t *array = &array_object->arrays[array_type];
     if (array->enabled != enabled) {
         array->enabled = enabled;
-        set_array_dirty(array_object, array_type);
-        vertex_layout_cache_set_dirty(&array_object->layout_cache);
+        invalidate_array(array_object, array_type);
+        vertex_layout_cache_invalidate(&array_object->layout_cache);
     }
 }
 
@@ -187,7 +187,7 @@ void array_object_set_array_params(gl_array_object_t *array_object, array_type_t
     array_object_set_buffer_binding(array_object, array_type, state->array_buffer);
 
     update_array(array, array_type);
-    set_array_dirty(array_object, array_type);
+    invalidate_array(array_object, array_type);
 }
 
 void array_object_set_buffer_binding(gl_array_object_t *array_object, array_type_t array_type, gl_buffer_object_t *buffer)
@@ -204,20 +204,16 @@ void array_object_set_buffer_binding(gl_array_object_t *array_object, array_type
     }
     array->binding = buffer;
 
-    set_array_dirty(array_object, array_type);
+    invalidate_array(array_object, array_type);
 }
 
-void array_object_set_buffer_dirty(gl_array_object_t *array_object, gl_buffer_object_t *buffer)
+void array_object_invalidate_buffer_data(gl_array_object_t *array_object, gl_buffer_object_t *buffer)
 {
     for (array_type_t i = 0; i < ARRAY_COUNT; i++)
     {
         if (array_object->arrays[i].binding == buffer) {
-            set_array_data_dirty(array_object, i);
+            invalidate_array_data(array_object, i);
         }
-    }
-
-    if (array_object->element_array_buffer == buffer && array_object->draw_call_cache != NULL) {
-        draw_call_cache_set_data_dirty(array_object->draw_call_cache);
     }
 }
 

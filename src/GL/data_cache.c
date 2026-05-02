@@ -6,7 +6,7 @@ void data_cache_init(data_cache_t *cache, data_source_t *source)
 {
     *cache = (data_cache_t){0};
     cache->source = source;
-    data_cache_set_data_dirty(cache);
+    data_cache_invalidate(cache);
 }
 
 static void free_buffer(data_cache_t *cache)
@@ -21,7 +21,7 @@ void data_cache_destroy(data_cache_t *cache)
     free_buffer(cache);
 }
 
-void data_cache_set_data_dirty(data_cache_t *cache)
+void data_cache_invalidate(data_cache_t *cache)
 {
     cache->is_data_dirty = true;
 }

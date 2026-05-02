@@ -14,7 +14,7 @@ extern "C" {
 #endif
 
 void vertex_layout_cache_init(vertex_layout_cache_t *cache);
-void vertex_layout_cache_set_dirty(vertex_layout_cache_t *cache);
+void vertex_layout_cache_invalidate(vertex_layout_cache_t *cache);
 void vertex_layout_cache_update(vertex_layout_cache_t *cache, const array_t *arrays);
 
 inline const vertex_layout_t *vertex_layout_cache_get_layout(const vertex_layout_cache_t *cache)

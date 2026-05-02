@@ -604,21 +604,10 @@ static const uint16_t *get_indices(gl_buffer_object_t *element_buffer, const voi
     }
 }
 
-static cached_draw_call_t *get_or_create_draw_call(gl_array_object_t *array_object, const draw_call_parms_t *parms)
-{
-    draw_call_cache_t *draw_call_cache = array_object_get_draw_call_cache(state->array_object);
-    return draw_call_cache_get_or_create(draw_call_cache, parms);
-}
-
 static cached_draw_call_t *prepare_draw_call(gl_array_object_t *array_object, const draw_call_parms_t *parms, const void *index_data)
 {
-    cached_draw_call_t *draw_call = get_or_create_draw_call(array_object, parms);
-    
-    if (draw_call_needs_update(draw_call)) {
-        draw_call_update(draw_call, index_data, array_object);
-    }
-
-    return draw_call;
+    draw_call_cache_t *draw_call_cache = array_object_get_draw_call_cache(array_object);
+    return draw_call_cache_get_or_create(draw_call_cache, parms, index_data, array_object);
 }
 
 static void draw_elements_from_buffer(GLenum mode, uint32_t count, const void* indices, gl_buffer_object_t *element_buffer)
