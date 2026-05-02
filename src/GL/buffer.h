@@ -17,6 +17,7 @@ typedef struct draw_call_cache_s draw_call_cache_t;
 typedef struct gl_array_object_ref_s {
     gl_array_object_t *array_object;
     gl_array_object_ref_t *next;
+    uint32_t refcount;
 } gl_array_object_ref_t;
 
 typedef struct gl_buffer_object_s {
@@ -40,7 +41,6 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size);
 
 void gl_buffer_add_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
 void gl_buffer_remove_array_ref(gl_buffer_object_t *buffer, gl_array_object_t *array);
-void buffer_object_set_binding(gl_buffer_object_t *obj, gl_buffer_object_t **binding);
 void buffer_object_validate_not_mapped(gl_buffer_object_t *obj);
 
 #ifdef __cplusplus

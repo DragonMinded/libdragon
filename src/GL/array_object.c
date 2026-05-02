@@ -91,7 +91,7 @@ void array_object_destroy(gl_array_object_t *array_object)
     data_cache_destroy(&array_object->mtx_index_data_cache);
     data_cache_destroy(&array_object->vertex_data_cache);
 
-    buffer_object_set_binding(NULL, &array_object->element_array_buffer);
+    array_object_set_element_buffer_binding(array_object, NULL);
 
     for (array_type_t i = 0; i < ARRAY_COUNT; i++)
     {
@@ -190,21 +190,40 @@ void array_object_set_array_params(gl_array_object_t *array_object, array_type_t
     invalidate_array(array_object, array_type);
 }
 
-void array_object_set_buffer_binding(gl_array_object_t *array_object, array_type_t array_type, gl_buffer_object_t *buffer)
+static bool set_buffer_binding(gl_array_object_t *array_object, gl_buffer_object_t **binding, gl_buffer_object_t *buffer)
 {
-    array_t *array = &array_object->arrays[array_type];
-    if (array->binding == buffer) return;
+    if (*binding == buffer) return false;
 
-    gl_buffer_object_t *old_binding = array->binding;
-    if (old_binding != NULL) {
-        gl_buffer_remove_array_ref(old_binding, array_object);
+    if (*binding != NULL) {
+        gl_buffer_remove_array_ref(*binding, array_object);
     }
     if (buffer != NULL) {
         gl_buffer_add_array_ref(buffer, array_object);
     }
-    array->binding = buffer;
+    *binding = buffer;
 
-    invalidate_array(array_object, array_type);
+    return true;
+}
+
+void array_object_set_buffer_binding(gl_array_object_t *array_object, array_type_t array_type, gl_buffer_object_t *buffer)
+{
+    if (set_buffer_binding(array_object, &array_object->arrays[array_type].binding, buffer)) {
+        invalidate_array(array_object, array_type);
+    }
+}
+
+static void invalidate_indices(gl_array_object_t *array_object)
+{
+    if (array_object->draw_call_cache != NULL) {
+        draw_call_cache_invalidate_indices(array_object->draw_call_cache);
+    }
+}
+
+void array_object_set_element_buffer_binding(gl_array_object_t *array_object, gl_buffer_object_t *buffer)
+{
+    if (set_buffer_binding(array_object, &array_object->element_array_buffer, buffer)) {
+        invalidate_indices(array_object);
+    }
 }
 
 void array_object_invalidate_buffer_data(gl_array_object_t *array_object, gl_buffer_object_t *buffer)
@@ -214,6 +233,10 @@ void array_object_invalidate_buffer_data(gl_array_object_t *array_object, gl_buf
         if (array_object->arrays[i].binding == buffer) {
             invalidate_array_data(array_object, i);
         }
+    }
+
+    if (array_object->element_array_buffer == buffer) {
+        invalidate_indices(array_object);
     }
 }
 
