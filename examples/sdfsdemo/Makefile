@@ -1,6 +1,6 @@
 SOURCE_DIR := src
 BUILD_DIR := build
-PROJECT_NAME := SDFSDEMO
+PROJECT_NAME := sdfsdemo
 
 include $(N64_INST)/include/n64.mk
 CFLAGS += -Os -Wall -Wpedantic
