@@ -1054,6 +1054,10 @@ swap_end:
     # v__       =    0 0  0  0     0    0    0    NZi
     # slope     =   -- -- -- --   1/HY 1/MY 1/LY  1/NZ
     
+    #undef vtmp_f
+    #undef vtmp_i
+    #undef vk2
+
     vmov vnz_f.e0, vslope_f.e7
     vmov vnz_i.e0, vslope_i.e7
 

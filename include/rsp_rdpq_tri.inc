@@ -72,7 +72,9 @@
 #define STORE_VTX3
 #endif
 
-
+#ifndef RDPQ_TRIANGLE_TRICMD
+#define RDPQ_TRIANGLE_TRICMD  a0
+#endif
 
     #####################################################################
     # RDPQ_Triangle_Send_Async
@@ -129,7 +131,7 @@
 
     .func RDPQ_Triangle_Send_Async
 RDPQ_Triangle_Send_Async:
-    #define tricmd a0
+    #define tricmd RDPQ_TRIANGLE_TRICMD // a0
     #define vtx1   RDPQ_TRIANGLE_VTX1   // a1
     #define vtx2   RDPQ_TRIANGLE_VTX2   // a2
     #define vtx3   RDPQ_TRIANGLE_VTX3   // a3

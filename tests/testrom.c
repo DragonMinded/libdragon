@@ -228,6 +228,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_dl.c"
 #include "test_math.c"
 #include "test_fm.c"
+#include "test_magma.c"
 
 /**********************************************************************
  * MAIN
@@ -450,6 +451,27 @@ static const struct Testsuite
 	TEST_FUNC(test_fm_expf,                    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_fm_lerp_angle,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_fm_wrap_angle,              0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_triangle_list, 				0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_triangle_list_full_cache, 	0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_triangle_strip, 				0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_triangle_strip_full_cache,	0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_triangle_fan, 				0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_triangle_fan_full_cache, 	0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_one_tri, 			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_two_tris, 			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_full_cache, 			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_full_one_extra, 		0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_fragmented_batch, 	0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_frag_backwards, 		0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_holes, 				0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_out_of_order, 		0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_coalescing, 			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_strip, 				0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_strip_full, 			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_fan, 				0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_fan_full, 			0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_restart_strip, 		0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_mg_draw_indexed_restart_fan, 		0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

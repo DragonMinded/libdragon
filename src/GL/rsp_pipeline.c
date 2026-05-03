@@ -6,7 +6,7 @@
 #include <limits.h>
 
 #include "gl_internal.h"
-#include "gl_rsp_asm.h"
+#include "rsp_asm.h"
 
 extern gl_state_t *state;
 
