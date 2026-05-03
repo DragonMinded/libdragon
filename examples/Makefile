@@ -16,6 +16,7 @@ EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
 EXAMPLES += lossysprite
 EXAMPLES += meshviewer
+EXAMPLES += mghello
 EXAMPLES += micro-ui
 EXAMPLES += mixertest
 EXAMPLES += ovldemo
