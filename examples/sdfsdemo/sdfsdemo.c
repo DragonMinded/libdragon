@@ -385,7 +385,7 @@ int main(void) {
 
                     file_read = FP_TXT_FILE;
 
-                    memset(txt, 0, sizeof(txt));
+                    sys_hw_memset(txt, 0, sizeof(txt));
 
                     /* 
                      * Random number to prove that we can write a new file
@@ -409,7 +409,7 @@ int main(void) {
                     fclose(txt_file);
                 } else {
                     file_read = FP_NUL_FILE;
-                    memset(text_buffer, 0, sizeof(text_buffer));
+                    sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
                     sprintf(
                         text_buffer,
                         "Failed to open sav.txt for writing."
@@ -418,7 +418,7 @@ int main(void) {
             }
             else {
                 file_read = FP_NUL_FILE;
-                memset(text_buffer, 0, sizeof(text_buffer));
+                sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
                 sprintf(
                     text_buffer, 
                     "Failed to mount SD card "
@@ -456,7 +456,7 @@ int main(void) {
                 } else {
                     file_read = FP_NUL_FILE;
 
-                    memset(text_buffer, 0, sizeof(text_buffer));
+                    sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
 
                     sprintf(
                         text_buffer,
@@ -467,7 +467,7 @@ int main(void) {
             else {
                 file_read = FP_NUL_FILE;
 
-                memset(text_buffer, 0, sizeof(text_buffer));
+                sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
 
                 sprintf(
                     text_buffer, 
@@ -516,9 +516,9 @@ int main(void) {
                         /* Write random numbers to SD card */
                         fwrite(bin_buffer, sizeof(uint32_t), 128, bin_file);
 
-                        memset(bin_buffer, 0, sizeof(bin_buffer));
+                        sys_hw_memset(bin_buffer, 0, sizeof(bin_buffer));
 
-                        memset(text_buffer, 0, sizeof(text_buffer));
+                        sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
 
                         sprintf(
                             text_buffer, 
@@ -531,7 +531,7 @@ int main(void) {
                     } else {
                         file_read = FP_NUL_FILE;
 
-                        memset(text_buffer, 0, sizeof(text_buffer));
+                        sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
 
                         sprintf(
                             text_buffer,
@@ -541,7 +541,7 @@ int main(void) {
                 } else {
                     file_read = FP_NUL_FILE;
 
-                    memset(text_buffer, 0, sizeof(text_buffer));
+                    sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
 
                     sprintf(
                         text_buffer,
@@ -580,7 +580,7 @@ int main(void) {
 
                         accumulator = 0.0f;
 
-                        memset(sav_bin, 0, sizeof(sav_bin));
+                        sys_hw_memset(sav_bin, 0, sizeof(sav_bin));
 
                         file_size = fread(
                             sav_bin,
@@ -593,7 +593,7 @@ int main(void) {
 
                     } else {
                         file_read = FP_NUL_FILE;
-                        memset(text_buffer, 0, sizeof(text_buffer));
+                        sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
                         sprintf(
                             text_buffer,
                             "Failed to open sav.bin for reading."
@@ -601,7 +601,7 @@ int main(void) {
                     }
                 } else {
                     file_read = FP_NUL_FILE;
-                    memset(text_buffer, 0, sizeof(text_buffer));
+                    sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
                     sprintf(
                         text_buffer,
                         "Failed to mount SD card for reading binary file."
@@ -636,7 +636,7 @@ int main(void) {
                 if (!screenshot_save(&scr_surf)) {
                     file_read = FP_NUL_FILE;
 
-                    memset(text_buffer, 0, sizeof(text_buffer));
+                    sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
 
                     sprintf(
                         text_buffer,
@@ -648,7 +648,7 @@ int main(void) {
             } else {
                 file_read = FP_NUL_FILE;
 
-                memset(text_buffer, 0, sizeof(text_buffer));
+                sys_hw_memset(text_buffer, 0, sizeof(text_buffer));
 
                 sprintf(
                     text_buffer,
