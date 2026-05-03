@@ -143,6 +143,3 @@ void mgfx_set_fog_inline(const mg_uniform_t *uniform, const mgfx_fog_parms_t *pa
     mgfx_get_fog(&fog, parms);
     mg_uniform_load_inline(uniform, &fog);
 }
-
-// TODO: RSP side matrix manipulation.
-//       This could be done using a separate overlay which acts as a batch matrix processor.

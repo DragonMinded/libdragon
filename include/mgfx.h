@@ -7,10 +7,10 @@
 #ifndef __LIBDRAGON_MGFX_H
 #define __LIBDRAGON_MGFX_H
 
-#include <magma.h>
-#include <mgfx_constants.h>
-#include <mgfx_macros.h>
-#include <fgeom.h>
+#include "magma.h"
+#include "mgfx_constants.h"
+#include "mgfx_macros.h"
+#include "fgeom.h"
 
 typedef enum
 {
@@ -153,10 +153,6 @@ void mgfx_set_lighting_inline(const mg_uniform_t *uniform, const mgfx_lighting_p
 
 /** @brief Set the value of the fog uniform inline. */
 void mgfx_set_fog_inline(const mg_uniform_t *uniform, const mgfx_fog_parms_t *parms);
-
-mgfx_pipeline_cache_t *mgfx_pipeline_cache_create();
-void mgfx_pipeline_cache_free(mgfx_pipeline_cache_t *cache);
-mg_pipeline_t *mgfx_pipeline_cache_get_or_create(const mg_pipeline_parms_t *parms);
 
 #ifdef __cplusplus
 }

@@ -7,7 +7,7 @@
 #ifndef __LIBDRAGON_MGFX_MESH_TYPES_H
 #define __LIBDRAGON_MGFX_MESH_TYPES_H
 
-#include <magma_types.h>
+#include "magma_types.h"
 
 typedef struct mgfx_submesh_s
 {

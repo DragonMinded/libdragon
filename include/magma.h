@@ -120,11 +120,11 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <graphics.h>
-#include <rsp.h>
-#include <rspq.h>
-#include <magma_types.h>
-#include <debug.h>
+#include "graphics.h"
+#include "rsp.h"
+#include "rspq.h"
+#include "magma_types.h"
+#include "debug.h"
 
 #ifdef __cplusplus
 extern "C" {

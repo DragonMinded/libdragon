@@ -8,7 +8,7 @@
 #define __LIBDRAGON_MAGMA_TYPES_H
 
 #include <stdint.h>
-#include <rsp.h>
+#include "rsp.h"
 
 /** 
  * @brief An instance of a vertex shader that has been configured with a specific vertex layout.

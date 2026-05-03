@@ -7,7 +7,7 @@
 #ifndef __LIBDRAGON_MGFX_MESHDB_H
 #define __LIBDRAGON_MGFX_MESHDB_H
 
-#include <mgfx_mesh.h>
+#include "mgfx_mesh.h"
 
 typedef struct mgfx_meshdb_s mgfx_meshdb_t;
 

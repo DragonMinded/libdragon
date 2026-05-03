@@ -7,8 +7,8 @@
 #ifndef __LIBDRAGON_MGFX_MESH_H
 #define __LIBDRAGON_MGFX_MESH_H
 
-#include <magma.h>
-#include <mgfx_mesh_types.h>
+#include "magma.h"
+#include "mgfx_mesh_types.h"
 
 #ifdef __cplusplus
 extern "C" {
