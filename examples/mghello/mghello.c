@@ -15,7 +15,7 @@ int main()
 {
     const resolution_t resolution = RESOLUTION_320x240;
 
-	debug_init(DEBUG_FEATURE_LOG_ISVIEWER | DEBUG_FEATURE_LOG_USB);
+	debug_init(DEBUG_FEATURE_LOG_EMU | DEBUG_FEATURE_LOG_USB);
     display_init(resolution, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE_ANTIALIAS_DEDITHER);
     rdpq_init();
     mg_init();
