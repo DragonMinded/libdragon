@@ -101,8 +101,17 @@ include $(SOURCE_DIR)/GL/libdragon.mk
 include $(SOURCE_DIR)/video/libdragon.mk
 include $(SOURCE_DIR)/rspq/libdragon.mk
 include $(SOURCE_DIR)/rdpq/libdragon.mk
+include $(SOURCE_DIR)/magma/libdragon.mk
 include $(SOURCE_DIR)/math/libdragon.mk
 include $(SOURCE_DIR)/compress/libdragon.mk
+
+# TODO: Make this generically available in n64.mk somehow
+$(SOURCE_DIR)/magma/rsp_magma.h: $(BUILD_DIR)/magma/rsp_magma.o
+	$(N64_OBJDUMP) -t $(BUILD_DIR)/magma/rsp_magma.elf \
+		| awk 'BEGIN {print("#ifndef __RSP_MAGMA_SYMBOLS\n#define __RSP_MAGMA_SYMBOLS") } $$3 ~ /\.data|\.text/ {printf("#define RSP_MAGMA_%s 0x%s\n", $$5, substr($$1,5,4))} END {print("#endif")}' \
+		> $@
+
+$(BUILD_DIR)/magma/magma.o: $(SOURCE_DIR)/magma/rsp_magma.h
 
 libdragon.a: $(LIBDRAGON_OBJS)
 

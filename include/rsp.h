@@ -284,7 +284,15 @@ typedef struct {
     void    *code_end;     ///< Pointer past the end of the code segment
     uint8_t *data;         ///< Pointer to the data segment
     void    *data_end;     ///< Pointer past the end of the data segment
-    uint8_t *meta;         ///< Pointer to the meta segment
+
+    /**
+     * @brief Pointer to the meta segment.
+     * 
+     * This is a special data segment which may contain arbitrary user-defined data.
+     * All sections with the prefix ".meta" are automatically placed here by the linker script.
+     * The contents are never loaded into DMEM or IMEM.
+     */
+    uint8_t *meta;
     void    *meta_end;     ///< Pointer past the end of the meta segment
 
     const char *name;      ///< Name of the ucode
