@@ -9,7 +9,13 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand OMX_DequantTransformResidual,         28
-        RSPQ_DefineCommand OMX_TransformDequantLumaDC,           12
+        # OMX_TransformDequantLumaDC moved to the intra overlay:
+        # TransformDequantLumaDC needs ~324 bytes of IMEM that this
+        # overlay can't spare. rsph264_queue_transform_dequant_lumadc
+        # now dispatches to the intra overlay (slot 5). 
+        # Slot kept as a no-op placeholder so the existing
+        # command IDs don't shift.
+        RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand OMX_TransformDequantChromaDC,         12
         RSPQ_DefineCommand Task_ProcessLumaInterResidual,        28
         RSPQ_DefineCommand Task_ProcessChromaResidual,           28
@@ -1395,26 +1401,12 @@ TransformOnly:
     .endfunc
 
 ####################################################################
-# OMX_TransformDequantLumaDC
-#
-# Reconstruct the 4x4 Luma DC block from packed delta buffer. Save
-# it within the internal LUMA_DC structure, and DMA back into RDRAM.
+# OMX_TransformDequantLumaDC: removed (dead code, see header table).
+# TransformDequantLumaDC is no longer assembled into this overlay.
 ####################################################################
-# ARGS
-#  a0: <unused>
-#  a1: dst
-#  a2: qp
 
 #define dcdmasize  t8
 #define dcfunc     t9
-
-    .func OMX_TransformDequantLumaDC
-OMX_TransformDequantLumaDC:
-    li s4, %lo(LUMA_DC)
-    li dcdmasize, DMA_SIZE(32,1)
-    j TransformDequantAnyDC
-    li dcfunc, %lo(TransformDequantLumaDC)
-    .endfunc
 
 ####################################################################
 # OMX_TransformDequantChromaDC

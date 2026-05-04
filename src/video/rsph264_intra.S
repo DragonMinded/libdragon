@@ -13,7 +13,7 @@
         RSPQ_DefineCommand OMX_IntraPredictChroma8x8,            32
         RSPQ_DefineCommand Task_ProcessLumaIntra4x4Residual,     40
         RSPQ_DefineCommand Task_ProcessLumaIntra16x16Residual,   32
-        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand OMX_TransformDequantLumaDC,           12
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
@@ -38,6 +38,10 @@ DECLARE_OMXDL_TABLE(
 )
 #endif
 
+# Pull in TransformDequantLumaDC from common.inc — only the intra overlay
+# uses it (via Task_ProcessLumaIntra16x16Residual), and the function is
+# fat enough that including it in inter blows the IMEM budget.
+#define RSPH264_INCLUDE_TDLDC
 #include "rsph264_common.inc"
 
     .data
@@ -1536,6 +1540,35 @@ Intra4Res_CopyLoop:
     #define npart t8
     #define qp    t9
     #define tcmask s5
+
+####################################################################
+# OMX_TransformDequantLumaDC
+#
+# Reconstruct the 4x4 LumaDC block from packed delta buffer, run the
+# Hadamard inverse transform + dequantization, and DMA the result back
+# to RDRAM. Lives in the intra overlay because TransformDequantLumaDC
+# is only assembled there (inter overlay can't spare the IMEM).
+#
+#  a0: <unused>
+#  a1: dst (RDRAM, 8-byte aligned, 32 bytes)
+#  a2: qp = ((qpY/6) << 8) | (qpY%6)
+####################################################################
+    .func OMX_TransformDequantLumaDC
+OMX_TransformDequantLumaDC:
+    jal CalcDequantFactors
+    move t0, a2                  # qp (delay slot)
+
+    jal UnpackNextDeltaBlock
+    li s4, %lo(LUMA_DC)          # delay slot
+
+    jal TransformDequantLumaDC
+    move t1, a2                  # qp (delay slot)
+
+    li t0, DMA_SIZE(32, 1)
+    move s0, a1                  # dst RDRAM addr
+    jal_and_j DMAOut, RSPQ_Loop
+    .endfunc
+
 
     .func Task_ProcessLumaIntra16x16Residual
 Task_ProcessLumaIntra16x16Residual:

@@ -822,11 +822,15 @@ TransformResidual4x4IDCT:
 ####################################################################
 # TransformDequantLumaDC
 #
-# Reconstruct a 4x4 Luma DC block from a packed block of coefficients. 
+# Reconstruct a 4x4 Luma DC block from a packed block of coefficients.
 # Do a 4x4 inverse Hadamard transformation, followed by a quantization
 # step.
 #
-# This is exposed as OMX_TransformDequantLumaDC.
+# Only assembled when RSPH264_INCLUDE_TDLDC is defined (intra overlay
+# only). The inter overlay used to expose this as OMX_TransformDequantLumaDC
+# but that path is dead — the only live caller is the intra-bundled
+# Task_ProcessLumaIntra16x16Residual. Excluding it from inter saves
+# ~324 bytes of IMEM there.
 ####################################################################
 # ARGS:
 #   $v00/$v01: 4x4 coefficient matrix
@@ -835,6 +839,7 @@ TransformResidual4x4IDCT:
 #   s4: address of destination buffer in DMEM
 #
 
+#ifdef RSPH264_INCLUDE_TDLDC
     .func TransformDequantLumaDC
 TransformDequantLumaDC:
     # Apply a IHT 4X4 transformation. This is quite similar to 
@@ -887,42 +892,78 @@ TransformDequantLumaDC:
     vmacf $v01, $v04, $v13,6
     vmacf $v01, $v05, $v13,7
 
-    # Dequantize using only first multiplication factor ($v27[e8]) calculated
-    # by CalcDequantFactors. 
-    vmudn $v00, $v00, $v27,8
-    vmudn $v01, $v01, $v27,8
-
-    # Now we need to apply scale. The scale factor in QP is used after being
-    # subtracted by 2, so for instance QP=5 -> <<3; QP=1 -> <<-1 -> >>1.
-    # In case of right shift, a rounding is also necessary.
-    # So we can't just use the scale factor calculated by CalcDequantFactors.
+    # Dequantize: scale T (post-IHT coefficients) by the QP-derived
+    # multiplication factor LS = $v27[e8]. The full operation is:
+    #   qp/6 == 0 (LumaDCScaleDown2): result = (T*LS + 2) >> 2
+    #   qp/6 == 1 (LumaDCScaleDown1): result = (T*LS + 1) >> 1
+    #   qp/6 >= 2:                   result = (T*LS) << (qp/6 - 2)
+    #
+    # IMPORTANT: T*LS may exceed s16 range for low QPs (where T after IHT
+    # can be near ±32767 and LS up to 29 → |product| up to ~950k). The
+    # right-shift paths must compute T*LS as a full 32-bit signed value
+    # via vmudh + vsar(ACC_HI/MD), or the sign wraps when truncated to 16
+    # bits and the result comes out wrong-signed (this caused the camera
+    # blowout bug — MB output saturating to 0xff instead of dark). The
+    # shift-left path is fine with truncating vmudn because shift-left
+    # discards high bits regardless.
     srl t0, t1, 8
-    beqz t0, LumaDCScaleDown2    # >>2
+    beqz t0, LumaDCScaleDown2
     addi t0, -1
-    beqz t0, LumaDCScaleDown1    # >>1
+    beqz t0, LumaDCScaleDown1
     nop
 
-    # Shift the dequant scale factor itself by 2, so that we can then apply
-    # to our coefficients.
+    # qp/6 >= 2: shift left by (qp/6 - 2). 16-bit truncation is OK.
+    vmudn $v00, $v00, $v27,8
+    vmudn $v01, $v01, $v27,8
     vsrl $v06, $v29, 2
     vmudn $v00, $v00, $v06,8
     j LumaDCEnd
     vmudn $v01, $v01, $v06,8
 
 LumaDCScaleDown1:
-    # Right-shift by 1, after adding 1 (from shift register vshift[e15])
-    vaddc $v00, $v00, vshift,15
-    vaddc $v01, $v01, vshift,15
-    vsra $v00, $v00, 1
+    # (T*LS + 1) >> 1 with full 32-bit signed precision.
+    # We can't use the vzero alias ($v00) because $v00 holds T; build a
+    # zero in $v04 for the carry-propagation vadd.
+    vxor $v04, $v04, $v04
+    vmudh $v06, $v00, $v27,8      # ACC = T*LS (signed*signed); ACC_LO=0
+    vsar $v05, COP2_ACC_HI        # v05 = high 16 of T*LS (sign-extended)
+    vsar $v06, COP2_ACC_MD        # v06 = low 16 of T*LS (raw bits)
+    vaddc $v06, $v06, vshift,15   # low += 1; VCC = unsigned carry-out
+    vadd $v05, $v05, $v04         # high += 0 + carry
+    vsrl $v06, $v06, 1            # low >>= 1 (logical)
+    vsll8 $v05, $v05, 15          # low bit of high → bit 15 of result
+    vor $v00, $v06, $v05
+
+    vmudh $v06, $v01, $v27,8
+    vsar $v05, COP2_ACC_HI
+    vsar $v06, COP2_ACC_MD
+    vaddc $v06, $v06, vshift,15
+    vadd $v05, $v05, $v04
+    vsrl $v06, $v06, 1
+    vsll8 $v05, $v05, 15
     j LumaDCEnd
-    vsra $v01, $v01, 1
+    vor $v01, $v06, $v05
 
 LumaDCScaleDown2:
-    # Right-shift by 2, after adding 2 (from shift register vshift[e14])
-    vaddc $v00, $v00, vshift,14
-    vaddc $v01, $v01, vshift,14
-    vsra $v00, $v00, 2
-    vsra $v01, $v01, 2
+    # (T*LS + 2) >> 2 with full 32-bit signed precision.
+    vxor $v04, $v04, $v04
+    vmudh $v06, $v00, $v27,8
+    vsar $v05, COP2_ACC_HI
+    vsar $v06, COP2_ACC_MD
+    vaddc $v06, $v06, vshift,14   # +2
+    vadd $v05, $v05, $v04
+    vsrl $v06, $v06, 2
+    vsll8 $v05, $v05, 14          # low 2 bits of high → bits 14..15 of result
+    vor $v00, $v06, $v05
+
+    vmudh $v06, $v01, $v27,8
+    vsar $v05, COP2_ACC_HI
+    vsar $v06, COP2_ACC_MD
+    vaddc $v06, $v06, vshift,14
+    vadd $v05, $v05, $v04
+    vsrl $v06, $v06, 2
+    vsll8 $v05, $v05, 14
+    vor $v01, $v06, $v05
 
 LumaDCEnd:
     sqv $v00,0, 0*16,s4
@@ -930,6 +971,7 @@ LumaDCEnd:
     sqv $v01,0, 1*16,s4
 
     .endfunc
+#endif  /* RSPH264_INCLUDE_TDLDC */
 
 #if 0
 TEXT_OVERLAY_START:
