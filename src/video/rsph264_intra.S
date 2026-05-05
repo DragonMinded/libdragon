@@ -1615,16 +1615,12 @@ TransformDequantLumaDC:
     vmudm $v02, $v00, $v06,8       # ACC = T * scale
     vmadm $v02, $v07, vshift,14    # ACC += 2 (1*2), v02 = ACCM
     vsar $v03, COP2_ACC_LO         # v03 = ACCL
-    vsrl $v03, $v03, 2
-    vsll8 $v02, $v02, 14
-    vor $v00, $v03, $v02
+    vdsrl $v00, $v03, $v02, 2
 
     vmudm $v02, $v01, $v06,8
     vmadm $v02, $v07, vshift,14
     vsar $v03, COP2_ACC_LO
-    vsrl $v03, $v03, 2
-    vsll8 $v02, $v02, 14
-    vor $v01, $v03, $v02
+    vdsrl $v01, $v03, $v02, 2
 
 LumaDCEnd:
     sqv $v00,0, 0*16,s4
