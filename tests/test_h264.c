@@ -255,7 +255,7 @@ void exhaustive_interpolation_test(InterpolationTest *test, int repetitions, int
                     bool ok = interpolation_test(test, v);
                     if (!ok) {
                         printf("FAILED: nt=%d\n", nt);
-                        while(1) {}
+                        abort();
                     }
                 }
             }
@@ -592,7 +592,7 @@ void exhaustive_intrapred_test(IntraPredictionTest *test, int repetitions, int v
             bool ok = intrapred_test(test, v);
             if (!ok) {
                 printf("FAILED: test:%d\n", nt);
-                while(1) {}
+                abort();
             }
         }
     }    
@@ -622,7 +622,7 @@ void overfill_interpolation_test(InterpolationTest *test, int verbose) {
                     test->x1 = x;
                     test->y1 = (x&3)-1;
                     bool ok = interpolation_test(test, verbose);
-                    if (!ok) while(1) {}
+                    if (!ok) abort();
                 }
 
                 // Right border
@@ -630,7 +630,7 @@ void overfill_interpolation_test(InterpolationTest *test, int verbose) {
                     test->x1 = x;
                     test->y1 = SRC_SIZE-1-(x&3);
                     bool ok = interpolation_test(test, verbose);
-                    if (!ok) while(1) {}
+                    if (!ok) abort();
                 }
 
                 // Top border
@@ -638,7 +638,7 @@ void overfill_interpolation_test(InterpolationTest *test, int verbose) {
                     test->x1 = SRC_SIZE-1-(y&3);
                     test->y1 = y;
                     bool ok = interpolation_test(test, verbose);
-                    if (!ok) while(1) {}
+                    if (!ok) abort();
                 }
 
                 // Bottom border
@@ -646,7 +646,7 @@ void overfill_interpolation_test(InterpolationTest *test, int verbose) {
                     test->x1 = (y&3)-1;
                     test->y1 = y;
                     bool ok = interpolation_test(test, verbose);
-                    if (!ok) while(1) {}
+                    if (!ok) abort();
                 }
             }
         }
@@ -919,12 +919,12 @@ bool exhaustive_dequant_test(BufferTest *buf, int func, int numtests, int verbos
         if (func == OMX_CHROMADC_2x2 || func == OMX_LUMADC_4x4) {
             if (!dequant_dc_test(&test, verbose)) {
                 printf("FAILED TEST: #%d\n", i);
-                while(1) {}
+                abort();
             }
         } else {
             if (!dequant_test(&test, verbose)) {
                 printf("FAILED TEST: #%d\n", i);
-                while(1) {}
+                abort();
             }
         }
     }
@@ -1089,7 +1089,7 @@ bool exhaustive_cavlc_test(int numtests, int verbose) {
             if (ok2) {
                 printf("REF: error, RSP: ok\n");
                 printf("FAILED TEST: #%d (maxCoeff: %d)\n", nt, maxNumCoeff);
-                while(1) {}
+                abort();
                 return false;
             }
             continue;
@@ -1098,7 +1098,7 @@ bool exhaustive_cavlc_test(int numtests, int verbose) {
             if (ok1) {
                 printf("REF: OK, RSP: error\n");
                 printf("FAILED TEST: #%d\n", nt);
-                while(1) {}
+                abort();
                 return false;                
             }
         }
@@ -1126,7 +1126,7 @@ bool exhaustive_cavlc_test(int numtests, int verbose) {
             printf("\n");
 
             printf("FAILED TEST: #%d\n", nt);
-            while(1) {}
+            abort();
             return false;
         }
 
@@ -1286,6 +1286,7 @@ int main(void)
 {
     debug_init_emulog();
     debug_init_usblog();
+    emux_ioctl_fast();
 
     timer_init();
     console_init();
@@ -1363,7 +1364,7 @@ int main(void)
     printf("OMX_TransformDequantLumaDC overflow boundary... "); fflush(stdout);
     if (!lumadc_overflow_test(verbose)) {
         printf("FAILED\n");
-        while(1) {}
+        abort();
     }
     printf("OK\n");
 
