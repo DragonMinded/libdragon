@@ -47,7 +47,8 @@ uniform<MGFX_BINDING_FOG> FOG
     u8 FOG_MASK;
 }
 
-attribute<MGFX_ATTRIBUTE_POS_NORM>  s16 POS_NORM[4];
+attribute<MGFX_ATTRIBUTE_POSITION>  s16 POSITION[3];
+attribute<MGFX_ATTRIBUTE_NORMAL>    s16 NORMAL?;
 attribute<MGFX_ATTRIBUTE_COLOR>     u32 COLOR?;
 attribute<MGFX_ATTRIBUTE_TEXCOORD>  s16 TEXCOORD[2]?;
 
@@ -193,10 +194,10 @@ shader mgfx()
     vec16 vrgba_in;
     vec32 vpos_clip;
 
-    @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
-    @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
-    @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
-    @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+    @AttrLoader("NORMAL") vnorm.x = load(vtx_in0_ptr).x;
+    @AttrLoader("NORMAL") vnorm.X = load(vtx_in1_ptr).x;
+    @AttrLoader("POSITION") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+    @AttrLoader("POSITION") vpos.XYZW = load(vtx_in1_ptr).xyzw;
     @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
     @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
 
@@ -231,8 +232,8 @@ shader mgfx()
         @AttrLoader("TEXCOORD") vtex.XY = load(vtx_in1_ptr).xy;
         #endif
         
-        // Eye space normals
-        vnorm = vnormmask & vnorm.wwwwWWWW;
+        // View space normals
+        vnorm = vnormmask & vnorm.xxxxXXXX;
 
         vpos.w = 0x20;
         vpos.W = 0x20;
@@ -462,10 +463,10 @@ shader mgfx()
         vtx_out0_ptr += MG_VTX_SIZE2;
         vtx_out1_ptr += MG_VTX_SIZE2;
 
-        @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
-        @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
-        @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
-        @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+        @AttrLoader("NORMAL") vnorm.x = load(vtx_in0_ptr).x;
+        @AttrLoader("NORMAL") vnorm.X = load(vtx_in1_ptr).x;
+        @AttrLoader("POSITION") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+        @AttrLoader("POSITION") vpos.XYZW = load(vtx_in1_ptr).xyzw;
         @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
         @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
 

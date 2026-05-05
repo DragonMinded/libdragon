@@ -354,7 +354,7 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
     const cgltf_accessor *in_pos = cgltf_find_accessor(in_primitive, cgltf_attribute_type_position, 0);
     if (in_pos != NULL) {
         attributes[attribute_count++] = (mg_vertex_attribute_t) {
-            .input = MGFX_ATTRIBUTE_POS_NORM,
+            .input = MGFX_ATTRIBUTE_POSITION,
             .offset = vertex_stride
         };
         conversions[conversion_count++] = (attribute_conversion) {
@@ -362,7 +362,7 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
             .out_offset = vertex_stride,
             .convert_func = (convert_func)convert_position
         };
-        vertex_stride += sizeof(uint16_t) * 4;
+        vertex_stride += sizeof(uint16_t) * 3;
     } else {
         fprintf(stderr, "Error: no position attribute found in primitive!\n");
         return 1;
@@ -370,11 +370,17 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
 
     const cgltf_accessor *in_norm = cgltf_find_accessor(in_primitive, cgltf_attribute_type_normal, 0);
     if (in_norm != NULL) {
+        attributes[attribute_count++] = (mg_vertex_attribute_t) {
+            .input = MGFX_ATTRIBUTE_NORMAL,
+            .offset = vertex_stride
+        };
         conversions[conversion_count++] = (attribute_conversion) {
             .in_acc = in_norm,
-            .out_offset = vertex_stride - sizeof(uint16_t),
+            .out_offset = vertex_stride,
             .convert_func = (convert_func)convert_normal
         };
+        // Subsequent attributes become misaligned if normals are omitted!
+        vertex_stride += sizeof(uint16_t);
     }
 
     const cgltf_accessor *in_color = cgltf_find_accessor(in_primitive, cgltf_attribute_type_color, 0);

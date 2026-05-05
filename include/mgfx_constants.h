@@ -7,14 +7,17 @@
 #ifndef __MGFX_CONSTANTS
 #define __MGFX_CONSTANTS
 
-/** @brief Input number of the "Position/Normal" vertex input. */
-#define MGFX_ATTRIBUTE_POS_NORM         0
+/** @brief Input number of the "Position" vertex input. */
+#define MGFX_ATTRIBUTE_POSITION         0
+
+/** @brief Input number of the "Normal" vertex input. */
+#define MGFX_ATTRIBUTE_NORMAL           1
 
 /** @brief Input number of the "Color" vertex input. */
-#define MGFX_ATTRIBUTE_COLOR            1
+#define MGFX_ATTRIBUTE_COLOR            2
 
 /** @brief Input number of the "Texture coordinate" vertex input. */
-#define MGFX_ATTRIBUTE_TEXCOORD         2
+#define MGFX_ATTRIBUTE_TEXCOORD         3
 
 /** @brief Binding number of the "Matrices" uniform. */
 #define MGFX_BINDING_MATRICES           0

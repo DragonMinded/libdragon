@@ -24,7 +24,7 @@ int main()
     // We need to configure the layout of our vertex data. Magma will then patch the pipeline according to this layout.
     mg_vertex_attribute_t vertex_attributes[] = {
         {
-            .input = MGFX_ATTRIBUTE_POS_NORM,
+            .input = MGFX_ATTRIBUTE_POSITION,
             .offset = offsetof(vertex, pos)
         },
     };

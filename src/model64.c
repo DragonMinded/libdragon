@@ -37,10 +37,12 @@ static void init_submesh(submesh_state_t *submesh_state, const mgfx_submesh_t *s
 
         switch (attr->input)
         {
-        case MGFX_ATTRIBUTE_POS_NORM:
+        case MGFX_ATTRIBUTE_POSITION:
             glEnableClientState(GL_VERTEX_ARRAY);
             glVertexPointer(3, GL_HALF_FIXED_N64, stride, (const GLvoid*)attr->offset);
+            break;
 
+        case MGFX_ATTRIBUTE_NORMAL:
             glEnableClientState(GL_NORMAL_ARRAY);
             glNormalPointer(GL_SHORT_5_6_5_N64, stride, (const GLvoid*)(attr->offset + sizeof(uint16_t)*3));
             break;
