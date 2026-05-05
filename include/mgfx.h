@@ -103,7 +103,13 @@ typedef struct
     uint32_t light_count;           ///< The number of lights in the list. The maximum value is #MGFX_LIGHT_COUNT_MAX.
 } mgfx_lighting_parms_t;
 
-/** @brief Fog parameters. */
+/** 
+ * @brief Fog parameters. 
+ * 
+ * Fog is disabled when start == end.
+ * When fog is enabled, vertex alpha is always overwritten by the computed fog factor.
+ * Note that fog must also be enabled in rdpq to work properly (see #rdpq_mode_fog).
+ */
 typedef struct
 {
     float start;    ///< Distance from the eye position where fog starts. Geometry closer than this distance will receive no fog at all.
