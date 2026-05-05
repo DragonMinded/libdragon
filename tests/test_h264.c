@@ -931,6 +931,77 @@ bool exhaustive_dequant_test(BufferTest *buf, int func, int numtests, int verbos
     return true;
 }
 
+// Regression test for the TransformDequantLumaDC s16-overflow bug.
+//
+// exhaustive_dequant_test masks OMX_LUMADC_4x4 coefficients to ±256, so
+// the post-IHT operand T stays well inside ±s16/Scale and never crosses
+// the boundary where the old vmudn-based code truncated T*Scale to its
+// low 16 bits and flipped the sign. This test pokes that boundary
+// directly: a 1-coefficient packed delta places value T at position 0,
+// the inverse Hadamard fans it to all 16 lanes, and the RSP output is
+// compared against the OMX C reference for each (qp%6, qp/6).
+static const uint8_t LumaDC_VMatrix[6] = { 10, 11, 13, 14, 16, 18 };
+
+static bool lumadc_overflow_one(int16_t T, int qp, int verbose) {
+    static uint8_t  delta_buf[16] __attribute__((aligned(8)));
+    static int16_t  dc_rsp[16]    __attribute__((aligned(8)));
+    static int16_t  dc_ref[16]    __attribute__((aligned(8)));
+
+    memset(delta_buf, 0, sizeof(delta_buf));
+    delta_buf[0] = 0x10 | 0x20;            // 16-bit | last | position 0
+    delta_buf[1] = (uint8_t)(T & 0xFF);
+    delta_buf[2] = (uint8_t)((T >> 8) & 0xFF);
+
+    for (int i = 0; i < 16; i++)
+        dc_rsp[i] = dc_ref[i] = (int16_t)0xDEAD;
+
+    data_cache_hit_writeback_invalidate(delta_buf, sizeof(delta_buf));
+
+    rsph264_queue_set_packed_delta_buffer(0, delta_buf);
+    rsph264_queue_transform_dequant_lumadc(0, dc_rsp, qp);
+    rsph264_sync();
+
+    const uint8_t *p = delta_buf;
+    OMXResult err = omxVCM4P10_TransformDequantLumaDCFromPair(&p, dc_ref, qp);
+    assert(err == OMX_Sts_NoErr);
+
+    for (int i = 0; i < 16; i++) {
+        if (dc_rsp[i] != dc_ref[i]) {
+            if (verbose >= 1) {
+                printf("FAILED qp=%d T=%d lane=%d: rsp=%d ref=%d\n",
+                    qp, T, i, (int)dc_rsp[i], (int)dc_ref[i]);
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
+bool lumadc_overflow_test(int verbose) {
+    // Right-shift paths (qp/6 ∈ {0,1}): only paths where the old
+    // vmudn-based code's s16 truncation flipped T*Scale's sign. One
+    // value past the boundary per qp triggers the bug — that's the
+    // exact failure the symptom report describes (qp=5, Scale=18 →
+    // T=-1821 saturates I_16x16 MBs to luma 0xFF).
+    for (int qp = 0; qp < 12; qp++) {
+        int Scale = LumaDC_VMatrix[qp % 6];
+        int16_t T = -(32767 / Scale) - 1;
+        if (!lumadc_overflow_one(T, qp, verbose)) {
+            printf("FAILED LumaDC overflow case: qp=%d T=%d\n", qp, T);
+            return false;
+        }
+    }
+
+    // Shift-left paths (qp/6 ≥ 2): unaffected by the bug, but the
+    // common.inc rewrite churned surrounding code — one sanity case
+    // per bucket guards against future regressions. T=128 keeps
+    // T*Scale << shift inside s16 for every Scale and shift up to 3.
+    if (!lumadc_overflow_one(128, 12, verbose)) return false; // shift 0
+    if (!lumadc_overflow_one(128, 30, verbose)) return false; // shift 3
+
+    return true;
+}
+
 uint8_t* coeff_buf_decode(uint8_t *src, int16_t *dst) {
     uint8_t flg;
     do {
@@ -1287,6 +1358,13 @@ int main(void)
 
     printf("OMX_TransformDequantLumaDC... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, OMX_LUMADC_4x4, 4*1024, verbose);
+    printf("OK\n");
+
+    printf("OMX_TransformDequantLumaDC overflow boundary... "); fflush(stdout);
+    if (!lumadc_overflow_test(verbose)) {
+        printf("FAILED\n");
+        while(1) {}
+    }
     printf("OK\n");
 
     printf("OMX_TransformDequantChromaDC... "); fflush(stdout);
