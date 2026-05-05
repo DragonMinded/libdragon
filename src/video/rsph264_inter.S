@@ -9,12 +9,6 @@
 
     RSPQ_BeginOverlayHeader
         RSPQ_DefineCommand OMX_DequantTransformResidual,         28
-        # OMX_TransformDequantLumaDC moved to the intra overlay:
-        # TransformDequantLumaDC needs ~324 bytes of IMEM that this
-        # overlay can't spare. rsph264_queue_transform_dequant_lumadc
-        # now dispatches to the intra overlay (slot 5). 
-        # Slot kept as a no-op placeholder so the existing
-        # command IDs don't shift.
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand OMX_TransformDequantChromaDC,         12
         RSPQ_DefineCommand Task_ProcessLumaInterResidual,        28
