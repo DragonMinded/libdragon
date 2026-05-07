@@ -104,7 +104,6 @@ int main()
         });
 
         // Configure the type of triangles that should be emitted to the RDP.
-        // We just want vertex colors, so use SHADE.
         mg_set_geometry_flags(0);
 
         // Load uniforms. This must be done every frame to guarantee that the uniforms have the desired values.
