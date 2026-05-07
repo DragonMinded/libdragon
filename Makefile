@@ -107,8 +107,8 @@ include $(SOURCE_DIR)/compress/libdragon.mk
 
 # TODO: Make this generically available in n64.mk somehow
 $(SOURCE_DIR)/magma/rsp_magma.h: $(BUILD_DIR)/magma/rsp_magma.o
-	$(N64_NM) -n $(BUILD_DIR)/magma/rsp_magma.elf \
-		| awk 'BEGIN {print("#ifndef __RSP_MAGMA_SYMBOLS\n#define __RSP_MAGMA_SYMBOLS") } $$2 ~ /[dDbtT]/ {printf("#define RSP_MAGMA_%s 0x%s\n", $$3, substr($$1,5,4))} END {print("#endif")}' \
+	$(N64_OBJDUMP) -t $(BUILD_DIR)/magma/rsp_magma.elf \
+		| awk 'BEGIN {print("#ifndef __RSP_MAGMA_SYMBOLS\n#define __RSP_MAGMA_SYMBOLS") } $$3 ~ /\.data|\.text/ {printf("#define RSP_MAGMA_%s 0x%s\n", $$5, substr($$1,5,4))} END {print("#endif")}' \
 		> $@
 
 $(BUILD_DIR)/magma/magma.o: $(SOURCE_DIR)/magma/rsp_magma.h
