@@ -122,9 +122,6 @@ typedef struct mgfx_pipeline_cache_s    mgfx_pipeline_cache_t;
 extern "C" {
 #endif
 
-extern rsp_ucode_t rsp_mgfx;
-extern rsp_ucode_t rsp_mgfx_env;
-
 /** 
  * @brief Returns a pointer to the mgfx shader ucode. Use this to create a pipeline with this shader.
  * 
@@ -132,6 +129,9 @@ extern rsp_ucode_t rsp_mgfx_env;
  */
 inline rsp_ucode_t *mgfx_get_shader_ucode(mgfx_features_t features)
 {
+    extern rsp_ucode_t rsp_mgfx;
+    extern rsp_ucode_t rsp_mgfx_env;
+
     if (features & MGFX_FEATURE_ENV_MAP) return &rsp_mgfx_env;
     return &rsp_mgfx;
 }
