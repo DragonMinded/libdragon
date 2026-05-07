@@ -4,13 +4,6 @@
 #include "utils.h"
 #include "rsp_asm.h"
 
-_Static_assert(sizeof(mgfx_matrix_t) == MGFX_MATRIX_SIZE);
-
-_Static_assert(offsetof(mgfx_light_t, position) == MGFX_LIGHT_POSITION);
-_Static_assert(offsetof(mgfx_light_t, color) == MGFX_LIGHT_COLOR);
-_Static_assert(offsetof(mgfx_light_t, intensity) == MGFX_LIGHT_INTENSITY);
-_Static_assert(sizeof(mgfx_light_t) == MGFX_LIGHT_SIZE);
-
 #define U8_TO_I16(x) ((x) << 7)
 #define FLOAT_TO_S10_5(x) ((x) * (1<<5))
 #define FLOAT_TO_I16(x) (CLAMP(x, -1.f, 1.f) * 0x7FFF)
