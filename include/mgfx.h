@@ -24,7 +24,7 @@ typedef struct
     uint16_t f[16];     ///< Fractional parts of the matrix coefficients.
 } __attribute__((packed, aligned(16))) mgfx_matrix_t;
 
-_Static_assert(sizeof(mgfx_matrix_t) == MGFX_MATRIX_SIZE);
+_Static_assert(sizeof(mgfx_matrix_t) == MGFX_MATRIX_SIZE, "Matrix struct size is incorrect!");
 
 /** @brief Data structure of the matrices uniform. */
 typedef struct
@@ -49,10 +49,10 @@ typedef struct
     int16_t intensity;              ///< The light's intensity.
 } __attribute__((packed, aligned(16))) mgfx_light_t;
 
-_Static_assert(offsetof(mgfx_light_t, position) == MGFX_LIGHT_POSITION);
-_Static_assert(offsetof(mgfx_light_t, color) == MGFX_LIGHT_COLOR);
-_Static_assert(offsetof(mgfx_light_t, intensity) == MGFX_LIGHT_INTENSITY);
-_Static_assert(sizeof(mgfx_light_t) == MGFX_LIGHT_SIZE);
+_Static_assert(offsetof(mgfx_light_t, position) == MGFX_LIGHT_POSITION, "Light position is at an incorrect offset!");
+_Static_assert(offsetof(mgfx_light_t, color) == MGFX_LIGHT_COLOR, "Light color is at an incorrect offset!");
+_Static_assert(offsetof(mgfx_light_t, intensity) == MGFX_LIGHT_INTENSITY, "Light intensity is at an incorrect offset!");
+_Static_assert(sizeof(mgfx_light_t) == MGFX_LIGHT_SIZE, "Light struct size is incorrect!");
 
 /** @brief Data structure of the lighting uniform. */
 typedef struct
