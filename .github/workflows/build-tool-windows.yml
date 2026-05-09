@@ -22,7 +22,7 @@ jobs:
             unzip
           update: true
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 1 # Using a shallow checkout. Change to `0` if a full fetch is required.
 
@@ -45,7 +45,7 @@ jobs:
           N64_INST=$(pwd)/gcc-toolchain-mips64 make ${{ matrix.build }}
 
       - name: "Upload ${{ matrix.build }} executables"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-${{ matrix.arch }}-${{ matrix.build }}
           path: ${{ github.workspace }}/**/tools/**/*.exe
