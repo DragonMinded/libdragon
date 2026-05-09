@@ -13,7 +13,7 @@
         RSPQ_DefineCommand OMX_IntraPredictChroma8x8,            32
         RSPQ_DefineCommand Task_ProcessLumaIntra4x4Residual,     40
         RSPQ_DefineCommand Task_ProcessLumaIntra16x16Residual,   32
-        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand OMX_TransformDequantLumaDC,           12
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
@@ -1536,6 +1536,127 @@ Intra4Res_CopyLoop:
     #define npart t8
     #define qp    t9
     #define tcmask s5
+
+
+####################################################################
+# TransformDequantLumaDC
+#
+# Reconstruct a 4x4 Luma DC block from a packed block of coefficients.
+# Do a 4x4 inverse Hadamard transformation, followed by a quantization
+# step.
+####################################################################
+# ARGS:
+#   $v00/$v01: 4x4 coefficient matrix
+#   t1: qp scale factor
+#   FIXME: used to be gp
+#   s4: address of destination buffer in DMEM
+#
+
+    .func TransformDequantLumaDC
+TransformDequantLumaDC:
+    # Apply a IHT 4X4 transformation. This is quite similar to 
+    # TransformResidual4x4IDCT, but there are a few differences:
+    # first, the coefficient matrix is different. Second, the matrix
+    # does not contain 0.5 / -0.5 values which require special care
+    # in TransformResidual4x4IDCT (see the various vand opcodes).
+
+    # So we don't try to reuse the code for now, but just redo the
+    # double matrix multiplication.
+    vsll $v00, $v00, 1
+    vsll $v01, $v01, 1
+
+    # Load coefficients
+    li t0, %lo(IHT_DC_COEFF)
+    lpv $v08,0, 0*8,t0
+    lpv $v09,0, 2*8,t0
+    lpv $v10,0, 3*8,t0
+    lpv $v11,0, 1*8,t0
+
+    lpv $v12,0, 4*8,t0
+    lpv $v13,0, 5*8,t0
+
+    vmulf $v02, $v08, $v00,4
+    vmacf $v02, $v09, $v00,5
+    vmacf $v02, $v10, $v00,6
+    vmacf $v02, $v11, $v00,7
+
+    vmulf $v04, $v08, $v01,4
+    vmacf $v04, $v09, $v01,5
+    vmacf $v04, $v10, $v01,6
+    vmacf $v04, $v11, $v01,7
+
+    vsll $v02, $v02, 1
+    vsll $v04, $v04, 1
+
+    li t0, %lo(V_0)
+    sqv $v02,8, 0*16,t0
+    sqv $v04,8, 1*16,t0
+    lqv $v03,0, 0*16,t0
+    lqv $v05,0, 1*16,t0
+
+    vmulf $v00, $v02, $v12,4
+    vmacf $v00, $v03, $v12,5
+    vmacf $v00, $v04, $v12,6
+    vmacf $v00, $v05, $v12,7
+
+    vmulf $v01, $v02, $v13,4
+    vmacf $v01, $v03, $v13,5
+    vmacf $v01, $v04, $v13,6
+    vmacf $v01, $v05, $v13,7
+
+    # Unified dequantization path (full precision, no branch):
+    #   result = ((T * LS * (1 << (qp/6))) + 2) >> 2
+    # This is equivalent to OMX reference for all QP ranges, while keeping
+    # the multiply in ACC to avoid 16-bit intermediate overflow.
+    vmudn $v06, $v27, $v29,8       # Lane e8 = LS * (1 << (qp/6))
+    vxor $v07, $v07, $v07
+    vaddc $v07, $v07, vshift,15    # v07 = 1
+
+    vmudm $v02, $v00, $v06,8       # ACC = T * scale
+    vmadm $v02, $v07, vshift,14    # ACC += 2 (1*2), v02 = ACCM
+    vsar $v03, COP2_ACC_LO         # v03 = ACCL
+    vdsrl $v00, $v03, $v02, 2
+
+    vmudm $v02, $v01, $v06,8
+    vmadm $v02, $v07, vshift,14
+    vsar $v03, COP2_ACC_LO
+    vdsrl $v01, $v03, $v02, 2
+
+LumaDCEnd:
+    sqv $v00,0, 0*16,s4
+    jr ra
+    sqv $v01,0, 1*16,s4
+
+    .endfunc
+
+####################################################################
+# OMX_TransformDequantLumaDC
+#
+# Reconstruct the 4x4 LumaDC block from packed delta buffer, run the
+# Hadamard inverse transform + dequantization, and DMA the result back
+# to RDRAM. Lives in the intra overlay because TransformDequantLumaDC
+# is only assembled there (inter overlay can't spare the IMEM).
+#
+#  a0: <unused>
+#  a1: dst (RDRAM, 8-byte aligned, 32 bytes)
+#  a2: qp = ((qpY/6) << 8) | (qpY%6)
+####################################################################
+    .func OMX_TransformDequantLumaDC
+OMX_TransformDequantLumaDC:
+    jal CalcDequantFactors
+    move t0, a2                  # qp (delay slot)
+
+    jal UnpackNextDeltaBlock
+    li s4, %lo(LUMA_DC)          # delay slot
+
+    jal TransformDequantLumaDC
+    move t1, a2                  # qp (delay slot)
+
+    li t0, DMA_SIZE(32, 1)
+    move s0, a1                  # dst RDRAM addr
+    jal_and_j DMAOut, RSPQ_Loop
+    .endfunc
+
 
     .func Task_ProcessLumaIntra16x16Residual
 Task_ProcessLumaIntra16x16Residual:

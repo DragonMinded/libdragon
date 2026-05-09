@@ -1160,6 +1160,8 @@ makeMxc2Op mfc2, 0x0
 #        "vsrl8 <VDST>, <VSRC>, <QTY>" to perform a logical right shift from 8 to 15 bits
 #        "vsra <VDST>, <VSRC>, <QTY>" to perform an arithmetic right shift up to 7 bits
 #        "vsra8 <VDST>, <VSRC>, <QTY>" to perform a arithmetic right shift from 8 to 15 bits
+#        "vdsrl <VDST>, <VLO>, <VMD>, <QTY>" to perform a double-precision right shift up to 8 bits
+#        "vdsrl8 <VDST>, <VLO>, <VMD>, <QTY>" to perform a double-precision right shift from 8 to 15 bits
 #
 .macro vsll_data
         .align 4
@@ -1224,6 +1226,37 @@ makeMxc2Op mfc2, 0x0
             .error "Use vsrl for quantities in range 1-8"
         .else
             .error "Invalid quantity in vsrl8"
+        .endif
+    .endm
+
+    .macro vdsrl8 vdstreg, vloreg, vmdreg, qty
+        .if (\qty == 9)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(0)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(0)
+        .elseif (\qty == 10)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(1)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(1)
+        .elseif (\qty == 11)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(2)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(2)
+        .elseif (\qty == 12)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(3)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(3)
+        .elseif (\qty == 13)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(4)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(4)
+        .elseif (\qty == 14)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(5)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(5)
+        .elseif (\qty == 15)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(6)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(6)
+        .elseif (\qty >= 2 && \qty <= 8)
+            .error "Use vdsrl for quantities in range 2-8"
+        .elseif (\qty == 1)
+            .error "vdsrl8 does not support quantity 1"
+        .else
+            .error "Invalid quantity in vdsrl8"
         .endif
     .endm
 
@@ -1316,6 +1349,37 @@ makeMxc2Op mfc2, 0x0
             .error "Use vsrl8 for quantities in range 9-15"
         .else
             .error "Invalid quantity in vsrl"
+        .endif
+    .endm
+
+    .macro vdsrl vdstreg, vloreg, vmdreg, qty
+        .if (\qty == 2)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(1)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(1)
+        .elseif (\qty == 3)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(2)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(2)
+        .elseif (\qty == 4)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(3)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(3)
+        .elseif (\qty == 5)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(4)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(4)
+        .elseif (\qty == 6)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(5)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(5)
+        .elseif (\qty == 7)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(6)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(6)
+        .elseif (\qty == 8)
+            vmudl \vdstreg, \vloreg, \vshiftreg, e(7)
+            vmadn \vdstreg, \vmdreg, \vshiftreg, e(7)
+        .elseif (\qty == 1)
+            .error "vdsrl does not support quantity 1"
+        .elseif (\qty >= 9 && \qty <= 15)
+            .error "Use vdsrl8 for quantities in range 9-15"
+        .else
+            .error "Invalid quantity in vdsrl"
         .endif
     .endm
 
