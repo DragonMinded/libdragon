@@ -178,7 +178,7 @@ jobs:
           Package_Rpm_Architecture: ${{ matrix.rpm-architecture }}
           Package_License: GPL
           Package_Description: MIPS GCC toolchain for the N64
-          Package_Url: https://n64brew.com
+          Package_Url: https://github.com/DragonMinded/libdragon
           Package_Maintainer: N64 Brew Community
 
       - name: Publish Windows-x86_64 Build Artifact
