@@ -10,7 +10,7 @@ inputs:
   paths:
     description: "Paths to compare"
     required: false
-    default: ./Dockerfile ./tools/build-toolchain.sh
+    default: ./Dockerfile ./tools/build-toolchain.sh ./tools/build-gdb.sh
 outputs:
   changed:
     value: ${{ steps.path_change.outputs.exitCode }}
