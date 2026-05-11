@@ -72,7 +72,7 @@ static FILE *sdlog_file = NULL;
 
 /** @brief prefix used to address SD filesystem */
 static char sdfs_prefix[16];
-static char sdfs_logic_drive[3] = { 0 };
+static int sdfs_vol_id = -1;
 
 /** @brief debug writer functions (USB, SD, IS64) */
 static void (*debug_writer[3])(const uint8_t *buf, int size) = { 0 };
@@ -342,17 +342,22 @@ bool debug_init_sdfs(const char *prefix, int npart)
 		return false;
 
 	strlcpy(sdfs_prefix, prefix, sizeof(sdfs_prefix));
-	fat_mount(sdfs_prefix, &fat_disk_sd, FAT_MOUNT_DEFERRED);
+	sdfs_vol_id = fat_mount(sdfs_prefix, &fat_disk_sd, FAT_MOUNT_DEFERRED);
+	if (sdfs_vol_id < 0)
+		return false;
+
 	enabled_features |= DEBUG_FEATURE_FILE_SD;
 	return true;
 }
 
 void debug_close_sdfs(void)
 {
-	if (enabled_features & DEBUG_FEATURE_FILE_SD)
+	if ((enabled_features & DEBUG_FEATURE_FILE_SD) && sdfs_vol_id >= 0)
 	{
-		detach_filesystem(sdfs_prefix);
-		f_mount(NULL, sdfs_logic_drive, 0);
+		if (fat_unmount(sdfs_vol_id) == 0) {
+			sdfs_vol_id = -1;
+			enabled_features &= ~DEBUG_FEATURE_FILE_SD;
+		}
 	}
 }
 

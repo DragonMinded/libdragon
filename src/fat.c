@@ -19,6 +19,8 @@
 #include "utils.h"
 
 static fat_disk_t fat_disks[FF_VOLUMES] = {0};
+static FATFS *fat_volumes[FF_VOLUMES] = {0};
+static filesystem_t *fat_filesystems[FF_VOLUMES] = {0};
 
 /** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DSTATUS disk_initialize(BYTE pdrv)
@@ -464,32 +466,75 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
 	assertf(vol_id != FF_VOLUMES, "Not enough FAT volumes available (max: %d)", FF_VOLUMES);
 
     fat_disks[vol_id] = *disk;
+    fat_filesystems[vol_id] = NULL;
 
-    FATFS *fs = malloc(sizeof(FATFS));
-	assertf(fs, "Out of memory");
+    FATFS *fatfs = malloc(sizeof(FATFS));
+	assertf(fatfs, "Out of memory");
     char path[3] = {'0' + vol_id, ':', 0};
 
-    FRESULT err = f_mount(fs, path, (flags & FAT_MOUNT_DEFERRED) ? 0 : 1);
+    FRESULT err = f_mount(fatfs, path, (flags & FAT_MOUNT_DEFERRED) ? 0 : 1);
     if (err != FR_OK) {
         __fresult_set_errno(err);
+        free(fatfs);
         fat_disks[vol_id] = (fat_disk_t){0};
         return -1;
     }
+    fat_volumes[vol_id] = fatfs;
 
     if (prefix) {
-        filesystem_t *fs = malloc(sizeof(filesystem_t));
-		assertf(fs, "Out of memory");
-        memcpy(fs, &fat_newlib_fs, sizeof(filesystem_t));
+        filesystem_t *newlib_fs = malloc(sizeof(filesystem_t));
+		assertf(newlib_fs, "Out of memory");
+        memcpy(newlib_fs, &fat_newlib_fs, sizeof(filesystem_t));
 
-        fs->open 	  = __fat_open_func[vol_id];
-        fs->findfirst = __fat_findfirst_func[vol_id];
-		fs->stat 	  = __fat_stat_func[vol_id];
-		fs->unlink    = __fat_unlink_func[vol_id];
-		fs->mkdir     = __fat_mkdir_func[vol_id];
-		fs->utimes    = __fat_utimes_func[vol_id];
+        newlib_fs->open 	 = __fat_open_func[vol_id];
+        newlib_fs->findfirst = __fat_findfirst_func[vol_id];
+		newlib_fs->stat 	 = __fat_stat_func[vol_id];
+		newlib_fs->unlink    = __fat_unlink_func[vol_id];
+		newlib_fs->mkdir     = __fat_mkdir_func[vol_id];
+		newlib_fs->utimes    = __fat_utimes_func[vol_id];
 
-        attach_filesystem(prefix, fs);
+        if (attach_filesystem(prefix, newlib_fs) < 0) {
+            f_mount(NULL, path, 0);
+            free(fatfs);
+            fat_volumes[vol_id] = NULL;
+            free(newlib_fs);
+            fat_disks[vol_id] = (fat_disk_t){0};
+            return -1;
+        }
+
+        fat_filesystems[vol_id] = newlib_fs;
     }
 
     return vol_id;
+}
+
+int fat_unmount(int vol_id)
+{
+    if (vol_id < 0 || vol_id >= FF_VOLUMES || fat_volumes[vol_id] == NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    char path[3] = {'0' + vol_id, ':', 0};
+    FRESULT err = f_mount(NULL, path, 0);
+    if (err != FR_OK) {
+        __fresult_set_errno(err);
+        return -1;
+    }
+
+    int detach_errno = 0;
+    if (fat_filesystems[vol_id] && detach_filesystem_by_pointer(fat_filesystems[vol_id]) < 0)
+        detach_errno = errno;
+
+    free(fat_filesystems[vol_id]);
+    fat_filesystems[vol_id] = NULL;
+    free(fat_volumes[vol_id]);
+    fat_volumes[vol_id] = NULL;
+    fat_disks[vol_id] = (fat_disk_t){0};
+
+    if (detach_errno) {
+        errno = detach_errno;
+        return -1;
+    }
+    return 0;
 }
