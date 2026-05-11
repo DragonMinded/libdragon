@@ -229,7 +229,7 @@ void io_write(pi_addr_t pi_address, uint32_t data);
 bool io_accessible(pi_addr_t pi_address);
 
 __attribute__((deprecated("use dma_wait instead"))) 
-volatile int dma_busy(void);
+int dma_busy(void);
 
 
 #ifdef __cplusplus
