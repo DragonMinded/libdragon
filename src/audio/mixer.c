@@ -252,7 +252,7 @@ void mixer_ch_set_freq(int ch, float frequency) {
 	assertf(frequency >= 0, "cannot set negative frequency on channel %d: %f", ch, frequency);
 	// Check if the frequency is within the configured limit. Allow for a 1% margin because of rounding errors
 	// for default maximum frequency being the output sample rate converted from fixed point.
-	assertf(frequency <= Mixer.limits[ch].max_frequency*1.01, "frequency %.1f exceeds configured limit %.1f on channel %d; use mixer_ch_set_limit to change the limit for this channel", frequency, Mixer.limits[ch].max_frequency, ch);
+	assertf(frequency <= Mixer.limits[ch].max_frequency*1.01f, "frequency %.1f exceeds configured limit %.1f on channel %d; use mixer_ch_set_limit to change the limit for this channel", frequency, Mixer.limits[ch].max_frequency, ch);
 	c->step = MIXER_FX64(frequency / (float)Mixer.sample_rate) << (c->flags & CH_FLAGS_BPS_SHIFT);
 }
 

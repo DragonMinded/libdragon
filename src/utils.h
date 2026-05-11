@@ -28,7 +28,10 @@
 /** @brief Round n down to the previous multiple of d */
 #define ROUND_DOWN(n, d) ({ \
     typeof(n) _n = n; typeof(d) _d = d; \
+    _Pragma("GCC diagnostic push") \
+    _Pragma("GCC diagnostic ignored \"-Wtype-limits\"") \
     ((_n >= 0) ? ((_n) / (_d) * (_d)) : -(((-_n + (_d) - 1) / (_d)) * (_d))); \
+    _Pragma("GCC diagnostic pop") \
 })
 
 /** @brief Return the ceil of n/d */

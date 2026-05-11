@@ -72,10 +72,10 @@
 #endif
 
 /** Compile-time conversion of float constant to 16-bit value */
-#define QCONST16(x,bits) ((opus_val16)(.5+(x)*(((opus_val32)1)<<(bits))))
+#define QCONST16(x,bits) ((opus_val16)(.5f+(x)*(((opus_val32)1)<<(bits))))
 
 /** Compile-time conversion of float constant to 32-bit value */
-#define QCONST32(x,bits) ((opus_val32)(.5+(x)*(((opus_val32)1)<<(bits))))
+#define QCONST32(x,bits) ((opus_val32)(.5f+(x)*(((opus_val32)1)<<(bits))))
 
 /** Negate a 16-bit value */
 #define NEG16(x) (-(x))

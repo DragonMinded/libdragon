@@ -18,7 +18,7 @@
 #include "../rdpq/rdpq_internal.h"
 #include "rdpq_tri.h"
 
-#define RADIANS(x) ((x) * M_PI / 180.0f)
+#define RADIANS(x) ((x) * (float)M_PI / 180.0f)
 
 #define CLAMP01(x) CLAMP((x), 0, 1)
 
