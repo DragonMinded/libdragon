@@ -240,6 +240,20 @@ typedef struct {
  */
 int fat_mount(const char *prefix, const fat_disk_t* disk, int flags);
 
+/**
+ * @brief Unmount a FAT volume previously mounted with #fat_mount.
+ *
+ * This function releases a FAT volume identified by the volume ID returned by
+ * #fat_mount. If the volume was mounted with a stdio prefix, the filesystem
+ * prefix is detached as well.
+ *
+ * @param vol_id            Volume ID returned by #fat_mount.
+ *
+ * @return 0 on success
+ * @return -1 on failure (errno will be set)
+ */
+int fat_unmount(int vol_id);
+
 #ifdef __cplusplus
 }
 #endif

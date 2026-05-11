@@ -1,6 +1,7 @@
 /**
  * @file system.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief newlib Interface Hooks
  * @ingroup system
  */
@@ -377,6 +378,21 @@ int attach_filesystem( const char * const prefix, filesystem_t *filesystem );
  * @retval 0 if the filesystem was successfully unregistered
  */
 int detach_filesystem( const char * const prefix );
+
+/**
+ * @brief Unregister a filesystem from newlib by pointer
+ *
+ * @note This function will make sure all files are closed before unregistering
+ *       the filesystem.
+ *
+ * @param[in] filesystem
+ *            The filesystem pointer that was passed to #attach_filesystem
+ *
+ * @retval -1 if the parameters were invalid
+ * @retval -2 if the filesystem couldn't be found
+ * @retval 0 if the filesystem was successfully unregistered
+ */
+int detach_filesystem_by_pointer( filesystem_t *filesystem );
 
 
 /**

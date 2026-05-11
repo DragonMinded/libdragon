@@ -384,6 +384,34 @@ int detach_filesystem( const char * const prefix )
     return -2;
 }
 
+int detach_filesystem_by_pointer( filesystem_t *filesystem )
+{
+    /* Sanity checking */
+    if( !filesystem )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    for( int i = 0; i < MAX_FILESYSTEMS; i++ )
+    {
+        if( filesystems[i].prefix && filesystems[i].fs == filesystem )
+        {
+            /* Now free the memory associated with the prefix and zero out the filesystem */
+            free( filesystems[i].prefix );
+            filesystems[i].prefix = 0;
+            filesystems[i].fs = 0;
+
+            /* All went well */
+            return 0;
+        }
+    }
+
+    /* Couldn't find the filesystem to free */
+    errno = EPERM;
+    return -2;
+}
+
 /**
  * @brief Allocate a new fileno for the given handle
  * 
