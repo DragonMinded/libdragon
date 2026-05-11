@@ -142,7 +142,10 @@ inline uint16_t color_to_packed16(color_t c) {
 
 /** @brief Convert a #color_t to the 32-bit packed format used by a #FMT_RGBA32 surface (RGBA 8888) */
 inline uint32_t color_to_packed32(color_t c) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
     return *(uint32_t*)&c;
+#pragma GCC diagnostic pop
 }
 /** @brief Create a #color_t from the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
 inline color_t color_from_packed16(uint16_t c) {
