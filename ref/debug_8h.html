@@ -92,9 +92,9 @@ Macros</h2></td></tr>
 <tr class="memitem:a2e2e6b7b3028cbcf2a582ae2fe37ba6b" id="r_a2e2e6b7b3028cbcf2a582ae2fe37ba6b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#a2e2e6b7b3028cbcf2a582ae2fe37ba6b">DEBUG_FEATURE_LOG_USB</a>&#160;&#160;&#160;(1 &lt;&lt; 0)</td></tr>
 <tr class="memdesc:a2e2e6b7b3028cbcf2a582ae2fe37ba6b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Flag to activate the USB logging channel.  <br /></td></tr>
 <tr class="separator:a2e2e6b7b3028cbcf2a582ae2fe37ba6b"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a015bdf2f649a79706e55e00c5072b43b" id="r_a015bdf2f649a79706e55e00c5072b43b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#a015bdf2f649a79706e55e00c5072b43b">DEBUG_FEATURE_LOG_ISVIEWER</a>&#160;&#160;&#160;(1 &lt;&lt; 1)</td></tr>
-<tr class="memdesc:a015bdf2f649a79706e55e00c5072b43b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Flag to activate the ISViewer logging channel.  <br /></td></tr>
-<tr class="separator:a015bdf2f649a79706e55e00c5072b43b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a34535845e54cb04f539f4e570837060a" id="r_a34535845e54cb04f539f4e570837060a"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#a34535845e54cb04f539f4e570837060a">DEBUG_FEATURE_LOG_EMU</a>&#160;&#160;&#160;(1 &lt;&lt; 1)</td></tr>
+<tr class="memdesc:a34535845e54cb04f539f4e570837060a"><td class="mdescLeft">&#160;</td><td class="mdescRight">Flag to activate the logging channel in emulators.  <br /></td></tr>
+<tr class="separator:a34535845e54cb04f539f4e570837060a"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a58aa5d6c6f2deef73a691d81831b99e1" id="r_a58aa5d6c6f2deef73a691d81831b99e1"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#a58aa5d6c6f2deef73a691d81831b99e1">DEBUG_FEATURE_LOG_SD</a>&#160;&#160;&#160;(1 &lt;&lt; 2)</td></tr>
 <tr class="memdesc:a58aa5d6c6f2deef73a691d81831b99e1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Flag to activate the logging on CompactFlash/SD card.  <br /></td></tr>
 <tr class="separator:a58aa5d6c6f2deef73a691d81831b99e1"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -104,6 +104,10 @@ Macros</h2></td></tr>
 <tr class="memitem:a8b257312ca0097619406c49d505d557e" id="r_a8b257312ca0097619406c49d505d557e"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#a8b257312ca0097619406c49d505d557e">DEBUG_FEATURE_ALL</a>&#160;&#160;&#160;0xFF</td></tr>
 <tr class="memdesc:a8b257312ca0097619406c49d505d557e"><td class="mdescLeft">&#160;</td><td class="mdescRight">Flag to activate all supported debugging features.  <br /></td></tr>
 <tr class="separator:a8b257312ca0097619406c49d505d557e"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a015bdf2f649a79706e55e00c5072b43b" id="r_a015bdf2f649a79706e55e00c5072b43b"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#a015bdf2f649a79706e55e00c5072b43b">DEBUG_FEATURE_LOG_ISVIEWER</a>&#160;&#160;&#160;<a class="el" href="debug_8h.html#a34535845e54cb04f539f4e570837060a">DEBUG_FEATURE_LOG_EMU</a></td></tr>
+<tr class="separator:a015bdf2f649a79706e55e00c5072b43b"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:accb034915e1b7e0d6db823c6f5151d12" id="r_accb034915e1b7e0d6db823c6f5151d12"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#accb034915e1b7e0d6db823c6f5151d12">debug_init_isviewer</a>&#160;&#160;&#160;<a class="el" href="debug_8c.html#ae2607b76449be28d5fd448b3e2b2d767">debug_init_emulog</a></td></tr>
+<tr class="separator:accb034915e1b7e0d6db823c6f5151d12"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:aa3e8be416ef1525cfd3230204b56d184" id="r_aa3e8be416ef1525cfd3230204b56d184"><td class="memItemLeft" align="right" valign="top">#define&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184">debugf</a>(msg, ...)&#160;&#160;&#160;fprintf(stderr, msg, ##__VA_ARGS__)</td></tr>
 <tr class="memdesc:aa3e8be416ef1525cfd3230204b56d184"><td class="mdescLeft">&#160;</td><td class="mdescRight">Write a message to the debugging channel.  <br /></td></tr>
 <tr class="separator:aa3e8be416ef1525cfd3230204b56d184"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -117,10 +121,10 @@ Functions</h2></td></tr>
 bool&#160;</td><td class="memItemRight" valign="bottom"><b>debug_init_usblog</b> (void)</td></tr>
 <tr class="memdesc:a9f02f7ea80953939be4adfc1d49b4719"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize USB logging. <br /></td></tr>
 <tr class="separator:a9f02f7ea80953939be4adfc1d49b4719"><td class="memSeparator" colspan="2">&#160;</td></tr>
-<tr class="memitem:a5bdd3be29723c75707fdf94baa7e1052" id="r_a5bdd3be29723c75707fdf94baa7e1052"><td class="memItemLeft" align="right" valign="top"><a id="a5bdd3be29723c75707fdf94baa7e1052" name="a5bdd3be29723c75707fdf94baa7e1052"></a>
-bool&#160;</td><td class="memItemRight" valign="bottom"><b>debug_init_isviewer</b> (void)</td></tr>
-<tr class="memdesc:a5bdd3be29723c75707fdf94baa7e1052"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize ISViewer logging. <br /></td></tr>
-<tr class="separator:a5bdd3be29723c75707fdf94baa7e1052"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:ae2607b76449be28d5fd448b3e2b2d767" id="r_ae2607b76449be28d5fd448b3e2b2d767"><td class="memItemLeft" align="right" valign="top"><a id="ae2607b76449be28d5fd448b3e2b2d767" name="ae2607b76449be28d5fd448b3e2b2d767"></a>
+bool&#160;</td><td class="memItemRight" valign="bottom"><b>debug_init_emulog</b> (void)</td></tr>
+<tr class="memdesc:ae2607b76449be28d5fd448b3e2b2d767"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize emulator logging. <br /></td></tr>
+<tr class="separator:ae2607b76449be28d5fd448b3e2b2d767"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a13a8318eac14e17f60d7844a7451dc3b" id="r_a13a8318eac14e17f60d7844a7451dc3b"><td class="memItemLeft" align="right" valign="top"><a id="a13a8318eac14e17f60d7844a7451dc3b" name="a13a8318eac14e17f60d7844a7451dc3b"></a>
 bool&#160;</td><td class="memItemRight" valign="bottom"><b>debug_init_sdlog</b> (const char *fn, const char *openfmt)</td></tr>
 <tr class="memdesc:a13a8318eac14e17f60d7844a7451dc3b"><td class="mdescLeft">&#160;</td><td class="mdescRight">Initialize SD logging. <br /></td></tr>
@@ -178,20 +182,20 @@ void&#160;</td><td class="memItemRight" valign="bottom"><b>debug_assert_func_f</
 
 </div>
 </div>
-<a id="a015bdf2f649a79706e55e00c5072b43b" name="a015bdf2f649a79706e55e00c5072b43b"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a015bdf2f649a79706e55e00c5072b43b">&#9670;&#160;</a></span>DEBUG_FEATURE_LOG_ISVIEWER</h2>
+<a id="a34535845e54cb04f539f4e570837060a" name="a34535845e54cb04f539f4e570837060a"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a34535845e54cb04f539f4e570837060a">&#9670;&#160;</a></span>DEBUG_FEATURE_LOG_EMU</h2>
 
 <div class="memitem">
 <div class="memproto">
       <table class="memname">
         <tr>
-          <td class="memname">#define DEBUG_FEATURE_LOG_ISVIEWER&#160;&#160;&#160;(1 &lt;&lt; 1)</td>
+          <td class="memname">#define DEBUG_FEATURE_LOG_EMU&#160;&#160;&#160;(1 &lt;&lt; 1)</td>
         </tr>
       </table>
 </div><div class="memdoc">
 
-<p>Flag to activate the ISViewer logging channel. </p>
-<p>ISViewer was a real development cartridge that was used in the 90s to debug N64 development. It is emulated by a few emulators to ease the work of homebrew developers.</p>
+<p>Flag to activate the logging channel in emulators. </p>
+<p>Currently relies on ISViewer support from the emulator. ISViewer was a real development cartridge that was used in the 90s to debug N64 development. It is emulated by a few emulators to ease the work of homebrew developers.</p>
 <p>Logging can be done by writing to stderr. You can use the <a class="el" href="debug_8h.html#aa3e8be416ef1525cfd3230204b56d184" title="Write a message to the debugging channel.">debugf()</a> macro as a simple wrapper over fprintf(stderr) that can be disabled when building the final ROM through the NDEBUG macro.</p>
 <p>Supported emulators:</p>
 <ul>
@@ -272,6 +276,36 @@ Because of a 64drive firmware bug, the 64drive USB stack will crash if a SD comm
 
 <p>Flag to activate all supported debugging features. </p>
 <p>This flag can be passed to debug_init() to activate all supported debugging features. It is a good default for development, and should be used unless there are strong constraints on ROM size. In fact, disabling unused debugging features will decrease the ROM size because the unused code will not be linked. </p>
+
+</div>
+</div>
+<a id="a015bdf2f649a79706e55e00c5072b43b" name="a015bdf2f649a79706e55e00c5072b43b"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a015bdf2f649a79706e55e00c5072b43b">&#9670;&#160;</a></span>DEBUG_FEATURE_LOG_ISVIEWER</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define DEBUG_FEATURE_LOG_ISVIEWER&#160;&#160;&#160;<a class="el" href="debug_8h.html#a34535845e54cb04f539f4e570837060a">DEBUG_FEATURE_LOG_EMU</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000011">Deprecated:</a></b></dt><dd>Use <a class="el" href="debug_8h.html#a34535845e54cb04f539f4e570837060a" title="Flag to activate the logging channel in emulators.">DEBUG_FEATURE_LOG_EMU</a> instead. </dd></dl>
+
+</div>
+</div>
+<a id="accb034915e1b7e0d6db823c6f5151d12" name="accb034915e1b7e0d6db823c6f5151d12"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#accb034915e1b7e0d6db823c6f5151d12">&#9670;&#160;</a></span>debug_init_isviewer</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">#define debug_init_isviewer&#160;&#160;&#160;<a class="el" href="debug_8c.html#ae2607b76449be28d5fd448b3e2b2d767">debug_init_emulog</a></td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+<dl class="deprecated"><dt><b><a class="el" href="deprecated.html#_deprecated000012">Deprecated:</a></b></dt><dd>Use <a class="el" href="debug_8h.html#ae2607b76449be28d5fd448b3e2b2d767" title="Initialize emulator logging.">debug_init_emulog</a> instead. </dd></dl>
 
 </div>
 </div>
@@ -423,7 +457,7 @@ Because of a 64drive firmware bug, the 64drive USB stack will crash if a SD comm
 </div><!-- contents -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon May 11 2026 21:40:16 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Mon May 11 2026 21:41:07 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>

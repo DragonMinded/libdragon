@@ -81,10 +81,14 @@ $(function() {
 <dd><a class="anchor" id="_deprecated000007"></a>The <a class="el" href="group__joypad.html">Joypad Subsystem</a> now automatically normalizes Nintendo 64 and GameCube controller inputs. This structure is no longer needed. Use <a class="el" href="group__joypad.html#structjoypad__inputs__t" title="Joypad Inputs Unified State Structure.">joypad_inputs_t</a> instead.  </dd>
 <dt>Module <a class="el" href="group__controller.html">controller</a>  </dt>
 <dd><a class="anchor" id="_deprecated000001"></a>This module is now deprecated. Please use the <a class="el" href="group__joypad.html">Joypad Subsystem</a> instead. </dd>
+<dt>Global <a class="el" href="debug_8h.html#a015bdf2f649a79706e55e00c5072b43b">DEBUG_FEATURE_LOG_ISVIEWER</a>  </dt>
+<dd><a class="anchor" id="_deprecated000011"></a>Use <a class="el" href="debug_8h.html#a34535845e54cb04f539f4e570837060a" title="Flag to activate the logging channel in emulators.">DEBUG_FEATURE_LOG_EMU</a> instead.  </dd>
+<dt>Global <a class="el" href="debug_8h.html#accb034915e1b7e0d6db823c6f5151d12">debug_init_isviewer</a>  </dt>
+<dd><a class="anchor" id="_deprecated000012"></a>Use <a class="el" href="debug_8c.html#ae2607b76449be28d5fd448b3e2b2d767" title="Initialize emulator logging.">debug_init_emulog</a> instead.  </dd>
 <dt>Global <a class="el" href="group__graphics.html#gac04f4a740380f66e841d98c14f88d999">graphics_convert_color</a>  (<a class="el" href="group__graphics.html#structcolor__t" title="Generic color structure.">color_t</a> color)</dt>
-<dd><a class="anchor" id="_deprecated000012"></a>By switching to the rdpq API, this function should not be required anymore. Please avoid using it in new code if possible. </dd>
+<dd><a class="anchor" id="_deprecated000014"></a>By switching to the rdpq API, this function should not be required anymore. Please avoid using it in new code if possible. </dd>
 <dt>Global <a class="el" href="group__graphics.html#gab903f17f56c2cac7198ab9a7b0438b68">graphics_make_color</a>  (int r, int g, int b, int a)</dt>
-<dd><a class="anchor" id="_deprecated000011"></a>By switching to the rdpq API, this function should not be required anymore. Use <a class="el" href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705" title="Create a color_t from the R,G,B,A components in the RGBA32 range (0-255).">RGBA32</a> or <a class="el" href="group__graphics.html#ga9a2133dc22dbfbf01faaf9dd19ee7b67" title="Create a color_t from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31,...">RGBA16</a> instead. Please avoid using it in new code if possible. </dd>
+<dd><a class="anchor" id="_deprecated000013"></a>By switching to the rdpq API, this function should not be required anymore. Use <a class="el" href="group__graphics.html#gae16bab5741f411ec4ef51b0295f6e705" title="Create a color_t from the R,G,B,A components in the RGBA32 range (0-255).">RGBA32</a> or <a class="el" href="group__graphics.html#ga9a2133dc22dbfbf01faaf9dd19ee7b67" title="Create a color_t from the R,G,B,A components in the RGBA16 range (that is: RGB in 0-31,...">RGBA16</a> instead. Please avoid using it in new code if possible. </dd>
 <dt>Module <a class="el" href="group__rdp.html">rdp</a>  </dt>
 <dd><a class="anchor" id="_deprecated000002"></a>This module is now deprecated. Please use the new RDPQ API instead. </dd>
 <dt>Struct <a class="el" href="group__controller.html">SI_controllers_origin_t</a>  </dt>
@@ -98,7 +102,7 @@ $(function() {
 </div><!-- PageDoc -->
 <!-- start footer part -->
 <hr class="footer"/><address class="footer"><small>
-Generated on Mon May 11 2026 21:40:16 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
+Generated on Mon May 11 2026 21:41:08 for libdragon by&#160;<a href="https://www.doxygen.org/index.html"><img class="footer" src="doxygen.svg" width="104" height="31" alt="doxygen"/></a> 1.9.8
 </small></address>
 </body>
 </html>
