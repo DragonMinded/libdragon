@@ -10,7 +10,7 @@ inputs:
   paths:
     description: "Paths to compare"
     required: false
-    default: ./Dockerfile ./tools/build-toolchain.sh
+    default: ./Dockerfile ./tools/build-toolchain.sh ./tools/build-gdb.sh
 outputs:
   changed:
     value: ${{ steps.path_change.outputs.exitCode }}
@@ -19,7 +19,7 @@ runs:
   using: "composite"
   steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
       with:
         fetch-depth: 0
 
