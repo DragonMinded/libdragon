@@ -680,6 +680,7 @@ inline void rdpq_load_tlut_raw(rdpq_tile_t tile, int color_idx, int num_colors)
  */
 inline void rdpq_set_tile_size_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1)
 {
+    assertf((s0) >= 0 && (t0) >= 0 && (s1) >= 0 && (t1) >= 0, "texture coordinates must be positive");
     assertf((s0) <= 1024*4 && (t0) <= 1024*4 && (s1) <= 1024*4 && (t1) <= 1024*4, "texture coordinates must be smaller than 1024");
 
     extern void __rdpq_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
