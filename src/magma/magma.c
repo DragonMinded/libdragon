@@ -46,11 +46,15 @@ typedef struct
     uint32_t attributes_offset;     ///< Offset of the list of attributes, relative ot the metadata header.
 } mg_meta_header_t;
 
+/** @brief The main magma ucode overlay */
 DEFINE_RSP_UCODE(rsp_magma);
+
+/** @brief The magma clipping ucode overlay */
 DEFINE_RSP_UCODE(rsp_magma_clipping);
 
 static bool is_initialized = false;
 
+/** @brief Overlay id of the magma ucode */
 uint32_t mg_overlay_id;
 
 void mg_uniform_load_raw(uint32_t offset, uint32_t size, const void *data)
@@ -308,7 +312,7 @@ void mg_pipeline_free(mg_pipeline_t *pipeline)
     free(pipeline);
 }
 
-const mg_uniform_t *mg_pipeline_try_get_uniform(mg_pipeline_t *pipeline, uint32_t binding)
+static const mg_uniform_t *mg_pipeline_try_get_uniform(mg_pipeline_t *pipeline, uint32_t binding)
 {
     for (uint32_t i = 0; i < pipeline->uniform_count; i++)
     {
@@ -469,6 +473,7 @@ static void load_batch_with_mtx_indices(const mg_input_assembly_parms_t *input_a
     }
 }
 
+/** @brief The maximum number of separate triangles that can fit into the vertex cache. */
 #define TRI_LIST_ADVANCE_COUNT ROUND_DOWN(MG_VERTEX_CACHE_COUNT, 3)
 
 void mg_draw(const mg_input_assembly_parms_t *input_assembly_parms, uint32_t vertex_count, uint32_t first_vertex)
@@ -527,9 +532,12 @@ void mg_draw(const mg_input_assembly_parms_t *input_assembly_parms, uint32_t ver
     }
 }
 
+/** @brief An index value that triggers a primitive to be restarted. */
 #define SPECIAL_INDEX UINT16_MAX
 
+/// @cond
 typedef struct vertex_cache_block_s vertex_cache_block;
+/// @endcond
 
 /** @brief Represents a block of consecutive vertices loaded into the vertex cache at some offset. */
 typedef struct vertex_cache_block_s
@@ -973,6 +981,7 @@ void mg_draw_indexed(const mg_input_assembly_parms_t *input_assembly_parms, cons
 */       
 
 
+/// @cond
 extern inline void mg_cmd_set_byte(uint32_t offset, uint8_t value);
 extern inline void mg_cmd_set_short(uint32_t offset, uint16_t value);
 extern inline void mg_cmd_set_word(uint32_t offset, uint32_t value);
@@ -984,3 +993,4 @@ extern inline void mg_set_clip_factor(uint32_t factor);
 extern inline void mg_uniform_load(const mg_uniform_t *uniform, const void *data);
 extern inline void mg_uniform_load_inline(const mg_uniform_t *uniform, const void *data);
 extern inline void mg_bind_vertex_buffer(const void *buffer);
+/// @endcond

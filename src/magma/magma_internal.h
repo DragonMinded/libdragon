@@ -13,8 +13,16 @@ typedef struct mg_pipeline_s
     mg_uniform_t *uniforms;     ///< List of uniforms.
 } mg_pipeline_t;
 
+/**
+ * @brief Returns a pointer to the magma ucode state in RDRAM.
+ */
 mg_rsp_state_t *mg_get_rsp_state();
 
+/** 
+ * @brief Sets the current vertex stride that is used to load vertices. 
+ * 
+ * This is an internal method that is normally implicitly called by #mg_pipeline_bind.
+ */
 void mg_set_vertex_stride(uint32_t vertex_stride);
 
 #endif
