@@ -8,11 +8,16 @@
 #include "utils.h"
 #include "rsp_asm.h"
 
+/** @brief Helper macro to convert normalized u8 to normalized i16 */
 #define U8_TO_I16(x) ((x) << 7)
+/** @brief Helper macro to convert float to s10.5 */
 #define FLOAT_TO_S10_5(x) ((x) * (1<<5))
+/** @brief Helper macro to convert float to normalized i16 */
 #define FLOAT_TO_I16(x) (CLAMP(x, -1.f, 1.f) * 0x7FFF)
 
+/** @brief mgfx standard ucode overlay */
 DEFINE_RSP_UCODE(rsp_mgfx);
+/** @brief mgfx environment mapping ucode overlay */
 DEFINE_RSP_UCODE(rsp_mgfx_env);
 
 static void mgfx_convert_matrix(mgfx_matrix_t *dst, const float *src)
