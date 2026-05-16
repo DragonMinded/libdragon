@@ -508,10 +508,10 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
         int32_t rgba = 0;
         if (fmt->shade_offset >= 0) {
             const float *v_shade = fmt->shade_flat ? v1 : v;
-            uint32_t r = v_shade[fmt->shade_offset+0] * 255.0;
-            uint32_t g = v_shade[fmt->shade_offset+1] * 255.0;
-            uint32_t b = v_shade[fmt->shade_offset+2] * 255.0;
-            uint32_t a = v_shade[fmt->shade_offset+3] * 255.0;
+            uint32_t r = v_shade[fmt->shade_offset+0] * 255.0f;
+            uint32_t g = v_shade[fmt->shade_offset+1] * 255.0f;
+            uint32_t b = v_shade[fmt->shade_offset+2] * 255.0f;
+            uint32_t a = v_shade[fmt->shade_offset+3] * 255.0f;
             rgba = (r << 24) | (g << 16) | (b << 8) | a;
         }
 

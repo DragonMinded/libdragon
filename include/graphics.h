@@ -142,7 +142,7 @@ inline uint16_t color_to_packed16(color_t c) {
 
 /** @brief Convert a #color_t to the 32-bit packed format used by a #FMT_RGBA32 surface (RGBA 8888) */
 inline uint32_t color_to_packed32(color_t c) {
-    return *(uint32_t*)&c;
+    return (c.r << 24) | (c.g << 16) | (c.b << 8) | (c.a << 0);
 }
 /** @brief Create a #color_t from the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
 inline color_t color_from_packed16(uint16_t c) {
