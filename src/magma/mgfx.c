@@ -1,3 +1,7 @@
+/**
+ * @file mgfx.c
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
+ */
 #include "mgfx.h"
 #include <math.h>
 #include <float.h>

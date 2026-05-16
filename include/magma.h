@@ -1,5 +1,6 @@
 /**
  * @file magma.h
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
  * @brief Magma core API
  * @ingroup magma
  */

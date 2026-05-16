@@ -1,5 +1,6 @@
 /**
  * @file magma_constants.h
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
  * @brief Constant definitions for magma
  * @ingroup magma
  */

@@ -1,5 +1,6 @@
 /**
  * @file mgfx_macros.h
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
  * @brief Helper macros for mgfx
  * @ingroup magma
  */

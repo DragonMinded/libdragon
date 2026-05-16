@@ -1,3 +1,10 @@
+/*
+ * rsp_mgfx.rspl
+ * 
+ * Authors: Dennis Heinze <dennis.heinze@mailbox.org>
+ *
+ */
+
 include "rsp_magma.inc"
 #include "../../include/magma_constants.h"
 #include "../../include/mgfx_constants.h"

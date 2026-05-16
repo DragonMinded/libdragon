@@ -1,5 +1,6 @@
 /**
  * @file magma_math.h
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
  * @brief Math helper functions for magma
  * @ingroup magma
  */

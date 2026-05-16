@@ -1,3 +1,7 @@
+/**
+ * @file magma_math.c
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
+ */
 #include "magma_math.h"
 #include "assert.h"
 

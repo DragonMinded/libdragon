@@ -1,3 +1,10 @@
+############################################################
+# Magma clipping ucode sub-overlay
+#
+# Authors: Giovanni Bajo <giovannibajo@gmail.com>
+#          Dennis Heinze <dennis.heinze@mailbox.org>
+#
+############################################################
 #include <rsp_magma.inc>
 
 _MgDefineUniformRegion

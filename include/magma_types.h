@@ -1,5 +1,6 @@
 /**
  * @file magma_types.h
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
  * @brief Magma type definitions
  * @ingroup magma
  */

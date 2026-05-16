@@ -1,3 +1,7 @@
+/**
+ * @file magma.c
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
+ */
 #include "magma_internal.h"
 #include "magma_constants.h"
 #include "rspq.h"

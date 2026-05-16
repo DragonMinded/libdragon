@@ -1,3 +1,7 @@
+/**
+ * @file magma_internal.h
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
+ */
 #ifndef __LIBDRAGON_MAGMA_INTERNAL_H
 #define __LIBDRAGON_MAGMA_INTERNAL_H
 

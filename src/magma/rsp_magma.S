@@ -1,3 +1,9 @@
+############################################################
+# Main magma ucode overlay
+#
+# Authors: Dennis Heinze <dennis.heinze@mailbox.org>
+#
+############################################################
 #include <rsp_magma.inc>
 
 _MgDefineUniformRegion

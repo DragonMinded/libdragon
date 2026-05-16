@@ -1,5 +1,6 @@
 /**
  * @file mgfx.h
+ * @author Dennis Heinze <dennis.heinze@mailbox.org>
  * @brief Interface for magma's "fixed function" builtin shader
  * @ingroup magma
  */
