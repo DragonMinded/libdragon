@@ -89,6 +89,7 @@ int main()
         mg_pipeline_bind(pipeline);
 
         // Set the viewport to the full screen
+        // Note: mg_set_viewport_fullscreen(resolution) can also be used as a shorthand.
         mg_set_viewport(&(mg_viewport_t) {
             .x = 0,
             .y = 0,

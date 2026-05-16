@@ -993,6 +993,7 @@ extern inline void mg_cmd_set_quad(uint32_t offset, uint32_t value0, uint32_t va
 extern inline uint8_t mg_culling_parms_to_rsp_state(const mg_culling_parms_t *culling);
 extern inline void mg_set_culling(const mg_culling_parms_t *culling);
 extern inline void mg_set_geometry_flags(mg_geometry_flags_t flags);
+extern inline void mg_set_viewport_fullscreen(resolution_t res);
 extern inline void mg_set_clip_factor(uint32_t factor);
 extern inline void mg_uniform_load(const mg_uniform_t *uniform, const void *data);
 extern inline void mg_uniform_load_inline(const mg_uniform_t *uniform, const void *data);

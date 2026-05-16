@@ -122,6 +122,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "graphics.h"
+#include "display.h"
 #include "rsp.h"
 #include "rspq.h"
 #include "magma_types.h"
@@ -350,8 +351,21 @@ inline void mg_set_geometry_flags(mg_geometry_flags_t flags);
  * @param[in]   viewport    Pointer to a struct containing the viewport configuration.
  * 
  * @see #mg_viewport_t
+ * @see #mg_set_viewport_fullscreen
  */
 void mg_set_viewport(const mg_viewport_t *viewport);
+
+/** 
+ * @brief Set the viewport to fullscreen, using the provided display resolution.
+ * 
+ * Can be recorded into blocks.
+ * 
+ * @param[in]   res         The display resolution.
+ * 
+ * @see #mg_viewport_t
+ * @see #mg_set_viewport
+ */
+inline void mg_set_viewport_fullscreen(resolution_t res);
 
 /** 
  * @brief Set the clipping guard factor.
@@ -651,6 +665,18 @@ inline void mg_set_geometry_flags(mg_geometry_flags_t flags)
 {
     uint16_t tricmd = 0x8 | (flags&0x7);
     mg_cmd_set_short(offsetof(mg_rsp_state_t, tri_cmd), tricmd << 8);
+}
+
+inline void mg_set_viewport_fullscreen(resolution_t res)
+{
+    mg_set_viewport(&(mg_viewport_t) {
+        .x = 0,
+        .y = 0,
+        .width = res.width,
+        .height = res.height,
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    });
 }
 
 inline void mg_set_clip_factor(uint32_t factor)
