@@ -669,14 +669,15 @@ inline void mg_set_geometry_flags(mg_geometry_flags_t flags)
 
 inline void mg_set_viewport_fullscreen(resolution_t res)
 {
-    mg_set_viewport(&(mg_viewport_t) {
+    mg_viewport_t viewport = {
         .x = 0,
         .y = 0,
         .width = res.width,
         .height = res.height,
         .minDepth = 0.0f,
         .maxDepth = 1.0f,
-    });
+    };
+    mg_set_viewport(&viewport);
 }
 
 inline void mg_set_clip_factor(uint32_t factor)
