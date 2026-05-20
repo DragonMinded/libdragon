@@ -61,7 +61,7 @@ void coro_yield(void);
  * try to execute the function via coro_resume.
  * 
  * This function should be preferred over spin-waiting inside the coroutine,
- * since it avoids a context switch alltogether if the time has not passed yet.
+ * since it avoids a context switch altogether if the time has not passed yet.
  * 
  * @param ticks minimum time to wait in ticks
  */
