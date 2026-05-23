@@ -1466,7 +1466,7 @@ inline void rdpq_set_other_modes_raw(uint64_t mode)
  * Like rdpq_set_other_modes_raw this function requires a good knowledge of the
  * RDP. Calls that modify values stored in other modes will undo changes made
  * using this function as the rdpq overlay will not be aware of calls made to 
- * this function because it skips the RSP alltogether
+ * this function because it skips the RSP altogether
  * 
  * @note If possible, prefer using the RDPQ mode API (defined in rdpq_mode.h),
  * that expose a higher level API for changing the RDP modes
