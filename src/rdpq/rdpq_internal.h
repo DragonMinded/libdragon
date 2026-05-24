@@ -63,18 +63,55 @@ typedef struct {
 extern rdpq_tracking_t rdpq_tracking;
 
 /**
+ * @brief CPU-side mirror of the RDP render state.
+ *
+ * This struct shadows the subset of DMEM-resident rdpq state that determines
+ * what RDP commands the RSP would emit when resolving the render mode. The
+ * mirror is the authoritative source of truth on CPU for "what state the
+ * RDP will be in once all currently-queued rspq commands have executed".
+ *
+ * Every CPU-side rdpq call that programs SOM, CC, blender, scissor, fill
+ * color or color image bitdepth updates this mirror before writing the rspq
+ * command. The mirror is also kept current across block playback: at
+ * #rspq_block_end the mirror is captured into rdpq_block_t::mirror_post,
+ * and #__rdpq_block_run_with_rdp re-applies it when the block runs.
+ *
+ * This is the foundation for the "frozen blocks" feature (see
+ * FROZEN_BLOCKS_PLAN.md): a snapshot of the mirror at block-begin time will
+ * later be compared against the live mirror to detect staleness.
+ */
+typedef struct {
+    uint64_t som;               ///< Mirror of RDPQ_OTHER_MODES (incl. SOMX_* flags)
+    uint64_t cc;                ///< Mirror of RDPQ_COMBINER (user value, may carry 2PASS marker)
+    uint64_t cc_mipmask;        ///< Mirror of RDPQ_COMBINER_MIPMAPMASK
+    uint32_t blender_steps[2];  ///< Mirror of RDPQ_MODE_BLENDER_STEPS (fog step, blender step)
+    uint64_t scissor;           ///< Mirror of RDPQ_SCISSOR_RECT (raw SET_SCISSOR)
+    uint32_t fill_color;        ///< Mirror of RDPQ_FILL_COLOR (32-bit packed)
+    uint32_t prim_color_ex;     ///< Mirror of RDPQ_PRIM_COLOR_EX (minlod/primlod + selector bits, no top byte)
+    uint32_t prim_color_rgba;   ///< Mirror of RDPQ_PRIM_COLOR_RGBA (packed RGBA8888)
+    uint8_t target_bitdepth;    ///< Mirror of RDPQ_TARGET_BITDEPTH (low 2 bits of fmt)
+    uint8_t unknown;            ///< Sentinel: live RDP state is unknown / has drifted from this mirror
+    uint8_t _pad[2];
+} rdpq_state_mirror_t;
+
+extern rdpq_state_mirror_t rdpq_state_mirror;
+
+/**
  * @brief A buffer that piggybacks onto rspq_block_t to store RDP commands
- * 
+ *
  * In rspq blocks, raw RDP commands are not stored as passthroughs for performance.
  * Instead, they are stored in a parallel buffer in RDRAM and the RSP block contains
  * commands to send (portions of) this buffer directly to RDP via DMA. This saves
  * memory bandwidth compared to doing passthrough for every command.
- * 
+ *
  * Since the buffer can grow during creation, it is stored as a linked list of buffers.
  */
 typedef struct rdpq_block_s {
     rdpq_block_t *next;                           ///< Link to next buffer (or NULL if this is the last one for this block)
     rdpq_tracking_t tracking;                     ///< Tracking state at the end of a block (this is populated only on the first link)
+    rdpq_state_mirror_t mirror_post;              ///< CPU mirror of RDP state at end of block (populated only on the first link)
+    rdpq_state_mirror_t mirror_pre;               ///< CPU mirror snapshot at block-begin (only meaningful when @c frozen is set)
+    bool frozen;                                  ///< True if recorded under #RDPQ_CFG_FROZEN_BLOCKS (eligible for staleness checks)
     uint32_t cmds[] __attribute__((aligned(8)));  ///< RDP commands
 } rdpq_block_t;
 
@@ -108,7 +145,27 @@ typedef struct rdpq_block_state_s {
      * @brief Tracking state before starting building the block.
      */
     rdpq_tracking_t previous_tracking;
+    /**
+     * @brief CPU mirror state before block recording started.
+     *
+     * The mirror keeps advancing during recording (so it reflects the post-state
+     * of the block being recorded). At #__rdpq_block_end this saved value is
+     * restored to the live mirror, so that the act of recording a block does
+     * not leak in-block state changes to the surrounding scope.
+     */
+    rdpq_state_mirror_t previous_mirror;
+    /**
+     * @brief True if the current recording session is a frozen block.
+     *
+     * Set by #__rdpq_block_begin / #__rdpq_block_recycle when
+     * #RDPQ_CFG_FROZEN_BLOCKS is enabled. Causes the snapshot at begin to be
+     * persisted onto the block (rdpq_block_t::mirror_pre) and unlocks
+     * staleness checks at playback time.
+     */
+    bool frozen;
 } rdpq_block_state_t;
+
+extern rdpq_block_state_t rdpq_block_state;
 
 void __rdpq_block_begin();
 void __rdpq_block_recycle(rdpq_block_t *head);

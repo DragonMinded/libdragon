@@ -879,6 +879,55 @@ void rspq_block_begin_reuse(rspq_block_t *reuse_block);
 rspq_block_t* rspq_block_end(void);
 
 /**
+ * @brief Sentinel value returned by #rspq_block_run_frozen when a frozen
+ *        block's recorded RDP state assumptions no longer match the live
+ *        RDP state, so the block was not executed.
+ *
+ * The actual value is non-zero so it can also be tested as a boolean.
+ * Use #rdpq_block_stale_reasons for a per-bit breakdown of why a block
+ * was stale.
+ */
+#define RSPQ_BLOCK_STALE 1
+
+/**
+ * @brief Begin recording of a frozen block.
+ *
+ * This is a thin wrapper over #rspq_block_begin_reuse that temporarily
+ * enables #RDPQ_CFG_FROZEN_BLOCKS during the recording. The block captures
+ * the live RDP state at this point as its baseline; at playback time the
+ * baseline is compared against the live state, and a mismatch causes
+ * #rspq_block_run_frozen to return #RSPQ_BLOCK_STALE without executing.
+ *
+ * The caller is expected to handle staleness by re-recording.
+ *
+ * @param reuse_block  Existing block allocation to reuse (or NULL for a new one)
+ *
+ * @see #rspq_block_begin_reuse
+ * @see #rspq_block_end_frozen
+ * @see #rspq_block_run_frozen
+ */
+void rspq_block_begin_frozen(rspq_block_t *reuse_block);
+
+/**
+ * @brief Finish recording of a frozen block.
+ *
+ * Pairs with #rspq_block_begin_frozen. Returns the recorded block, which
+ * carries the captured RDP state baseline for the staleness check.
+ */
+rspq_block_t *rspq_block_end_frozen(void);
+
+/**
+ * @brief Run a frozen block, checking that its recorded RDP state baseline
+ *        still matches the live state.
+ *
+ * @return  0 on success (block was executed), or #RSPQ_BLOCK_STALE if the
+ *          block was not executed because its recorded assumptions no longer
+ *          hold. Use #rdpq_block_stale_reasons to inspect which specific
+ *          state bits drifted.
+ */
+int rspq_block_run_frozen(rspq_block_t *block);
+
+/**
  * @brief Sets the target for a placeholder in a block
  * 
  * If a block contains calls to placeholders, for example:

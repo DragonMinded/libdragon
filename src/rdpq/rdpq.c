@@ -410,6 +410,9 @@ rdpq_block_state_t rdpq_block_state;
 /** @brief Tracking state of RDP */
 rdpq_tracking_t rdpq_tracking;
 
+/** @brief CPU-side mirror of RDP render state (see rdpq_state_mirror_t). */
+rdpq_state_mirror_t rdpq_state_mirror;
+
 /** @brief Syncpoint ID at the moment of last SYNC_FULL. Used to implement #rdpq_call_deferred. */
 volatile int __rdpq_syncpoint_at_syncfull;
 
@@ -478,6 +481,11 @@ void rdpq_init()
     rdpq_config = RDPQ_CFG_DEFAULT;
     rdpq_tracking.autosync = 0;
     rdpq_tracking.mode_freeze = false;
+
+    // Initialize the CPU mirror to match the DMEM defaults that will be set
+    // up by the rdpq_set_*_raw calls below. Mirror updates inside those calls
+    // then keep it in sync.
+    memset(&rdpq_state_mirror, 0, sizeof(rdpq_state_mirror));
 
     // Register an interrupt handler for DP interrupts, and activate them.
     register_DP_handler(__rdpq_interrupt);
@@ -548,6 +556,11 @@ void rdpq_exec(void *buffer, int size)
 
     void *end = buffer + size;
     rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, PhysicalAddr(end), PhysicalAddr(buffer), PhysicalAddr(end));
+
+    // The injected buffer can contain arbitrary RDP commands (including
+    // SET_OTHER_MODES / SET_COMBINE) that bypass the CPU mirror. The mirror
+    // can no longer be trusted until the caller re-anchors via rdpq_set_mode_*.
+    rdpq_state_mirror.unknown = 1;
 }
 
 /** @brief Assert handler for RSP asserts (see "RSP asserts" documentation in rsp.h) */
@@ -648,6 +661,22 @@ void __rdpq_block_begin()
     // Save the tracking state (to be recovered when the block is done)
     rdpq_block_state.previous_tracking = rdpq_tracking;
 
+    // Save the CPU mirror. The mirror keeps advancing during recording so it
+    // reflects the post-state of the block; at __rdpq_block_end we capture it
+    // onto the block and restore this saved copy.
+    rdpq_block_state.previous_mirror = rdpq_state_mirror;
+
+    // If RDPQ_CFG_FROZEN_BLOCKS is enabled at this point, the block being
+    // recorded becomes a frozen block: its baseline RDP state (= current
+    // mirror) is captured onto the block in __rdpq_block_end, and the block
+    // becomes eligible for staleness checks at playback time.
+    //
+    // Note we deliberately do NOT assert that mirror.unknown is clear here:
+    // the mirror "unknown" flag is itself a mirror field, so a consistent
+    // code path will always reach this point in the same state, and the
+    // snapshot will compare equal at playback time.
+    rdpq_block_state.frozen = (rdpq_config & RDPQ_CFG_FROZEN_BLOCKS) != 0;
+
     // Set for unknown state (like if we just run another unknown block: we lost track of the RDP state)
     __rdpq_block_run_no_rdp();
 }
@@ -668,6 +697,8 @@ void __rdpq_block_recycle(rdpq_block_t *head)
 
     memset(st, 0, sizeof(*st));
     st->previous_tracking = rdpq_tracking;
+    st->previous_mirror = rdpq_state_mirror;
+    st->frozen = (rdpq_config & RDPQ_CFG_FROZEN_BLOCKS) != 0;
     __rdpq_block_run_no_rdp();
 
     st->first_node = head;
@@ -778,18 +809,40 @@ void __rdpq_block_next_buffer(void)
  * @see #__rdpq_block_run_with_rdp
  * @see #__rdpq_block_free
  */
+/* Forward decl: defined in rdpq_mode.c (resolver port). */
+extern void __rdpq_frozen_publish_post_state(void);
+
 rdpq_block_t* __rdpq_block_end()
 {
     struct rdpq_block_state_s *st = &rdpq_block_state;
     rdpq_block_t *ret = st->first_node;
 
+    // Frozen blocks: emit a "publish post-state" sequence so that when the
+    // block runs, DMEM ends up reflecting the resolved RDP state the CPU
+    // baked into the block. Subsequent rdpq calls (mode reads, autosync,
+    // RSP-side mode evaluation triggered after the block) then see correct
+    // values. Must happen before we save mirror_post on the block, so the
+    // emitted commands are part of the block.
+    if (st->frozen && st->first_node)
+        __rdpq_frozen_publish_post_state();
+
     // Save the current autosync state in the first node of the RDP block.
     // This makes it easy to recover it when the block is run
-    if (st->first_node)
+    if (st->first_node) {
         st->first_node->tracking = rdpq_tracking;
+        // Capture the CPU mirror as the block's post-state. When the block is
+        // later run, the live mirror is updated to this value.
+        st->first_node->mirror_post = rdpq_state_mirror;
+        // For frozen blocks, persist the pre-state snapshot (taken at begin,
+        // saved in previous_mirror) so playback can compare against it.
+        st->first_node->frozen = st->frozen;
+        if (st->frozen)
+            st->first_node->mirror_pre = st->previous_mirror;
+    }
 
     // Recover tracking state before the block creation started
     rdpq_tracking = st->previous_tracking;
+    rdpq_state_mirror = st->previous_mirror;
 
     // NOTE: no rspq command is enqueued at the end of block. Specifically,
     // there is no RSPQ_CMD_RDP_SET_BUFFER to switch back to the dynamic RDP buffers. 
@@ -810,7 +863,7 @@ rdpq_block_t* __rdpq_block_end()
 void __rdpq_block_run_with_rdp(rdpq_block_t *block)
 {
   // We have run a block that contains rdpq commands.
-  // During creation, we tracked some state for the block 
+  // During creation, we tracked some state for the block
   // and saved it into the block structure; set it as current,
   // because from now on we can assume the block would and the
   // state of the engine must match the state at the end of the block.
@@ -824,6 +877,10 @@ void __rdpq_block_run_with_rdp(rdpq_block_t *block)
       rdpq_tracking.cycle_type_known = prev.cycle_type_known;
   if (rdpq_tracking.cycle_type_frozen == 0)
       rdpq_tracking.cycle_type_frozen = prev.cycle_type_frozen;
+
+  // Apply the block's post-state to the CPU mirror. After this point the
+  // mirror reflects what the RDP/RSP state will be once the block has run.
+  rdpq_state_mirror = block->mirror_post;
 
   // The called block has switched static buffer. Adjust our state to set
   // our buffer as pending; if a new RDP command is issued, we will switch
@@ -844,15 +901,19 @@ void __rdpq_block_run_no_rdp(void)
 }
 
 /**
- * @brief Notify that a rspq block was run. 
- * 
- * The block might or might not contain RDP commands. 
+ * @brief Notify that a rspq block was run.
+ *
+ * The block might or might not contain RDP commands.
  * This is the case for a block placeholder.
  */
 void __rdpq_block_run_maybe_rdp(void)
 {
   rdpq_tracking_t prev = rdpq_tracking;
   __rdpq_block_run_no_rdp();
+
+  // Placeholder blocks can execute arbitrary rdpq commands; the CPU cannot
+  // predict the resulting state, so mark the mirror as unknown.
+  rdpq_state_mirror.unknown = 1;
 
   // The called block has switched static buffer. Adjust our state to set
   // our buffer as pending; if a new RDP command is issued, we will switch
@@ -1035,6 +1096,35 @@ __attribute__((noinline))
 void __rdpq_fixup_write8_syncchange(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t autosync)
 {
     __rdpq_autosync_change(autosync);
+
+    // Mirror + frozen-block gate for the SET_PRIM_COLOR_COMPONENT fixup.
+    // The RSP handler (RDPQCmd_SetPrimColorComponent) reads RDPQ_PRIM_COLOR_EX,
+    // merges the new component (selector in bits 16-17 of w0: 0=rgba, 1=primlod,
+    // 2=minlod), and emits a raw SET_PRIM_COLOR (opcode 0xFA). We replicate
+    // that logic on CPU using the mirror.
+    if (cmd_id == RDPQ_CMD_SET_PRIM_COLOR_COMPONENT) {
+        uint32_t sel = (w0 >> 16) & 0x3;
+        uint32_t prev = (uint32_t)rdpq_state_mirror.prim_color_ex;
+        uint32_t merged;
+        if (sel == 0) {                                // rgba: replace bits 0-15
+            merged = (prev & 0x0000FFFF) | (w0 & 0xFFFF0000);
+            rdpq_state_mirror.prim_color_rgba = w1;
+        } else if (sel == 1) {                         // primlod: replace bits 0-7
+            merged = (prev & 0x0000FF00) | (w0 & 0xFFFF00FF);
+        } else {                                       // minlod: replace bits 8-15
+            merged = (prev & 0x000000FF) | (w0 & 0xFFFFFF00);
+        }
+        rdpq_state_mirror.prim_color_ex = merged;
+
+        if (rdpq_block_state.frozen) {
+            // Emit raw SET_PRIM_COLOR (RDP opcode 0xFA = RDPQ_OVL_ID + 0x3A).
+            // RDPQ_CMD_SET_PRIM_COLOR is the existing passthrough cmd id.
+            rdpq_passthrough_write((RDPQ_CMD_SET_PRIM_COLOR,
+                merged & 0x0000FFFF, rdpq_state_mirror.prim_color_rgba));
+            return;
+        }
+    }
+
     rdpq_write(1, RDPQ_OVL_ID, cmd_id, w0, w1);
 }
 
@@ -1058,7 +1148,30 @@ void __rdpq_set_scissor(uint32_t w0, uint32_t w1)
     // NOTE: We can't optimize this away into a standard SET_SCISSOR, even if
     // we track the cycle type, because the RSP must always know the current
     // scissoring rectangle. So we must always go through the fixup.
+    rdpq_state_mirror.scissor = ((uint64_t)w0 << 32) | (uint64_t)w1;
+
+    if (rdpq_block_state.frozen) {
+        // CPU port of RDPQ_WriteSetScissor (rsp_rdpq.inc:719): in FILL/COPY
+        // mode the right edge is subtracted by 1 subpixel before emitting.
+        uint32_t sc_lo = w1;
+        if ((rdpq_state_mirror.som & SOM_CYCLE_MASK) >= SOM_CYCLE_COPY)
+            sc_lo -= (1u << 12);
+        rdpq_passthrough_write((RDPQ_CMD_SET_SCISSOR, w0, sc_lo));
+        return;
+    }
     rdpq_write(1, RDPQ_OVL_ID, RDPQ_CMD_SET_SCISSOR_EX, w0, w1);
+}
+
+/* Pack RGBA8888 to RGBA5551 + duplicate in upper half, matches
+ * RDPQ_WriteSetFillColor (rsp_rdpq.inc:749). */
+static inline uint32_t __rdpq_fill_pack_rgba5551(uint32_t rgba)
+{
+    uint32_t r = (rgba >> (24 + (8-5) - 11)) & (0x1Fu << 11);
+    uint32_t g = (rgba >> (16 + (8-5) - 6))  & (0x1Fu << 6);
+    uint32_t b = (rgba >> ( 8 + (8-5) - 1))  & (0x1Fu << 1);
+    uint32_t a = (rgba >> ( 0 + (8-1) - 0))  & (0x01u << 0);
+    uint32_t v16 = r | g | b | a;
+    return v16 | (v16 << 16);
 }
 
 /** @brief Out-of-line implementation of #rdpq_set_fill_color */
@@ -1066,6 +1179,17 @@ __attribute__((noinline))
 void __rdpq_set_fill_color(uint32_t w1)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
+    rdpq_state_mirror.fill_color = w1;
+
+    if (rdpq_block_state.frozen) {
+        // CPU port: bitdepth 3 (32bpp) sends raw, otherwise pack to RGBA5551 x2.
+        uint32_t emit_val = ((rdpq_state_mirror.target_bitdepth & 3) == 3)
+            ? w1
+            : __rdpq_fill_pack_rgba5551(w1);
+        // RDP SET_FILL_COLOR opcode = 0xF7. RDPQ_CMD_SET_FILL_COLOR (0x37) + 0xC0 = 0xF7.
+        rdpq_passthrough_write((RDPQ_CMD_SET_FILL_COLOR, 0, emit_val));
+        return;
+    }
     rdpq_write(1, RDPQ_OVL_ID, RDPQ_CMD_SET_FILL_COLOR_32, 0, w1);
 }
 
@@ -1076,6 +1200,8 @@ void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1
     // SET_COLOR_IMAGE on RSP always generates an additional SET_FILL_COLOR,
     // so make sure there is space for it in case of a static buffer (in a block).
     __rdpq_autosync_change(AUTOSYNC_PIPE);
+    // Bitdepth (2-bit format size code) lives at bits [20:19] of w0.
+    rdpq_state_mirror.target_bitdepth = (w0 >> 19) & 0x3;
     rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_SET_COLOR_IMAGE, w0, w1);
 
     if (rdpq_config & RDPQ_CFG_AUTOSCISSOR)
@@ -1140,13 +1266,41 @@ void __rdpq_set_other_modes(uint32_t w0, uint32_t w1)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
 
-    // SOM might also generate a SET_SCISSOR. Make sure to reserve space for it.
-    rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_SET_OTHER_MODES, w0, w1);
+    // Mirror the full SOM (low 24 of w0 = high 24 of SOM, w1 = low 32).
+    rdpq_state_mirror.som = ((uint64_t)(w0 & 0x00FFFFFF) << 32) | (uint64_t)w1;
+
+    if (rdpq_block_state.frozen) {
+        // Match RSP behavior (RDPQCmd_SetOtherModes -> RDPQ_FinalizeOtherModes
+        // also emits SET_SCISSOR with cycle adjustment).
+        extern void __rdpq_frozen_emit_raw_som_and_scissor(void);
+        __rdpq_frozen_emit_raw_som_and_scissor();
+    } else {
+        // SOM might also generate a SET_SCISSOR. Make sure to reserve space for it.
+        rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_SET_OTHER_MODES, w0, w1);
+    }
 
     if (w0 & (1 << (SOM_CYCLE_SHIFT-32+1)))
         rdpq_tracking.cycle_type_known = 2;
     else
         rdpq_tracking.cycle_type_known = 1;
+}
+
+/** @brief Apply a SOM partial update (mask + value) to the CPU mirror.
+ *
+ * Matches the RSP handler for RDPQ_CMD_MODIFY_OTHER_MODES: the command takes a
+ * 4-byte offset (0 = high half, 4 = low half), an inverted mask, and the value.
+ */
+void __rdpq_mirror_change_som(uint32_t w0, uint32_t w1, uint32_t w2)
+{
+    uint32_t offset = w0 & 0x7;
+    uint32_t mask = ~w1;
+    uint32_t val = w2;
+    if (offset == 0)
+        rdpq_state_mirror.som = (rdpq_state_mirror.som & ~((uint64_t)mask << 32))
+                              | ((uint64_t)(val & mask) << 32);
+    else
+        rdpq_state_mirror.som = (rdpq_state_mirror.som & ~(uint64_t)mask)
+                              | (uint64_t)(val & mask);
 }
 
 /** @brief Out-of-line implementation of #rdpq_change_other_modes_raw */
@@ -1155,8 +1309,15 @@ void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 {
     __rdpq_autosync_change(AUTOSYNC_PIPE);
 
-    // SOM might also generate a SET_SCISSOR. Make sure to reserve space for it.
-    rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2);
+    __rdpq_mirror_change_som(w0, w1, w2);
+
+    if (rdpq_block_state.frozen) {
+        extern void __rdpq_frozen_emit_raw_som_and_scissor(void);
+        __rdpq_frozen_emit_raw_som_and_scissor();
+    } else {
+        // SOM might also generate a SET_SCISSOR. Make sure to reserve space for it.
+        rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_MODIFY_OTHER_MODES, w0, w1, w2);
+    }
 
     if ((w0 == 0) && (w1 & (1 << (SOM_CYCLE_SHIFT-32+1))))  {
         if (w2 & (1 << (SOM_CYCLE_SHIFT-32+1)))
@@ -1168,14 +1329,102 @@ void __rdpq_change_other_modes(uint32_t w0, uint32_t w1, uint32_t w2)
 
 uint64_t rdpq_get_other_modes_raw(void)
 {
+    // The mirror is the source of truth when known. Fall back to the slow
+    // DMEM read only if state visibility was lost (e.g. via rdpq_exec or
+    // placeholder block playback).
+    if (!rdpq_state_mirror.unknown)
+        return rdpq_state_mirror.som;
     rsp_queue_t *state = __rspq_get_state();
     return state->rdp_mode.other_modes;
 }
 
 uint64_t rdpq_get_combiner_raw(void)
 {
+    if (!rdpq_state_mirror.unknown)
+        return rdpq_state_mirror.cc;
     rsp_queue_t *state = __rspq_get_state();
     return state->rdp_mode.combiner;
+}
+
+int rdpq_block_stale_reasons(rspq_block_t *block)
+{
+    // Non-frozen blocks have no recorded snapshot to compare against, so
+    // they are by definition "fresh" the RSP-side mode tracking handles
+    // any state drift.
+    if (!block || !block->rdp_block || !block->rdp_block->frozen)
+        return 0;
+
+    const rdpq_state_mirror_t *snap = &block->rdp_block->mirror_pre;
+    const rdpq_state_mirror_t *live = &rdpq_state_mirror;
+    int reasons = 0;
+
+    // The mirror "unknown" flag is itself part of the mirror state; if the
+    // snapshot and live state were both reached through identical code paths
+    // the flag matches and we fall through to per-field comparison. If they
+    // diverge, report it as a sentinel reason.
+    if (snap->unknown != live->unknown)
+        reasons |= RDPQ_BLOCK_STALE_UNKNOWN;
+
+    uint64_t som_xor = snap->som ^ live->som;
+    if (som_xor) {
+        reasons |= RDPQ_BLOCK_STALE_SOM;
+        if (som_xor & SOMX_FOG)                              reasons |= RDPQ_BLOCK_STALE_FOG;
+        if (som_xor & ((uint64_t)SOM_AA_ENABLE | SOMX_AA_REDUCED)) reasons |= RDPQ_BLOCK_STALE_AA;
+        if (som_xor & SOM_CYCLE_MASK)                        reasons |= RDPQ_BLOCK_STALE_CYCLE_TYPE;
+        if (som_xor & (SOMX_LOD_INTERP_MASK | SOM_TEXTURE_LOD | SOMX_NUMLODS_MASK))
+            reasons |= RDPQ_BLOCK_STALE_MIPMAP;
+    }
+    if (snap->cc != live->cc)                                 reasons |= RDPQ_BLOCK_STALE_CC;
+    if (snap->cc_mipmask != live->cc_mipmask)                 reasons |= RDPQ_BLOCK_STALE_CC_MIPMASK;
+    if (snap->blender_steps[0] != live->blender_steps[0] ||
+        snap->blender_steps[1] != live->blender_steps[1])     reasons |= RDPQ_BLOCK_STALE_BLENDER;
+    if (snap->scissor != live->scissor)                       reasons |= RDPQ_BLOCK_STALE_SCISSOR;
+    if (snap->fill_color != live->fill_color ||
+        snap->target_bitdepth != live->target_bitdepth)       reasons |= RDPQ_BLOCK_STALE_FILL;
+
+    return reasons;
+}
+
+void rspq_block_begin_frozen(rspq_block_t *reuse_block)
+{
+    // Briefly enable the frozen-blocks config flag so __rdpq_block_begin /
+    // __rdpq_block_recycle capture the frozen intent on the block; the flag
+    // can then be restored, frozenness lives on rdpq_block_state.frozen.
+    uint32_t prev = rdpq_config_enable(RDPQ_CFG_FROZEN_BLOCKS);
+    rspq_block_begin_reuse(reuse_block);
+    rdpq_config_set(prev);
+}
+
+rspq_block_t *rspq_block_end_frozen(void)
+{
+    return rspq_block_end();
+}
+
+int rspq_block_run_frozen(rspq_block_t *block)
+{
+    // If the recorded baseline no longer matches live state, refuse to run.
+    if (rdpq_block_stale_reasons(block) != 0)
+        return RSPQ_BLOCK_STALE;
+    rspq_block_run(block);
+    return 0;
+}
+
+const char *rdpq_block_stale_reason_str(int reason_bit)
+{
+    switch (reason_bit) {
+    case RDPQ_BLOCK_STALE_SOM:        return "SOM";
+    case RDPQ_BLOCK_STALE_CC:         return "CC";
+    case RDPQ_BLOCK_STALE_CC_MIPMASK: return "CC_MIPMASK";
+    case RDPQ_BLOCK_STALE_BLENDER:    return "BLENDER";
+    case RDPQ_BLOCK_STALE_SCISSOR:    return "SCISSOR";
+    case RDPQ_BLOCK_STALE_FILL:       return "FILL";
+    case RDPQ_BLOCK_STALE_FOG:        return "FOG";
+    case RDPQ_BLOCK_STALE_AA:         return "AA";
+    case RDPQ_BLOCK_STALE_CYCLE_TYPE: return "CYCLE_TYPE";
+    case RDPQ_BLOCK_STALE_MIPMAP:     return "MIPMAP";
+    case RDPQ_BLOCK_STALE_UNKNOWN:    return "UNKNOWN";
+    default:                          return "?";
+    }
 }
 
 void rdpq_set_tile_autotmem(int16_t tmem_bytes)

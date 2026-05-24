@@ -232,6 +232,22 @@ enum {
 #define RDPQ_CFG_AUTOSCISSOR    (1 << 3)     ///< Configuration flag: enable automatic generation of SET_SCISSOR commands on render target change
 #define RDPQ_CFG_DEFAULT        (0xFFFF)     ///< Configuration flag: default configuration
 
+/**
+ * @brief Configuration flag: enable "frozen blocks" recording.
+ *
+ * When set at the time a block is recorded via #rspq_block_begin_frozen, the
+ * block snapshots the current RDP render state. At playback time
+ * (#rspq_block_run_frozen), the snapshot is compared against the live RDP
+ * state, and if any state that would have changed the recorded commands has
+ * drifted, the block is reported stale and not executed the caller is
+ * expected to re-record it.
+ *
+ * This flag is intentionally excluded from #RDPQ_CFG_DEFAULT: it is an opt-in
+ * recording-time toggle and is meaningful only between
+ * #rspq_block_begin_frozen and #rspq_block_end_frozen.
+ */
+#define RDPQ_CFG_FROZEN_BLOCKS  (1 << 16)
+
 ///@cond
 // Used in inline functions as part of the autosync engine. Not part of public API.
 #define AUTOSYNC_TILE(n)  (1    << (0+(n)))     // Autosync state: Bit used for tile N
@@ -1532,6 +1548,58 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
  * @return     THe current value of the combiner register.
  */
 uint64_t rdpq_get_combiner_raw(void);
+
+/** @name Frozen-block staleness reasons
+ *
+ * Bits returned by #rdpq_block_stale_reasons (and matched against
+ * #RSPQ_BLOCK_STALE by #rspq_block_run_frozen) indicating which piece of the
+ * recorded RDP render state has drifted from the live state since the block
+ * was recorded.
+ *
+ * @{
+ */
+#define RDPQ_BLOCK_STALE_SOM        (1 << 0)  ///< Frozen block stale: SOM (any bit) changed
+#define RDPQ_BLOCK_STALE_CC         (1 << 1)  ///< Frozen block stale: combiner formula changed
+#define RDPQ_BLOCK_STALE_CC_MIPMASK (1 << 2)  ///< Frozen block stale: combiner mipmap mask changed
+#define RDPQ_BLOCK_STALE_BLENDER    (1 << 3)  ///< Frozen block stale: blender step (fog or blender) changed
+#define RDPQ_BLOCK_STALE_SCISSOR    (1 << 4)  ///< Frozen block stale: scissor rectangle changed
+#define RDPQ_BLOCK_STALE_FILL       (1 << 5)  ///< Frozen block stale: fill color or target bitdepth changed
+#define RDPQ_BLOCK_STALE_FOG        (1 << 6)  ///< Frozen block stale: fog enable (SOMX_FOG) changed (subset of SOM)
+#define RDPQ_BLOCK_STALE_AA         (1 << 7)  ///< Frozen block stale: AA enable changed (subset of SOM)
+#define RDPQ_BLOCK_STALE_CYCLE_TYPE (1 << 8)  ///< Frozen block stale: cycle type (1cyc/2cyc/fill/copy) changed (subset of SOM)
+#define RDPQ_BLOCK_STALE_MIPMAP     (1 << 9)  ///< Frozen block stale: mipmap interpolation state changed (subset of SOM)
+#define RDPQ_BLOCK_STALE_UNKNOWN    (1 << 31) ///< Frozen block stale: live RDP state is unknown to CPU (re-anchor required)
+/** @} */
+
+///@cond
+typedef struct rspq_block_s rspq_block_t;
+///@endcond
+
+/**
+ * @brief Check whether a frozen block's recorded RDP state still matches the live state.
+ *
+ * Returns 0 if the block is fresh and can be safely executed, or a bitmask of
+ * #RDPQ_BLOCK_STALE_* values indicating which pieces of state have changed
+ * since the block was recorded with #rspq_block_begin_frozen.
+ *
+ * For non-frozen blocks, returns 0 (no recorded snapshot to compare against).
+ *
+ * @param block  The block to check
+ * @return       0 if fresh, or a bitmask of RDPQ_BLOCK_STALE_* reasons
+ *
+ * @see #rspq_block_begin_frozen
+ * @see #rspq_block_run_frozen
+ */
+int rdpq_block_stale_reasons(rspq_block_t *block);
+
+/**
+ * @brief Return a short human-readable name for a single #RDPQ_BLOCK_STALE_* reason bit, 
+ *        useful for debug logging.
+ *
+ * @param reason_bit  A single RDPQ_BLOCK_STALE_* bit (not a bitmask)
+ * @return            Static string naming the reason, or "?" if unknown
+ */
+const char *rdpq_block_stale_reason_str(int reason_bit);
 
 /**
  * @brief Add a fence to synchronize RSP with RDP commands.
