@@ -1097,6 +1097,19 @@ void __rdpq_fixup_write8_syncchange(uint32_t cmd_id, uint32_t w0, uint32_t w1, u
 {
     __rdpq_autosync_change(autosync);
 
+    // SET_TEXTURE_IMAGE / SET_Z_IMAGE: rdpq's "fixup" is just the lookup-table
+    // address resolution done by RDPQCmd_SetFixupImage (rsp_rdpq.S). When the
+    // address-table index is 0 (top byte of w1 is 0), slot 0 holds 0 and the
+    // resolution is a no-op — we can emit a raw SET_TEXTURE_IMAGE / SET_Z_IMAGE
+    // straight to the static RDP buffer. The cmd_id top byte (0xFD / 0xFE)
+    // already matches the RDP opcode via RDPQ_OVL_ID + cmd_id.
+    if (rdpq_block_state.frozen
+        && (cmd_id == RDPQ_CMD_SET_TEXTURE_IMAGE || cmd_id == RDPQ_CMD_SET_Z_IMAGE)
+        && (w1 & 0xFF000000) == 0) {
+        rdpq_passthrough_write((cmd_id, w0, w1));
+        return;
+    }
+
     // Mirror + frozen-block gate for the SET_PRIM_COLOR_COMPONENT fixup.
     // The RSP handler (RDPQCmd_SetPrimColorComponent) reads RDPQ_PRIM_COLOR_EX,
     // merges the new component (selector in bits 16-17 of w0: 0=rgba, 1=primlod,
@@ -1121,6 +1134,35 @@ void __rdpq_fixup_write8_syncchange(uint32_t cmd_id, uint32_t w0, uint32_t w1, u
             // RDPQ_CMD_SET_PRIM_COLOR is the existing passthrough cmd id.
             rdpq_passthrough_write((RDPQ_CMD_SET_PRIM_COLOR,
                 merged & 0x0000FFFF, rdpq_state_mirror.prim_color_rgba));
+            return;
+        }
+    }
+
+    // Auto-TMEM tile setup. RSP-side RDPQCmd_AutoTmem_SetTile takes the SET_TILE
+    // command in w0/w1, resolves the auto address (using ADDR or ADDR_PREV based
+    // on the REUSE bit), folds it into the cmd word, lowers the autotmem limit
+    // for "wide" formats (RGBA32/YUV16/CI4/CI8 use upper half of TMEM), and
+    // forwards as a raw SET_TILE (opcode 0xF5). We mirror all of that on CPU.
+    if (cmd_id == RDPQ_CMD_AUTOTMEM_SET_TILE) {
+        bool reuse = (w0 & (1u << 18)) != 0;
+        uint16_t auto_addr = reuse ? rdpq_state_mirror.autotmem_addr_prev
+                                   : rdpq_state_mirror.autotmem_addr;
+        // tmem_addr offset (already in units of 8 bytes) is in bits 0-8.
+        uint32_t resolved_w0 = (w0 & ~0x1FFu) | ((w0 + auto_addr) & 0x1FFu);
+
+        // Format-driven limit lowering. Format field is bits 19-23 of w0 and
+        // encodes (fmt<<2)|size. Lower limit to 2048/8 for RGBA32, YUV16, CI4, CI8.
+        uint32_t fmt5 = (resolved_w0 >> 19) & 0x1F;
+        if (fmt5 == ((0<<2)|3) || fmt5 == ((1<<2)|2) ||
+            fmt5 == ((2<<2)|0) || fmt5 == ((2<<2)|1)) {
+            if (rdpq_state_mirror.autotmem_limit > 2048 / 8)
+                rdpq_state_mirror.autotmem_limit = 2048 / 8;
+        }
+
+        if (rdpq_block_state.frozen) {
+            // Emit raw SET_TILE (RDP opcode 0xF5 = RDPQ_OVL_ID + 0x35).
+            rdpq_passthrough_write((RDPQ_CMD_SET_TILE,
+                resolved_w0 & 0x00FFFFFF, w1));
             return;
         }
     }
@@ -1427,12 +1469,50 @@ const char *rdpq_block_stale_reason_str(int reason_bit)
     }
 }
 
+/* CPU mirror of RDPQCmd_AutoTmem_SetAddr semantics — must stay in sync.
+ *
+ *   value == 0  : begin    (increment enabled; if was 0, reset addr=0/addr_prev=0/limit=4096/8)
+ *   value == -1 : end      (decrement enabled; must reach 0 cleanly)
+ *   value > 0   : grow     (addr_prev = addr; addr += value; assert addr <= limit)
+ */
+static void __rdpq_mirror_autotmem_setaddr(int16_t value)
+{
+    if (value < 0) {
+        assertf(rdpq_state_mirror.autotmem_enabled > 0,
+            "rdpq_set_tile_autotmem(-1) without matching begin");
+        rdpq_state_mirror.autotmem_enabled--;
+    } else if (value == 0) {
+        if (rdpq_state_mirror.autotmem_enabled++ == 0) {
+            rdpq_state_mirror.autotmem_addr = 0;
+            rdpq_state_mirror.autotmem_addr_prev = 0;
+            rdpq_state_mirror.autotmem_limit = 4096 / 8;
+        }
+    } else {
+        assertf(rdpq_state_mirror.autotmem_enabled > 0,
+            "rdpq_set_tile_autotmem(%d) without matching begin", value);
+        rdpq_state_mirror.autotmem_addr_prev = rdpq_state_mirror.autotmem_addr;
+        rdpq_state_mirror.autotmem_addr += (uint16_t)value;
+        assertf(rdpq_state_mirror.autotmem_addr <= rdpq_state_mirror.autotmem_limit,
+            "auto-TMEM full: addr=%u limit=%u",
+            rdpq_state_mirror.autotmem_addr, rdpq_state_mirror.autotmem_limit);
+    }
+}
+
 void rdpq_set_tile_autotmem(int16_t tmem_bytes)
 {
     if (tmem_bytes >= 0) {
         assertf((tmem_bytes % 8) == 0   , "tmem_bytes must be a multiple of 8");
         tmem_bytes /= 8;
     }
+
+    __rdpq_mirror_autotmem_setaddr(tmem_bytes);
+
+    // Frozen recording: the CPU mirror is the source of truth for autotmem
+    // allocation, the RSP-side state is not consulted because we'll CPU-resolve
+    // SET_TILE addresses ourselves. Skip the rspq overlay cmd entirely.
+    if (rdpq_block_state.frozen)
+        return;
+
     rspq_write(RDPQ_OVL_ID, RDPQ_CMD_AUTOTMEM_SET_ADDR, (uint16_t)tmem_bytes);
 }
 

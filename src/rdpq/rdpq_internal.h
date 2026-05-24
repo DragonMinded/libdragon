@@ -89,9 +89,13 @@ typedef struct {
     uint32_t fill_color;        ///< Mirror of RDPQ_FILL_COLOR (32-bit packed)
     uint32_t prim_color_ex;     ///< Mirror of RDPQ_PRIM_COLOR_EX (minlod/primlod + selector bits, no top byte)
     uint32_t prim_color_rgba;   ///< Mirror of RDPQ_PRIM_COLOR_RGBA (packed RGBA8888)
+    uint16_t autotmem_addr;     ///< Mirror of RDPQ_AUTOTMEM_ADDR (current autotmem allocation, units of 8 bytes)
+    uint16_t autotmem_addr_prev;///< Mirror of RDPQ_AUTOTMEM_ADDR_PREV (snapshot before last increment, for REUSE)
+    uint16_t autotmem_limit;    ///< Mirror of RDPQ_AUTOTMEM_LIMIT (max addr; lowered for 32bpp/YUV/CI tiles)
+    uint8_t autotmem_enabled;   ///< Mirror of RDPQ_AUTOTMEM_ENABLED (reentrant counter)
     uint8_t target_bitdepth;    ///< Mirror of RDPQ_TARGET_BITDEPTH (low 2 bits of fmt)
     uint8_t unknown;            ///< Sentinel: live RDP state is unknown / has drifted from this mirror
-    uint8_t _pad[2];
+    uint8_t _pad;
 } rdpq_state_mirror_t;
 
 extern rdpq_state_mirror_t rdpq_state_mirror;
