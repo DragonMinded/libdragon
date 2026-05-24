@@ -480,7 +480,7 @@ RDPQ_Triangle_Send_Async:
     # Divide vinw_f by 2. This is needed
     # because it is going to be used in a
     # vmulf which expects a 0.15 number.        
-    vsrl vinvw_f, vinvw_f, 1;                   lsv attr3_z, VTX_ATTR_Z,vtx3
+##    vsrl vinvw_f, vinvw_f, 1;                   lsv attr3_z, VTX_ATTR_Z,vtx3
 
     #  vxy21 =   X1   --    X2   --       Y1 --   Y2 --
     #  slope = HX/HY  --   MX/MY --     LX/LY --  -- --
@@ -492,12 +492,12 @@ RDPQ_Triangle_Send_Async:
     vmadm v__,      vslope_i, vfy_f.e4;         andi prim_size, tricmd, 0x100
     vmadn vedges_f, vslope_f, vfy_i.e4;         mfc0 t1, COP0_DMA_BUSY
                                                 # Copy normalized invw into the attribute vector
-    vmadh vedges_i, vslope_i, vfy_i.e4;         sdv vinvw_f.e4, 16,s3
+##    vmadh vedges_i, vslope_i, vfy_i.e4;         sdv vinvw_f.e4, 16,s3
 
     # Multiply S/T by INVW
-    vmulf vtex1, vinvw_f.h0;                    lsv attr1_invw, 16,s3
-    vmulf vtex2, vinvw_f.h1;                    lsv attr2_invw, 18,s3
-    vmulf vtex3, vinvw_f.h2;                    lsv attr3_invw, 20,s3
+##    vmulf vtex1, vinvw_f.h0;                    lsv attr1_invw, 16,s3
+##    vmulf vtex2, vinvw_f.h1;                    lsv attr2_invw, 18,s3
+##    vmulf vtex3, vinvw_f.h2;                    lsv attr3_invw, 20,s3
 
     # Convert X1 and X2 into                    # Check if DMA is busy.
     # 16.16 precision                           # If it is, jump to a busy loop, otherwise
@@ -564,8 +564,8 @@ RDPQ_Triangle_Send_Async:
     # Shift left NZ (that contains INVNZ)
     # by 2, to align with the fixed point
     # precision that will be required later.
-    vmudn vnz_f, K4;                                ssv ism_i, 28,s3
-    vmadh vnz_i, K4;                                ssv ism_f, 30,s3
+##    vmudn vnz_f, K4;                                ssv ism_i, 28,s3
+##    vmadh vnz_i, K4;                                ssv ism_f, 30,s3
     #define inz_f   vnz_f.e7
     #define inz_i   vnz_i.e7
                
@@ -628,16 +628,16 @@ rdpq_triangle_change_buffer_done:
                                                     # Store updated RDRAM pointer.
     vmov vde_f.e6, vde_i.e7;                        sw rdram_cur, %lo(RDPQ_CURRENT)
                                                     # Store Z values
-    vmov vzout1.e1, vfinal_f.e7;                    sdv vfinal_f.e0, 0x10,color_dmem
-    vmov vzout1.e0, vfinal_i.e7;                    sdv vfinal_f.e4, 0x10,tex_dmem
-    vmov vzout1.e3, vdx_f.e7;                       sdv vfinal_i.e0, 0x00,color_dmem    
-    vmov vzout1.e2, vdx_i.e7;                       sdv vfinal_i.e4, 0x00,tex_dmem
+    ## vmov vzout1.e1, vfinal_f.e7;                    # sdv vfinal_f.e0, 0x10,color_dmem
+    ## vmov vzout1.e0, vfinal_i.e7;                    # sdv vfinal_f.e4, 0x10,tex_dmem
+    ## vmov vzout1.e3, vdx_f.e7;                       # sdv vfinal_i.e0, 0x00,color_dmem    
+    ## vmov vzout1.e2, vdx_i.e7;                       # sdv vfinal_i.e4, 0x00,tex_dmem
                                                     # Store Z slopes, that were
                                                     # compacted via vmov.
-                                                    slv vde_f.e6, 0x08,z_dmem
-                                                    slv vdy_f.e6, 0x0C,z_dmem
+##                                                    slv vde_f.e6, 0x08,z_dmem
+##                                                    slv vdy_f.e6, 0x0C,z_dmem
                                                     addiu prim_size, -1
-                                                    sdv vzout1.e0, 0x00,z_dmem
+                                                    # sdv vzout1.e0, 0x00,z_dmem
 
 #if RDPQ_TRIANGLE_PROFILE
     xtracestop

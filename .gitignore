@@ -17,6 +17,8 @@ tools/n64sym/n64sym
 tools/n64sym/n64symdump
 tools/**/*.exe
 website/ref/
+mips64-*
+bin/
 
 ## OSX junk
 .DS_Store
