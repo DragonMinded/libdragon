@@ -212,6 +212,7 @@ int assert_equal_mem(TestContext *ctx, const char *file, int line, const uint8_t
 #include "test_rdpq_attach.c"
 #include "test_rdpq_sprite.c"
 #include "test_dl.c"
+#include "test_fm.c"
 
 /**********************************************************************
  * MAIN
@@ -330,6 +331,15 @@ static const struct Testsuite
 	TEST_FUNC(test_dlsym_rtld_default,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dlclose,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dl_ctors,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_truncf,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_ceilf,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_floorf,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_fmodf,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_wrapf,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_sinf,                    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_cosf,                    0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_sincosf,                 0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_fm_atan2f,                  0, TEST_FLAGS_NO_BENCHMARK),
 };
 
 int main() {

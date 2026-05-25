@@ -40,7 +40,7 @@ float fm_sinf_approx(float x, int approx) {
     // bring the argument there. This reduction using fm_fmodf is not
     // very accurate for large numbers, so it will introduce more error compared
     // to the 5 ULP figure.
-    x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
+    x = fm_wrapf(x+pi_hi, 2*pi_hi) - pi_hi;
     x = sinf_approx(x, approx);
     // FIXME: workaround for a bug in our sinf approximation. We found at least
     // one input (0xbfc915a2 => -1.570973) that produces an out of bounds result
@@ -58,7 +58,7 @@ float fm_cosf(float x) {
 }
 
 void fm_sincosf(float x, float *sin, float *cos) {
-    x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
+    x = fm_wrapf(x+pi_hi, 2*pi_hi) - pi_hi;
     float sy = sinf_approx(x, 0);
     float cy = sqrtf(1.0f - sy * sy);
     if (fabsf(x) > half_pi_hi) {
