@@ -84,18 +84,17 @@ typedef struct {
     uint64_t som;               ///< Mirror of RDPQ_OTHER_MODES (incl. SOMX_* flags)
     uint64_t cc;                ///< Mirror of RDPQ_COMBINER (user value, may carry 2PASS marker)
     uint64_t cc_mipmask;        ///< Mirror of RDPQ_COMBINER_MIPMAPMASK
-    uint32_t blender_steps[2];  ///< Mirror of RDPQ_MODE_BLENDER_STEPS (fog step, blender step)
     uint64_t scissor;           ///< Mirror of RDPQ_SCISSOR_RECT (raw SET_SCISSOR)
+    uint32_t blender_steps[2];  ///< Mirror of RDPQ_MODE_BLENDER_STEPS (fog step, blender step)
     uint32_t fill_color;        ///< Mirror of RDPQ_FILL_COLOR (32-bit packed)
     uint32_t prim_color_ex;     ///< Mirror of RDPQ_PRIM_COLOR_EX (minlod/primlod + selector bits, no top byte)
     uint32_t prim_color_rgba;   ///< Mirror of RDPQ_PRIM_COLOR_RGBA (packed RGBA8888)
     uint16_t autotmem_addr;     ///< Mirror of RDPQ_AUTOTMEM_ADDR (current autotmem allocation, units of 8 bytes)
     uint16_t autotmem_addr_prev;///< Mirror of RDPQ_AUTOTMEM_ADDR_PREV (snapshot before last increment, for REUSE)
-    uint16_t autotmem_limit;    ///< Mirror of RDPQ_AUTOTMEM_LIMIT (max addr; lowered for 32bpp/YUV/CI tiles)
-    uint8_t autotmem_enabled;   ///< Mirror of RDPQ_AUTOTMEM_ENABLED (reentrant counter)
-    uint8_t target_bitdepth;    ///< Mirror of RDPQ_TARGET_BITDEPTH (low 2 bits of fmt)
-    uint8_t unknown;            ///< Sentinel: live RDP state is unknown / has drifted from this mirror
-    uint8_t _pad;
+    uint8_t autotmem_enabled : 4; ///< Mirror of RDPQ_AUTOTMEM_ENABLED (reentrant counter, 0-15)
+    uint8_t target_bitdepth  : 2; ///< Mirror of RDPQ_TARGET_BITDEPTH (low 2 bits of fmt, 0-3)
+    uint8_t unknown          : 1; ///< Sentinel: live RDP state is unknown / has drifted from this mirror
+    uint8_t autotmem_limit_lo : 1; ///< Mirror of RDPQ_AUTOTMEM_LIMIT: 0=4096/8, 1=2048/8 (lowered for 32bpp/YUV/CI)
 } rdpq_state_mirror_t;
 
 extern rdpq_state_mirror_t rdpq_state_mirror;

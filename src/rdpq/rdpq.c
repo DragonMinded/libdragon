@@ -1155,8 +1155,7 @@ void __rdpq_fixup_write8_syncchange(uint32_t cmd_id, uint32_t w0, uint32_t w1, u
         uint32_t fmt5 = (resolved_w0 >> 19) & 0x1F;
         if (fmt5 == ((0<<2)|3) || fmt5 == ((1<<2)|2) ||
             fmt5 == ((2<<2)|0) || fmt5 == ((2<<2)|1)) {
-            if (rdpq_state_mirror.autotmem_limit > 2048 / 8)
-                rdpq_state_mirror.autotmem_limit = 2048 / 8;
+            rdpq_state_mirror.autotmem_limit_lo = 1;
         }
 
         if (rdpq_block_state.frozen) {
@@ -1510,16 +1509,17 @@ static void __rdpq_mirror_autotmem_setaddr(int16_t value)
         if (rdpq_state_mirror.autotmem_enabled++ == 0) {
             rdpq_state_mirror.autotmem_addr = 0;
             rdpq_state_mirror.autotmem_addr_prev = 0;
-            rdpq_state_mirror.autotmem_limit = 4096 / 8;
+            rdpq_state_mirror.autotmem_limit_lo = 0;
         }
     } else {
         assertf(rdpq_state_mirror.autotmem_enabled > 0,
             "rdpq_set_tile_autotmem(%d) without matching begin", value);
         rdpq_state_mirror.autotmem_addr_prev = rdpq_state_mirror.autotmem_addr;
         rdpq_state_mirror.autotmem_addr += (uint16_t)value;
-        assertf(rdpq_state_mirror.autotmem_addr <= rdpq_state_mirror.autotmem_limit,
+        uint16_t limit = rdpq_state_mirror.autotmem_limit_lo ? 2048 / 8 : 4096 / 8;
+        assertf(rdpq_state_mirror.autotmem_addr <= limit,
             "auto-TMEM full: addr=%u limit=%u",
-            rdpq_state_mirror.autotmem_addr, rdpq_state_mirror.autotmem_limit);
+            rdpq_state_mirror.autotmem_addr, limit);
     }
 }
 
