@@ -43,7 +43,7 @@ ifeq ($(OS),Windows_NT)
 	endif
 
 # Define a macro with an estimate of the MSYS2 environment's age so that we can check it for compatibility reasons.
-	MSYS2_AGE := $(shell date -d "$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
+	MSYS2_AGE := $(shell date -d "$$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
 	ifeq ($(MSYS2_AGE),)
 		$(error "Failed to determine MSYS2 age. Please make sure that pacman, date, and sed are in PATH and that msys2-runtime is installed.")
 	else
