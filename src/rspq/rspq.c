@@ -1344,12 +1344,17 @@ rspq_block_t* rspq_block_end(void)
     // Switch back to the normal display list
     rspq_switch_context(&lowpri);
 
-    // Save pointer to rdpq block (if any)
-    rspq_block->rdp_block = __rdpq_block_end();
-
-    // Return the created block
+    // __rdpq_block_end may emit publish-post-state commands for frozen blocks.
+    // These go to the main queue (the context was just switched), but rspq_block
+    // is still set, causing rspq_next_buffer to take the block-chain path on
+    // overflow, a mismatch. Temporarily clear rspq_block.
     rspq_block_t *b = rspq_block;
     rspq_block = NULL;
+
+    // Save pointer to rdpq block (if any)
+    b->rdp_block = __rdpq_block_end();
+
+    // Return the created block
     return b;
 }
 

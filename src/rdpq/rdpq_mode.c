@@ -246,7 +246,16 @@ void __rdpq_frozen_publish_post_state(void)
     rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc_mm   + 4, (uint32_t)rdpq_state_mirror.cc_mipmask);
     rspq_int_write(RSPQ_CMD_WRITE_WORD, off_bs0,         rdpq_state_mirror.blender_steps[0]);
     rspq_int_write(RSPQ_CMD_WRITE_WORD, off_bs1,         rdpq_state_mirror.blender_steps[1]);
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_scissor + 0, (uint32_t)(rdpq_state_mirror.scissor >> 32));
+    /* DMEM RDPQ_SCISSOR_RECT stores the *full* SET_SCISSOR command, with the
+     * 0xED RDP opcode byte in the high byte of word 0. The CPU mirror, however,
+     * only stores the data bits (XH/YH/XL/YL), because that is what userland
+     * rdpq_set_scissor() passes to __rdpq_set_scissor(). 
+     * The RSP-side RDPQCmd_SetScissorEx handler ORs in 0xED before writing to DMEM. 
+     * We must do the same here, otherwise we wipe the opcode byte and subsequent
+     * RDPQ_FinalizeOtherModes / RDPQCmd_PopMode loads (which copy DMEM straight
+     * to the staging area) end up emitting a NOP-looking command to the RDP. */
+    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_scissor + 0,
+        0xED000000u | (uint32_t)(rdpq_state_mirror.scissor >> 32));
     rspq_int_write(RSPQ_CMD_WRITE_WORD, off_scissor + 4, (uint32_t)rdpq_state_mirror.scissor);
     rspq_int_write(RSPQ_CMD_WRITE_WORD, off_fill,        rdpq_state_mirror.fill_color);
 

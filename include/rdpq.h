@@ -236,11 +236,10 @@ enum {
  * @brief Configuration flag: enable "frozen blocks" recording.
  *
  * When set at the time a block is recorded via #rspq_block_begin_frozen, the
- * block snapshots the current RDP render state. At playback time
- * (#rspq_block_run_frozen), the snapshot is compared against the live RDP
- * state, and if any state that would have changed the recorded commands has
- * drifted, the block is reported stale and not executed the caller is
- * expected to re-record it.
+ * block snapshots the current RDP render state. 
+ * At playback time (#rspq_block_run_frozen), the snapshot is compared against the live RDP state.
+ * If any state that would have changed the recorded commands has drifted, 
+ * the block is reported stale and not executed the caller is expected to re-record it.
  *
  * This flag is intentionally excluded from #RDPQ_CFG_DEFAULT: it is an opt-in
  * recording-time toggle and is meaningful only between
@@ -1551,8 +1550,7 @@ uint64_t rdpq_get_combiner_raw(void);
 
 /** @name Frozen-block staleness reasons
  *
- * Bits returned by #rdpq_block_stale_reasons (and matched against
- * #RSPQ_BLOCK_STALE by #rspq_block_run_frozen) indicating which piece of the
+ * Bits returned by #rdpq_block_stale_reasons indicating which piece of the
  * recorded RDP render state has drifted from the live state since the block
  * was recorded.
  *

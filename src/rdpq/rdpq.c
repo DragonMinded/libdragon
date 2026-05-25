@@ -908,7 +908,6 @@ void __rdpq_block_run_no_rdp(void)
  */
 void __rdpq_block_run_maybe_rdp(void)
 {
-  rdpq_tracking_t prev = rdpq_tracking;
   __rdpq_block_run_no_rdp();
 
   // Placeholder blocks can execute arbitrary rdpq commands; the CPU cannot
@@ -1099,13 +1098,14 @@ void __rdpq_fixup_write8_syncchange(uint32_t cmd_id, uint32_t w0, uint32_t w1, u
 
     // SET_TEXTURE_IMAGE / SET_Z_IMAGE: rdpq's "fixup" is just the lookup-table
     // address resolution done by RDPQCmd_SetFixupImage (rsp_rdpq.S). When the
-    // address-table index is 0 (top byte of w1 is 0), slot 0 holds 0 and the
-    // resolution is a no-op — we can emit a raw SET_TEXTURE_IMAGE / SET_Z_IMAGE
-    // straight to the static RDP buffer. The cmd_id top byte (0xFD / 0xFE)
-    // already matches the RDP opcode via RDPQ_OVL_ID + cmd_id.
+    // address-table index is 0 (no placeholder surface), the resolution is a
+    // no-op and we emit a raw command. Non-zero index (placeholder surfaces)
+    // is forbidden in frozen blocks — the address-table lives in DMEM and can't
+    // be resolved at record time. Use a block placeholder instead.
     if (rdpq_block_state.frozen
-        && (cmd_id == RDPQ_CMD_SET_TEXTURE_IMAGE || cmd_id == RDPQ_CMD_SET_Z_IMAGE)
-        && (w1 & 0xFF000000) == 0) {
+        && (cmd_id == RDPQ_CMD_SET_TEXTURE_IMAGE || cmd_id == RDPQ_CMD_SET_Z_IMAGE)) {
+        assertf((w1 & 0x3C000000) == 0,
+            "placeholder surface cannot be used inside a frozen block; use a block placeholder (RSPQ_BLOCK_PLACEHOLDER_0..6) instead");
         rdpq_passthrough_write((cmd_id, w0, w1));
         return;
     }
@@ -1239,11 +1239,36 @@ void __rdpq_set_fill_color(uint32_t w1)
 __attribute__((noinline))
 void __rdpq_set_color_image(uint32_t w0, uint32_t w1, uint32_t sw0, uint32_t sw1)
 {
-    // SET_COLOR_IMAGE on RSP always generates an additional SET_FILL_COLOR,
-    // so make sure there is space for it in case of a static buffer (in a block).
     __rdpq_autosync_change(AUTOSYNC_PIPE);
     // Bitdepth (2-bit format size code) lives at bits [20:19] of w0.
     rdpq_state_mirror.target_bitdepth = (w0 >> 19) & 0x3;
+
+    // RDPQCmd_SetColorImage (rsp_rdpq.S:368) does: save bitdepth, fixup the
+    // lookup-table address (same RDPQ_FixupAddress as SetFixupImage), emit raw
+    // SET_COLOR_IMAGE, then re-emit fill color repacked for the new bitdepth
+    // (via RDPQ_WriteSetFillColor). In frozen mode we replicate this on CPU.
+    if (rdpq_block_state.frozen) {
+        // Placeholder surfaces (non-zero lookup index) are forbidden in frozen
+        // blocks — the address-table lives in DMEM and can't be resolved at
+        // record time. Use a block placeholder instead.
+        assertf((w1 & 0x3C000000) == 0,
+            "placeholder surface cannot be used inside a frozen block; use a block placeholder (RSPQ_BLOCK_PLACEHOLDER_0..6) instead");
+        // Emit raw SET_COLOR_IMAGE (RDP opcode 0xFF, cmd_id 0x3F + 0xC0).
+        rdpq_passthrough_write((RDPQ_CMD_SET_COLOR_IMAGE, w0, w1));
+        // Re-emit fill color repacked for the new bitdepth, matching the
+        // RSP tail of RDPQCmd_SetColorImage (RDPQ_WriteSetFillColor).
+        uint32_t packed = ((rdpq_state_mirror.target_bitdepth & 3) == 3)
+            ? rdpq_state_mirror.fill_color
+            : __rdpq_fill_pack_rgba5551(rdpq_state_mirror.fill_color);
+        rdpq_passthrough_write((RDPQ_CMD_SET_FILL_COLOR, 0, packed));
+        // Auto-scissor: __rdpq_set_scissor is already frozen-gated.
+        if (rdpq_config & RDPQ_CFG_AUTOSCISSOR)
+            __rdpq_set_scissor(sw0, sw1);
+        return;
+    }
+
+    // SET_COLOR_IMAGE on RSP always generates an additional SET_FILL_COLOR,
+    // so make sure there is space for it in case of a static buffer (in a block).
     rdpq_write(2, RDPQ_OVL_ID, RDPQ_CMD_SET_COLOR_IMAGE, w0, w1);
 
     if (rdpq_config & RDPQ_CFG_AUTOSCISSOR)
@@ -1442,13 +1467,13 @@ rspq_block_t *rspq_block_end_frozen(void)
     return rspq_block_end();
 }
 
-int rspq_block_run_frozen(rspq_block_t *block)
+bool rspq_block_run_frozen(rspq_block_t *block)
 {
-    // If the recorded baseline no longer matches live state, refuse to run.
-    if (rdpq_block_stale_reasons(block) != 0)
-        return RSPQ_BLOCK_STALE;
+    if (!block || rdpq_block_stale_reasons(block) != 0) {
+        return false;
+    }
     rspq_block_run(block);
-    return 0;
+    return true;
 }
 
 const char *rdpq_block_stale_reason_str(int reason_bit)
