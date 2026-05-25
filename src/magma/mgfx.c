@@ -37,7 +37,8 @@ void mgfx_get_matrices(mgfx_matrices_t *dst, const mgfx_matrices_parms_t *parms)
     
     for (uint32_t i = 0; i < 16; i++)
     {
-        dst->normal[i] = parms->normal[i] * (1<<15);
+        int32_t v = parms->normal[i] * (1<<15);
+        dst->normal[i] = CLAMP(v, INT16_MIN, INT16_MAX);
     }
 }
 
