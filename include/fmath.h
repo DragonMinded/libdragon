@@ -109,23 +109,36 @@ static inline float fm_ceilf(float x) {
 /**
  * @brief Faster version of floorf
  * 
- * Optimized version using the MIPS trunc.w.s instruction.
+ * Optimized version using the MIPS floor.w.s instruction.
  */
 static inline float fm_floorf(float x) {
-    float y = fm_truncf(x);
-    // After truncation, correct the negative numbers
-    if (x < 0) y -= 1.0f;
+    float yint, y;
+    __asm ("floor.w.s  %0,%1" : "=f"(yint) : "f"(x));
+    __asm ("cvt.s.w  %0,%1" : "=f"(y) : "f"(yint));
     return y;
 }
 
 /**
  * @brief Faster version of fmodf
- * 
+ *
+ * Compute x modulo y, where the result is in the range (-y;y)
+ * (depending on the sign of x).
+ *
  * Optimized version of fmodf, which returns accurate results in case
  * of small magnitudes (x <= 1e6). Do not use this version if you need
- * accurate module of very large numbers.
+ * accurate remainder of very large numbers.
  */
 static inline float fm_fmodf(float x, float y) {
+    return x - fm_truncf(x * (1.0f / y)) * y;
+}
+
+/**
+ * @brief Compute x modulo y, where the result is in the range [0;y)
+ *
+ * Returns accurate results in case of small magnitudes (x <= 1e6).
+ * Do not use this version if you need accurate modulus of very large numbers.
+ */
+static inline float fm_wrapf(float x, float y) {
     return x - fm_floorf(x * (1.0f / y)) * y;
 }
 
