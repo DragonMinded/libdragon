@@ -5,11 +5,13 @@
 
 #include "lossysprite.h"
 
+///@cond
 // Match the layout used inside the h264_decoder TU (h264_decoder.c defines
 // this before including all internal .c files). Without it, mbStorage_t here
 // gains an extra u32 `decoded` field, shifting mbA/mbB/mbC/mbD off the offset
 // h264bsdInitMbNeighbours writes to — neighbour pointers come back NULL.
 #define OPTIMIZE_NO_DECODED_FLAG
+///@endcond
 
 #include "video/h264_decoder.h"
 #include "video/h264_decoder/h264bsd_macroblock_layer.h"
@@ -36,9 +38,12 @@
 #include <stdlib.h>
 #include <malloc.h>
 
+/** @brief LSPR version number. */
 #define LSPR_VERSION 4
 
+///@cond
 #define ALIGN64(n) (((n) + 63) & ~63)
+///@endcond
 
 /**
  * @brief Header structure for LSPR-encoded files.
@@ -166,7 +171,9 @@ static void lspr_decode_intra_slice(
     // to consume each MB's buffer before its slot is reused. This mirrors
     // the video-player path (h264bsdDecodeSliceData uses the same idiom
     // with NUM_PARALLEL_MACROBLOCKS).
+    ///@cond
     #define LSPR_MB_RING_SIZE 32
+    ///@endcond
     macroblockLayer_t *mbLayers = (macroblockLayer_t*)calloc(LSPR_MB_RING_SIZE, sizeof(macroblockLayer_t));
     assertf(mbLayers, "LSPR: out of memory");
     u32 ring_idx = 0;
