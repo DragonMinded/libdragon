@@ -41,14 +41,7 @@ extern "C" {
 #include "mksprite.h"
 #include "x264/x264.h"
 
-enum {
-    LSPR_YUV_420 = 0,
-    LSPR_YUV_422 = 1,
-    LSPR_YUV_444 = 2,
-    LSPR_YUV_400 = 3,
-};
-
-#define LSPR_VERSION 3
+#define LSPR_VERSION 4
 
 static void verbose(const char *str, ...) {
     if (!flag_verbose) return;
@@ -419,6 +412,21 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
+    // Snapshot the parameters as adjusted by x264_encoder_open. The "stillimage"
+    // tune drives f_psy_rd/f_psy_trellis up, which causes the encoder to silently
+    // shift i_chroma_qp_offset (encoder.c:1226-1230). For CRF mode without
+    // b_stitchable, x264 also writes pic_init_qp = SPEC_QP(i_qp_constant).
+    // Both values must travel out-of-band so the runtime decoder can
+    // apply the same dequant scale x264 used.
+    x264_param_t adjusted;
+    x264_encoder_parameters(enc, &adjusted);
+    int pic_init_qp = (adjusted.rc.i_rc_method == X264_RC_ABR || adjusted.b_stitchable)
+                      ? 26
+                      : adjusted.rc.i_qp_constant;
+    pic_init_qp = clamp_int(pic_init_qp, 0, 51);
+    int chroma_qp_offset = adjusted.analyse.i_chroma_qp_offset;
+    chroma_qp_offset = clamp_int(chroma_qp_offset, -12, 12);
+
     x264_picture_t pic;
     x264_picture_t pic_out;
     x264_picture_init(&pic);
@@ -454,13 +462,19 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
+    // rgba_to_i420 above uses Kr=0.2126/Kb=0.0722 with full-range scaling
+    // (BT.709 full range). The runtime decoder hard-codes the matching
+    // K0..K5 coefficients; if this conversion is ever changed, the decoder
+    // must be updated in lockstep.
+    w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0); // pad: see LSPR_FILE_MAGIC
     w8(f, 'L'); w8(f, 'S'); w8(f, 'P'); w8(f, 'R');
     w16(f, LSPR_VERSION); // version
-    w16(f, LSPR_YUV_420); // flags: YUV format only for now
     w16(f, img.width);
     w16(f, img.height);
     w16(f, orig_w);
     w16(f, orig_h);
+    w8(f, (uint8_t)pic_init_qp);
+    w8(f, (uint8_t)(int8_t)chroma_qp_offset);
 
     x264_nal_t *nals = NULL;
     int i_nals = 0;

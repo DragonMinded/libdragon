@@ -9,6 +9,7 @@
 #include "sprite_internal.h"
 #include "asset_internal.h"
 #include "asset.h"
+#include "lossysprite.h"
 #include "utils.h"
 #include "rdpq_tex.h"
 #include <stdio.h>
@@ -47,6 +48,9 @@ bool __sprite_upgrade(sprite_t *sprite)
     assertf(memcmp(sprite, ASSET_MAGIC, 3) != 0, 
         "Sprite is compressed: use sprite_load() instead of reading the file manually");
 
+    assertf(memcmp(sprite, LSPR_FILE_MAGIC, LSPR_FILE_MAGIC_SIZE) != 0,
+        "Sprite is lossy (LSPR): call lossysprite_init() before sprite_load()");
+
     // Previously, the "format" field of the sprite structure (now renamed "flags")
     // was unused and always contained 0. Sprites could only be RGBA16 and RGBA32 anyway,
     // so only a bitdepth field could be used to understand the format.
@@ -64,11 +68,46 @@ bool __sprite_upgrade(sprite_t *sprite)
     return false;
 }
 
+static struct sprite_decoder_s *sprite_decoders = NULL;
+
+sprite_decoder_t *sprite_decoder_register(sprite_decodable_fn decodable, sprite_decode_fn decode)
+{
+    struct sprite_decoder_s *d = malloc(sizeof(struct sprite_decoder_s));
+    d->decodable = decodable;
+    d->decode = decode;
+    d->next = sprite_decoders;
+    sprite_decoders = d;
+    return d;
+}
+
+int sprite_decoder_unregister(sprite_decoder_t *decoder)
+{
+    struct sprite_decoder_s **d = &sprite_decoders;
+    while (*d) {
+        if (*d == decoder) {
+            struct sprite_decoder_s *to_free = *d;
+            *d = (*d)->next;
+            free(to_free);
+            return 0;
+        }
+        d = &(*d)->next;
+    }
+    return -1;
+}
+
 sprite_t *sprite_load_buf(void *buf, int sz)
 {
-    sprite_t *s = buf;
+    // Attempt to decode the sprite with a custom decoder using on magic header detection.
+    struct sprite_decoder_s *d = sprite_decoders;
+    while (d) {
+        if (d->decodable(buf, sz)) {
+            return d->decode(buf, sz);
+        }
+        d = d->next;
+    }
+    // No decoder matched. Try to load as a normal sprite (with possible header upgrade).
     assertf(sz >= sizeof(sprite_t), "Sprite buffer too small (sz=%d)", sz);
-    assertf(memcmp(buf, "LSPR", 4) != 0, "lossy sprite support not implemented yet");
+    sprite_t *s = buf;
     __sprite_upgrade(s);
     (void)__sprite_ext(s); // just check if the sprite is valid (the version is checked in __sprite_ext)
     data_cache_hit_writeback(s, sz);
@@ -80,7 +119,14 @@ sprite_t *sprite_load(const char *fn)
     int sz;
     void *buf = asset_load(fn, &sz);
     sprite_t *s = sprite_load_buf(buf, sz);
-    s->flags |= SPRITE_FLAGS_OWNEDBUFFER;
+    if ((void*)s != buf) {
+        // The decoder allocated a fresh sprite (e.g. LSPR); the source
+        // buffer is no longer needed. The new sprite already has
+        // SPRITE_FLAGS_OWNEDBUFFER set internally.
+        free(buf);
+    } else {
+        s->flags |= SPRITE_FLAGS_OWNEDBUFFER;
+    }
     return s;
 }
 
