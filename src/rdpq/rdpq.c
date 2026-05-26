@@ -844,6 +844,10 @@ rdpq_block_t* __rdpq_block_end()
     rdpq_tracking = st->previous_tracking;
     rdpq_state_mirror = st->previous_mirror;
 
+    // Clear the frozen flag now that recording is over. 
+    // Without this, the next rdpq mode call outside any block recording would take the frozen-emit path.
+    st->frozen = false;
+
     // NOTE: no rspq command is enqueued at the end of block. Specifically,
     // there is no RSPQ_CMD_RDP_SET_BUFFER to switch back to the dynamic RDP buffers. 
     // This means that after the block is run, further RDP passthrough commands
