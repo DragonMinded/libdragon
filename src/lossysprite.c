@@ -133,8 +133,6 @@ static void lspr_decode_intra_slice(
     strm.pCurr = ((u64)(uintptr_t)rbsp) << 3;
     strm.pEnd = ((u64)(uintptr_t)(rbsp + rbsp_size)) << 3;
 
-    uint64_t t_hdr_start = get_ticks_us();
-
     sliceHeader_t slice = {0};
     u32 slice_status = h264bsdDecodeSliceHeader(&strm, &slice, &sps, &pps, &nal);
     assertf(slice_status == HANTRO_OK, "LSPR: slice header decode failed");
@@ -169,8 +167,6 @@ static void lspr_decode_intra_slice(
     assertf(mbLayers, "LSPR: out of memory");
     u32 ring_idx = 0;
 
-    uint64_t t_mb_start = get_ticks_us();
-
     while (currMbAddr < pic_size_in_mbs) {
         macroblockLayer_t *mbLayer = &mbLayers[ring_idx];
         ring_idx = (ring_idx + 1) % LSPR_MB_RING_SIZE;
@@ -203,15 +199,7 @@ static void lspr_decode_intra_slice(
     // intra-pred tasks; we must wait for them before the CPU reads it.
     rsph264_sync();
 
-    uint64_t t_mb_end = get_ticks_us();
-
     assertf(currMbAddr == pic_size_in_mbs, "LSPR: incomplete slice");
-
-    debugf("LSPR decode %dx%d (%lu MBs): hdr+setup=%luus mb_loop=%luus\n",
-           (unsigned)width, (unsigned)height,
-           (unsigned long)pic_size_in_mbs,
-           (unsigned long)(t_mb_start - t_hdr_start),
-           (unsigned long)(t_mb_end - t_mb_start));
 
     free(mbLayers);
     free(mb);
@@ -313,8 +301,6 @@ void lossysprite_close(void)
 }
 
 sprite_t *lossysprite_load_into(const void *buf, int sz, void *out, size_t out_sz) {
-    uint64_t t0 = get_ticks_us();
-
     size_t decoded_sz = lossysprite_decoded_size_buf(buf, sz);
     assertf(decoded_sz > 0, "Invalid LSPR buffer");
     const lspr_header_t *hdr = (const lspr_header_t *)buf;
@@ -336,14 +322,12 @@ sprite_t *lossysprite_load_into(const void *buf, int sz, void *out, size_t out_s
 
     rsph264_init();
     rsph264_begin_frame();
-    uint64_t t1 = get_ticks_us();
 
     uint8_t *pic = NULL;
     size_t pic_size = 0;
     lspr_decode_intra_slice(payload, payload_size, width, height,
                             hdr->pic_init_qp, hdr->chroma_qp_index_offset,
                             &pic, &pic_size);
-    uint64_t t2 = get_ticks_us();
 
     int mb_w = (width + 15) / 16;
     int mb_h = (height + 15) / 16;
@@ -352,18 +336,8 @@ sprite_t *lossysprite_load_into(const void *buf, int sz, void *out, size_t out_s
 
     sprite_t *spr = (sprite_t *)out;
     lspr_build_rgba16_sprite_into(spr, pic, orig_w, orig_h, stride, luma_h);
-    uint64_t t3 = get_ticks_us();
 
     free_uncached(pic);
-    uint64_t t4 = get_ticks_us();
-
-    debugf("LSPR %dx%d: init=%luus decode=%luus convert=%luus cleanup=%luus total=%luus\n",
-           (unsigned)width, (unsigned)height,
-           (unsigned long)(t1 - t0),
-           (unsigned long)(t2 - t1),
-           (unsigned long)(t3 - t2),
-           (unsigned long)(t4 - t3),
-           (unsigned long)(t4 - t0));
 
     return spr;
 }
