@@ -1467,7 +1467,7 @@ void test_rdpq_blender(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=none)");
 
-    // Enable two-pass bleder
+    // Enable two-pass blender
     rdpq_mode_blender(RDPQ_BLENDER2(
         (IN_RGB, 0, BLEND_RGB, INV_MUX_ALPHA),
         (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, 1)
@@ -1477,12 +1477,31 @@ void test_rdpq_blender(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend2, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass0+1)");
 
-    // Disable blend
+    // Switch from two-pass to one-pass blending.
+    // This should clear the internal 2-pass blender flag and return to 1-cycle mode.
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+    rspq_wait();
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOMX_BLEND_2PASS, 0, "two-pass blender flag was not cleared");
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type after 2pass->1pass transition");
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (blender=pass1 after pass0+1)");
+
+    // Re-enable two-pass blender, then disable directly.
+    // This exercises the 2pass -> 0 transition path.
+    rdpq_mode_blender(RDPQ_BLENDER2(
+        (IN_RGB, 0, BLEND_RGB, INV_MUX_ALPHA),
+        (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, 1)
+    ));
     rdpq_mode_blender(0);
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOMX_BLEND_2PASS, 0, "two-pass blender flag was not cleared after 2pass->0 transition");
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type after 2pass->0 transition");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
-        "Wrong data in framebuffer (blender=pass0)");
+        "Wrong data in framebuffer (blender=none after pass0+1)");
 }
 
 void test_rdpq_blender_memory(TestContext *ctx) {
