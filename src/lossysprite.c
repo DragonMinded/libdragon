@@ -72,15 +72,6 @@ static bool lspr_is_encoded(const void *buf, int sz) {
            && hdr->version == LSPR_VERSION;
 }
 
-static void lspr_set_mb_params(mbStorage_t *pMb, sliceHeader_t *pSlice, u32 sliceId,
-                               i32 chromaQpIndexOffset) {
-    pMb->sliceId = sliceId;
-    pMb->disableDeblockingFilterIdc = pSlice->disableDeblockingFilterIdc;
-    pMb->filterOffsetA = pSlice->sliceAlphaC0Offset;
-    pMb->filterOffsetB = pSlice->sliceBetaOffset;
-    pMb->chromaQpIndexOffset = chromaQpIndexOffset;
-}
-
 static void lspr_decode_intra_slice(
     const uint8_t *payload,
     size_t payload_size,
@@ -184,7 +175,13 @@ static void lspr_decode_intra_slice(
         macroblockLayer_t *mbLayer = &mbLayers[ring_idx];
         ring_idx = (ring_idx + 1) % LSPR_MB_RING_SIZE;
 
-        lspr_set_mb_params(mb + currMbAddr, &slice, 1, pps.chromaQpIndexOffset);
+        mbStorage_t *pMb = mb + currMbAddr;
+        pMb->sliceId = 1;
+        pMb->disableDeblockingFilterIdc = slice.disableDeblockingFilterIdc;
+        pMb->filterOffsetA = slice.sliceAlphaC0Offset;
+        pMb->filterOffsetB = slice.sliceBetaOffset;
+        pMb->chromaQpIndexOffset = pps.chromaQpIndexOffset;
+        
         u32 mb_layer_status = h264bsdDecodeMacroblockLayer(&strm, mbLayer, mb + currMbAddr,
                                                             slice.sliceType, slice.numRefIdxL0Active);
         assertf(mb_layer_status == HANTRO_OK, "LSPR: macroblock layer decode failed at mb=%lu",
