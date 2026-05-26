@@ -46,6 +46,7 @@ extern "C" {
  * silently producing a corrupt sprite.
  */
 #define LSPR_FILE_MAGIC      "\0\0\0\0LSPR"
+/** @brief Size in bytes of #LSPR_FILE_MAGIC. */
 #define LSPR_FILE_MAGIC_SIZE 8
 
 
@@ -109,11 +110,11 @@ sprite_t* lossysprite_load(const char *fn);
  * hold the fully decoded #sprite_t (including its `sprite_ext_t` and
  * pixel data).
  *
- * Returns 0 if @p buf is not a valid LSPR file.
+ * Returns 0 if @p encoded_buf is not a valid LSPR file.
  *
- * @param buf   Pointer to the LSPR buffer
- * @param sz    Size of @p buf in bytes
- * @return      Number of bytes required for the decoded sprite
+ * @param encoded_buf   Pointer to the LSPR buffer
+ * @param encoded_sz    Size of @p encoded_buf in bytes
+ * @return              Number of bytes required for the decoded sprite
  */
 size_t lossysprite_decoded_size_buf(const void *encoded_buf, int encoded_sz);
 
