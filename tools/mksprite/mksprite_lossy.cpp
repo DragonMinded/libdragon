@@ -353,6 +353,9 @@ extern "C" int mksprite_convert_lossy(
 
     verbose("mksprite: lossy %s -> %s [%dx%d]", infn, outfn, img.width, img.height);
 
+    // rgba_to_i420 uses Kr=0.2126/Kb=0.0722 with full-range scaling (BT.709 full range).
+    // The runtime decoder hard-codes the matching K0..K5 coefficients; if this conversion
+    // is ever changed, the decoder must be updated in lockstep.
     std::vector<uint8_t> y, u, v;
     rgba_to_i420(img.image, img.width, img.height, y, u, v);
     free(img.image);
@@ -414,10 +417,9 @@ extern "C" int mksprite_convert_lossy(
 
     // Snapshot the parameters as adjusted by x264_encoder_open. The "stillimage"
     // tune drives f_psy_rd/f_psy_trellis up, which causes the encoder to silently
-    // shift i_chroma_qp_offset (encoder.c:1226-1230). For CRF mode without
-    // b_stitchable, x264 also writes pic_init_qp = SPEC_QP(i_qp_constant).
-    // Both values must travel out-of-band so the runtime decoder can
-    // apply the same dequant scale x264 used.
+    // shift i_chroma_qp_offset. For CRF mode without b_stitchable, x264 also writes
+    // pic_init_qp = SPEC_QP(i_qp_constant). Both values must travel out-of-band
+    // so the runtime decoder can apply the same dequant scale x264 used.
     x264_param_t adjusted;
     x264_encoder_parameters(enc, &adjusted);
     int pic_init_qp = (adjusted.rc.i_rc_method == X264_RC_ABR || adjusted.b_stitchable)
@@ -462,10 +464,7 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
-    // rgba_to_i420 above uses Kr=0.2126/Kb=0.0722 with full-range scaling
-    // (BT.709 full range). The runtime decoder hard-codes the matching
-    // K0..K5 coefficients; if this conversion is ever changed, the decoder
-    // must be updated in lockstep.
+    // Write the LSPR header
     w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0); // pad: see LSPR_FILE_MAGIC
     w8(f, 'L'); w8(f, 'S'); w8(f, 'P'); w8(f, 'R');
     w16(f, LSPR_VERSION); // version
