@@ -809,22 +809,10 @@ void __rdpq_block_next_buffer(void)
  * @see #__rdpq_block_run_with_rdp
  * @see #__rdpq_block_free
  */
-/* Forward decl: defined in rdpq_mode.c (resolver port). */
-extern void __rdpq_frozen_publish_post_state(void);
-
 rdpq_block_t* __rdpq_block_end()
 {
     struct rdpq_block_state_s *st = &rdpq_block_state;
     rdpq_block_t *ret = st->first_node;
-
-    // Frozen blocks: emit a "publish post-state" sequence so that when the
-    // block runs, DMEM ends up reflecting the resolved RDP state the CPU
-    // baked into the block. Subsequent rdpq calls (mode reads, autosync,
-    // RSP-side mode evaluation triggered after the block) then see correct
-    // values. Must happen before we save mirror_post on the block, so the
-    // emitted commands are part of the block.
-    if (st->frozen && st->first_node)
-        __rdpq_frozen_publish_post_state();
 
     // Save the current autosync state in the first node of the RDP block.
     // This makes it easy to recover it when the block is run

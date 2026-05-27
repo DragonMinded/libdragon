@@ -79,7 +79,7 @@ __rdpq_resolved_t __rdpq_resolve_mode(const rdpq_state_mirror_t *m)
     /* FILL/COPY cycle: emit only SOM, no CC (matches the RSP-side asm test of
      * bit 53, set when cycle is COPY or FILL). */
     if ((som & SOM_CYCLE_MASK) >= SOM_CYCLE_COPY) {
-        out.som     = som & 0x00FFFFFFFFFFFFFFULL;
+        out.som     = som & 0x00FFFFFFFFFFFFFFULL & ~SOMX_UPDATE_FREEZE;
         out.cc      = 0;
         out.emit_cc = false;
         return out;
@@ -178,7 +178,10 @@ __rdpq_resolved_t __rdpq_resolve_mode(const rdpq_state_mirror_t *m)
             som &= ~(2ULL << 10);
     }
 
-    out.som     = som & 0x00FFFFFFFFFFFFFFULL;
+    /* Mask out SOMX_UPDATE_FREEZE: it's an RSP-only flag that tells the RSP
+     * resolver to skip recalculation (batched mode). The RDP must never see
+     * this bit, which would map to Force Blend in SET_OTHER_MODES. */
+    out.som     = som & 0x00FFFFFFFFFFFFFFULL & ~SOMX_UPDATE_FREEZE;
     out.cc      = cc_final & 0x00FFFFFFFFFFFFFFULL;
     out.emit_cc = true;
     return out;
@@ -535,20 +538,26 @@ void rdpq_set_mode_yuv(bool bilinear) {
 
 void rdpq_mode_begin(void)
 {
-    // Freeze render mode updates. We call rdpq_change_other_modes_raw here
-    // (instead of __rdpq_mode_change_som) because there will be no RDP
-    // commands emitted from this call.
     rdpq_tracking.mode_freeze = true;
     rdpq_tracking.cycle_type_frozen = 0;
-    __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, SOMX_UPDATE_FREEZE);
+
+    // In frozen-block recording, each mode change is already emitted as a
+    // fully-resolved SET_COMBINE+SET_OTHER_MODES pair directly into the
+    // static RDP buffer. SOMX_UPDATE_FREEZE is an RSP-only flag that tells
+    // the RSP resolver to skip recalculation during batched updates; the
+    // CPU resolver doesn't use it. Skip the SOM update to avoid emitting
+    // redundant RDP commands into the static buffer.
+    if (!rdpq_block_state.frozen)
+        __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, SOMX_UPDATE_FREEZE);
 }
 
 void rdpq_mode_end(void)
 {
-    // Unfreeze render mode updates and recalculate new render mode.
     rdpq_tracking.mode_freeze = false;
     rdpq_tracking.cycle_type_known = rdpq_tracking.cycle_type_frozen;
-    __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, 0);
+
+    if (!rdpq_block_state.frozen)
+        __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, 0);
 }
 
 

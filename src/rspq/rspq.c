@@ -1344,10 +1344,8 @@ rspq_block_t* rspq_block_end(void)
     // Switch back to the normal display list
     rspq_switch_context(&lowpri);
 
-    // __rdpq_block_end may emit publish-post-state commands for frozen blocks.
-    // These go to the main queue (the context was just switched), but rspq_block
-    // is still set, causing rspq_next_buffer to take the block-chain path on
-    // overflow, a mismatch. Temporarily clear rspq_block.
+    // __rdpq_block_end may allocate RDP buffers. Temporarily clear rspq_block
+    // so that rspq_next_buffer takes the main-queue path on overflow.
     rspq_block_t *b = rspq_block;
     rspq_block = NULL;
 
@@ -1448,6 +1446,14 @@ void rspq_block_run(rspq_block_t *block)
     // Notify rdpq engine we have run a block
     if(block->rdp_block) {
       __rdpq_block_run_with_rdp(block->rdp_block);
+      // Frozen blocks: emit a "publish post-state" sequence right after the
+      // CALL so that when the RSP finishes processing the block's RDP buffers
+      // and returns, DMEM is updated to reflect the resolved RDP state the CPU
+      // baked into the block. This must happen before any subsequent RSP
+      // command (internal or from a different ucode) reads the DMEM rdpq state
+      // slots.
+      if (block->rdp_block->frozen)
+        __rdpq_frozen_publish_post_state();
     } else {
       __rdpq_block_run_no_rdp();
     }

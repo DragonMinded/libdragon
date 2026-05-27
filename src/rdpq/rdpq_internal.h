@@ -180,6 +180,7 @@ void __rdpq_block_run_maybe_rdp(void);
 void __rdpq_block_next_buffer(void);
 void __rdpq_block_update(volatile uint32_t *wptr);
 void __rdpq_block_reserve(int num_rdp_commands);
+void __rdpq_frozen_publish_post_state(void);
 
 /** Close rdpq_attach subsystem */
 void __rdpq_attach_close(void);
