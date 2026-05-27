@@ -36,6 +36,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/accounting.o \
 	$(BUILD_DIR)/profile.o \
 	$(BUILD_DIR)/n64sys.o \
+	$(BUILD_DIR)/scratch.o \
 	$(BUILD_DIR)/vaddr64.o \
 	$(BUILD_DIR)/mi_memset.o \
 	$(BUILD_DIR)/interrupt.o \
