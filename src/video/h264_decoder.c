@@ -12,9 +12,6 @@
 // Enable error prints
 #define _ERROR_PRINT
 
-// Disable all code related to concealment (recovering of corrupted data)
-#define OPTIMIZE_NO_DECODED_FLAG
-
 #include "h264_decoder.h"
 
 #include "rsph264.c"

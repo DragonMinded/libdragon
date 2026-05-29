@@ -12,10 +12,19 @@
 /** @brief Swap two values */
 #define SWAP(a, b) ({ typeof(a) t = a; a = b; b = t; })
 
+// MAX/MIN/ABS are guarded to avoid conflicts with other headers
+#ifndef MAX
 /** @brief Return the maximum of two values */
 #define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
+#endif
+#ifndef MIN
 /** @brief Return the minimum of two values */
 #define MIN(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
+#endif
+#ifndef ABS
+/**	@brief Absolute number */
+#define ABS(x) ({ typeof(x) _x = x; (_x < 0 ? -_x : _x); })
+#endif
 /** @brief Clamp a value between min and max */
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
 
@@ -35,12 +44,6 @@
 #define DIVIDE_CEIL(n, d) ({ \
 	typeof(n) _n = n; typeof(d) _d = d; \
 	((_n) + (_d) - 1) / (_d); \
-})
-
-/**	@brief Absolute number */
-#define ABS(x) ({ \
-	typeof(x) _x = x; \
-	(_x < 0 ? -_x : _x); \
 })
 
 /** @brief Type-safe bitcast from float to integer */

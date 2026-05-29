@@ -10,6 +10,12 @@
 #define H264BSD_N64_INTRA   1     // Intraprediction on RSP
 #define H264BSD_N64_CAVLC   0     // CAVLC on RSP
 
+// Disable all code related to concealment (recovering of corrupted data).
+// This must be defined before including the h264bsd headers, as it changes
+// the layout of mbStorage_t (drops the `decoded` field); every translation
+// unit that pulls in the h264 decoder must agree on it, so it lives here.
+#define OPTIMIZE_NO_DECODED_FLAG
+
 // Maximum number of macroblocks that the RSP will be able to lag behind the
 // CPU, and process in background. This basically specifies how big is the
 // mbLayers array above.
