@@ -5,14 +5,9 @@
 
 #include "lossysprite.h"
 
-///@cond
-// Match the layout used inside the h264_decoder TU (h264_decoder.c defines
-// this before including all internal .c files). Without it, mbStorage_t here
-// gains an extra u32 `decoded` field, shifting mbA/mbB/mbC/mbD off the offset
-// h264bsdInitMbNeighbours writes to — neighbour pointers come back NULL.
-#define OPTIMIZE_NO_DECODED_FLAG
-///@endcond
-
+// h264_decoder.h defines OPTIMIZE_NO_DECODED_FLAG before pulling in the
+// h264bsd headers, so mbStorage_t here matches the layout used inside the
+// h264_decoder TU.
 #include "video/h264_decoder.h"
 #include "video/h264_decoder/h264bsd_macroblock_layer.h"
 #include "video/h264_decoder/h264bsd_neighbour.h"
@@ -21,15 +16,16 @@
 #include "video/h264_decoder/h264bsd_slice_header.h"
 #include "video/h264_decoder/h264bsd_util.h"
 #include "video/rsph264_internal.h"
-#include "asset.h"
 #include "graphics.h"
 #include "rdpq.h"
 #include "rdpq_attach.h"
 #include "rdpq_mode.h"
+#include "rspq.h"
 #include "sprite.h"
 #include "sprite_internal.h"
 #include "n64sys.h"
 #include "surface.h"
+#include "utils.h"
 #include "yuv.h"
 #include "debug.h"
 
@@ -41,9 +37,11 @@
 /** @brief LSPR version number. */
 #define LSPR_VERSION 4
 
-///@cond
-#define ALIGN64(n) (((n) + 63) & ~63)
-///@endcond
+/** @brief LSPR decode macroblock ring size */
+#define LSPR_MB_RING 2
+
+/** @brief Required alignment of the decoded sprite buffer. */
+#define LSPR_BUF_ALIGN 64
 
 /**
  * @brief Header structure for LSPR-encoded files.
@@ -72,6 +70,14 @@ static bool lspr_is_encoded(const void *buf, int sz) {
            && hdr->version == LSPR_VERSION;
 }
 
+static size_t lspr_decoded_size_buf(const void *encoded_buf, int encoded_sz) {
+    if (!lspr_is_encoded(encoded_buf, encoded_sz)) return 0;
+    const lspr_header_t *hdr = (const lspr_header_t *)encoded_buf;
+    size_t pixel_bytes = hdr->orig_width * hdr->orig_height * 2;
+    size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
+    return ROUND_UP(header_bytes, 64) + ROUND_UP(pixel_bytes, 16);
+}
+
 static void lspr_decode_intra_slice(
     const uint8_t *payload,
     size_t payload_size,
@@ -92,15 +98,13 @@ static void lspr_decode_intra_slice(
     };
     assertf(nal.nalUnitType == NAL_CODED_SLICE_IDR, "LSPR: non-IDR NAL");
 
-    uint8_t *rbsp = (uint8_t *)(payload + 1);
-    size_t rbsp_size = payload_size - 1;
-
     int mb_w = (width + 15) / 16;
     int mb_h = (height + 15) / 16;
     u32 pic_size_in_mbs = (u32)(mb_w * mb_h);
     size_t yuv_size = (size_t)pic_size_in_mbs * 256 + (size_t)pic_size_in_mbs * 64 * 2;
     uint8_t *yuv = (uint8_t*)malloc_uncached(yuv_size);
     assertf(yuv, "LSPR: out of memory");
+    image_t image = { .data = yuv, .width = (u32)mb_w, .height = (u32)mb_h };
 
     seqParamSet_t sps = {
         .profileIdc = 66,
@@ -128,10 +132,16 @@ static void lspr_decode_intra_slice(
         .redundantPicCntPresentFlag = 0,
     };
 
+    uint8_t *rbsp = (uint8_t *)(payload + 1);
+    size_t rbsp_size = payload_size - 1;
     strmData_t strm = {0};
     strm.pStart = rbsp;
     strm.pCurr = ((u64)(uintptr_t)rbsp) << 3;
     strm.pEnd = ((u64)(uintptr_t)(rbsp + rbsp_size)) << 3;
+
+    // Reset the RSP decoder's per-frame state (notably last_packed_delta_buf)
+    // before queuing any macroblock work for this slice.
+    rsph264_begin_frame();
 
     sliceHeader_t slice = {0};
     u32 slice_status = h264bsdDecodeSliceHeader(&strm, &slice, &sps, &pps, &nal);
@@ -144,32 +154,25 @@ static void lspr_decode_intra_slice(
     assertf(mb, "LSPR: out of memory");
     h264bsdInitMbNeighbours(mb, (u32)mb_w, pic_size_in_mbs);
 
-    image_t image = {
-        .data = yuv,
-        .width = (u32)mb_w,
-        .height = (u32)mb_h,
-    };
-
     i32 qpY = (i32)pps.picInitQp + slice.sliceQpDelta;
     u32 currMbAddr = 0;
 
-    // Rotating ring of mbLayer instances. Each MB writes its CAVLC packed
-    // delta records into mbLayer.residual.posCoefBuf, which the RSP later
-    // DMAs asynchronously. Using a single mbLayer would race MB N+1's CAVLC
-    // writes against MB N's pending DMA; rotating gives the RSP enough lag
-    // to consume each MB's buffer before its slot is reused. This mirrors
-    // the video-player path (h264bsdDecodeSliceData uses the same idiom
-    // with NUM_PARALLEL_MACROBLOCKS).
-    ///@cond
-    #define LSPR_MB_RING_SIZE 32
-    ///@endcond
-    macroblockLayer_t *mbLayers = (macroblockLayer_t*)calloc(LSPR_MB_RING_SIZE, sizeof(macroblockLayer_t));
-    assertf(mbLayers, "LSPR: out of memory");
-    u32 ring_idx = 0;
+    // Each MB writes its CAVLC packed delta records into
+    // mbLayer.residual.posCoefBuf, which the RSP later DMAs asynchronously.
+    // Reusing a slot before the RSP has consumed it would race MB N+1's CAVLC
+    // writes against MB N's pending DMA. A 2-slot ring paced with rspq
+    // syncpoints makes this deterministic: before reusing a slot we wait on
+    // the syncpoint recorded right after that slot's RSP work was queued, so
+    // the RSP is guaranteed to have drained the buffer. Two slots fit on the
+    // stack, so no allocation is needed.
+    macroblockLayer_t mbLayers[LSPR_MB_RING] = {0};
+    rspq_syncpoint_t slot_sync[LSPR_MB_RING] = {0}; // 0 = none pending (ids start at 1)
 
     while (currMbAddr < pic_size_in_mbs) {
-        macroblockLayer_t *mbLayer = &mbLayers[ring_idx];
-        ring_idx = (ring_idx + 1) % LSPR_MB_RING_SIZE;
+        u32 slot = currMbAddr % LSPR_MB_RING;
+        // Wait for the RSP to finish consuming this slot before overwriting it.
+        if (slot_sync[slot]) rspq_syncpoint_wait(slot_sync[slot]);
+        macroblockLayer_t *mbLayer = &mbLayers[slot];
 
         mbStorage_t *pMb = mb + currMbAddr;
         pMb->sliceId = 1;
@@ -177,31 +180,34 @@ static void lspr_decode_intra_slice(
         pMb->filterOffsetA = slice.sliceAlphaC0Offset;
         pMb->filterOffsetB = slice.sliceBetaOffset;
         pMb->chromaQpIndexOffset = pps.chromaQpIndexOffset;
-        
+
         u32 mb_layer_status = h264bsdDecodeMacroblockLayer(&strm, mbLayer, mb + currMbAddr,
                                                             slice.sliceType, slice.numRefIdxL0Active);
-        assertf(mb_layer_status == HANTRO_OK, "LSPR: macroblock layer decode failed at mb=%lu",
+        assertf(mb_layer_status == HANTRO_OK,
+                "LSPR: macroblock layer decode failed at mb=%lu",
                 (unsigned long)currMbAddr);
-        assertf(IS_INTRA_MB(*mbLayer), "LSPR: inter MB not supported (mb=%lu type=%d)",
-                (unsigned long)currMbAddr, (int)mbLayer->mbType);
+        assertf(IS_INTRA_MB(*mbLayer),
+                "LSPR: inter MB not supported (mb=%lu type=%d)",
+                (unsigned long)currMbAddr,
+                (int)mbLayer->mbType);
         u32 mb_status = h264bsdDecodeMacroblock(mb + currMbAddr, mbLayer, &image, NULL,
                                                  &qpY, currMbAddr, pps.constrainedIntraPredFlag,
                                                  &slice);
-        assertf(mb_status == HANTRO_OK, "LSPR: macroblock decode failed at mb=%lu",
+        assertf(mb_status == HANTRO_OK,
+                "LSPR: macroblock decode failed at mb=%lu",
                 (unsigned long)currMbAddr);
+        // Record the queue position after this MB's RSP work; the slot is safe
+        // to reuse once the RSP reaches this point.
+        slot_sync[slot] = rspq_syncpoint_new();
         currMbAddr++;
-        if (!h264bsdMoreRbspData(&strm))
-            break;
+        if (!h264bsdMoreRbspData(&strm)) break;
     }
 
-    // Drain the RSP queue once at slice end. The YUV→target conversion
-    // below reads `pic`, which is the destination of all queued residual /
-    // intra-pred tasks; we must wait for them before the CPU reads it.
+    // Drain the RSP queue before freeing `mb`: the RSP asynchronously DMAs
+    // neighbour data and CAVLC/residual records out of it, so it must be idle
+    // before the memory is released.
     rsph264_sync();
-
     assertf(currMbAddr == pic_size_in_mbs, "LSPR: incomplete slice");
-
-    free(mbLayers);
     free(mb);
 
     *out_yuv = yuv;
@@ -212,28 +218,23 @@ static void lspr_decode_intra_slice(
 // combiner does the YUV→RGB conversion on the fly (BT.709 full range, hard
 // coded to match the encoder's rgba_to_i420), with bilinear chroma upsample
 // as a side benefit.
-static void lspr_build_rgba16_sprite_into(sprite_t *spr,
-                                          const uint8_t *pic,
-                                          uint16_t orig_w, uint16_t orig_h,
-                                          int stride, int luma_h) {
-    size_t pixel_bytes = (size_t)orig_w * orig_h * 2;
-    size_t pixel_bytes_aligned = (pixel_bytes + 15) & ~(size_t)15;
+static void lspr_build_rgba16_sprite(
+    sprite_t *sprite, const uint8_t *pic,
+    uint16_t orig_w, uint16_t orig_h,
+    int stride, int luma_h
+) {
+    uint8_t preserved_flags = sprite->flags & SPRITE_FLAGS_OWNEDBUFFER;
+    size_t header_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
+    memset(sprite, 0, header_bytes);
+    sprite->width = orig_w;
+    sprite->height = orig_h;
+    sprite->flags = preserved_flags | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_RGBA16;
+    sprite->hslices = 1;
+    sprite->vslices = 1;
 
-    size_t header_bytes = ALIGN64(sizeof(sprite_t) + sizeof(sprite_ext_t));
-    memset(spr, 0, header_bytes);
-    spr->width = orig_w;
-    spr->height = orig_h;
-    // Caller owns the buffer; OWNEDBUFFER is set later by lossysprite_load_buf
-    // when it allocated via memalign. Callers of lossysprite_load_into keep
-    // ownership and the flag stays clear.
-    spr->flags = SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_RGBA16;
-    spr->hslices = 1;
-    spr->vslices = 1;
-
-    sprite_ext_t *sx = (sprite_ext_t*)spr->data;
+    sprite_ext_t *sx = (sprite_ext_t*)sprite->data;
     sx->size = sizeof(sprite_ext_t);
     sx->version = SPRITE_EXT_VERSION;
-    sx->flags = 0;
     sx->data_ptr = (uint32_t)header_bytes;
 
     int uv_stride = stride / 2;
@@ -242,7 +243,7 @@ static void lspr_build_rgba16_sprite_into(sprite_t *spr,
     const uint8_t *y_plane = pic;
     const uint8_t *u_plane = pic + y_bytes;
     const uint8_t *v_plane = u_plane + uv_bytes;
-    uint8_t *dst = (uint8_t*)spr + header_bytes;
+    uint8_t *dst = (uint8_t*)sprite + header_bytes;
 
     yuv_frame_t frame = {
         .y = surface_make_linear((void*)y_plane, FMT_I8, stride,    luma_h),
@@ -253,6 +254,8 @@ static void lspr_build_rgba16_sprite_into(sprite_t *spr,
     // The RDP writes through to RAM bypassing the CPU cache. Discard
     // any (possibly speculative) cached lines for the destination so a
     // future read of `dst` doesn't return stale data.
+    size_t pixel_bytes = (size_t)orig_w * orig_h * 2;
+    size_t pixel_bytes_aligned = ROUND_UP(pixel_bytes, 16);
     data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
     surface_t target_surf = surface_make_linear(dst, FMT_RGBA16, orig_w, orig_h);
 
@@ -275,88 +278,60 @@ static void lspr_build_rgba16_sprite_into(sprite_t *spr,
     yuv_close();
 }
 
-size_t lossysprite_decoded_size_buf(const void *encoded_buf, int encoded_sz) {
-    if (!lspr_is_encoded(encoded_buf, encoded_sz)) return 0;
+static sprite_t *lspr_load_buf(const void *encoded_buf, int encoded_sz) {
+    // Allocate the buffer for the decoded sprite.
+    size_t decoded_sz = lspr_decoded_size_buf(encoded_buf, encoded_sz);
+    assertf(decoded_sz > 0, "Invalid LSPR buffer");
+    sprite_t *sprite = (sprite_t *)memalign(LSPR_BUF_ALIGN, decoded_sz);
+    assertf(sprite, "Out of memory");
+    sprite->flags = SPRITE_FLAGS_OWNEDBUFFER;
+
+    // Decode the LSPR bitstream into YUV planes
     const lspr_header_t *hdr = (const lspr_header_t *)encoded_buf;
+    size_t payload_size = (size_t)encoded_sz - sizeof(lspr_header_t);
+    uint8_t *pic = NULL;
+    size_t pic_size = 0;
+    lspr_decode_intra_slice(
+        hdr->payload, payload_size,
+        hdr->width, hdr->height,
+        hdr->pic_init_qp, hdr->chroma_qp_index_offset,
+        &pic, &pic_size
+    );
 
-    size_t pixel_bytes = (size_t)hdr->orig_width * hdr->orig_height * 2;
-    size_t aligned_bytes = (pixel_bytes + 15) & ~(size_t)15;
-
-    size_t header_bytes = ALIGN64(sizeof(sprite_t) + sizeof(sprite_ext_t));
-    return header_bytes + aligned_bytes;
+    // Convert the YUV planes into the final RGBA16 sprite
+    int mb_w = (hdr->width + 15) / 16;
+    int mb_h = (hdr->height + 15) / 16;
+    int stride = mb_w * 16;
+    int luma_h = mb_h * 16;
+    lspr_build_rgba16_sprite(
+        sprite, pic,
+        hdr->orig_width, hdr->orig_height,
+        stride, luma_h
+    );
+    free_uncached(pic);
+    return sprite;
 }
 
-static sprite_decoder_t *lossysprite_decoder = NULL;
+static int lossysprite_init_refcount = 0;
+static sprite_decoder_t *lspr_decoder = NULL;
 
 void lossysprite_init(void)
 {
-    assertf(!lossysprite_decoder, "lossysprite_init is already initialized");
-    lossysprite_decoder = sprite_decoder_register(lspr_is_encoded, lossysprite_load_buf);
+    // Just increment the refcount if already initialized.
+    if (lossysprite_init_refcount++ > 0) return;
+
+    assertf(lspr_decoder == NULL, "lossysprite is already initialized");
+    lspr_decoder = sprite_decoder_register(lspr_is_encoded, lspr_load_buf);
+    // Register and upload the H.264 RSP overlays used by the slice decoder.
+    rsph264_init();
 }
 
 void lossysprite_close(void)
 {
-    sprite_decoder_unregister(lossysprite_decoder);
-    lossysprite_decoder = NULL;
-}
+	// Just decrement the refcount if there are still dangling references.
+    if (--lossysprite_init_refcount > 0) return;
 
-sprite_t *lossysprite_load_into(const void *buf, int sz, void *out, size_t out_sz) {
-    size_t decoded_sz = lossysprite_decoded_size_buf(buf, sz);
-    assertf(decoded_sz > 0, "Invalid LSPR buffer");
-    const lspr_header_t *hdr = (const lspr_header_t *)buf;
-
-    assertf(out, "lossysprite_load_into: NULL output buffer");
-    assertf(out_sz >= decoded_sz,
-            "lossysprite_load_into: output buffer too small (%u < %u)",
-            (unsigned)out_sz, (unsigned)decoded_sz);
-    assertf(((uintptr_t)out & (LOSSYSPRITE_DECODE_ALIGN - 1)) == 0,
-            "lossysprite_load_into: output buffer must be %d-byte aligned",
-            LOSSYSPRITE_DECODE_ALIGN);
-
-    uint16_t width = hdr->width;
-    uint16_t height = hdr->height;
-    uint16_t orig_w = hdr->orig_width;
-    uint16_t orig_h = hdr->orig_height;
-    const uint8_t *payload = hdr->payload;
-    size_t payload_size = (size_t)sz - sizeof(lspr_header_t);
-
-    rsph264_init();
-    rsph264_begin_frame();
-
-    uint8_t *pic = NULL;
-    size_t pic_size = 0;
-    lspr_decode_intra_slice(payload, payload_size, width, height,
-                            hdr->pic_init_qp, hdr->chroma_qp_index_offset,
-                            &pic, &pic_size);
-
-    int mb_w = (width + 15) / 16;
-    int mb_h = (height + 15) / 16;
-    int stride = mb_w * 16;
-    int luma_h = mb_h * 16;
-
-    sprite_t *spr = (sprite_t *)out;
-    lspr_build_rgba16_sprite_into(spr, pic, orig_w, orig_h, stride, luma_h);
-
-    free_uncached(pic);
-
-    return spr;
-}
-
-sprite_t *lossysprite_load_buf(const void *buf, int sz) {
-    size_t decoded_sz = lossysprite_decoded_size_buf(buf, sz);
-    assertf(decoded_sz > 0, "Invalid LSPR buffer");
-    sprite_t *spr = (sprite_t *)memalign(LOSSYSPRITE_DECODE_ALIGN, decoded_sz);
-    assertf(spr, "Out of memory");
-    lossysprite_load_into(buf, sz, spr, decoded_sz);
-    // load_into leaves OWNEDBUFFER clear; we allocated, so set it.
-    spr->flags |= SPRITE_FLAGS_OWNEDBUFFER;
-    return spr;
-}
-
-sprite_t* lossysprite_load(const char *fn) {
-    int sz = 0;
-    uint8_t *enc = asset_load(fn, &sz);
-    sprite_t *spr = lossysprite_load_buf(enc, sz);
-    free(enc);
-    return spr;
+    assertf(lspr_decoder != NULL, "lossysprite is not initialized");
+    sprite_decoder_unregister(lspr_decoder);
+    lspr_decoder = NULL;
 }

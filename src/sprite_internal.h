@@ -16,6 +16,19 @@
 #define SPRITE_FLAG_FITS_TMEM               0x0020   ///< Set if the sprite does fit TMEM without splitting
 #define SPRITE_FLAG_SHQ                     0x0040   ///< Sprite is in special SHQ format (2 mipmap levels with subtractive blending)
 
+/**
+ * @brief File-start signature of an LSPR (lossy sprite) file (8 bytes).
+ *
+ * The leading four zero bytes are a safety pad: if an LSPR file reaches
+ * #sprite_load without lossysprite_init() having registered the decoder,
+ * the buffer is reinterpreted as a #sprite_t — the pad forces width=height=0
+ * so the situation is detectable and a clear assertion can fire instead of
+ * silently producing a corrupt sprite.
+ */
+#define LSPR_FILE_MAGIC      "\0\0\0\0LSPR"
+/** @brief Size in bytes of #LSPR_FILE_MAGIC (drops the trailing NUL). */
+#define LSPR_FILE_MAGIC_SIZE (sizeof(LSPR_FILE_MAGIC) - 1)
+
 /** 
  * @brief Internal structure used as additional sprite header
  * 

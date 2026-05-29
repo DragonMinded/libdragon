@@ -9,7 +9,6 @@
 #include "sprite_internal.h"
 #include "asset_internal.h"
 #include "asset.h"
-#include "lossysprite.h"
 #include "utils.h"
 #include "rdpq_tex.h"
 #include <stdio.h>
