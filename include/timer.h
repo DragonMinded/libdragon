@@ -263,6 +263,8 @@ void stop_timer(timer_link_t *timer);
  */
 void delete_timer(timer_link_t *timer);
 
+bool async_timer_expired(timer_link_t *timer);
+
 #ifdef __cplusplus
 }
 #endif

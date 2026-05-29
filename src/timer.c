@@ -361,3 +361,12 @@ long long timer_ticks(void)
 	assertf(timer_init_refcount > 0, "timer module not initialized");
 	return get_ticks();
 }
+
+bool async_timer_expired(timer_link_t *timer)
+{
+	int ovfl = timer->ovfl;
+	// It is safe to reset this here, async_schedule executes all "int" handlers
+	// before invoking the async flows.
+	timer->ovfl = 0;
+	return ovfl > 0;
+}
