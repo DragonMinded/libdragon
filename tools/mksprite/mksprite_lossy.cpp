@@ -366,7 +366,7 @@ extern "C" int mksprite_convert_lossy(
     x264_param_t param;
     char *recon_yuv_path = NULL;
     x264_param_default_preset(&param, "veryslow", "stillimage");
-    param.i_log_level = flag_verbose ? X264_LOG_INFO : X264_LOG_ERROR;
+    param.i_log_level = (flag_verbose >= 2) ? X264_LOG_INFO : X264_LOG_ERROR;
     if (flag_debug || flag_verbose) {
         param.b_full_recon = 1;
         recon_yuv_path = make_temp_yuv_path();

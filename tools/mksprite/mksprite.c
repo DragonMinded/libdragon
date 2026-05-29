@@ -113,7 +113,7 @@ const char *dither_algo_name(int algo) {
     }
 }
 
-bool flag_verbose = false;
+int flag_verbose = 0;
 bool flag_lossy = false;
 bool flag_debug = false;
 
@@ -134,7 +134,7 @@ void print_args( char * name )
     fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
     fprintf(stderr, "\n");
     fprintf(stderr, "General flags:\n");
-    fprintf(stderr, "   -v/--verbose                            Verbose output\n");
+    fprintf(stderr, "   -v/--verbose                            Verbose output (can be specified multiple times)\n");
     fprintf(stderr, "   -o/--output <dir>                       Specify output directory (default: .)\n");
     fprintf(stderr, "   -f/--format <fmt>                       Specify output RDP surface format (default: AUTO)\n");
     fprintf(stderr, "   -g/--gamma                              Convert colors to linear scale (use with runtime\n");
@@ -2003,7 +2003,7 @@ int main(int argc, char *argv[])
             /* ---------------- VERBOSE console argument ------------------- */
             /* -v/--verbose   Verbose output             */
             else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
-                flag_verbose = true;
+                flag_verbose++;
             } 
 
             /* ---------------- DEBUG  console argument ------------------- */

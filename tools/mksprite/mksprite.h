@@ -71,7 +71,7 @@ int mksprite_convert_lossy(
     int compress
 );
 
-extern bool flag_verbose;
+extern int flag_verbose;
 extern bool flag_debug;
 
 #ifdef __cplusplus
