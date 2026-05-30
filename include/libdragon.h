@@ -98,6 +98,7 @@
 #include "surface.h"
 #include "sprite.h"
 #include "lossysprite.h"
+#include "bcsprite.h"
 #include "debugcpp.h"
 #include "dlfcn.h"
 #include "model64.h"

@@ -10,10 +10,10 @@ all: lossysprite.z64
 
 # Lossily-compress the background sprites
 # Photos are royalty-free images under the Pexels license: https://www.pexels.com/license/
-filesystem/bg0.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 3
+filesystem/bg0.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 1
 filesystem/bg1.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 3
 filesystem/bg2.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 3
-filesystem/bg3.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 3
+filesystem/bg3.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 1
 filesystem/bg4.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 3
 filesystem/bg5.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 3
 filesystem/bg6.sprite: MKSPRITE_FLAGS=--format RGBA16 --lossy 75 --compress 3

@@ -1962,6 +1962,47 @@ bool cli_parse_texparms(const char *opt, texparms_t *parms)
 }
 
 
+// Route a lossy-mode invocation to the right codec backend based on the
+// --compress level. The compress level is repurposed as a lossy-codec tier
+// selector when --lossy is active (it keeps its asset-layer meaning when
+// --lossy is not set, since lossy backends bypass the standard convert()
+// path entirely and write their own container).
+//
+//   --compress omitted (-1) -> LSPR (back-compat; will become an error in
+//                              a future release once existing build scripts
+//                              are migrated)
+//   --compress 0            -> error: lossy requires a codec selection
+//   --compress 1            -> BCSP / BC1
+//   --compress 2            -> reserved (future BC3 / BC7)
+//   --compress 3            -> LSPR
+static int dispatch_lossy(const char *infn, const char *outfn,
+                          const parms_t *pm, int compression) {
+    if (compression == -1) {
+        fprintf(stderr, "mksprite: WARNING: --lossy without --compress defaults to "
+                        "--compress 3 (LSPR); this will become an error in a "
+                        "future release. Pass --compress 3 explicitly.\n");
+        return mksprite_convert_lossy(infn, outfn, pm, 3);
+    }
+    switch (compression) {
+    case 0:
+        fprintf(stderr, "mksprite: --lossy requires --compress 1 or 3 "
+                        "(--compress 0 disables lossy compression)\n");
+        return 1;
+    case 1:
+        return mksprite_convert_bc1(infn, outfn, pm, compression);
+    case 2:
+        fprintf(stderr, "mksprite: --lossy --compress 2 is reserved for a "
+                        "future codec\n");
+        return 1;
+    case 3:
+        return mksprite_convert_lossy(infn, outfn, pm, compression);
+    default:
+        fprintf(stderr, "mksprite: invalid --compress level %d for lossy mode\n",
+                compression);
+        return 1;
+    }
+}
+
 int main(int argc, char *argv[])
 {
     winconsole_utf8();
@@ -2222,7 +2263,7 @@ int main(int argc, char *argv[])
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
         if (pm.lossy_quality < 100) {
-            if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
+            if (dispatch_lossy(infn, outfn, &pm, compression) != 0) {
                 error = true;
             }
         } else {

@@ -106,7 +106,7 @@ $(DECOMP_STUBS):
 -include $(wildcard common/*.d)
 
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
-mksprite_OBJS = mksprite/mksprite.o mksprite/mksprite_lossy.o mksprite/x264_amalgam.o mksprite/x264_amalgam2.o common/assetcomp.a
+mksprite_OBJS = mksprite/mksprite.o mksprite/mksprite_lossy.o mksprite/mksprite_bc1.o mksprite/x264_amalgam.o mksprite/x264_amalgam2.o common/assetcomp.a
 mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o mkfont/plutosvg/plutosvg-amalgam.o common/assetcomp.a
 mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a
 mkmaterial_OBJS = mkmaterial/mkmaterial.o mkmaterial/mkmaterial_parse.o mkmaterial/mkmaterial_export.o common/assetcomp.a 

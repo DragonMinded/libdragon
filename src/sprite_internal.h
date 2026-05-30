@@ -29,6 +29,18 @@
 /** @brief Size in bytes of #LSPR_FILE_MAGIC (drops the trailing NUL). */
 #define LSPR_FILE_MAGIC_SIZE (sizeof(LSPR_FILE_MAGIC) - 1)
 
+/**
+ * @brief File-start signature of a BCSP (BC1/DXT1 lossy sprite) file (8 bytes).
+ *
+ * Same safety-pad rationale as #LSPR_FILE_MAGIC: the leading four zero bytes
+ * force width=height=0 if a BCSP file is reinterpreted as a #sprite_t when
+ * bcsprite_init() has not registered the decoder, so the situation produces
+ * a clear assertion instead of a silently corrupt sprite.
+ */
+#define BCSP_FILE_MAGIC      "\0\0\0\0BCSP"
+/** @brief Size in bytes of #BCSP_FILE_MAGIC (drops the trailing NUL). */
+#define BCSP_FILE_MAGIC_SIZE (sizeof(BCSP_FILE_MAGIC) - 1)
+
 /** 
  * @brief Internal structure used as additional sprite header
  * 

@@ -70,6 +70,10 @@ int mksprite_convert_lossy(
     const char *infn, const char *outfn, const parms_t *pm,
     int compress
 );
+int mksprite_convert_bc1(
+    const char *infn, const char *outfn, const parms_t *pm,
+    int compress
+);
 
 extern bool flag_verbose;
 extern bool flag_debug;

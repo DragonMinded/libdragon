@@ -50,6 +50,9 @@ bool __sprite_upgrade(sprite_t *sprite)
     assertf(memcmp(sprite, LSPR_FILE_MAGIC, LSPR_FILE_MAGIC_SIZE) != 0,
         "Sprite is lossy (LSPR): call lossysprite_init() before sprite_load()");
 
+    assertf(memcmp(sprite, BCSP_FILE_MAGIC, BCSP_FILE_MAGIC_SIZE) != 0,
+        "Sprite is lossy (BCSP): call bcsprite_init() before sprite_load()");
+
     // Previously, the "format" field of the sprite structure (now renamed "flags")
     // was unused and always contained 0. Sprites could only be RGBA16 and RGBA32 anyway,
     // so only a bitdepth field could be used to understand the format.

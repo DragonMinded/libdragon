@@ -15,11 +15,27 @@ static const int BG_COUNT = sizeof(bg_filenames) / sizeof(bg_filenames[0]);
 int bg_idx = 0;
 sprite_t *bg_sprite = NULL;
 
+static const char *bg_codec_name(const char *fn) {
+    // Peek the 8-byte magic to identify the codec on disk.
+    FILE *f = fopen(fn, "rb");
+    if (!f) return "?";
+    char magic[8] = {0};
+    fread(magic, 1, sizeof(magic), f);
+    fclose(f);
+    if (memcmp(magic, "\0\0\0\0LSPR", 8) == 0) return "LSPR";
+    if (memcmp(magic, "\0\0\0\0BCSP", 8) == 0) return "BCSP";
+    return "RAW ";
+}
+
 void switch_bg(int direction) {
     if (bg_sprite) sprite_free(bg_sprite);
     bg_idx = (bg_idx + direction + BG_COUNT) % BG_COUNT;
-    debugf("Loading background sprite: %s\n", bg_filenames[bg_idx]);
-    bg_sprite = sprite_load(bg_filenames[bg_idx]);
+    const char *fn = bg_filenames[bg_idx];
+    const char *codec = bg_codec_name(fn);
+    uint64_t t0 = get_ticks_us();
+    bg_sprite = sprite_load(fn);
+    uint64_t dt = get_ticks_us() - t0;
+    debugf("Loaded %s [%s] in %llu us\n", fn, codec, dt);
 }
 
 int main(void)
@@ -31,8 +47,9 @@ int main(void)
     rdpq_init();
     joypad_init();
 
-    // Register the LSPR decoder with sprite_load
+    // Register the LSPR and BCSP decoders with sprite_load
     lossysprite_init();
+    bcsprite_init();
 
     // Load the first background sprite
     switch_bg(0);
