@@ -341,9 +341,9 @@ inline void fm_mat4_identity(fm_mat4_t *out)
  */
 inline void fm_mat4_scale(fm_mat4_t *out, const fm_vec3_t *scale)
 {
-    for (int i=0; i<4; i++) out->m[0][i] *= scale->x;
-    for (int i=0; i<4; i++) out->m[1][i] *= scale->y;
-    for (int i=0; i<4; i++) out->m[2][i] *= scale->z;
+    for (int i=0; i<4; i++) out->m[i][0] *= scale->x;
+    for (int i=0; i<4; i++) out->m[i][1] *= scale->y;
+    for (int i=0; i<4; i++) out->m[i][2] *= scale->z;
 }
 
 /**
