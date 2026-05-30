@@ -77,6 +77,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/sprite.o \
 	$(BUILD_DIR)/lossysprite.o \
 	$(BUILD_DIR)/bcsprite.o \
+	$(BUILD_DIR)/rsp_bcsp.o \
 	$(BUILD_DIR)/dma.o \
 	$(BUILD_DIR)/timer.o \
 	$(BUILD_DIR)/exception.o \

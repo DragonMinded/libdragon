@@ -411,7 +411,9 @@ extern "C" int mksprite_convert_bc1(
     w16(f, (uint16_t)orig_w);
     w16(f, (uint16_t)orig_h);
     w8(f, BCSP_BLOCK_SIZE);
-    w8(f, 0); w8(f, 0); w8(f, 0); // reserved
+    // 7 reserved bytes: pads the header to 24 bytes so payload[] is 8-byte
+    // aligned for RSP DMA on the decoder side.
+    w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0);
 
     if (fwrite(payload.data(), 1, payload.size(), f) != payload.size()) {
         fprintf(stderr, "mksprite: bc1 write failed\n");

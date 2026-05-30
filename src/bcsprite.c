@@ -10,10 +10,23 @@
 #include "n64sys.h"
 #include "utils.h"
 #include "debug.h"
+#include "rspq.h"
+#include "rsp.h"
 
+#include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <malloc.h>
+
+/** @brief Max BC1 blocks per RSP strip (mirrors N_STRIP_BLOCKS_MAX in rsp_bcsp.S). */
+#define BCSP_STRIP_BLOCKS_MAX 32
+
+/** @brief rspq command IDs (must mirror RSPQ_DefineCommand order in rsp_bcsp.S). */
+#define BCSP_CMD_SET_BUFFERS     0x0
+#define BCSP_CMD_DECODE_STRIP    0x1
+
+DEFINE_RSP_UCODE(rsp_bcsp);
+static uint32_t bcsp_ovl_id = 0;
 
 /** @brief BCSP version number. */
 #define BCSP_VERSION 1
@@ -38,11 +51,14 @@ typedef struct bcsp_header_s {
     uint16_t width;
     uint16_t height;
     uint8_t  block_size;   // = BCSP_BLOCK_SIZE
-    uint8_t  reserved[3];  // zero in v1 (one byte reserved for num_mips)
+    uint8_t  reserved[7];  // zero in v1; pads header to 24 bytes so payload[]
+                           // is 8-byte aligned (RSP DMA requirement).
     uint8_t  payload[];    // single BC1 block grid: ceil(w/4) * ceil(h/4) * 8 bytes
 } bcsp_header_t;
 
-_Static_assert(sizeof(bcsp_header_t) == 20, "bcsp_header_t must be 20 bytes");
+_Static_assert(sizeof(bcsp_header_t) == 24, "bcsp_header_t must be 24 bytes");
+_Static_assert(offsetof(bcsp_header_t, payload) % 8 == 0,
+    "BCSP payload must be 8-byte aligned for RSP DMA");
 
 static bool bcsp_is_encoded(const void *buf, int sz) {
     if (!buf || sz < (int)sizeof(bcsp_header_t)) return false;
@@ -163,22 +179,72 @@ static sprite_t *bcsp_load_buf(const void *encoded_buf, int encoded_sz) {
     uint16_t *dst = (uint16_t *)((uint8_t *)sprite + header_bytes);
     const uint8_t *src = hdr->payload;
 
-    for (int by = 0; by < bh; by++) {
-        int max_dy = height - by * 4;
-        if (max_dy > 4) max_dy = 4;
-        for (int bx = 0; bx < bw; bx++) {
-            int max_dx = width - bx * 4;
-            if (max_dx > 4) max_dx = 4;
-            uint16_t *block_dst = dst + (by * 4) * width + (bx * 4);
-            bcsp_decode_block(src, block_dst, width, max_dx, max_dy);
-            src += BCSP_BLOCK_SIZE;
+    int bw_full = width / 4;          // fully in-bounds block columns
+    int bh_full = height / 4;         // fully in-bounds block rows
+    int has_right_edge  = (width  & 3) != 0;
+    int has_bottom_edge = (height & 3) != 0;
+
+    size_t pixel_bytes = (size_t)width * height * 2;
+    size_t pixel_bytes_aligned = ROUND_UP(pixel_bytes, 16);
+
+    // Hand the source buffer and destination region to the RSP. The source
+    // payload was just CPU-read from the asset; flush it so RSP DMA sees the
+    // final bytes. The destination region is RSP-written; invalidate it so any
+    // dirty CPU lines covering it don't overwrite RSP's stores on later evict.
+    data_cache_hit_writeback((void *)src, (size_t)bw * bh * BCSP_BLOCK_SIZE);
+    data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
+
+    rspq_write(bcsp_ovl_id, BCSP_CMD_SET_BUFFERS,
+        PhysicalAddr(src), PhysicalAddr(dst), (uint32_t)(width * 2));
+
+    // Walk the fully-aligned interior block grid as horizontal strips.
+    for (int by = 0; by < bh_full; by++) {
+        int strip_x = 0;
+        while (strip_x < bw_full) {
+            int n_blocks = bw_full - strip_x;
+            if (n_blocks > BCSP_STRIP_BLOCKS_MAX) n_blocks = BCSP_STRIP_BLOCKS_MAX;
+            uint32_t in_off  = (uint32_t)(by * bw + strip_x) * BCSP_BLOCK_SIZE;
+            uint32_t out_off = (uint32_t)((by * 4) * width + strip_x * 4) * 2;
+            rspq_write(bcsp_ovl_id, BCSP_CMD_DECODE_STRIP,
+                in_off, out_off, (uint32_t)n_blocks);
+            strip_x += n_blocks;
         }
     }
 
-    // Flush the decoded pixels from the CPU cache so the RDP DMA reads see
-    // the final values when this sprite is later sampled.
-    size_t pixel_bytes_aligned = ROUND_UP((size_t)width * height * 2, 16);
-    data_cache_hit_writeback(dst, pixel_bytes_aligned);
+    // CPU-decode the right-edge partial column (if any) while the RSP drains
+    // the interior. These touch < 1/bw of the image so the cost is negligible.
+    if (has_right_edge) {
+        int bx = bw_full;
+        int max_dx = width - bx * 4;
+        for (int by = 0; by < bh_full; by++) {
+            const uint8_t *blk = src + (by * bw + bx) * BCSP_BLOCK_SIZE;
+            uint16_t *block_dst = dst + (by * 4) * width + (bx * 4);
+            bcsp_decode_block(blk, block_dst, width, max_dx, 4);
+        }
+    }
+
+    // CPU-decode the bottom-edge partial row (if any) across the full width,
+    // which naturally covers the bottom-right corner block as well.
+    if (has_bottom_edge) {
+        int by = bh_full;
+        int max_dy = height - by * 4;
+        for (int bx = 0; bx < bw; bx++) {
+            int max_dx = width - bx * 4;
+            if (max_dx > 4) max_dx = 4;
+            const uint8_t *blk = src + (by * bw + bx) * BCSP_BLOCK_SIZE;
+            uint16_t *block_dst = dst + (by * 4) * width + (bx * 4);
+            bcsp_decode_block(blk, block_dst, width, max_dx, max_dy);
+        }
+    }
+
+    // Wait for the RSP to finish before returning the sprite.
+    rspq_wait();
+
+    // CPU edge fixups wrote through the cache, so flush those lines too. The
+    // interior was written by RSP DMA so it's already coherent with RDRAM.
+    if (has_right_edge || has_bottom_edge) {
+        data_cache_hit_writeback(dst, pixel_bytes_aligned);
+    }
 
     return sprite;
 }
@@ -191,6 +257,9 @@ void bcsprite_init(void)
     if (bcsprite_init_refcount++ > 0) return;
 
     assertf(bcsp_decoder == NULL, "bcsprite is already initialized");
+    rspq_init();
+    bcsp_ovl_id = rspq_overlay_register(&rsp_bcsp);
+    assertf(bcsp_ovl_id != 0, "bcsprite: failed to register rsp_bcsp overlay");
     bcsp_decoder = sprite_decoder_register(bcsp_is_encoded, bcsp_load_buf);
 }
 
@@ -201,4 +270,6 @@ void bcsprite_close(void)
     assertf(bcsp_decoder != NULL, "bcsprite is not initialized");
     sprite_decoder_unregister(bcsp_decoder);
     bcsp_decoder = NULL;
+    rspq_overlay_unregister(bcsp_ovl_id);
+    bcsp_ovl_id = 0;
 }
