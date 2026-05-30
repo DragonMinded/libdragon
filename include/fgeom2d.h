@@ -177,8 +177,8 @@ inline void fm_mat3_identity(fm_mat3_t *out)
  */
 inline void fm_mat3_scale(fm_mat3_t *out, const fm_vec2_t *scale)
 {
-    for (int i=0; i<3; i++) out->m[0][i] *= scale->x;
-    for (int i=0; i<3; i++) out->m[1][i] *= scale->y;
+    for (int i=0; i<3; i++) out->m[i][0] *= scale->x;
+    for (int i=0; i<3; i++) out->m[i][1] *= scale->y;
 }
 
 /**
