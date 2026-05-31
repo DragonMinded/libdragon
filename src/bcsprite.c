@@ -12,6 +12,7 @@
 #include "debug.h"
 #include "rspq.h"
 #include "rsp.h"
+#include "asset.h"
 
 #include <stddef.h>
 #include <string.h>
@@ -259,6 +260,7 @@ void bcsprite_init(void)
 
     assertf(bcsp_decoder == NULL, "bcsprite is already initialized");
     rspq_init();
+    asset_init_compression(2);
     bcsp_ovl_id = rspq_overlay_register(&rsp_bcsp);
     assertf(bcsp_ovl_id != 0, "bcsprite: failed to register rsp_bcsp overlay");
     bcsp_decoder = sprite_decoder_register(bcsp_is_encoded, bcsp_load_buf);

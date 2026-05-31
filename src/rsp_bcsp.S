@@ -80,6 +80,8 @@ BCSP_PACKLO:
 # Strip buffers.
 .equ N_STRIP_BLOCKS_MAX, 32
 
+    .bss
+
     .align 4
 INBUF:      .ds.b N_STRIP_BLOCKS_MAX * 8
 
@@ -226,6 +228,8 @@ cmd_bcsp_decode_strip:
     lsv  v_tB.e0, 4, t6        # pixels 8..15 indices (high u16 @ byte 4)
     sltu v1, k1, k0            # mode: v1 = (c0 > c1)
 
+    # Loop body throughput (one block = 16 pixels): ~38 cycles in opaque mode,
+    # ~37 in alpha mode, i.e. ~2.4 cycles per decoded pixel.
 decode_block:
     # ---- Vectorized endpoint unpack (RGBA5551 -> per-channel 5/5/5 lanes) ----
     # Inputs were loaded by the previous iteration (or the prologue for block 0):

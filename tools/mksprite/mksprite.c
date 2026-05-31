@@ -1886,28 +1886,36 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     fread(data, 1, sz, out);
     fclose(out);
 
-    // Compress the data and store it into output file
-    // This is a nop if compression is disabled, but at least
-    // we don't have two different code paths.
-    if (out_is_stdout) {
-        out = stdout;
-    } else {
-        out = fopen(outfn, "wb");
-        if (!out) {
-            fprintf(stderr, "ERROR: can't open output file %s\n", outfn);
-            free(data);
-            return 1;
-        }
+    // Compress the data and store it into the output file (shared with the
+    // lossy codec backends). This is a nop if compression is disabled, but at
+    // least we don't have two different code paths.
+    int rv = sprite_write_compressed(outfn, data, sz, compression);
+    free(data);
+    return rv;
+
+error:
+    spritemaker_free(&spr);
+    fclose(out);
+    return 1;
+}
+
+// Compress `data` (sz bytes) with the asset layer and write it to `outfn`.
+// Shared back half of the conversion pipeline: see mksprite.h.
+int sprite_write_compressed(const char *outfn, void *data, int sz, int compression) {
+    bool out_is_stdout = (strstr(outfn, "(stdout)") != NULL);
+    FILE *out = out_is_stdout ? stdout : fopen(outfn, "wb");
+    if (!out) {
+        fprintf(stderr, "ERROR: can't open output file %s\n", outfn);
+        return 1;
     }
 
     if (compression == -1) compression = DEFAULT_COMPRESSION;
     int cmp_size = asset_compress_mem(data, sz, out, compression, 256*1024, NULL);
-    free(data);
 
     if (flag_verbose) {
         if (compression > 0) {
             fprintf(stderr, "compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
-                (int)sz, cmp_size, 100.0 * (float)cmp_size / (float)(sz == 0 ? 1 : sz));
+                sz, cmp_size, 100.0 * (float)cmp_size / (float)(sz == 0 ? 1 : sz));
         } else {
             fprintf(stderr, "written: %s (%d bytes)\n", outfn, sz);
         }
@@ -1915,11 +1923,6 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
 
     fclose(out);
     return 0;
-
-error:
-    spritemaker_free(&spr);
-    fclose(out);
-    return 1;
 }
 
 bool cli_parse_texparms(const char *opt, texparms_t *parms)

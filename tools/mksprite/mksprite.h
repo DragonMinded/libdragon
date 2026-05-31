@@ -66,6 +66,14 @@ extern "C" {
 #endif
 
 bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette_t *palout);
+
+// Compress `data` (sz bytes, already a complete asset payload) with the asset
+// layer at the given compression level and write it to `outfn` (or stdout if
+// outfn is the "(stdout)" sentinel). The caller still owns `data`. Returns 0 on
+// success, 1 on error. This is the shared back half of convert(): the codec
+// backends (BC1, ...) build their container in memory and hand it off here.
+int sprite_write_compressed(const char *outfn, void *data, int sz, int compression);
+
 int mksprite_convert_lossy(
     const char *infn, const char *outfn, const parms_t *pm,
     int compress
