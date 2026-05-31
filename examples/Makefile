@@ -15,6 +15,7 @@ EXAMPLES += fontgallery
 EXAMPLES += gldemo
 EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
+EXAMPLES += lossysprite
 EXAMPLES += menudemo
 EXAMPLES += meshviewer
 EXAMPLES += micro-ui

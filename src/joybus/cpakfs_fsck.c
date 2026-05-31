@@ -9,11 +9,15 @@
 #include <stdlib.h>
 #include "cpak.h"
 #include "cpakfs.h"
+#ifdef N64
+#include "scratch.h"
+#include "../rand_internal.h"
+#else
+#define scratch_calloc calloc
+#define scratch_free   free
+#endif
 #include "cpakfs_internal.h"
 #include "../utils.h"
-#ifdef N64
-#include "../rand_internal.h"
-#endif
 
 /** @brief Filesystem check modes */
 typedef enum {
@@ -310,8 +314,8 @@ static int fsck_chains(fsck_ctx_t *ctx, int num_banks, cpakfs_fat_entry_t fat[][
     int reserved = 1 + (num_banks * 2) + 2;
     
     // Allocate 2D bitsets: [bank][word] where each word covers 64 pages
-    uint64_t (*visited)[WORDS_PER_BANK] = calloc(num_banks, sizeof(*visited));
-    uint64_t (*processed)[WORDS_PER_BANK] = calloc(num_banks, sizeof(*processed));
+    uint64_t (*visited)[WORDS_PER_BANK] = scratch_calloc(num_banks, sizeof(*visited));
+    uint64_t (*processed)[WORDS_PER_BANK] = scratch_calloc(num_banks, sizeof(*processed));
     assert(visited && processed);
     
     // Phase 1: Validate existing root chains
@@ -450,8 +454,8 @@ static int fsck_chains(fsck_ctx_t *ctx, int num_banks, cpakfs_fat_entry_t fat[][
         num_orphan_roots--;
     }
     
-    free(visited);
-    free(processed);
+    scratch_free(visited);
+    scratch_free(processed);
     return num_orphan_roots;
 }
 

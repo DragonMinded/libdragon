@@ -16,6 +16,19 @@
 #define SPRITE_FLAG_FITS_TMEM               0x0020   ///< Set if the sprite does fit TMEM without splitting
 #define SPRITE_FLAG_SHQ                     0x0040   ///< Sprite is in special SHQ format (2 mipmap levels with subtractive blending)
 
+/**
+ * @brief File-start signature of an LSPR (lossy sprite) file (8 bytes).
+ *
+ * The leading four zero bytes are a safety pad: if an LSPR file reaches
+ * #sprite_load without lossysprite_init() having registered the decoder,
+ * the buffer is reinterpreted as a #sprite_t — the pad forces width=height=0
+ * so the situation is detectable and a clear assertion can fire instead of
+ * silently producing a corrupt sprite.
+ */
+#define LSPR_FILE_MAGIC      "\0\0\0\0LSPR"
+/** @brief Size in bytes of #LSPR_FILE_MAGIC (drops the trailing NUL). */
+#define LSPR_FILE_MAGIC_SIZE (sizeof(LSPR_FILE_MAGIC) - 1)
+
 /** 
  * @brief Internal structure used as additional sprite header
  * 
@@ -63,7 +76,29 @@ typedef struct sprite_ext_s {
 
 _Static_assert(sizeof(sprite_ext_t) == 128, "invalid sizeof(sprite_ext_t)");
 
-/** @brief Convert a sprite from the old format with implicit texture format */ 
+/** @brief Convert a sprite from the old format with implicit texture format */
 bool __sprite_upgrade(sprite_t *sprite);
+
+/** @brief Access the sprite extended structure, or NULL if it does not exist. */
+sprite_ext_t *__sprite_ext(sprite_t *sprite);
+
+/** @brief Function pointer type for a sprite decodable test function */
+typedef bool (*sprite_decodable_fn)(const void *buf, int sz);
+
+/** @brief Function pointer type for a sprite decoder function */
+typedef sprite_t *(*sprite_decode_fn)(const void *buf, int sz);
+
+/** @brief Internal structure for registered sprite decoders */
+typedef struct sprite_decoder_s {
+    sprite_decodable_fn decodable;
+    sprite_decode_fn decode;
+    struct sprite_decoder_s *next;
+} sprite_decoder_t;
+
+/** @brief Register a sprite decoder for a specific magic string. */
+sprite_decoder_t *sprite_decoder_register(sprite_decodable_fn decodable, sprite_decode_fn decode);
+
+/** @brief Unregister the sprite decoder for a specific magic string. */
+int sprite_decoder_unregister(sprite_decoder_t *decoder);
 
 #endif

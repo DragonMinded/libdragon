@@ -73,14 +73,14 @@ test -d "$BUILD_PATH/gdb-$GDB_V"           || tar -xzf "$DOWNLOAD_PATH/gdb-$GDB_
 
 # Resolve dependencies on macOS via homebrew
 if [[ $OSTYPE == 'darwin'* ]]; then
-    # Tell GDB configure to use Homebrew's GMP, MPFR, MPC, and Zlib.
+    # Tell GDB configure to use Homebrew's Python, GMP, MPFR, MPC, and Zlib.
     # These should have already been installed by build-toolchain.sh
     GDB_CONFIGURE_ARGS=(
         "--with-gmp=$(brew --prefix gmp)"
         "--with-mpfr=$(brew --prefix mpfr)"
         "--with-mpc=$(brew --prefix libmpc)"
         "--with-isl=$(brew --prefix isl)"
-        "--with-python=python3"
+        "--with-python=$(brew --prefix python3)/bin/python3"
         "--with-system-zlib"
     )
 elif [ "$N64_HOST" == "x86_64-w64-mingw32" ]; then
