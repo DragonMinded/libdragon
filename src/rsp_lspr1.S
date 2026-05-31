@@ -16,6 +16,9 @@
 #
 # The per-block math mirrors src/lspr1.c::lspr1_decode_block() bit
 # for bit so the RSP output is bit-exact with the reference C decoder.
+#
+# Authors: Christopher Bonhage <christopher.bonhage@meeq.tech>
+#          Giovanni Bajo <giovannibajo@gmail.com>
 ############################################################
 
 #include <rsp_queue.inc>

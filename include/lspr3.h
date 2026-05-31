@@ -1,5 +1,6 @@
 /**
  * @file lspr3.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Lossy-sprite Level 3: H264I decoder
  *
  * H264I ("H.264 Image") is libdragon's "Lossy-sprite Level 3" container format:

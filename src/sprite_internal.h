@@ -1,6 +1,7 @@
 /**
  * @file sprite_internal.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Christopher Bonhage <christopher.bonhage@meeq.tech>
  */
 #ifndef __LIBDRAGON_SPRITE_INTERNAL_H
 #define __LIBDRAGON_SPRITE_INTERNAL_H

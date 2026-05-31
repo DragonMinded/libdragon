@@ -1,5 +1,7 @@
 /**
  * @file lspr1.c
+ * @author Christopher Bonhage <christopher.bonhage@meeq.tech>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Lossy-sprite Level 1: BC1Q (BC1/DXT1) decoder
  */
 
@@ -22,10 +24,11 @@
 /** @brief Max BC1 blocks per RSP strip (mirrors N_STRIP_BLOCKS_MAX in rsp_lspr1.S). */
 #define BC1Q_STRIP_BLOCKS_MAX 32
 
-/** @brief rspq command IDs (must mirror RSPQ_DefineCommand order in rsp_lspr1.S). */
-#define BC1Q_CMD_SET_BUFFERS     0x0
-#define BC1Q_CMD_DECODE_STRIP    0x1
+// rspq command IDs (must mirror RSPQ_DefineCommand order in rsp_lspr1.S).
+#define BC1Q_CMD_SET_BUFFERS     0x0   ///< rspq command: record source/dest buffers
+#define BC1Q_CMD_DECODE_STRIP    0x1   ///< rspq command: decode one strip of blocks
 
+/** @brief The lspr1 (BC1Q) RSP ucode overlay */
 DEFINE_RSP_UCODE(rsp_lspr1);
 static uint32_t lspr1_ovl_id = 0;
 

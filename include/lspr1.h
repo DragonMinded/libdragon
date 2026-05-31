@@ -1,29 +1,24 @@
 /**
  * @file lspr1.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Lossy-sprite Level 1: BC1Q decoder
  *
- * BC1Q is libdragon's "Lossy-sprite Level 1" container format: it wraps a
- * BC1/DXT1 block-compressed image. Like #lspr3 (Level 3, H264I), BC1Q files are
- * produced by `mksprite --lossy=<quality> --compress 1` and decode at load time
- * into a standard #FMT_RGBA16 sprite.
+ * BC1Q is one of libdragon's lossy sprite formats ("Lossy-sprite Level 1"),
+ * a good fit for large textures where a low decoding cost matters. It is the
+ * lighter-weight alternative to #lspr3_init (Level 3, H264I), which trades a
+ * heavier runtime decoder for higher quality at a given size.
  *
- * The two lossy-sprite levels target different operating points:
+ * BC1Q files are produced by `mksprite --lossy=<quality> --compress 1` and
+ * decode at load time into a standard #FMT_RGBA16 sprite, so the returned
+ * #sprite_t behaves like any other sprite.
  *
- * - Level 1 (BC1Q) is fixed-rate (4 bpp), block-based, and decodes on the CPU
- *   in a tight per-block loop. It is suitable for large textures where storage
- *   cost matters but per-block reconstruction is good enough.
- * - Level 3 (H264I) uses H.264 intra coding via the RSP and produces higher
- *   quality at variable rate, at the cost of a heavier runtime decoder.
+ * To load BC1Q sprites you must first opt-in by calling #lspr1_init, which
+ * registers the decoder with #sprite_load. After that, #sprite_load recognizes
+ * BC1Q sprites and decodes them transparently; call #lspr1_close when no longer
+ * needed.
  *
- * You must opt-in to BC1Q support by calling #lspr1_init to register the BC1Q
- * decoder with #sprite_load before loading BC1Q files. Once initialized,
- * #sprite_load recognizes BC1Q-compressed sprites and decodes them
- * transparently.
- *
- * The BC1 alpha mode is DXT1a punch-through: each 4x4 block independently
- * chooses between a 4-color opaque palette and a 3-color + transparent
- * palette, mapping naturally to RGBA16's single alpha bit. Mipmaps are not
- * supported by BC1Q v1.
+ * Internally, the format is based on BC1 / DXT1 block compression, and is
+ * decoded using the RSP to accelerate the process.
  */
 #ifndef __LIBDRAGON_LSPR1_H
 #define __LIBDRAGON_LSPR1_H
