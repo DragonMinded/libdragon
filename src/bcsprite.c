@@ -29,7 +29,7 @@ DEFINE_RSP_UCODE(rsp_bcsp);
 static uint32_t bcsp_ovl_id = 0;
 
 /** @brief BCSP version number. */
-#define BCSP_VERSION 1
+#define BCSP_VERSION 2
 
 /** @brief Required alignment of the decoded sprite buffer. */
 #define BCSP_BUF_ALIGN 64
@@ -97,29 +97,30 @@ static void bcsp_decode_block(
         ((uint32_t)block[6] << 8)  |
         ((uint32_t)block[7]);
 
-    // Unpack the two RGB565 endpoints to 5/6/5 components.
+    // Endpoints are stored on-disk as RGBA5551 (alpha bit always 1); unpack
+    // the 5-bit R/G/B channels (the alpha bit in position 0 is ignored here).
     int r0 = (c0 >> 11) & 0x1F;
-    int g0 = (c0 >> 5)  & 0x3F;
-    int b0 =  c0        & 0x1F;
+    int g0 = (c0 >> 6)  & 0x1F;
+    int b0 = (c0 >> 1)  & 0x1F;
     int r1 = (c1 >> 11) & 0x1F;
-    int g1 = (c1 >> 5)  & 0x3F;
-    int b1 =  c1        & 0x1F;
+    int g1 = (c1 >> 6)  & 0x1F;
+    int b1 = (c1 >> 1)  & 0x1F;
 
     // Build the 4-entry RGBA5551 palette. DXT1a uses endpoint ordering
     // as the per-block alpha flag: c0 > c1 selects opaque 4-color mode;
     // c0 <= c1 selects 3-color + transparent.
     uint16_t pal[4];
-    // Endpoint 0 and 1 are always literal; collapse G6 -> G5 by dropping LSB.
-    pal[0] = ((r0 & 0x1F) << 11) | ((g0 >> 1) << 6) | ((b0 & 0x1F) << 1) | 1;
-    pal[1] = ((r1 & 0x1F) << 11) | ((g1 >> 1) << 6) | ((b1 & 0x1F) << 1) | 1;
+    // Endpoint 0 and 1 are already RGBA5551; use them directly (force alpha=1).
+    pal[0] = c0 | 1;
+    pal[1] = c1 | 1;
     if (c0 > c1) {
         int r2 = (2*r0 + r1) / 3, g2 = (2*g0 + g1) / 3, b2 = (2*b0 + b1) / 3;
         int r3 = (r0 + 2*r1) / 3, g3 = (g0 + 2*g1) / 3, b3 = (b0 + 2*b1) / 3;
-        pal[2] = ((r2 & 0x1F) << 11) | ((g2 >> 1) << 6) | ((b2 & 0x1F) << 1) | 1;
-        pal[3] = ((r3 & 0x1F) << 11) | ((g3 >> 1) << 6) | ((b3 & 0x1F) << 1) | 1;
+        pal[2] = (r2 << 11) | (g2 << 6) | (b2 << 1) | 1;
+        pal[3] = (r3 << 11) | (g3 << 6) | (b3 << 1) | 1;
     } else {
         int r2 = (r0 + r1) / 2, g2 = (g0 + g1) / 2, b2 = (b0 + b1) / 2;
-        pal[2] = ((r2 & 0x1F) << 11) | ((g2 >> 1) << 6) | ((b2 & 0x1F) << 1) | 1;
+        pal[2] = (r2 << 11) | (g2 << 6) | (b2 << 1) | 1;
         pal[3] = 0x0000; // fully transparent (a=0)
     }
 

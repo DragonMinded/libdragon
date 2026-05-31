@@ -1,8 +1,9 @@
 /*
     mksprite_bc1: BC1/DXT1 lossy sprite encoder for mksprite
 
-    Encodes a PNG image into a BCSP file (BC1 block-compressed RGB565 with
-    DXT1a punch-through alpha) for transparent decoding at sprite_load() time.
+    Encodes a PNG image into a BCSP file (BC1 block-compressed with RGBA5551
+    endpoints and DXT1a punch-through alpha) for transparent decoding at
+    sprite_load() time.
 
     This is free and unencumbered software released into the public domain.
 
@@ -36,7 +37,7 @@ extern "C" {
 
 #include "mksprite.h"
 
-#define BCSP_VERSION 1
+#define BCSP_VERSION 2
 #define BCSP_BLOCK_SIZE 8
 
 static void verbose(const char *str, ...) {
@@ -103,23 +104,34 @@ static uint8_t *pad_rgba_to_4(const uint8_t *src, int width, int height,
     return dst;
 }
 
-// Encode an 8-bit (R,G,B) triple as RGB565.
-static uint16_t rgb565_pack(int r8, int g8, int b8) {
+// Encode an 8-bit (R,G,B) triple as a 15-bit RGB555 value (r5<<10|g5<<5|b5).
+// Endpoints are stored on-disk as RGBA5551, but all encoder-internal endpoint
+// math (selection, mode comparison, tie-break nudging) is done on this 15-bit
+// representation so the alpha bit never interferes; rgb555_to_rgba5551()
+// converts to the on-disk format only at block-write time.
+static uint16_t rgb555_pack(int r8, int g8, int b8) {
     int r5 = (r8 >> 3) & 0x1F;
-    int g6 = (g8 >> 2) & 0x3F;
+    int g5 = (g8 >> 3) & 0x1F;
     int b5 = (b8 >> 3) & 0x1F;
-    return (uint16_t)((r5 << 11) | (g6 << 5) | b5);
+    return (uint16_t)((r5 << 10) | (g5 << 5) | b5);
 }
 
-// Decode an RGB565 value back to 8-bit per channel, replicating high bits into
-// the low bits to fill the dynamic range (standard expansion).
-static void rgb565_unpack_to_888(uint16_t c, int *r8, int *g8, int *b8) {
-    int r5 = (c >> 11) & 0x1F;
-    int g6 = (c >> 5)  & 0x3F;
+// Decode a 15-bit RGB555 value back to 8-bit per channel, replicating high bits
+// into the low bits to fill the dynamic range (standard expansion).
+static void rgb555_unpack_to_888(uint16_t c, int *r8, int *g8, int *b8) {
+    int r5 = (c >> 10) & 0x1F;
+    int g5 = (c >> 5)  & 0x1F;
     int b5 =  c        & 0x1F;
     *r8 = (r5 << 3) | (r5 >> 2);
-    *g8 = (g6 << 2) | (g6 >> 4);
+    *g8 = (g5 << 3) | (g5 >> 2);
     *b8 = (b5 << 3) | (b5 >> 2);
+}
+
+// Convert a 15-bit RGB555 endpoint to the on-disk RGBA5551 value (alpha=1).
+// The shift-by-1 is monotonic, so the runtime decoder's raw `c0 > c1` mode
+// test on the stored values matches the encoder's 15-bit comparison.
+static uint16_t rgb555_to_rgba5551(uint16_t c555) {
+    return (uint16_t)((c555 << 1) | 1);
 }
 
 // Per-channel squared error between two 8-bit RGB triples (alpha ignored).
@@ -161,7 +173,7 @@ static void encode_bc1_block(const uint8_t pixels[16][4], uint8_t out_block[8],
     }
 
     // 3. Inset the bounding box slightly to reduce systematic overshoot at
-    // RGB565 quantization. This is the classic stb_dxt "inset" trick: the
+    // RGB555 quantization. This is the classic stb_dxt "inset" trick: the
     // bounding box covers the most extreme samples, but the BC1 palette is
     // sampled at 0, 1/3, 2/3, 1 of the segment, so the literal endpoints
     // are almost never the right thing — pulling in by 1/16 of the range
@@ -178,8 +190,8 @@ static void encode_bc1_block(const uint8_t pixels[16][4], uint8_t out_block[8],
         b_max = clamp_int(b_max - inset_b, 0, 255);
     }
 
-    uint16_t c_hi = rgb565_pack(r_max, g_max, b_max); // "high" endpoint
-    uint16_t c_lo = rgb565_pack(r_min, g_min, b_min); // "low" endpoint
+    uint16_t c_hi = rgb555_pack(r_max, g_max, b_max); // "high" endpoint (RGB555)
+    uint16_t c_lo = rgb555_pack(r_min, g_min, b_min); // "low" endpoint (RGB555)
 
     // 4. Choose endpoint ordering for the desired alpha mode.
     // 4-color mode requires c0 > c1; 3-color mode requires c0 <= c1.
@@ -208,8 +220,8 @@ static void encode_bc1_block(const uint8_t pixels[16][4], uint8_t out_block[8],
     int pal[4][3];
     {
         int r0, g0, b0, r1, g1, b1;
-        rgb565_unpack_to_888(c0, &r0, &g0, &b0);
-        rgb565_unpack_to_888(c1, &r1, &g1, &b1);
+        rgb555_unpack_to_888(c0, &r0, &g0, &b0);
+        rgb555_unpack_to_888(c1, &r1, &g1, &b1);
         pal[0][0] = r0; pal[0][1] = g0; pal[0][2] = b0;
         pal[1][0] = r1; pal[1][1] = g1; pal[1][2] = b1;
         if (use_alpha) {
@@ -249,11 +261,14 @@ static void encode_bc1_block(const uint8_t pixels[16][4], uint8_t out_block[8],
         indices |= ((uint32_t)idx & 0x3u) << (2 * i);
     }
 
-    // 7. Pack into the 8-byte block (big-endian on disk).
-    out_block[0] = (uint8_t)(c0 >> 8);
-    out_block[1] = (uint8_t)(c0 & 0xFF);
-    out_block[2] = (uint8_t)(c1 >> 8);
-    out_block[3] = (uint8_t)(c1 & 0xFF);
+    // 7. Pack into the 8-byte block (big-endian on disk). Endpoints are
+    // converted from the internal RGB555 form to on-disk RGBA5551 (alpha=1).
+    uint16_t e0 = rgb555_to_rgba5551(c0);
+    uint16_t e1 = rgb555_to_rgba5551(c1);
+    out_block[0] = (uint8_t)(e0 >> 8);
+    out_block[1] = (uint8_t)(e0 & 0xFF);
+    out_block[2] = (uint8_t)(e1 >> 8);
+    out_block[3] = (uint8_t)(e1 & 0xFF);
     out_block[4] = (uint8_t)((indices >> 24) & 0xFF);
     out_block[5] = (uint8_t)((indices >> 16) & 0xFF);
     out_block[6] = (uint8_t)((indices >>  8) & 0xFF);
@@ -273,9 +288,12 @@ static void decode_bc1_block(const uint8_t block[8], uint8_t out_pixels[16][4]) 
         ((uint32_t)block[5] << 16) |
         ((uint32_t)block[6] << 8)  |
         ((uint32_t)block[7]);
+    // Endpoints are RGBA5551 on disk; drop the alpha bit (>>1) to recover the
+    // 15-bit RGB555 value before expanding to 8-bit. The `c0 > c1` mode test
+    // below uses the raw stored values, which is monotonic w.r.t. the 555 form.
     int r0, g0, b0, r1, g1, b1;
-    rgb565_unpack_to_888(c0, &r0, &g0, &b0);
-    rgb565_unpack_to_888(c1, &r1, &g1, &b1);
+    rgb555_unpack_to_888((uint16_t)(c0 >> 1), &r0, &g0, &b0);
+    rgb555_unpack_to_888((uint16_t)(c1 >> 1), &r1, &g1, &b1);
 
     int pal_r[4], pal_g[4], pal_b[4], pal_a[4];
     pal_r[0] = r0; pal_g[0] = g0; pal_b[0] = b0; pal_a[0] = 255;
