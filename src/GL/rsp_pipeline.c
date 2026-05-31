@@ -67,8 +67,8 @@ static phys_addr_t magma_rsp_state;
     static void name(int16_t *dst, const src_type *src, uint32_t count) \
     { \
         int16_t x = src[0] >> shift; \
-        int16_t y = src[0] >> (shift-1); \
-        int16_t z = src[0] >> shift; \
+        int16_t y = src[1] >> (shift-1); \
+        int16_t z = src[2] >> shift; \
         *dst = GLP_NRM(x, y, z); \
     }
 
