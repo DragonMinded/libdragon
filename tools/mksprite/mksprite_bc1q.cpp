@@ -1,7 +1,7 @@
 /*
-    mksprite_bc1: BC1Q lossy sprite encoder for mksprite
+    mksprite_bc1q: Lossy-sprite Level 1 (BC1Q) encoder for mksprite
 
-    Encodes a PNG image into a BCSP file (BC1 block-compressed with RGBA5551
+    Encodes a PNG image into a BC1Q file (BC1 block-compressed with RGBA5551
     endpoints and DXT1a punch-through alpha) for transparent decoding at
     sprite_load() time.
 
@@ -15,7 +15,7 @@
     ------------------------------------------------------------------------
     BC1Q ("BC1, Quality-tunable") is *bitstream-identical* to BC1/DXT1: every
     block is the standard 8 bytes (two 16-bit endpoints c0/c1 followed by 16
-    two-bit indices), and the decoder (src/bcsprite.c, src/rsp_bcsp.S) is a plain
+    two-bit indices), and the decoder (src/lspr1.c, src/rsp_lspr1.S) is a plain
     BC1 decoder. The only difference between BC1 and BC1Q lives in the *encoder*:
     BC1Q chooses endpoints and indices so that, at a tunable quality level, the
     resulting block stream compresses far better under a generic entropy/LZ stage
@@ -82,7 +82,7 @@
     Raw BC1 is already a fixed 4 bpp and, taken alone, is nearly incompressible:
     endpoints and indices look like high-entropy noise. BC1Q is designed for the
     fact that libdragon stores the asset through a generic compressor (aplib by
-    default here, see BCSP_ASSET_COMPRESSION; lz4hc / shrinkler also possible),
+    default here, see BC1Q_ASSET_COMPRESSION; lz4hc / shrinkler also possible),
     so the encoder optimizes *post-compression* size, not the raw 8-byte block:
 
       - Canonicalization creates repetition. A flat region becomes many blocks
@@ -124,13 +124,13 @@ extern "C" {
 
 #include "mksprite.h"
 
-#define BCSP_VERSION 2
-#define BCSP_BLOCK_SIZE 8
+#define BC1Q_VERSION 2
+#define BC1Q_BLOCK_SIZE 8
 
 // Asset-layer compression used for BC1 sprites. aplib (level 2) was the best
 // fit for the canon bitstream in the bc1q_eval.py analysis (better than lz4hc
 // at the same window, with a cheap decoder).
-#define BCSP_ASSET_COMPRESSION 2
+#define BC1Q_ASSET_COMPRESSION 2
 
 static void verbose(const char *str, ...) {
     if (!flag_verbose) return;
@@ -568,7 +568,7 @@ extern "C" int mksprite_convert_bc1(
 
     int bw = padded_w / 4;
     int bh = padded_h / 4;
-    size_t payload_bytes = (size_t)bw * (size_t)bh * BCSP_BLOCK_SIZE;
+    size_t payload_bytes = (size_t)bw * (size_t)bh * BC1Q_BLOCK_SIZE;
     std::vector<uint8_t> payload(payload_bytes);
     bool any_alpha = false;
 
@@ -595,29 +595,29 @@ extern "C" int mksprite_convert_bc1(
             bool had_alpha = false;
             encode_bc1_block(pixels, block, &had_alpha, lossy_q);
             if (had_alpha) any_alpha = true;
-            size_t off = ((size_t)by * bw + bx) * BCSP_BLOCK_SIZE;
-            memcpy(&payload[off], block, BCSP_BLOCK_SIZE);
+            size_t off = ((size_t)by * bw + bx) * BC1Q_BLOCK_SIZE;
+            memcpy(&payload[off], block, BC1Q_BLOCK_SIZE);
         }
     }
 
-    // Assemble the complete BCSP container in memory (24-byte header + block
+    // Assemble the complete BC1Q container in memory (24-byte header + block
     // payload), then hand it to the shared asset-layer compressor. The header
     // is big-endian; bytes 0..3 and 17..23 are zero padding so the header is 24
     // bytes and payload[] stays 8-byte aligned for RSP DMA on the decoder side.
     size_t file_bytes = 24 + payload.size();
     std::vector<uint8_t> filebuf(file_bytes, 0);
     uint8_t *hdr = filebuf.data();
-    hdr[4] = 'B'; hdr[5] = 'C'; hdr[6] = 'S'; hdr[7] = 'P';
-    hdr[8]  = (BCSP_VERSION >> 8) & 0xFF; hdr[9]  = BCSP_VERSION & 0xFF;
+    hdr[4] = 'B'; hdr[5] = 'C'; hdr[6] = '1'; hdr[7] = 'Q';
+    hdr[8]  = (BC1Q_VERSION >> 8) & 0xFF; hdr[9]  = BC1Q_VERSION & 0xFF;
     uint16_t aa = any_alpha ? 1 : 0;
     hdr[10] = (aa >> 8) & 0xFF;           hdr[11] = aa & 0xFF;
     hdr[12] = ((uint16_t)orig_w >> 8) & 0xFF; hdr[13] = (uint16_t)orig_w & 0xFF;
     hdr[14] = ((uint16_t)orig_h >> 8) & 0xFF; hdr[15] = (uint16_t)orig_h & 0xFF;
-    hdr[16] = BCSP_BLOCK_SIZE;
+    hdr[16] = BC1Q_BLOCK_SIZE;
     memcpy(hdr + 24, payload.data(), payload.size());
 
     if (sprite_write_compressed(outfn, filebuf.data(), (int)file_bytes,
-                                BCSP_ASSET_COMPRESSION) != 0) {
+                                BC1Q_ASSET_COMPRESSION) != 0) {
         if (padded) free(padded);
         free(img.image);
         return 1;
@@ -631,7 +631,7 @@ extern "C" int mksprite_convert_bc1(
         for (int by = 0; by < bh; by++) {
             for (int bx = 0; bx < bw; bx++) {
                 uint8_t pixels[16][4];
-                size_t off = ((size_t)by * bw + bx) * BCSP_BLOCK_SIZE;
+                size_t off = ((size_t)by * bw + bx) * BC1Q_BLOCK_SIZE;
                 decode_bc1_block(&payload[off], pixels);
                 for (int dy = 0; dy < 4; dy++) {
                     int y = by * 4 + dy;

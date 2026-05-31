@@ -1,9 +1,9 @@
 /**
- * @file bcsprite.c
- * @brief BCSP (BC1/DXT1 lossy sprite) decoder
+ * @file lspr1.c
+ * @brief Lossy-sprite Level 1: BC1Q (BC1/DXT1) decoder
  */
 
-#include "bcsprite.h"
+#include "lspr1.h"
 #include "sprite.h"
 #include "sprite_internal.h"
 #include "surface.h"
@@ -19,58 +19,58 @@
 #include <stdlib.h>
 #include <malloc.h>
 
-/** @brief Max BC1 blocks per RSP strip (mirrors N_STRIP_BLOCKS_MAX in rsp_bcsp.S). */
-#define BCSP_STRIP_BLOCKS_MAX 32
+/** @brief Max BC1 blocks per RSP strip (mirrors N_STRIP_BLOCKS_MAX in rsp_lspr1.S). */
+#define BC1Q_STRIP_BLOCKS_MAX 32
 
-/** @brief rspq command IDs (must mirror RSPQ_DefineCommand order in rsp_bcsp.S). */
-#define BCSP_CMD_SET_BUFFERS     0x0
-#define BCSP_CMD_DECODE_STRIP    0x1
+/** @brief rspq command IDs (must mirror RSPQ_DefineCommand order in rsp_lspr1.S). */
+#define BC1Q_CMD_SET_BUFFERS     0x0
+#define BC1Q_CMD_DECODE_STRIP    0x1
 
-DEFINE_RSP_UCODE(rsp_bcsp);
-static uint32_t bcsp_ovl_id = 0;
+DEFINE_RSP_UCODE(rsp_lspr1);
+static uint32_t lspr1_ovl_id = 0;
 
-/** @brief BCSP version number. */
-#define BCSP_VERSION 2
+/** @brief BC1Q version number. */
+#define BC1Q_VERSION 2
 
 /** @brief Required alignment of the decoded sprite buffer. */
-#define BCSP_BUF_ALIGN 64
+#define BC1Q_BUF_ALIGN 64
 
 /** @brief BC1 block payload size in bytes. */
-#define BCSP_BLOCK_SIZE 8
+#define BC1Q_BLOCK_SIZE 8
 
 /**
- * @brief Header structure for BCSP-encoded files.
+ * @brief Header structure for BC1Q-encoded files.
  *
- * Must mirror the layout produced by tools/mksprite/mksprite_bc1.cpp.
+ * Must mirror the layout produced by tools/mksprite/mksprite_bc1q.cpp.
  * All multi-byte fields are big-endian on disk; the runtime decoder runs
  * on the N64 (also big-endian) so no byte-swap is needed on read.
  */
-typedef struct bcsp_header_s {
-    uint8_t  magic[BCSP_FILE_MAGIC_SIZE];
+typedef struct lspr1_header_s {
+    uint8_t  magic[BC1Q_FILE_MAGIC_SIZE];
     uint16_t version;
     uint16_t flags;        // bit 0: has_alpha (any block uses 3-color mode)
     uint16_t width;
     uint16_t height;
-    uint8_t  block_size;   // = BCSP_BLOCK_SIZE
+    uint8_t  block_size;   // = BC1Q_BLOCK_SIZE
     uint8_t  reserved[7];  // zero in v1; pads header to 24 bytes so payload[]
                            // is 8-byte aligned (RSP DMA requirement).
     uint8_t  payload[];    // single BC1 block grid: ceil(w/4) * ceil(h/4) * 8 bytes
-} bcsp_header_t;
+} lspr1_header_t;
 
-_Static_assert(sizeof(bcsp_header_t) == 24, "bcsp_header_t must be 24 bytes");
-_Static_assert(offsetof(bcsp_header_t, payload) % 8 == 0,
-    "BCSP payload must be 8-byte aligned for RSP DMA");
+_Static_assert(sizeof(lspr1_header_t) == 24, "lspr1_header_t must be 24 bytes");
+_Static_assert(offsetof(lspr1_header_t, payload) % 8 == 0,
+    "BC1Q payload must be 8-byte aligned for RSP DMA");
 
-static bool bcsp_is_encoded(const void *buf, int sz) {
-    if (!buf || sz < (int)sizeof(bcsp_header_t)) return false;
-    const bcsp_header_t *hdr = (const bcsp_header_t *)buf;
-    return memcmp(hdr->magic, BCSP_FILE_MAGIC, BCSP_FILE_MAGIC_SIZE) == 0
-           && hdr->version == BCSP_VERSION;
+static bool lspr1_is_encoded(const void *buf, int sz) {
+    if (!buf || sz < (int)sizeof(lspr1_header_t)) return false;
+    const lspr1_header_t *hdr = (const lspr1_header_t *)buf;
+    return memcmp(hdr->magic, BC1Q_FILE_MAGIC, BC1Q_FILE_MAGIC_SIZE) == 0
+           && hdr->version == BC1Q_VERSION;
 }
 
-static size_t bcsp_decoded_size_buf(const void *encoded_buf, int encoded_sz) {
-    if (!bcsp_is_encoded(encoded_buf, encoded_sz)) return 0;
-    const bcsp_header_t *hdr = (const bcsp_header_t *)encoded_buf;
+static size_t lspr1_decoded_size_buf(const void *encoded_buf, int encoded_sz) {
+    if (!lspr1_is_encoded(encoded_buf, encoded_sz)) return 0;
+    const lspr1_header_t *hdr = (const lspr1_header_t *)encoded_buf;
     size_t pixel_bytes = (size_t)hdr->width * hdr->height * 2;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
     return ROUND_UP(header_bytes, 64) + ROUND_UP(pixel_bytes, 16);
@@ -85,7 +85,7 @@ static size_t bcsp_decoded_size_buf(const void *encoded_buf, int encoded_sz) {
  * @param max_dx      Number of in-bounds columns in this block (1..4).
  * @param max_dy      Number of in-bounds rows in this block (1..4).
  */
-static void bcsp_decode_block(
+static void lspr1_decode_block(
     const uint8_t *block,
     uint16_t *dst, int dst_stride,
     int max_dx, int max_dy
@@ -134,36 +134,36 @@ static void bcsp_decode_block(
     }
 }
 
-static sprite_t *bcsp_load_buf(const void *encoded_buf, int encoded_sz) {
-    assertf(bcsp_is_encoded(encoded_buf, encoded_sz), "Invalid BCSP buffer");
-    const bcsp_header_t *hdr = (const bcsp_header_t *)encoded_buf;
-    assertf(hdr->version == BCSP_VERSION,
-        "Unsupported BCSP version %u (this build supports %u)",
-        hdr->version, BCSP_VERSION);
-    assertf(hdr->block_size == BCSP_BLOCK_SIZE,
-        "Unsupported BCSP block_size %u (this build supports %u)",
-        hdr->block_size, BCSP_BLOCK_SIZE);
+static sprite_t *lspr1_load_buf(const void *encoded_buf, int encoded_sz) {
+    assertf(lspr1_is_encoded(encoded_buf, encoded_sz), "Invalid BC1Q buffer");
+    const lspr1_header_t *hdr = (const lspr1_header_t *)encoded_buf;
+    assertf(hdr->version == BC1Q_VERSION,
+        "Unsupported BC1Q version %u (this build supports %u)",
+        hdr->version, BC1Q_VERSION);
+    assertf(hdr->block_size == BC1Q_BLOCK_SIZE,
+        "Unsupported BC1Q block_size %u (this build supports %u)",
+        hdr->block_size, BC1Q_BLOCK_SIZE);
     // Reserved byte at offset 13 was set aside for a future mip-count field.
     // A non-zero value indicates the file was produced by a future encoder
     // that this build does not understand; refuse to decode.
     assertf(hdr->reserved[0] == 0,
-        "BCSP file requires a newer bcsprite decoder (reserved=%u)",
+        "BC1Q file requires a newer lspr1 decoder (reserved=%u)",
         hdr->reserved[0]);
 
     int width = hdr->width;
     int height = hdr->height;
-    assertf(width > 0 && height > 0, "Invalid BCSP dimensions %dx%d", width, height);
+    assertf(width > 0 && height > 0, "Invalid BC1Q dimensions %dx%d", width, height);
 
     int bw = (width + 3) / 4;
     int bh = (height + 3) / 4;
-    size_t payload_size = (size_t)bw * bh * BCSP_BLOCK_SIZE;
-    assertf((size_t)encoded_sz >= sizeof(bcsp_header_t) + payload_size,
-        "BCSP buffer truncated (sz=%d, expected at least %zu)",
-        encoded_sz, sizeof(bcsp_header_t) + payload_size);
+    size_t payload_size = (size_t)bw * bh * BC1Q_BLOCK_SIZE;
+    assertf((size_t)encoded_sz >= sizeof(lspr1_header_t) + payload_size,
+        "BC1Q buffer truncated (sz=%d, expected at least %zu)",
+        encoded_sz, sizeof(lspr1_header_t) + payload_size);
 
-    size_t decoded_sz = bcsp_decoded_size_buf(encoded_buf, encoded_sz);
-    sprite_t *sprite = (sprite_t *)memalign(BCSP_BUF_ALIGN, decoded_sz);
-    assertf(sprite, "Out of memory decoding BCSP sprite (%zu bytes)", decoded_sz);
+    size_t decoded_sz = lspr1_decoded_size_buf(encoded_buf, encoded_sz);
+    sprite_t *sprite = (sprite_t *)memalign(BC1Q_BUF_ALIGN, decoded_sz);
+    assertf(sprite, "Out of memory decoding BC1Q sprite (%zu bytes)", decoded_sz);
 
     size_t header_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
     memset(sprite, 0, header_bytes);
@@ -193,10 +193,10 @@ static sprite_t *bcsp_load_buf(const void *encoded_buf, int encoded_sz) {
     // payload was just CPU-read from the asset; flush it so RSP DMA sees the
     // final bytes. The destination region is RSP-written; invalidate it so any
     // dirty CPU lines covering it don't overwrite RSP's stores on later evict.
-    data_cache_hit_writeback((void *)src, (size_t)bw * bh * BCSP_BLOCK_SIZE);
+    data_cache_hit_writeback((void *)src, (size_t)bw * bh * BC1Q_BLOCK_SIZE);
     data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
 
-    rspq_write(bcsp_ovl_id, BCSP_CMD_SET_BUFFERS,
+    rspq_write(lspr1_ovl_id, BC1Q_CMD_SET_BUFFERS,
         PhysicalAddr(src), PhysicalAddr(dst), (uint32_t)(width * 2));
 
     // Walk the fully-aligned interior block grid as horizontal strips.
@@ -204,10 +204,10 @@ static sprite_t *bcsp_load_buf(const void *encoded_buf, int encoded_sz) {
         int strip_x = 0;
         while (strip_x < bw_full) {
             int n_blocks = bw_full - strip_x;
-            if (n_blocks > BCSP_STRIP_BLOCKS_MAX) n_blocks = BCSP_STRIP_BLOCKS_MAX;
-            uint32_t in_off  = (uint32_t)(by * bw + strip_x) * BCSP_BLOCK_SIZE;
+            if (n_blocks > BC1Q_STRIP_BLOCKS_MAX) n_blocks = BC1Q_STRIP_BLOCKS_MAX;
+            uint32_t in_off  = (uint32_t)(by * bw + strip_x) * BC1Q_BLOCK_SIZE;
             uint32_t out_off = (uint32_t)((by * 4) * width + strip_x * 4) * 2;
-            rspq_write(bcsp_ovl_id, BCSP_CMD_DECODE_STRIP,
+            rspq_write(lspr1_ovl_id, BC1Q_CMD_DECODE_STRIP,
                 in_off, out_off, (uint32_t)n_blocks);
             strip_x += n_blocks;
         }
@@ -219,9 +219,9 @@ static sprite_t *bcsp_load_buf(const void *encoded_buf, int encoded_sz) {
         int bx = bw_full;
         int max_dx = width - bx * 4;
         for (int by = 0; by < bh_full; by++) {
-            const uint8_t *blk = src + (by * bw + bx) * BCSP_BLOCK_SIZE;
+            const uint8_t *blk = src + (by * bw + bx) * BC1Q_BLOCK_SIZE;
             uint16_t *block_dst = dst + (by * 4) * width + (bx * 4);
-            bcsp_decode_block(blk, block_dst, width, max_dx, 4);
+            lspr1_decode_block(blk, block_dst, width, max_dx, 4);
         }
     }
 
@@ -233,9 +233,9 @@ static sprite_t *bcsp_load_buf(const void *encoded_buf, int encoded_sz) {
         for (int bx = 0; bx < bw; bx++) {
             int max_dx = width - bx * 4;
             if (max_dx > 4) max_dx = 4;
-            const uint8_t *blk = src + (by * bw + bx) * BCSP_BLOCK_SIZE;
+            const uint8_t *blk = src + (by * bw + bx) * BC1Q_BLOCK_SIZE;
             uint16_t *block_dst = dst + (by * 4) * width + (bx * 4);
-            bcsp_decode_block(blk, block_dst, width, max_dx, max_dy);
+            lspr1_decode_block(blk, block_dst, width, max_dx, max_dy);
         }
     }
 
@@ -251,28 +251,28 @@ static sprite_t *bcsp_load_buf(const void *encoded_buf, int encoded_sz) {
     return sprite;
 }
 
-static int bcsprite_init_refcount = 0;
-static sprite_decoder_t *bcsp_decoder = NULL;
+static int lspr1_init_refcount = 0;
+static sprite_decoder_t *lspr1_decoder = NULL;
 
-void bcsprite_init(void)
+void lspr1_init(void)
 {
-    if (bcsprite_init_refcount++ > 0) return;
+    if (lspr1_init_refcount++ > 0) return;
 
-    assertf(bcsp_decoder == NULL, "bcsprite is already initialized");
+    assertf(lspr1_decoder == NULL, "lspr1 is already initialized");
     rspq_init();
     asset_init_compression(2);
-    bcsp_ovl_id = rspq_overlay_register(&rsp_bcsp);
-    assertf(bcsp_ovl_id != 0, "bcsprite: failed to register rsp_bcsp overlay");
-    bcsp_decoder = sprite_decoder_register(bcsp_is_encoded, bcsp_load_buf);
+    lspr1_ovl_id = rspq_overlay_register(&rsp_lspr1);
+    assertf(lspr1_ovl_id != 0, "lspr1: failed to register rsp_lspr1 overlay");
+    lspr1_decoder = sprite_decoder_register(lspr1_is_encoded, lspr1_load_buf);
 }
 
-void bcsprite_close(void)
+void lspr1_close(void)
 {
-    if (--bcsprite_init_refcount > 0) return;
+    if (--lspr1_init_refcount > 0) return;
 
-    assertf(bcsp_decoder != NULL, "bcsprite is not initialized");
-    sprite_decoder_unregister(bcsp_decoder);
-    bcsp_decoder = NULL;
-    rspq_overlay_unregister(bcsp_ovl_id);
-    bcsp_ovl_id = 0;
+    assertf(lspr1_decoder != NULL, "lspr1 is not initialized");
+    sprite_decoder_unregister(lspr1_decoder);
+    lspr1_decoder = NULL;
+    rspq_overlay_unregister(lspr1_ovl_id);
+    lspr1_ovl_id = 0;
 }

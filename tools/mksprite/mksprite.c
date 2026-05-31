@@ -1971,18 +1971,18 @@ bool cli_parse_texparms(const char *opt, texparms_t *parms)
 // --lossy is not set, since lossy backends bypass the standard convert()
 // path entirely and write their own container).
 //
-//   --compress omitted (-1) -> LSPR (back-compat; will become an error in
-//                              a future release once existing build scripts
-//                              are migrated)
+//   --compress omitted (-1) -> Level 3 / H264I (back-compat; will become an
+//                              error in a future release once existing build
+//                              scripts are migrated)
 //   --compress 0            -> error: lossy requires a codec selection
-//   --compress 1            -> BCSP / BC1
+//   --compress 1            -> Level 1 / BC1Q (BC1/DXT1)
 //   --compress 2            -> reserved (future BC3 / BC7)
-//   --compress 3            -> LSPR
+//   --compress 3            -> Level 3 / H264I (H.264 intra)
 static int dispatch_lossy(const char *infn, const char *outfn,
                           const parms_t *pm, int compression) {
     if (compression == -1) {
         fprintf(stderr, "mksprite: WARNING: --lossy without --compress defaults to "
-                        "--compress 3 (LSPR); this will become an error in a "
+                        "--compress 3 (Level 3 / H264I); this will become an error in a "
                         "future release. Pass --compress 3 explicitly.\n");
         return mksprite_convert_lossy(infn, outfn, pm, 3);
     }

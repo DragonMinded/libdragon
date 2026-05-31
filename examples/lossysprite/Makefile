@@ -4,14 +4,14 @@ include $(N64_INST)/include/n64.mk
 src = lossysprite.c
 
 BG_INDICES = 0 1 2 3 4 5 6
-RAW_SPRITES  = $(foreach i,$(BG_INDICES),filesystem/bg$(i)_raw.sprite)
-BCSP_SPRITES = $(foreach i,$(BG_INDICES),filesystem/bg$(i)_bcsp.sprite)
-LSPR_SPRITES = $(foreach i,$(BG_INDICES),filesystem/bg$(i)_lspr.sprite)
+RAW_SPRITES   = $(foreach i,$(BG_INDICES),filesystem/bg$(i)_raw.sprite)
+BC1Q_SPRITES  = $(foreach i,$(BG_INDICES),filesystem/bg$(i)_bc1q.sprite)
+H264I_SPRITES = $(foreach i,$(BG_INDICES),filesystem/bg$(i)_h264i.sprite)
 
 assets_conv = \
 	$(RAW_SPRITES) \
-	$(BCSP_SPRITES) \
-	$(LSPR_SPRITES) \
+	$(BC1Q_SPRITES) \
+	$(H264I_SPRITES) \
 	filesystem/n64brew.sprite
 
 all: lossysprite.z64
@@ -26,17 +26,17 @@ filesystem/bg%_raw.sprite: assets/bg%.png
 	$(N64_MKSPRITE) --format RGBA16 --compress 1 -o $(BUILD_DIR)/sprites_raw "$<"
 	mv $(BUILD_DIR)/sprites_raw/bg$*.sprite "$@"
 
-filesystem/bg%_bcsp.sprite: assets/bg%.png
-	@mkdir -p $(dir $@) $(BUILD_DIR)/sprites_bcsp
+filesystem/bg%_bc1q.sprite: assets/bg%.png
+	@mkdir -p $(dir $@) $(BUILD_DIR)/sprites_bc1q
 	@echo "    [SPRITE] $@"
-	$(N64_MKSPRITE) --format RGBA16 --lossy 75 --compress 1 -o $(BUILD_DIR)/sprites_bcsp "$<"
-	mv $(BUILD_DIR)/sprites_bcsp/bg$*.sprite "$@"
+	$(N64_MKSPRITE) --format RGBA16 --lossy 75 --compress 1 -o $(BUILD_DIR)/sprites_bc1q "$<"
+	mv $(BUILD_DIR)/sprites_bc1q/bg$*.sprite "$@"
 
-filesystem/bg%_lspr.sprite: assets/bg%.png
-	@mkdir -p $(dir $@) $(BUILD_DIR)/sprites_lspr
+filesystem/bg%_h264i.sprite: assets/bg%.png
+	@mkdir -p $(dir $@) $(BUILD_DIR)/sprites_h264i
 	@echo "    [SPRITE] $@"
-	$(N64_MKSPRITE) --format RGBA16 --lossy 75 --compress 3 -o $(BUILD_DIR)/sprites_lspr "$<"
-	mv $(BUILD_DIR)/sprites_lspr/bg$*.sprite "$@"
+	$(N64_MKSPRITE) --format RGBA16 --lossy 75 --compress 3 -o $(BUILD_DIR)/sprites_h264i "$<"
+	mv $(BUILD_DIR)/sprites_h264i/bg$*.sprite "$@"
 
 # Brew sprite in standard RGBA16 format (losslessly compressed)
 filesystem/n64brew.sprite: assets/n64brew.png

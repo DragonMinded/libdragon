@@ -1,20 +1,20 @@
 #include <libdragon.h>
 
 typedef enum {
-    FMT_RAW  = 0,
-    FMT_BCSP = 1,
-    FMT_LSPR = 2,
+    FMT_RAW   = 0,
+    FMT_BC1Q  = 1,
+    FMT_H264I = 2,
     FMT_COUNT
 } fmt_t;
 
-static const char *fmt_name[FMT_COUNT]   = { "LOSSLESS",  "BC1/DXT1", "H.264" };
-static const char *fmt_suffix[FMT_COUNT] = { "raw",  "bcsp", "lspr" };
+static const char *fmt_name[FMT_COUNT]   = { "LOSSLESS",  "BC1Q", "H264I" };
+static const char *fmt_suffix[FMT_COUNT] = { "raw",  "bc1q", "h264i" };
 
 #define BG_COUNT 7
 #define FONT_ID  1
 
 static int bg_idx = 0;
-static fmt_t fmt_idx = FMT_BCSP;
+static fmt_t fmt_idx = FMT_BC1Q;
 static sprite_t *bg_sprite = NULL;
 static uint64_t last_load_us = 0;
 static size_t last_encoded_bytes = 0;
@@ -55,9 +55,9 @@ int main(void)
     rdpq_init();
     joypad_init();
 
-    // Register the LSPR and BCSP decoders with sprite_load
-    lossysprite_init();
-    bcsprite_init();
+    // Register the Level 3 (H264I) and Level 1 (BC1Q) lossy-sprite decoders
+    lspr3_init();
+    lspr1_init();
 
     // Font for the on-screen codec/timing readout
     rdpq_text_register_font(FONT_ID, rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO));

@@ -1,20 +1,20 @@
 ############################################################
-# rsp_bcsp.S
+# rsp_lspr1.S
 #
-# RSP ucode for BC1/DXT1 (BCSP) sprite decoding. Decodes BC1
+# RSP ucode for BC1/DXT1 (BC1Q) sprite decoding. Decodes BC1
 # block-compressed data into RGBA5551 pixels in RDRAM via SP DMA.
 #
 # Pipeline:
-#   1. CPU calls cmd_bcsp_set_buffers once per sprite to record the
+#   1. CPU calls cmd_lspr1_set_buffers once per sprite to record the
 #      RDRAM physical addresses of the compressed payload and the
 #      decoded RGBA5551 destination, plus the destination row stride.
-#   2. CPU then enqueues a series of cmd_bcsp_decode_strip commands,
+#   2. CPU then enqueues a series of cmd_lspr1_decode_strip commands,
 #      one per horizontal strip of up to N_STRIP_BLOCKS_MAX blocks.
 #      Each strip DMAs in its compressed blocks, decodes them with a
 #      vectorized per-block kernel, and DMAs the four output pixel rows
 #      back to RDRAM at the appropriate destination row offsets.
 #
-# The per-block math mirrors src/bcsprite.c::bcsp_decode_block() bit
+# The per-block math mirrors src/lspr1.c::lspr1_decode_block() bit
 # for bit so the RSP output is bit-exact with the reference C decoder.
 ############################################################
 
@@ -26,12 +26,12 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand cmd_bcsp_set_buffers,    12
-        RSPQ_DefineCommand cmd_bcsp_decode_strip,   12
+        RSPQ_DefineCommand cmd_lspr1_set_buffers,    12
+        RSPQ_DefineCommand cmd_lspr1_decode_strip,   12
     RSPQ_EndOverlayHeader
 
     .align 4
-    .ascii " Dragon RSP BCSP"
+    .ascii " Dragon RSP BC1Q"
 
     RSPQ_BeginSavedState
 RDRAM_IN_BASE:    .long 0     # phys addr of payload[] (8-byte aligned)
@@ -50,28 +50,28 @@ RDRAM_OUT_STRIDE: .long 0     # bytes between RGBA rows (= width * 2)
 #   e7 = 21888    (= 171<<7: vmudm accumulates full products, vd = ACC>>16,
 #                  so a *21888 MAC chain yields (sum*171)>>9 = sum/3)
     .align 4
-BCSP_VCONST:
+BC1Q_VCONST:
     .half 0x1F, 2048, 64, 2, 1, 0x8000, 0x0100, 21888
-BCSP_PACKCONST:
+BC1Q_PACKCONST:
     .half 2048, 64, 2, 0, 0, 0, 0, 0
 # Per-lane vmudl multipliers that logically shift an RGBA5551 endpoint right so
 # each 5-bit channel lands in bits [4:0] ((c*m)>>16): R>>11 (*32), G>>6 (*1024),
 # B>>1 (*32768). Lanes 0..2 and 4..6 hold the two endpoints; 3/7 are unused.
-BCSP_UNPACK:
+BC1Q_UNPACK:
     .half 32, 1024, 0x8000, 0, 32, 1024, 0x8000, 0
 # Per-lane left-shift multipliers for the vectorized index extraction. For pixel
 # lane j the 2-bit index lives at bits [2j:2j+1] of the 16-bit indices half; a
 # vmudn by 2^(14-2j) lands that field in bits [14:15] of lane j. The gather then
 # reads only bit15 (index bit1, the sign) and bit14 (index bit0), so the low
 # garbage bits left by the multiply are irrelevant and no shift/mask is needed.
-BCSP_LOOKUP:
+BC1Q_LOOKUP:
     .half 16384, 4096, 1024, 256, 64, 16, 4, 1
 # Low-half-only pack constants for alpha_mode. Identical to the pack/alpha-bit
 # multipliers but zeroed in lanes 4..7, so the packed result is 0 there
 # (v_pal.e4 = pal[3] = fully transparent). Four contiguous vectors, loaded via
 # lqv at +0/+16/+32/+48.
     .align 4
-BCSP_PACKLO:
+BC1Q_PACKLO:
     .half 2048, 2048, 2048, 2048, 0, 0, 0, 0   # R<<11 in lanes 0..3
     .half   64,   64,   64,   64, 0, 0, 0, 0   # G<<6
     .half    2,    2,    2,    2, 0, 0, 0, 0   # B<<1
@@ -97,13 +97,13 @@ OUTBUF:     .ds.b N_STRIP_BLOCKS_MAX * 16 * 2
     .text
 
 # ============================================================
-# cmd_bcsp_set_buffers
+# cmd_lspr1_set_buffers
 #   a0 = RDRAM_IN_BASE  (phys addr of payload[])
 #   a1 = RDRAM_OUT_BASE (phys addr of decoded RGBA5551 region)
 #   a2 = RDRAM_OUT_STRIDE (bytes per RGBA row = width * 2)
 # ============================================================
-    .func cmd_bcsp_set_buffers
-cmd_bcsp_set_buffers:
+    .func cmd_lspr1_set_buffers
+cmd_lspr1_set_buffers:
     sw a0, %lo(RDRAM_IN_BASE)
     sw a1, %lo(RDRAM_OUT_BASE)
     jr  ra
@@ -112,14 +112,14 @@ cmd_bcsp_set_buffers:
 
 
 # ============================================================
-# cmd_bcsp_decode_strip
+# cmd_lspr1_decode_strip
 #   a0 = in_offset_bytes  (offset from RDRAM_IN_BASE  to first block)
 #   a1 = out_offset_bytes (offset from RDRAM_OUT_BASE to pixel (0,0)
 #                           of this strip's top-left block)
 #   a2 = n_blocks (1..N_STRIP_BLOCKS_MAX)
 # ============================================================
-    .func cmd_bcsp_decode_strip
-cmd_bcsp_decode_strip:
+    .func cmd_lspr1_decode_strip
+cmd_lspr1_decode_strip:
     #define out_offset   s5
     #define n_blocks     s6
     #define block_idx    s7
@@ -177,15 +177,15 @@ cmd_bcsp_decode_strip:
     # Preserve args we need after DMAIn returns
     move out_offset, a1
     move n_blocks,   a2
-    li   t0, %lo(BCSP_VCONST)
+    li   t0, %lo(BC1Q_VCONST)
     lqv  v_const, 0, 0, t0
-    li   t0, %lo(BCSP_PACKCONST)
+    li   t0, %lo(BC1Q_PACKCONST)
     lqv  v_pack, 0, 0, t0
-    li   t0, %lo(BCSP_UNPACK)
+    li   t0, %lo(BC1Q_UNPACK)
     lqv  v_unpack, 0, 0, t0
-    li   t0, %lo(BCSP_LOOKUP)
+    li   t0, %lo(BC1Q_LOOKUP)
     lqv  v_shl, 0, 0, t0
-    li   t0, %lo(BCSP_PACKLO)
+    li   t0, %lo(BC1Q_PACKLO)
     lqv  v_pack_r_lo, 0,  0, t0
     lqv  v_pack_g_lo, 0, 16, t0
     lqv  v_pack_b_lo, 0, 32, t0
