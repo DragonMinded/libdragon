@@ -1,7 +1,156 @@
 /**
  * @file magma.c
  * @author Dennis Heinze <dennis.heinze@mailbox.org>
+ * @brief Magma core implementation
+ * @ingroup magma
+ * 
+ * # Magma: implementation details
+ * 
+ * For an explanation of magma's concepts at the API-level, see @ref magma
+ * 
+ * At the high level, the most important concepts of magma's implementation are the following:
+ * - Vertex pipeline
+ * - Vertex cache
+ * - Drawing commands
+ * 
+ * Drawing geometry roughly happens in two steps:
+ * 1. The vertex pipeline produces vertex data and stores it in the vertex cache. This step is highly customisable and by far the most complex.
+ * 2. Drawing commands then read the stored vertex data, assemble RDP triangle commands and submit them into the RDP queue. This step is mostly fixed function.
+ * 
+ * ## Vertex pipeline
+ * The vertex pipeline (or just "pipeline" for short) is invoked by enqueueing the command `MG_CMD_LOAD_VERTICES`.
+ * However, the core magma ucode doesn't actually contain the pipeline at all.
+ * Instead, that command jumps to a small bootstrapping segment which will load the actual pipeline into IMEM first.
+ * More precisely, it will load the shader code (see below) of the currently bound pipeline.
+ * It is loaded at the same address as the bootstrapper, ovewriting it.
+ * This means, that as long as rspq doesn't switch overlays, the pipeline remains there and is directly jumped to whenever `MG_CMD_LOAD_VERTICES` is called.
+ * When the overlay does get switched, the bootstrapper will be run again the next time the pipeline is invoked.
+ * 
+ * The bootstrapper (and therefore by extension the code of the pipeline) is located at the symbol `_MG_VTX_SHADER`.
+ * 
+ * Each pipeline itself is responsible for actually reading the input vertices from the vertex buffer and writing output correctly to the vertex cache.
+ * 
+ * ### Pipeline construction
+ * 
+ * A pipeline is simply a copy of a vertex shader, which has been patched to work with a certain vertex layout.
+ * A vertex shader in turn is just a regular #rsp_ucode_t that complies with magma's vertex shader requirements.
+ * 
+ * A compliant vertex shader must:
+ * - Have a text segment that
+ *   - is bitwise equal to the core magma overlay up to `_MG_VTX_SHADER`
+ *   - and contains the actual shader code at `_MG_VTX_SHADER`.
+ * - Have a meta segment (see @ref rsp_ucode_t.meta) whose contents are compatible with #mg_meta_header_t.
+ * 
+ * These requirements are automatically met by following the instructions in `rsp_magma.inc`.
+ * 
+ * Upon construction of a pipeline, magma creates a copy in RDRAM of the text segment starting at `_MG_VTX_SHADER` up to the end of the text segment
+ * (or in other words, it copies the shader code).
+ * Then it uses the shader description within the meta segment and the specified vertex layout to patch the shader code.
+ * 
+ * #### Shader description
+ * 
+ * The shader description contains the following:
+ * - A list of attribute descriptions
+ * - A list of uniform descriptions
+ * 
+ * An attribute description, in turn, contains:
+ * - The input number assigned to the attribute
+ * - Whether the attribute is optional
+ * - A list of loaders
+ * - A list of patches
+ * 
+ * A uniform description consists of:
+ * - The uniform's binding number
+ * - The uniform's start address in uniform memory
+ * - The uniform's end adddress
+ * 
+ * The pipeline construction process primarily makes use of the attribute descriptions (see next section).
+ * The uniform descriptions are simply stored within the pipeline so they can be queried by the user later via #mg_pipeline_get_uniform.
+ * 
+ * #### Loaders and patches
+ * 
+ * To adapt the shader code to a specific vertex layout, magma needs to patch every instruction that accesses vertex attributes, 
+ * so that the data is loaded from the correct offset.
+ * Shaders can contain arbitrary code and have an arbitrary set of attributes (note that magma itself doesn't dictate the *format* of attributes).
+ * That means every vertex shader needs to advertise the locations of all instructions that load attribute data.
+ * These instructions are called "loaders".
+ * Both scalar and vector loading instructions are supported.
+ * 
+ * Shaders may also mark any attribute as optional.
+ * If such an attribute is omitted from the vertex layout, the corresponding loaders are simply left untouched.
+ * For cases in which a pipeline needs to behave differently whenever an attribute is omitted, shaders can also specify sets of "patches".
+ * A patch is always associated with exactly one attribute.
+ * It consists of the following:
+ * - The location of an (arbitrary) instruction that will be modified in case the attribute is omitted.
+ * - An alternative instruction that will replace the original instruction.
+ * 
+ * NOTE: Since patches are only applied when their attribute is omitted, and loaders will not be modified in that case, 
+ * it is in fact possible for an instruction to be both a loader, and the target of a patch.
+ * 
+ * ### Uniforms
+ * 
+ * Uniforms are located in the saved data region, so that their contents are preserved across overlay switches.
+ * More specifically, they are located at `_MG_VTX_SHADER_UNIFORMS`, after all other data in DMEM.
+ * Because uniforms can be loaded via DMA individually, they must be aligned to 8 bytes.
+ * This is automatically ensured by the macros in `rsp_magma.inc`.
+ * 
+ * Uniforms don't have any format requirements and may contain any arbitrary data as required by the vertex shader code.
+ * This means that uniforms in and of themselves are just a region in DMEM.
+ * Loading uniforms is an accordingly simple process.
+ * A uniform loading command will just DMA some data from an arbitrary RDRAM location to the uniform's DMEM region.
+ * 
+ * However, there are two main modes of uniform loading:
+ * - Loading from uniform buffer (see #mg_uniform_load)
+ * - Loading from inline data (see #mg_uniform_load_inline)
+ * 
+ * The term "uniform buffer" here just means any arbitrary location in RDRAM that is managed by the user.
+ * Most notably, the user is responsible for keeping this data valid for as long as required by DMAs.
+ * 
+ * Loading uniforms "inline" does something different. Instead of just taking the pointer to the data,
+ * it will actually copy the data into the rspq command stream itself.
+ * Magma's ucode defines a series of commands of exponentially increasing size to make this possible without wasting too much space.
+ * The size of the data is obviously limited by the maximum size of rspq commands.
+ * Of course this means that loading uniforms inline may be wasteful if the uniform doesn't exactly fit one of these commands.
+ * The major advantage is that the user doesn't need to manage the data themselves.
+ * 
+ * ## Drawing commands
+ * 
+ * From the ucode's perspective, there is only a single drawing command: `MG_CMD_DRAW_INDICES`.
+ * This command will draw a single triangle from three vertices that are inside the vertex cache.
+ * The command can be invoked directly by using #mg_draw_triangle.
+ * 
+ * All other drawing functions will internally just emit a series of `MG_CMD_LOAD_VERTICES` and `MG_CMD_DRAW_INDICES`.
+ * In general they will draw triangles in "batches".
+ * In a single batch, they will try to fill the vertex cache in such a way, that as many triangles as possible can be drawn in that batch,
+ * using multiple invocations of `MG_CMD_LOAD_VERTICES`.
+ * Then, those triangles are drawn using `MG_CMD_DRAW_INDICES`.
+ * The next batch will fill the cache from scratch again.
+ * 
+ * #mg_draw does this in a straightforward manner, since it just draws a long list of triangles with unique vertices.
+ * A batch will simply load as many vertices as can fit into the cache.
+ * 
+ * #mg_draw_indexed on the other hand needs to do multiple loads per batch, since triangles may use vertices that are not contiguously arranged in the vertex buffer.
+ * It will try to optimize the loading sequence to some extent to avoid loading unnecessary vertices.
+ * It does not reorder triangles, however.
+ * 
+ * ### Clipping
+ * 
+ * Some triangles need to be clipped to avoid overflows while assembling the RDP command.
+ * The clipping check is performed automatically by the triangle assembling routine in `rsp_rdpq_tri.inc`.
+ * Magma registers as the clipping callback another bootstrapping function that will load the actual clipping routine into IMEM.
+ * This is done to reserve more IMEM for vertex shaders, since clipping should occur relatively rarely in most scenes.
+ * The clipping routine will in fact overwrite any currently loaded vertex shader.
+ * This will also restore the vertex shader bootstrapper (see above).
+ * 
+ * ### Skinning
+ * 
+ * Magma offers a CPU-side solution for skinning which is agnostic of any specific vertex shader.
+ * The user simply needs to provide a list of matrix indices (bone indices) alongside the vertices,
+ * a list of matrices, and the uniform which the matrices should be loaded into.
+ * The drawing functions will automatically perform the uniform loads inbetween vertex batches.
+ * For details, see #mg_input_assembly_parms_t.
  */
+
 #include "magma_internal.h"
 #include "magma_constants.h"
 #include "rspq.h"
@@ -11,8 +160,6 @@
 #include "../rdpq/rdpq_internal.h"
 #include "rsp_asm.h"
 #include <malloc.h>
-
-// TODO: Documentation on how magma works internally
 
 /** @brief Metadata about a uniform defined by a shader. */
 typedef struct
@@ -34,8 +181,8 @@ typedef struct
 {
     uint32_t input;             ///< Input number of this attribute.
     uint32_t is_optional;       ///< Non-zero if this attribute is optional.
-    uint32_t loaders_offset;    ///< Offset of the array of loaders, relative to the list of attributes.
-    uint32_t patches_offset;    ///< Offset of the array of patches, relative to the list of attributes.
+    uint32_t loaders_offset;    ///< Offset of the array of loaders in bytes, relative to the list of attributes.
+    uint32_t patches_offset;    ///< Offset of the array of patches in bytes, relative to the list of attributes.
     uint32_t loader_count;      ///< Number of loaders.
     uint32_t patches_count;     ///< Number of patches.
 } mg_meta_attribute_t;
@@ -45,9 +192,9 @@ typedef struct
 typedef struct
 {
     uint32_t uniform_count;         ///< Number of uniforms.
-    uint32_t uniforms_offset;       ///< Offset of the list of uniforms, relative to the metadata header.
+    uint32_t uniforms_offset;       ///< Offset of the list of uniforms in bytes, relative to the metadata header.
     uint32_t attribute_count;       ///< Number of attributes.
-    uint32_t attributes_offset;     ///< Offset of the list of attributes, relative ot the metadata header.
+    uint32_t attributes_offset;     ///< Offset of the list of attributes in bytes, relative to the metadata header.
 } mg_meta_header_t;
 
 /** @brief The main magma ucode overlay */

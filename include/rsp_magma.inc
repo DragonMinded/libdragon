@@ -1,3 +1,79 @@
+##################################################
+# RSP_MAGMA.INC - Include file for magma vertex shaders
+#
+# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
+##################################################
+#
+# HOW TO WRITE A VERTEX SHADER:
+# 
+# 1. Put `#include <rsp_magma.inc>` at the top of your file.
+# 2. Define the list of uniforms:
+#    * All uniforms must be placed between MgBeginShaderUniforms and MgEndShaderUniforms.
+#    * Begin each uniform declaration with MgBeginUniform, specifying a label and the binding number.
+#    * Place data directives within the uniform.
+#    * End a uniform declaration with MgEndUniform.
+#    * Only uniform declarations are permitted between MgBeginShaderUniforms and MgEndShaderUniforms.
+#    * Alignment of uniforms is handled automatically.
+# 3. Define the list of vertex attributes:
+#    * All attributes must be placed between MgBeginVertexInput and MgEndVertexInput.
+#    * Begin each attribute declaration with MgBeginVertexAttribute, specifying the input number and whether it is optional.
+#    * Specify the list of attribute loaders with MgVertexAttributeLoaders.
+#    * Optionally specify a list of patches with MgBeginVertexAttributePatch and MgEndVertexAttributePatch.
+#    * End an attribute declaration with MgEndVertexAttribute.
+#    * MgVertexAttributeLoaders and MgBeginVertexAttributePatch may only be specified once per attribute.
+#    * Between MgBeginVertexAttributePatch and MgEndVertexAttributePatch must be exactly one instruction.
+#    * Only attribute declarations are permitted between MgBeginVertexInput and MgEndVertexInput.
+# 4. Write the shader code:
+#    * All shader code must be put between MgBeginShader and MgEndShader.
+#    * No other code outside of those directives is permitted.
+#    * Shader code may perform any arbitrary computations, but is expected to load the specified input vertices,
+#      process them, and write the processed vertices into the vertex cache at the specified location.
+#    * See MgCmd_LoadVertices below for how the input arguments are laid out.
+#    * The shader code itself is not called in a loop. It is invoked once per vertex load command.
+#      The vertex processing loop must be written manually.
+#    * When all vertices have been processed, jump back to RSPQ as you would in any command.
+#    * You may define custom functions, but they must be placed between MgBeginShader and MgEndShader as well.
+#    * The scalar register in attribute loaders is assumed to point to the start of a vertex. The offset
+#      will then be automatically patched so that the labeled instruction loads from the correct offset.
+#    * Patches will simply replace the labeled instruction with the instruction specified between MgBeginVertexAttributePatch and MgEndVertexAttributePatch.
+#
+# Put together, here is an example of a vertex shader file:
+#
+#   #include <rsp_magma.inc>
+#   MgBeginShaderUniforms
+#       MgBeginUniform UNIFORMLABEL0, 0
+#           ...
+#       MgEndUniform
+#       MgBeginUniform UNIFORMLABEL1, 1
+#           ...
+#       MgEndUniform
+#       ...
+#   MgEndShaderUniforms
+#   
+#   MgBeginVertexInput
+#       MgBeginVertexAttribute 0, 0
+#           MgVertexAttributeLoaders LOADER0, LOADER1
+#       MgEndVertexAttribute
+#       MgBeginVertexAttribute 1, 1
+#           MgVertexAttributeLoaders LOADER2, LOADER3
+#           MgBeginVertexAttributePatch PATCH0
+#             vnop
+#           MgEndVertexAttributePatch
+#       MgEndVertexAttribute
+#       ...
+#   MgEndVertexInput
+#   
+#   MgBeginShader
+#       ...
+#       LOADER0: ldv $v01.e0, 0,s0
+#       LOADER1: ldv $v01.e4, 0,s1
+#       ...
+#       PATCH0: vmulf $v03, $v01, $v20
+#       ...
+#   MgEndShader
+#
+##################################################
+
 #include <rsp_queue.inc>
 #include <rsp_magma_state.inc>
 

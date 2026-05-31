@@ -258,6 +258,16 @@ typedef enum
 /**
  * @brief Describes how primitives are assembled from a list of indices.
  * 
+ * Set #mtx_indices to a non-NULL pointer to enable skinning via matrix indices.
+ * If enabled, each vertex will be assigned a unsigned 8-bit matrix index.
+ * These indices are read in order from #mtx_indices with a stride of #mtx_indices_stride.
+ * Spans of consecutive vertices with the same index will be read as batches.
+ * Before each batch, the uniform specified by #matrix_uniform will automatically be loaded.
+ * The pointer to load the value from is obtained as follows: `matrices + index * matrices_stride`.
+ * 
+ * NOTE: The uniform is *not* loaded inline. This means that the contents of #matrices need to remain
+ *       valid until any actual loads have been performed (see #mg_uniform_load).
+ * 
  * @see #mg_draw
  * @see #mg_draw_indexed
  */
