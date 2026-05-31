@@ -48,13 +48,14 @@ int main()
         .ambient_color = color_from_packed32(0xFFFFFFFF)
     });
 
-    // Initialize all matrices to identity
-    fm_mat4_t identity;
-    fm_mat4_identity(&identity);
+    // Setup simple orthographic projection
+    fm_mat4_t projection, model_view;
+    mg_mat4_ortho(&projection, -100, 100, -100, 100, -100, 100);
+    fm_mat4_identity(&model_view);
     mgfx_get_matrices(&uniform_data->matrices, &(mgfx_matrices_parms_t) {
-        .model_view_projection = identity.m[0],
-        .model_view = identity.m[0],
-        .normal = identity.m[0],
+        .model_view_projection = projection.m[0],
+        .model_view = model_view.m[0],
+        .normal = model_view.m[0],
     });
 
     const mg_uniform_t *fog_uniform = mg_pipeline_get_uniform(pipeline, MGFX_BINDING_FOG);
@@ -64,9 +65,9 @@ int main()
 
     // Create and fill a vertex buffer.
     vertex *vertices = malloc_uncached(sizeof(vertex) * 3);
-    vertices[0] = (vertex){ .pos = MGFX_POS(0, -0.5f, 0) };
-    vertices[1] = (vertex){ .pos = MGFX_POS(-0.5f, 0.5f, 0) };
-    vertices[2] = (vertex){ .pos = MGFX_POS(0.5f, 0.5f, 0) };
+    vertices[0] = (vertex){ .pos = { 0,   50, 0 }};
+    vertices[1] = (vertex){ .pos = {-50, -50, 0 }};
+    vertices[2] = (vertex){ .pos = { 50, -50, 0 }};
 
     // Everything we need is initialised. Start the main rendering loop!
     while (true)

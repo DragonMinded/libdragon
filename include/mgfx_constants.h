@@ -112,7 +112,6 @@
 
 #define MGFX_MATRIX_SIZE        64
 
-#define MGFX_VTX_POS_SHIFT      5
 #define MGFX_VTX_TEX_SHIFT      5
 
 /// @endcond

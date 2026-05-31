@@ -106,9 +106,9 @@ void mgfx_get_fog(mgfx_fog_t *dst, const mgfx_fog_parms_t *parms)
     float factor = is_disabled ? 0.0f : 1.0f / diff;
     float offset = -parms->start;
 
-    int32_t offset_fx = offset * (1<<(16 + MGFX_VTX_POS_SHIFT));
+    int32_t offset_fx = offset * (1<<16);
     // Premultiply with 1.15 conversion factor
-    int16_t factor_fx = factor * (1<<(15 - MGFX_VTX_POS_SHIFT));
+    int16_t factor_fx = factor * (1<<15);
 
     int16_t offset_i = offset_fx >> 16;
     uint16_t offset_f = offset_fx & 0xFFFF;

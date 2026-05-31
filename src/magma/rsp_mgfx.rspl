@@ -241,17 +241,13 @@ shader mgfx()
         
         // View space normals
         vnorm = vnormmask & vnorm.xxxxXXXX;
-
-        vpos.w = 0x20;
-        vpos.W = 0x20;
-
         vnorm *= vnormfactor;
 
         // Clip space position
         VTEMP = vmvp0  * vpos.xxxxXXXX;
         VTEMP = vmvp2 +* vpos.zzzzZZZZ;
         VTEMP = vmvp1 +* vpos.yyyyYYYY;
-        vpos_clip = vmvp3 +* vpos.wwwwWWWW;
+        vpos_clip = vmvp3 +* 1;
 
         VTEMP = vmn0:sfract  * vnorm:sfract.xxxxXXXX;
         VTEMP = vmn1:sfract +* vnorm:sfract.yyyyYYYY;
@@ -339,7 +335,7 @@ shader mgfx()
             VTEMP = vmvp0  * vpos.xxxxXXXX;
             VTEMP = vmvp1 +* vpos.yyyyYYYY;
             VTEMP = vmvp2 +* vpos.zzzzZZZZ;
-            vpos = vmvp3 +* vpos.wwwwWWWW;
+            vpos = vmvp3 +* 1;
         }
         
         u16 light_ptr = LIGHTING_LIGHTS;
