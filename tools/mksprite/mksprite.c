@@ -1886,28 +1886,36 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     fread(data, 1, sz, out);
     fclose(out);
 
-    // Compress the data and store it into output file
-    // This is a nop if compression is disabled, but at least
-    // we don't have two different code paths.
-    if (out_is_stdout) {
-        out = stdout;
-    } else {
-        out = fopen(outfn, "wb");
-        if (!out) {
-            fprintf(stderr, "ERROR: can't open output file %s\n", outfn);
-            free(data);
-            return 1;
-        }
+    // Compress the data and store it into the output file (shared with the
+    // lossy codec backends). This is a nop if compression is disabled, but at
+    // least we don't have two different code paths.
+    int rv = sprite_write_compressed(outfn, data, sz, compression);
+    free(data);
+    return rv;
+
+error:
+    spritemaker_free(&spr);
+    fclose(out);
+    return 1;
+}
+
+// Compress `data` (sz bytes) with the asset layer and write it to `outfn`.
+// Shared back half of the conversion pipeline: see mksprite.h.
+int sprite_write_compressed(const char *outfn, void *data, int sz, int compression) {
+    bool out_is_stdout = (strstr(outfn, "(stdout)") != NULL);
+    FILE *out = out_is_stdout ? stdout : fopen(outfn, "wb");
+    if (!out) {
+        fprintf(stderr, "ERROR: can't open output file %s\n", outfn);
+        return 1;
     }
 
     if (compression == -1) compression = DEFAULT_COMPRESSION;
     int cmp_size = asset_compress_mem(data, sz, out, compression, 256*1024, NULL);
-    free(data);
 
     if (flag_verbose) {
         if (compression > 0) {
             fprintf(stderr, "compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
-                (int)sz, cmp_size, 100.0 * (float)cmp_size / (float)(sz == 0 ? 1 : sz));
+                sz, cmp_size, 100.0 * (float)cmp_size / (float)(sz == 0 ? 1 : sz));
         } else {
             fprintf(stderr, "written: %s (%d bytes)\n", outfn, sz);
         }
@@ -1915,11 +1923,6 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
 
     fclose(out);
     return 0;
-
-error:
-    spritemaker_free(&spr);
-    fclose(out);
-    return 1;
 }
 
 bool cli_parse_texparms(const char *opt, texparms_t *parms)
@@ -1961,6 +1964,47 @@ bool cli_parse_texparms(const char *opt, texparms_t *parms)
     return true;
 }
 
+
+// Route a lossy-mode invocation to the right codec backend based on the
+// --compress level. The compress level is repurposed as a lossy-codec tier
+// selector when --lossy is active (it keeps its asset-layer meaning when
+// --lossy is not set, since lossy backends bypass the standard convert()
+// path entirely and write their own container).
+//
+//   --compress omitted (-1) -> Level 3 / H264I (back-compat; will become an
+//                              error in a future release once existing build
+//                              scripts are migrated)
+//   --compress 0            -> error: lossy requires a codec selection
+//   --compress 1            -> Level 1 / BC1Q (BC1/DXT1)
+//   --compress 2            -> reserved (future BC3 / BC7)
+//   --compress 3            -> Level 3 / H264I (H.264 intra)
+static int dispatch_lossy(const char *infn, const char *outfn,
+                          const parms_t *pm, int compression) {
+    if (compression == -1) {
+        fprintf(stderr, "mksprite: WARNING: --lossy without --compress defaults to "
+                        "--compress 3 (Level 3 / H264I); this will become an error in a "
+                        "future release. Pass --compress 3 explicitly.\n");
+        return mksprite_convert_lossy(infn, outfn, pm, 3);
+    }
+    switch (compression) {
+    case 0:
+        fprintf(stderr, "mksprite: --lossy requires --compress 1 or 3 "
+                        "(--compress 0 disables lossy compression)\n");
+        return 1;
+    case 1:
+        return mksprite_convert_bc1(infn, outfn, pm, compression);
+    case 2:
+        fprintf(stderr, "mksprite: --lossy --compress 2 is reserved for a "
+                        "future codec\n");
+        return 1;
+    case 3:
+        return mksprite_convert_lossy(infn, outfn, pm, compression);
+    default:
+        fprintf(stderr, "mksprite: invalid --compress level %d for lossy mode\n",
+                compression);
+        return 1;
+    }
+}
 
 int main(int argc, char *argv[])
 {
@@ -2222,7 +2266,7 @@ int main(int argc, char *argv[])
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
         if (pm.lossy_quality < 100) {
-            if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
+            if (dispatch_lossy(infn, outfn, &pm, compression) != 0) {
                 error = true;
             }
         } else {

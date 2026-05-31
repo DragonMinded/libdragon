@@ -47,8 +47,11 @@ bool __sprite_upgrade(sprite_t *sprite)
     assertf(memcmp(sprite, ASSET_MAGIC, 3) != 0, 
         "Sprite is compressed: use sprite_load() instead of reading the file manually");
 
-    assertf(memcmp(sprite, LSPR_FILE_MAGIC, LSPR_FILE_MAGIC_SIZE) != 0,
-        "Sprite is lossy (LSPR): call lossysprite_init() before sprite_load()");
+    assertf(memcmp(sprite, H264I_FILE_MAGIC, H264I_FILE_MAGIC_SIZE) != 0,
+        "Sprite is lossy (Level 3 H264I): call lspr3_init() before sprite_load()");
+
+    assertf(memcmp(sprite, BC1Q_FILE_MAGIC, BC1Q_FILE_MAGIC_SIZE) != 0,
+        "Sprite is lossy (Level 1 BC1Q): call lspr1_init() before sprite_load()");
 
     // Previously, the "format" field of the sprite structure (now renamed "flags")
     // was unused and always contained 0. Sprites could only be RGBA16 and RGBA32 anyway,

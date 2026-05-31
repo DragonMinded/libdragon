@@ -17,17 +17,29 @@
 #define SPRITE_FLAG_SHQ                     0x0040   ///< Sprite is in special SHQ format (2 mipmap levels with subtractive blending)
 
 /**
- * @brief File-start signature of an LSPR (lossy sprite) file (8 bytes).
+ * @brief File-start signature of a Lossy-sprite Level 3 (H264I) file (8 bytes).
  *
- * The leading four zero bytes are a safety pad: if an LSPR file reaches
- * #sprite_load without lossysprite_init() having registered the decoder,
+ * The leading four zero bytes are a safety pad: if an H264I file reaches
+ * #sprite_load without lspr3_init() having registered the decoder,
  * the buffer is reinterpreted as a #sprite_t — the pad forces width=height=0
  * so the situation is detectable and a clear assertion can fire instead of
  * silently producing a corrupt sprite.
  */
-#define LSPR_FILE_MAGIC      "\0\0\0\0LSPR"
-/** @brief Size in bytes of #LSPR_FILE_MAGIC (drops the trailing NUL). */
-#define LSPR_FILE_MAGIC_SIZE (sizeof(LSPR_FILE_MAGIC) - 1)
+#define H264I_FILE_MAGIC      "\0\0\0\0H264"
+/** @brief Size in bytes of #H264I_FILE_MAGIC (drops the trailing NUL). */
+#define H264I_FILE_MAGIC_SIZE (sizeof(H264I_FILE_MAGIC) - 1)
+
+/**
+ * @brief File-start signature of a Lossy-sprite Level 1 (BC1Q) file (8 bytes).
+ *
+ * Same safety-pad rationale as #H264I_FILE_MAGIC: the leading four zero bytes
+ * force width=height=0 if a BC1Q file is reinterpreted as a #sprite_t when
+ * lspr1_init() has not registered the decoder, so the situation produces
+ * a clear assertion instead of a silently corrupt sprite.
+ */
+#define BC1Q_FILE_MAGIC      "\0\0\0\0BC1Q"
+/** @brief Size in bytes of #BC1Q_FILE_MAGIC (drops the trailing NUL). */
+#define BC1Q_FILE_MAGIC_SIZE (sizeof(BC1Q_FILE_MAGIC) - 1)
 
 /** 
  * @brief Internal structure used as additional sprite header

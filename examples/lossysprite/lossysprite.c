@@ -1,25 +1,49 @@
 #include <libdragon.h>
 
-static const char *bg_filenames[] = {
-    "rom:/bg0.sprite",
-    "rom:/bg1.sprite",
-    "rom:/bg2.sprite",
-    "rom:/bg3.sprite",
-    "rom:/bg4.sprite",
-    "rom:/bg5.sprite",
-    "rom:/bg6.sprite",
-};
+typedef enum {
+    FMT_RAW   = 0,
+    FMT_BC1Q  = 1,
+    FMT_H264I = 2,
+    FMT_COUNT
+} fmt_t;
 
-static const int BG_COUNT = sizeof(bg_filenames) / sizeof(bg_filenames[0]);
+static const char *fmt_name[FMT_COUNT]   = { "LOSSLESS",  "BC1Q", "H264I" };
+static const char *fmt_suffix[FMT_COUNT] = { "raw",  "bc1q", "h264i" };
 
-int bg_idx = 0;
-sprite_t *bg_sprite = NULL;
+#define BG_COUNT 7
+#define FONT_ID  1
 
-void switch_bg(int direction) {
+static int bg_idx = 0;
+static fmt_t fmt_idx = FMT_BC1Q;
+static sprite_t *bg_sprite = NULL;
+static uint64_t last_load_us = 0;
+static size_t last_encoded_bytes = 0;
+static size_t last_raw_bytes = 0;
+
+static void load_bg(void) {
     if (bg_sprite) sprite_free(bg_sprite);
-    bg_idx = (bg_idx + direction + BG_COUNT) % BG_COUNT;
-    debugf("Loading background sprite: %s\n", bg_filenames[bg_idx]);
-    bg_sprite = sprite_load(bg_filenames[bg_idx]);
+    char fn[64];
+    snprintf(fn, sizeof(fn), "rom:/bg%d_%s.sprite", bg_idx, fmt_suffix[fmt_idx]);
+
+    // Stat the on-disk size so the corner readout can show a compression
+    // ratio relative to the uncompressed RGBA16 footprint.
+    last_encoded_bytes = 0;
+    FILE *f = fopen(fn, "rb");
+    if (f) {
+        fseek(f, 0, SEEK_END);
+        last_encoded_bytes = (size_t)ftell(f);
+        fclose(f);
+    }
+
+    uint64_t t0 = get_ticks_us();
+    bg_sprite = sprite_load(fn);
+    last_load_us = get_ticks_us() - t0;
+    last_raw_bytes = (size_t)bg_sprite->width * bg_sprite->height * 2;
+
+    float pct = last_raw_bytes
+        ? 100.0f * (float)last_encoded_bytes / (float)last_raw_bytes : 0.0f;
+    debugf("Loaded %s [%s] %u B (%.1f%% of raw) in %llu us\n",
+        fn, fmt_name[fmt_idx], (unsigned)last_encoded_bytes, pct, last_load_us);
 }
 
 int main(void)
@@ -31,11 +55,15 @@ int main(void)
     rdpq_init();
     joypad_init();
 
-    // Register the LSPR decoder with sprite_load
-    lossysprite_init();
+    // Register the Level 3 (H264I) and Level 1 (BC1Q) lossy-sprite decoders
+    lspr3_init();
+    lspr1_init();
 
-    // Load the first background sprite
-    switch_bg(0);
+    // Font for the on-screen codec/timing readout
+    rdpq_text_register_font(FONT_ID, rdpq_font_load_builtin(FONT_BUILTIN_DEBUG_MONO));
+
+    // Load the initial background sprite
+    load_bg();
 
     // Load the losslessly-compressed brew sprite
     sprite_t *brew_sprite = sprite_load("rom:/n64brew.sprite");
@@ -59,19 +87,35 @@ int main(void)
         surface_t *screen = display_get();
         rdpq_attach(screen, NULL);
         {
+            rdpq_set_mode_standard();
             // Draw the background
             rdpq_sprite_blit(bg_sprite, 0, 0, NULL);
             // Draw the brew sprite
-            rdpq_set_mode_standard();
             rdpq_mode_alphacompare(1); // colorkey (draw pixel with alpha >= 1)
             rdpq_sprite_blit(brew_sprite, x, y, NULL);
+
+            // Codec readout in the top-left corner: shows active format,
+            // last decode time, encoded size, and encoded-as-percent of
+            // the uncompressed RGBA16 footprint.
+            float pct = last_raw_bytes
+                ? 100.0f * (float)last_encoded_bytes / (float)last_raw_bytes : 0.0f;
+            rdpq_text_printf(NULL, FONT_ID, 12, 20,
+                "bg%d  %s\n%u B  %.1f%%\n%llu us",
+                bg_idx, fmt_name[fmt_idx],
+                (unsigned)last_encoded_bytes, pct,
+                last_load_us
+            );
         }
         rdpq_detach_show();
 
-        // Cycle background images on input
+        // L/R or A/B cycle backgrounds; C-Left/Right cycle codecs.
         joypad_poll();
         joypad_buttons_t btn = joypad_get_buttons_pressed(JOYPAD_PORT_1);
-        if (btn.r || btn.a) switch_bg(1);
-        if (btn.l || btn.z || btn.b) switch_bg(-1);
+        bool reload = false;
+        if (btn.r || btn.a)         { bg_idx = (bg_idx + 1) % BG_COUNT;             reload = true; }
+        if (btn.l || btn.z || btn.b){ bg_idx = (bg_idx - 1 + BG_COUNT) % BG_COUNT;  reload = true; }
+        if (btn.c_right)            { fmt_idx = (fmt_idx + 1) % FMT_COUNT;          reload = true; }
+        if (btn.c_left)             { fmt_idx = (fmt_idx - 1 + FMT_COUNT) % FMT_COUNT; reload = true; }
+        if (reload) load_bg();
     }
 }

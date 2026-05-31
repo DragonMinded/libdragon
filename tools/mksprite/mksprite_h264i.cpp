@@ -1,5 +1,5 @@
 /*
-    mksprite_lossy: lossy sprite encoder for mksprite (H.264 intra)
+    mksprite_h264i: Lossy-sprite Level 3 (H264I) encoder for mksprite (H.264 intra)
     Written by Giovanni Bajo <giovannibajo@gmail.com>
 
     This tool is part of the Libdragon SDK.
@@ -41,7 +41,7 @@ extern "C" {
 #include "mksprite.h"
 #include "x264/x264.h"
 
-#define LSPR_VERSION 4
+#define H264I_VERSION 4
 
 static void verbose(const char *str, ...) {
     if (!flag_verbose) return;
@@ -268,7 +268,7 @@ static char *make_temp_yuv_path(void) {
     if (!dir || !dir[0]) dir = ".";
     char name[512];
     unsigned long long t = (unsigned long long)nanotime();
-    snprintf(name, sizeof(name), "%s/lspr-%u-%llu.yuv",
+    snprintf(name, sizeof(name), "%s/h264i-%u-%llu.yuv",
              dir, (unsigned)getpid(), t);
     int fd = open(name, O_CREAT | O_EXCL | O_WRONLY, 0600);
     if (fd < 0) {
@@ -464,10 +464,10 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
-    // Write the LSPR header
-    w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0); // pad: see LSPR_FILE_MAGIC
-    w8(f, 'L'); w8(f, 'S'); w8(f, 'P'); w8(f, 'R');
-    w16(f, LSPR_VERSION); // version
+    // Write the H264I (Lossy-sprite Level 3) header
+    w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0); // pad: see H264I_FILE_MAGIC
+    w8(f, 'H'); w8(f, '2'); w8(f, '6'); w8(f, '4');
+    w16(f, H264I_VERSION); // version
     w16(f, img.width);
     w16(f, img.height);
     w16(f, orig_w);
