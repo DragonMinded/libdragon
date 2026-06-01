@@ -1,3 +1,9 @@
+##################################################
+# RSP_MAGMA_STATE.INC
+#
+# Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
+##################################################
+
 #include "magma_constants.h"
 
 .macro _MgState initialize
