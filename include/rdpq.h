@@ -1013,7 +1013,7 @@ inline void rdpq_set_prim_color(color_t color)
 inline void rdpq_set_detail_factor(float value)
 {
     // NOTE: this does not require a pipe sync
-    int8_t conv = (1.0 - value) * 31;
+    int8_t conv = (1.0f - value) * 31;
     extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_PRIM_COLOR_COMPONENT, ((conv & 0x1F) << 8) | (2<<16), 0, 0);
 }

@@ -251,20 +251,21 @@ RDPQ_MODE_COMBINER_2CYC:     .quad  0
     .func RDPQ_SetBlendingMode
 RDPQ_SetBlendingMode:
     # Set the blending mode formula in the second step. Then:
-    #  * If the formula is empty, clear also the first step if it was
-    #    part of a previous two-step blending (SOMX_BLEND_2PASS).
-    #  * If the formula is not empty and it is two-steps (SOMX_BLEND_2PASS),
-    #    put it also in the first step.
-    #  We cover both conditision in one single codeflow by putting into t0
-    #  the value to check against SOMX_BLEND_2PASS.
+    #  * If the new formula is 2-pass (SOMX_BLEND_2PASS), mirror it into
+    #    the first step as well.
+    #  * If the new formula is 1-pass (or empty), keep the first step as-is
+    #    unless it was previously part of an older 2-pass configuration.
+    #  * If we detect this stale 2-pass state in step0, clear it so that
+    #    switching from BLENDER2 -> BLENDER does not leave SOMX_BLEND_2PASS
+    #    active in the render mode.
     lw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0
-    beqz a1, setblending_check
     sw a1, %lo(RDPQ_MODE_BLENDER_STEPS) + 4
-    move t0, a1
-setblending_check:
-    andi t0, SOMX_BLEND_2PASS
-    beqz t0, RDPQ_UpdateRenderMode
-    nop
+
+    andi t1, a1, SOMX_BLEND_2PASS
+    bnez t1, RDPQ_SetFogMode
+     andi t1, t0, SOMX_BLEND_2PASS
+    beqz t1, RDPQ_UpdateRenderMode
+     li a1, 0
     # fallthrough!
     .endfunc
 

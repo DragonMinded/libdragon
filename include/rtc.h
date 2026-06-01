@@ -17,48 +17,48 @@
  * @brief Real-time clock interface.
  * @author Christopher Bonhage
  *
- * The Real-Time Clock (RTC) subsystem provides a high-level interface for
- * reading and writing the real-time clock on the N64 Joybus. The Joybus RTC
- * is currently the only real-time clock supported by LibDragon. There is
- * also a real-time clock included in the N64DD and iQue hardware, which use
- * different hardware interfaces and are not yet supported by LibDragon.
+ * The RTC subsystem integrates several hardware clocks with newlib time
+ * functions. Supported sources are identified by #rtc_source_t:
  *
- * To check if a hardware real-time clock is available, call #rtc_init.
- * If no hardware real-time clock is available, the subsystem will provide
- * a software-based real-time clock for the current play session. Note that
- * this software RTC does not persist across resets or power cycles!
+ * - **Joybus** (#RTC_SOURCE_JOYBUS): PIF/controller-port RTC on retail
+ *   hardware and most flash carts. This is preferred when present and
+ *   reporting a good crystal and battery.
+ * - **64DD** (#RTC_SOURCE_DD): RTC in the 64DD ASIC when a disk drive is
+ *   attached. It can coexist with the Joybus RTC; initialization may read
+ *   the 64DD first, then switch to Joybus if that RTC is detected and healthy.
+ * - **BBPlayer / iQue** (#RTC_SOURCE_BB): RTC on iQue Player hardware only;
+ *   it does not coexist with the other sources.
  *
- * Once the RTC subsystem is initialized, you can use ISO C Time functions
- * to get the current time, for example: `time(NULL)` will return the number of
- * seconds elapsed since the UNIX epoch (January 1, 1970 at 00:00:00).
- * To write a new time to the real-time clock, use the ISO C Time function
- * `settimeofday`.
+ * Call #rtc_init_async to start detection without blocking, or #rtc_init to
+ * block until the subsystem is ready (typically within a few milliseconds).
+ * #rtc_init returns `true` if any **hardware** source was selected, `false`
+ * if the subsystem fell back to the software clock (#RTC_SOURCE_NONE).
  *
- * This subsystem handles decoding and encoding the date/time from its internal
- * format into a standard `struct tm` structure. You can use convert between
- * `struct tm` and `time_t` using the standard C library functions `gmtime`,
- * `mktime`, and `time`.
+ * If no hardware clock is usable, the subsystem keeps time in software for
+ * the current session only; that value does not survive reset or power loss.
  *
- * In anticipation of support for the 64DD and iQue real-time clocks, the
- * subsystem has APIs that allow homebrew to specify the preferred RTC source.
- * Use #rtc_is_source_available to determine if a specific RTC source can be
- * used, and #rtc_set_source to switch between available sources. The subsystem
- * will automatically resynchronize the time with the new clock when the source
- * is changed.
+ * Initialization installs hooks so POSIX `gettimeofday` / `settimeofday` and
+ * ISO C `time` work as usual (for example `time(NULL)` for seconds since the
+ * UNIX epoch). Use `struct tm` with `gmtime`, `localtime`, and `mktime` as on
+ * any hosted C environment.
  *
- * Internally, Joybus RTC cannot represent dates before 1990-01-01, although
- * some RTC implementations (like UltraPIF) only support dates after
- * 2000-01-01.
+ * Use #rtc_is_source_available, #rtc_get_source, and #rtc_set_source to query
+ * or change the active source. #rtc_set_source resynchronizes cached time from
+ * the newly selected hardware.
  *
- * 64DD RTC only stores two digits for the year, so conventionally 96-99 are
- * treated as 1996-1999 and 00-95 are treated as 2000-2095.
+ * Each source accepts a different range of `time_t` values. Query
+ * #rtc_get_supported_range or #rtc_get_source_supported_range instead of
+ * hard-coding limits. Roughly: Joybus is represented from 1900 through 2099
+ * (some real chips, e.g. UltraPIF, effectively only support from 2000); 64DD
+ * uses two-digit years interpreted as 1996–1999 and 2000–2095; BBPlayer spans
+ * 2000–2099 by default (a century bit can extend the hardware range; LibDragon
+ * does not enable it automatically). The software fallback allows 1970 through
+ * 2099 (#RTC_SOFT_TIMESTAMP_MIN / #RTC_SOFT_TIMESTAMP_MAX). When the cached
+ * time would leave the active source’s range, reads wrap inside that range.
  *
- * For consistency, the RTC subsystem only supports dates between 1996-2095.
- * Attempting to set the clock beyond this range will fail. RTC subsystem
- * should only be set to the "actual" date and time, and not for
- * arbitrary time manipulation. If your game uses some form of
- * time travel or real-time clock that does not match the actual
- * date/time, you should use an offset from the actual time.
+ * Writes outside the supported range fail with #RTC_EBADTIME. Prefer storing
+ * game-specific “fiction time” as an offset from the wall clock rather than
+ * programming impossible dates into hardware.
  *
  * @{
  */

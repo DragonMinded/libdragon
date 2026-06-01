@@ -173,7 +173,7 @@ void profile_dump(void) {
 		strcpy(n, slots[i].name);
 		
 		uint32_t mean = slots[i].ticks / frames;
-	    float partial_avg = (float)mean * 100.0 / (float)frame_avg_wall;
+	    float partial_avg = (float)mean * 100.0f / (float)frame_avg_wall;
 		int cache_misses = slots[i].cache_misses / frames;
 		float cache_miss_rate = 0.0f;
 		if (slots[i].cache_hits + slots[i].cache_misses > 0) {

@@ -210,7 +210,7 @@ void fm_vec3_reflect(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n);
  * @param[out] out  Will contain the refracted vector.
  * @param[in]  i    The incident vector. Must be normalized.
  * @param[in]  n    The surface's normal vector. Must be normalized.
- * @param[in]  eta  The ratio of indices of refraction (indicent/transmitted)
+ * @param[in]  eta  The ratio of indices of refraction (incident/transmitted)
  * @return          True if refraction occurs; false if total internal reflection occurs.
  */
 bool fm_vec3_refract(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n, float eta);
@@ -238,7 +238,7 @@ inline void fm_quat_identity(fm_quat_t *out)
  * @brief Create a quaternion from euler angles.
  * 
  * @param[out] out  Will contain the created quaternion.
- * @param[in]  euler  Array containing euler angles in radians.
+ * @param[in]  euler  Array containing euler angles in radians, applied in ZYX order.
  */
 void fm_quat_from_euler(fm_quat_t *out, const float euler[3]);
 
@@ -287,6 +287,7 @@ inline float fm_quat_dot(const fm_quat_t *a, const fm_quat_t *b)
 
 /**
  * @brief Compute the inverse of a quaternion.
+ * @note The input quaternion must have non-zero magnitude.
  */
 inline void fm_quat_inverse(fm_quat_t *out, const fm_quat_t *q)
 {
@@ -341,9 +342,9 @@ inline void fm_mat4_identity(fm_mat4_t *out)
  */
 inline void fm_mat4_scale(fm_mat4_t *out, const fm_vec3_t *scale)
 {
-    for (int i=0; i<4; i++) out->m[0][i] *= scale->x;
-    for (int i=0; i<4; i++) out->m[1][i] *= scale->y;
-    for (int i=0; i<4; i++) out->m[2][i] *= scale->z;
+    for (int i=0; i<4; i++) out->m[i][0] *= scale->x;
+    for (int i=0; i<4; i++) out->m[i][1] *= scale->y;
+    for (int i=0; i<4; i++) out->m[i][2] *= scale->z;
 }
 
 /**
@@ -467,6 +468,7 @@ float fm_mat4_det(const fm_mat4_t *m);
 
 /**
  * @brief Compute the inverse of a 4x4 matrix.
+ * @note The input matrix must be invertible.
  */
 void fm_mat4_inverse(fm_mat4_t *out, const fm_mat4_t *m);
 
@@ -490,11 +492,13 @@ void fm_mat4_inverse(fm_mat4_t *out, const fm_mat4_t *m);
  * 
  * @param[out]  out The resulting matrix.
  * @param[in]   m   The input matrix. Must be affine.
+ * @note The upper-left 3x3 part of the input must be invertible.
  */
 void fm_mat4_affine_to_normal_mat(fm_mat4_t *out, const fm_mat4_t *m);
 
 /**
  * @brief Create a view matrix that represents a camera looking in a certain direction from some position.
+ * @note The direction vector is expected to be normalized. The up vector must not be collinear with it.
  */
 void fm_mat4_look(fm_mat4_t *out, const fm_vec3_t *eye, const fm_vec3_t *dir, const fm_vec3_t *up);
 
@@ -634,7 +638,7 @@ inline void fm_mat4_mul_vec4(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec4_t
 
   inline fm_quat_t operator*(fm_quat_t const& lhs, fm_quat_t const& rhs) {
     fm_quat_t res{};
-    fm_quat_mul(&res, const_cast<fm_quat_t*>(&lhs), const_cast<fm_quat_t*>(&rhs));
+    fm_quat_mul(&res, &lhs, &rhs);
     return res;
   }
 

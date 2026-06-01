@@ -152,12 +152,25 @@ static inline float fm_floorf(float x) {
 
 /**
  * @brief Faster version of fmodf
- * 
+ *
+ * Compute x modulo y, where the result is in the range (-y;y)
+ * (depending on the sign of x).
+ *
  * Optimized version of fmodf, which returns accurate results in case
  * of small magnitudes (x <= 1e6). Do not use this version if you need
- * accurate module of very large numbers.
+ * accurate remainder of very large numbers.
  */
 static inline float fm_fmodf(float x, float y) {
+    return x - fm_truncf(x * (1.0f / y)) * y;
+}
+
+/**
+ * @brief Compute x modulo y, where the result is in the range [0;y)
+ *
+ * Returns accurate results in case of small magnitudes (x <= 1e6).
+ * Do not use this version if you need accurate modulus of very large numbers.
+ */
+static inline float fm_wrapf(float x, float y) {
     return x - fm_floorf(x * (1.0f / y)) * y;
 }
 
@@ -242,7 +255,7 @@ float fm_atan2f(float y, float x);
  * It is recommended to clamp x and do fm_exp(CLAMP(x, -85, 85))
  *
  */
-float fm_exp(float x);
+float fm_expf(float x);
 
 /**
  * @brief Linearly interpolate between two scalar values.
@@ -287,7 +300,7 @@ float fm_wrap_angle(float angle);
     #define cosf(x)         (__builtin_constant_p(x) ? cosf(x) : fm_cosf(x))
     #define sincosf(x,s,c)  (__builtin_constant_p(x) ? sincosf(x,s,c) : fm_sincosf(x,s,c))
     #define atan2f(y, x)    ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? atan2f(y, x) : fm_atan2f(y, x))
-    #define exp(x)          (__builtin_constant_p(x) ? exp(x) : fm_exp(x))
+    #define expf(x)         (__builtin_constant_p(x) ? expf(x) : fm_expf(x))
 #endif
 
 #ifdef __cplusplus

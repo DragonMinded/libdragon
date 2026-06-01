@@ -15,8 +15,8 @@
  * standard algorithms like DEFLATE.
  */
 #include "minishrinkler_internal.h"
+#include "scratch.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #if TRACE_SHRINKLER
@@ -686,7 +686,7 @@ static int compress_data(const unsigned char *input, int input_size,
 
     size_t total_size = work_memory_size; // allocate exactly what caller provides
 
-    shr_work_buffer_t *mem = malloc(total_size);
+    shr_work_buffer_t *mem = scratch_malloc(total_size);
     if (!mem) {
         fprintf(stderr, "Error: Memory allocation failed\n");
         return -4; // Memory allocation failed
@@ -784,7 +784,7 @@ static int compress_data(const unsigned char *input, int input_size,
     int output_size = mem->coder.output_size;
     
     // Free embedded memory
-    free(mem);
+    scratch_free(mem);
     
     return output_size;
 }

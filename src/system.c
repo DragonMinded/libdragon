@@ -67,6 +67,20 @@ char *__heap_end = 0;
 char *__heap_top = 0;
 
 /**
+ * @brief Lazy initialize heap boundaries.
+ *
+ * Both sbrk() and sbrk_top() can be the first heap API called at runtime.
+ */
+static void __heap_init_if_needed(void)
+{
+    if (__heap_end == 0) {
+        __heap_end = (char*)HEAP_START_ADDR;
+        __heap_top = (char*)KSEG0_START_ADDR + __boot_memsize - STACK_SIZE;
+        __heap_total_size = (int)((unsigned long)__heap_top - (unsigned long)__heap_end);
+    }
+}
+
+/**
  * @brief Write to the MESS debug register
  *
  * @param[in] x
@@ -376,6 +390,34 @@ int detach_filesystem( const char * const prefix )
                 /* All went well */
                 return 0;
             }
+        }
+    }
+
+    /* Couldn't find the filesystem to free */
+    errno = EPERM;
+    return -2;
+}
+
+int detach_filesystem_by_pointer( filesystem_t *filesystem )
+{
+    /* Sanity checking */
+    if( !filesystem )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    for( int i = 0; i < MAX_FILESYSTEMS; i++ )
+    {
+        if( filesystems[i].prefix && filesystems[i].fs == filesystem )
+        {
+            /* Now free the memory associated with the prefix and zero out the filesystem */
+            free( filesystems[i].prefix );
+            filesystems[i].prefix = 0;
+            filesystems[i].fs = 0;
+
+            /* All went well */
+            return 0;
         }
     }
 
@@ -1103,36 +1145,39 @@ int readlink( const char *path, char *buf, size_t bufsize )
  */
 void *sbrk( int incr )
 {
-    char *        prev_heap_end;
+    char *prev_heap_end;
+    char *new_heap_end;
+    bool emit_exp_pak_warning = false;
 
     disable_interrupts();
 
-    if( __heap_end == 0 )
-    {
-        __heap_end = (char*)HEAP_START_ADDR;
-        __heap_top = (char*)KSEG0_START_ADDR + __boot_memsize - STACK_SIZE;
-        __heap_total_size = (int)((unsigned long)__heap_top - (unsigned long)__heap_end);
-    }
+    __heap_init_if_needed();
 
     prev_heap_end = __heap_end;
-    __heap_end += incr;
+    new_heap_end = __heap_end + incr;
 
-    // check if out of memory
-    if (__heap_end > __heap_top)
+    // Keep the heap end inside [HEAP_START_ADDR, __heap_top]
+    if (new_heap_end < (char*)HEAP_START_ADDR || new_heap_end > __heap_top)
     {
-        __heap_end -= incr;
         prev_heap_end = (char *)-1;
         errno = ENOMEM;
+    } else {
+        __heap_end = new_heap_end;
     }
 
     if (__heap_end - (char*)KSEG0_START_ADDR >= 4*1024*1024 - STACK_SIZE && !__expanded_memory_asserted)
     {
-        static char warning[] = "WARNING: Allocations beyond 4 MiB: this ROM requires the expansion pak to work properly.\nWARNING: Call assert_memory_expanded() or is_memory_expanded() in main to disable this warning.\n";
-        write( STDERR_FILENO, warning, sizeof(warning) - 1 );
         __expanded_memory_asserted = true; // only emit the warning once
+        emit_exp_pak_warning = true;
     }
 
     enable_interrupts();
+
+    if (emit_exp_pak_warning)
+    {
+        static char warning[] = "WARNING: Allocations beyond 4 MiB: this ROM requires the expansion pak to work properly.\nWARNING: Call assert_memory_expanded() or is_memory_expanded() in main to disable this warning.\n";
+        write( STDERR_FILENO, warning, sizeof(warning) - 1 );
+    }
 
     return (void *)prev_heap_end;
 }
@@ -1150,16 +1195,23 @@ void *sbrk( int incr )
  */
 void* sbrk_top( int incr )
 {
+    char *heap_top_limit;
+    char *new_heap_top;
+
     disable_interrupts();
 
-    __heap_top -= incr;
-    if (__heap_end > __heap_top)
+    __heap_init_if_needed();
+    heap_top_limit = (char*)KSEG0_START_ADDR + __boot_memsize - STACK_SIZE;
+    new_heap_top = __heap_top - incr;
+
+    if (new_heap_top < __heap_end || new_heap_top > heap_top_limit)
     {
-        __heap_top += incr;
         errno = ENOMEM;
+        enable_interrupts();
         return (void *)-1;
     }
 
+    __heap_top = new_heap_top;
     __heap_top_allocated_size += incr;
 
     enable_interrupts();

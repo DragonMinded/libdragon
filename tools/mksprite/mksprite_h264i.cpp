@@ -1,5 +1,5 @@
 /*
-    mksprite_lossy: lossy sprite encoder for mksprite (H.264 intra)
+    mksprite_h264i: Lossy-sprite Level 3 (H264I) encoder for mksprite (H.264 intra)
     Written by Giovanni Bajo <giovannibajo@gmail.com>
 
     This tool is part of the Libdragon SDK.
@@ -41,14 +41,7 @@ extern "C" {
 #include "mksprite.h"
 #include "x264/x264.h"
 
-enum {
-    LSPR_YUV_420 = 0,
-    LSPR_YUV_422 = 1,
-    LSPR_YUV_444 = 2,
-    LSPR_YUV_400 = 3,
-};
-
-#define LSPR_VERSION 3
+#define H264I_VERSION 4
 
 static void verbose(const char *str, ...) {
     if (!flag_verbose) return;
@@ -275,7 +268,7 @@ static char *make_temp_yuv_path(void) {
     if (!dir || !dir[0]) dir = ".";
     char name[512];
     unsigned long long t = (unsigned long long)nanotime();
-    snprintf(name, sizeof(name), "%s/lspr-%u-%llu.yuv",
+    snprintf(name, sizeof(name), "%s/h264i-%u-%llu.yuv",
              dir, (unsigned)getpid(), t);
     int fd = open(name, O_CREAT | O_EXCL | O_WRONLY, 0600);
     if (fd < 0) {
@@ -360,6 +353,9 @@ extern "C" int mksprite_convert_lossy(
 
     verbose("mksprite: lossy %s -> %s [%dx%d]", infn, outfn, img.width, img.height);
 
+    // rgba_to_i420 uses Kr=0.2126/Kb=0.0722 with full-range scaling (BT.709 full range).
+    // The runtime decoder hard-codes the matching K0..K5 coefficients; if this conversion
+    // is ever changed, the decoder must be updated in lockstep.
     std::vector<uint8_t> y, u, v;
     rgba_to_i420(img.image, img.width, img.height, y, u, v);
     free(img.image);
@@ -370,7 +366,7 @@ extern "C" int mksprite_convert_lossy(
     x264_param_t param;
     char *recon_yuv_path = NULL;
     x264_param_default_preset(&param, "veryslow", "stillimage");
-    param.i_log_level = flag_verbose ? X264_LOG_INFO : X264_LOG_ERROR;
+    param.i_log_level = (flag_verbose >= 2) ? X264_LOG_INFO : X264_LOG_ERROR;
     if (flag_debug || flag_verbose) {
         param.b_full_recon = 1;
         recon_yuv_path = make_temp_yuv_path();
@@ -419,6 +415,20 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
+    // Snapshot the parameters as adjusted by x264_encoder_open. The "stillimage"
+    // tune drives f_psy_rd/f_psy_trellis up, which causes the encoder to silently
+    // shift i_chroma_qp_offset. For CRF mode without b_stitchable, x264 also writes
+    // pic_init_qp = SPEC_QP(i_qp_constant). Both values must travel out-of-band
+    // so the runtime decoder can apply the same dequant scale x264 used.
+    x264_param_t adjusted;
+    x264_encoder_parameters(enc, &adjusted);
+    int pic_init_qp = (adjusted.rc.i_rc_method == X264_RC_ABR || adjusted.b_stitchable)
+                      ? 26
+                      : adjusted.rc.i_qp_constant;
+    pic_init_qp = clamp_int(pic_init_qp, 0, 51);
+    int chroma_qp_offset = adjusted.analyse.i_chroma_qp_offset;
+    chroma_qp_offset = clamp_int(chroma_qp_offset, -12, 12);
+
     x264_picture_t pic;
     x264_picture_t pic_out;
     x264_picture_init(&pic);
@@ -454,13 +464,16 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
-    w8(f, 'L'); w8(f, 'S'); w8(f, 'P'); w8(f, 'R');
-    w16(f, LSPR_VERSION); // version
-    w16(f, LSPR_YUV_420); // flags: YUV format only for now
+    // Write the H264I (Lossy-sprite Level 3) header
+    w8(f, 0); w8(f, 0); w8(f, 0); w8(f, 0); // pad: see H264I_FILE_MAGIC
+    w8(f, 'H'); w8(f, '2'); w8(f, '6'); w8(f, '4');
+    w16(f, H264I_VERSION); // version
     w16(f, img.width);
     w16(f, img.height);
     w16(f, orig_w);
     w16(f, orig_h);
+    w8(f, (uint8_t)pic_init_qp);
+    w8(f, (uint8_t)(int8_t)chroma_qp_offset);
 
     x264_nal_t *nals = NULL;
     int i_nals = 0;

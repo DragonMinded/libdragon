@@ -36,6 +36,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/accounting.o \
 	$(BUILD_DIR)/profile.o \
 	$(BUILD_DIR)/n64sys.o \
+	$(BUILD_DIR)/scratch.o \
 	$(BUILD_DIR)/vaddr64.o \
 	$(BUILD_DIR)/mi_memset.o \
 	$(BUILD_DIR)/interrupt.o \
@@ -74,6 +75,9 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/rsp_crash.o \
 	$(BUILD_DIR)/inspector.o \
 	$(BUILD_DIR)/sprite.o \
+	$(BUILD_DIR)/lspr3.o \
+	$(BUILD_DIR)/lspr1.o \
+	$(BUILD_DIR)/rsp_lspr1.o \
 	$(BUILD_DIR)/dma.o \
 	$(BUILD_DIR)/timer.o \
 	$(BUILD_DIR)/exception.o \

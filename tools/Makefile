@@ -43,7 +43,7 @@ ifeq ($(OS),Windows_NT)
 	endif
 
 # Define a macro with an estimate of the MSYS2 environment's age so that we can check it for compatibility reasons.
-	MSYS2_AGE := $(shell date -d "$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
+	MSYS2_AGE := $(shell date -d "$$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
 	ifeq ($(MSYS2_AGE),)
 		$(error "Failed to determine MSYS2 age. Please make sure that pacman, date, and sed are in PATH and that msys2-runtime is installed.")
 	else
@@ -106,7 +106,7 @@ $(DECOMP_STUBS):
 -include $(wildcard common/*.d)
 
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
-mksprite_OBJS = mksprite/mksprite.o mksprite/mksprite_lossy.o mksprite/x264_amalgam.o mksprite/x264_amalgam2.o common/assetcomp.a
+mksprite_OBJS = mksprite/mksprite.o mksprite/mksprite_h264i.o mksprite/mksprite_bc1q.o mksprite/x264_amalgam.o mksprite/x264_amalgam2.o common/assetcomp.a
 mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o mkfont/plutosvg/plutosvg-amalgam.o common/assetcomp.a
 mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a common/meshoptimizer/vcacheoptimizer.o
 mkmaterial_OBJS = mkmaterial/mkmaterial.o mkmaterial/mkmaterial_parse.o mkmaterial/mkmaterial_export.o common/assetcomp.a 

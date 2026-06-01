@@ -41,7 +41,7 @@ float fm_sinf_approx(float x, int approx) {
     // bring the argument there. This reduction using fm_fmodf is not
     // very accurate for large numbers, so it will introduce more error compared
     // to the 5 ULP figure.
-    x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
+    x = fm_wrapf(x+pi_hi, 2*pi_hi) - pi_hi;
     x = sinf_approx(x, approx);
     return x;
 }
@@ -55,7 +55,7 @@ float fm_cosf(float x) {
 }
 
 void fm_sincosf(float x, float *sin, float *cos) {
-    x = fm_fmodf(x+pi_hi, 2*pi_hi) - pi_hi;
+    x = fm_wrapf(x+pi_hi, 2*pi_hi) - pi_hi;
     float sy = sinf_approx(x, 0);
     float cy = sqrtf(1.0f - sy * sy);
     if (fabsf(x) > half_pi_hi) {
@@ -81,7 +81,7 @@ float fm_atan2f(float y, float x) {
     return copysignf(r, y);
 }
 
-float fm_exp(float x){
+float fm_expf(float x){
     // Approximation of exp(x) with a relative error <3%.
     // This is several times faster than exp(x). The implementation uses a
     // method by Nicole Schraudolph.
@@ -104,8 +104,7 @@ float fm_lerp_angle(float a, float b, float t)
 
 float fm_wrap_angle(float angle)
 {
-    float a = fm_fmodf(angle, FM_PI*2);
-    return a < 0.0f ? a + FM_PI*2 : a;
+    return fm_wrapf(angle, FM_PI*2);
 }
 
 extern inline float fm_lerp(float a, float b, float t);

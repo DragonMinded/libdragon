@@ -14,6 +14,7 @@ EXAMPLES += fontgallery
 EXAMPLES += gldemo
 EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
+EXAMPLES += lossysprite
 EXAMPLES += meshviewer
 EXAMPLES += mgdemo
 EXAMPLES += mghello

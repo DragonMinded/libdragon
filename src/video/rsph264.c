@@ -15,7 +15,11 @@ static uint32_t rsph264_intra_ovl_id = 0;
 enum {
     // Tasks in rsph264_inter
     TASK_OMX_DEQUANT_TRANSFORM_RESIDUAL        = 0,
-    TASK_OMX_TRANSFORM_DEQUANT_LUMADC          = 1,
+    // Slot 1 was OMX_TransformDequantLumaDC; moved to the intra overlay
+    // because TransformDequantLumaDC needs full 32-bit signed math (~324
+    // bytes of IMEM) that this overlay can't spare. The slot is held as
+    // an RSPQ_Loop placeholder so the remaining inter command IDs don't
+    // shift.
     TASK_OMX_TRANSFORM_DEQUANT_CHROMADC        = 2,
     TASK_PROCESS_LUMA_INTER_RESIDUAL           = 3,
     TASK_PROCESS_CHROMA_RESIDUAL               = 4,
@@ -32,6 +36,7 @@ enum {
     TASK_OMX_INTRAPREDICT_CHROMA_8             = 2,
     TASK_PROCESS_LUMA_INTRA4_RESIDUAL          = 3,
     TASK_PROCESS_LUMA_INTRA16_RESIDUAL         = 4,
+    TASK_OMX_TRANSFORM_DEQUANT_LUMADC          = 5,
 
     TASK_SET_PACKED_DELTA_BUFFER               = 15,
 };
@@ -342,17 +347,9 @@ inline void rsph264_queue_transform_dequant_lumadc(
         fast_data_cache_hit_writeback_invalidate(dst, 32);
     }
 
-    rspq_write(rsph264_inter_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_LUMADC,
+    rspq_write(rsph264_intra_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_LUMADC,
         0, PhysicalAddr(dst),
         ((qp / 6) << 8) | (qp % 6));
-
-    // check_overlay(TASK_OMX_TRANSFORM_DEQUANT_LUMADC);
-    // uint32_t *q = queue_push_begin();
-    // q[0] = (uint32_t)TASK_OMX_TRANSFORM_DEQUANT_LUMADC & MASK_TASKID;
-    // q[1] = (uint32_t)0;      // FIXME: remove, not needed anymore
-    // q[2] = (uint32_t)dst;
-    // q[3] = (uint32_t)((qp / 6) << 8) | (qp % 6);
-    // queue_push_end();
 }
 
 inline void rsph264_queue_transform_dequant_chromadc(
