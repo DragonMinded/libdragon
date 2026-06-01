@@ -13,9 +13,10 @@
 #include "mgfx_macros.h"
 #include "fgeom.h"
 
+/** @brief Flagged enum of features that can be optionally enabled when creating a mgfx pipeline. */
 typedef enum
 {
-    MGFX_FEATURE_ENV_MAP = (1<<0)
+    MGFX_FEATURE_ENV_MAP = (1<<0)   ///< Spherical environment mapping.
 } mgfx_features_t;
 
 /** @brief Data structure of a single matrix in the matrices uniform. */
@@ -94,8 +95,8 @@ typedef struct
     /**
      * @brief The light's position/direction.
      * 
-     * If w is 0, the light is directional. In this case x, y and z specify the light's (normalized) direction in eye space.
-     * Otherwise, the light is positional. In this case x, y and z specify the light's position in eye space.
+     * If w is 0, the light is directional. In this case x, y and z specify the light's (normalized) direction in view space.
+     * Otherwise, the light is positional. In this case x, y and z specify the light's position in view space.
      */
     fm_vec4_t position;
 
@@ -123,8 +124,6 @@ typedef struct
     float start;    ///< Distance from the eye position where fog starts. Geometry closer than this distance will receive no fog at all.
     float end;      ///< Distance from the eye position where fog ends. Geometry farther away than this distance will be fully fog-colored.
 } mgfx_fog_parms_t;
-
-typedef struct mgfx_pipeline_cache_s    mgfx_pipeline_cache_t;
 
 #ifdef __cplusplus
 extern "C" {

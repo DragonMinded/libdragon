@@ -17,7 +17,7 @@ extern "C" {
 /**
  * @brief Create a magma-compatible perspective projection matrix.
  * 
- * The resulting eye space coordinate system is right handed, with positive X pointing right,
+ * The resulting view space coordinate system is right handed, with positive X pointing right,
  * positive Y pointing up, and positive Z pointing towards the camera (out of the screen).
  */
 void mg_mat4_perspective(fm_mat4_t *out, float fovy, float aspect, float z_near, float z_far);
@@ -25,7 +25,7 @@ void mg_mat4_perspective(fm_mat4_t *out, float fovy, float aspect, float z_near,
 /**
  * @brief Create a magma-compatible orthographic projection matrix.
  * 
- * The resulting eye space coordinate system is right handed, with positive X pointing right,
+ * The resulting view space coordinate system is right handed, with positive X pointing right,
  * positive Y pointing up, and positive Z pointing towards the camera (out of the screen).
  */
 void mg_mat4_ortho(fm_mat4_t *out, float l, float r, float b, float t, float n, float f);

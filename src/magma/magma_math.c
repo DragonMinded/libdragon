@@ -17,7 +17,7 @@ void mg_mat4_perspective(fm_mat4_t *out, float fovy, float aspect, float z_near,
     fm_sincosf(radians, &sine, &cosine);
 	cotangent = cosine / sine;
 
-    // Positive Y points downwards in screen space. Therefore we flip it here to make it point upwards in eye space.
+    // Positive Y points downwards in screen space. Therefore we flip it here to make it point upwards in view space.
     *out = (fm_mat4_t){{
         { cotangent / aspect, 0, 0, 0 },
         { 0, -cotangent, 0, 0 },
@@ -28,7 +28,7 @@ void mg_mat4_perspective(fm_mat4_t *out, float fovy, float aspect, float z_near,
 
 void mg_mat4_ortho(fm_mat4_t *out, float l, float r, float b, float t, float n, float f)
 {
-    // Positive Y points downwards in screen space. Therefore we flip it here to make it point upwards in eye space.
+    // Positive Y points downwards in screen space. Therefore we flip it here to make it point upwards in view space.
     *out = (fm_mat4_t){{
         { 2.0f/(r-l), 0, 0, 0 },
         { 0, -2.0f/(t-b), 0, 0 },
