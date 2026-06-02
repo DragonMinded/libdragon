@@ -1002,6 +1002,14 @@ void __rdpq_block_update(volatile uint32_t *wptr)
     uint32_t phys_new = PhysicalAddr(wptr);
     st->wptr = wptr;
 
+    // Frozen blocks: an RDP command was just written to the static buffer,
+    // bypassing the RSP-side resolver. DMEM rdpq state is now stale; mark all
+    // groups pending so the next RDPQ_WRITE_READS_* command flushes the ones it
+    // reads. (Coarse: a single passthrough may have touched only one group, but
+    // re-publishing an unchanged group is harmless and keeps this hot path cheap.)
+    if (st->frozen)
+        st->frozen_dmem_pending = RDPQ_WRITE_READS_RDP_STATE;
+
     assertf((phys_old & 0x7) == 0, "old not aligned to 8 bytes: %lx", phys_old);
     assertf((phys_new & 0x7) == 0, "new not aligned to 8 bytes: %lx", phys_new);
 

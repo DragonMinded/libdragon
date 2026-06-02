@@ -217,62 +217,95 @@ void __rdpq_frozen_emit_resolved_mode(void)
  * Matches RSP behavior: RDPQCmd_SetOtherModes / ModifyOtherModes (without the
  * 1<<15 recalc flag) fall through to RDPQ_FinalizeOtherModes which also
  * emits SET_SCISSOR (cycle-adjusted from RDPQ_SCISSOR_RECT). We follow suit. */
-/* Publish the frozen block's post-state to DMEM so the RSP-side mode tracking
- * stays consistent after the block runs. Emits a small sequence of internal
- * RSPQ_CMD_WRITE_WORD commands targeting the relevant rdpq DMEM slots.
+/* Publish the requested groups of the frozen block's render state to DMEM, so
+ * the RSP-side mode tracking stays consistent. Emits a sequence of internal
+ * RSPQ_CMD_WRITE_WORD commands targeting only the rdpq DMEM slots covered by
+ * @p groups (a mask of RDPQ_WRITE_READS_* bits).
  *
  * The RDPQ_OTHER_MODES value pushed is the resolver output (matching what
  * RSP would have produced) merged with the mirror's top byte (SOMX_* flags).
  * The other slots (RDPQ_COMBINER, BLENDER_STEPS, etc.) are user inputs, so
  * they go through verbatim from the mirror. */
-void __rdpq_frozen_publish_post_state(void)
+void __rdpq_frozen_publish_post_state(unsigned int groups)
 {
-    __rdpq_resolved_t r = __rdpq_resolve_mode(&rdpq_state_mirror);
-    /* DMEM RDPQ_OTHER_MODES keeps the user's top byte (SOMX flags); the low
-     * 56 bits are the resolved SOM. */
-    uint64_t som_dmem = (rdpq_state_mirror.som & 0xFF00000000000000ULL)
-                      | (r.som & 0x00FFFFFFFFFFFFFFULL);
+    if (groups & RDPQ_WRITE_READS_OTHER_MODES) {
+        __rdpq_resolved_t r = __rdpq_resolve_mode(&rdpq_state_mirror);
+        /* DMEM RDPQ_OTHER_MODES keeps the user's top byte (SOMX flags); the low
+         * 56 bits are the resolved SOM. */
+        uint64_t som_dmem = (rdpq_state_mirror.som & 0xFF00000000000000ULL)
+                          | (r.som & 0x00FFFFFFFFFFFFFFULL);
+        uint32_t off_om = offsetof(rsp_queue_t, rdp_mode.other_modes);
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_om + 0, (uint32_t)(som_dmem >> 32));
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_om + 4, (uint32_t)som_dmem);
+    }
 
-    uint32_t off_om       = offsetof(rsp_queue_t, rdp_mode.other_modes);
-    uint32_t off_cc       = offsetof(rsp_queue_t, rdp_mode.combiner);
-    uint32_t off_cc_mm    = offsetof(rsp_queue_t, rdp_mode.combiner_mipmapmask);
-    uint32_t off_bs0      = offsetof(rsp_queue_t, rdp_mode.blend_step0);
-    uint32_t off_bs1      = offsetof(rsp_queue_t, rdp_mode.blend_step1);
-    uint32_t off_scissor  = offsetof(rsp_queue_t, rdp_scissor_rect);
-    uint32_t off_fill     = offsetof(rsp_queue_t, rdp_fill_color);
+    if (groups & RDPQ_WRITE_READS_COMBINER) {
+        uint32_t off_cc    = offsetof(rsp_queue_t, rdp_mode.combiner);
+        uint32_t off_cc_mm = offsetof(rsp_queue_t, rdp_mode.combiner_mipmapmask);
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc    + 0, (uint32_t)(rdpq_state_mirror.cc >> 32));
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc    + 4, (uint32_t)rdpq_state_mirror.cc);
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc_mm + 0, (uint32_t)(rdpq_state_mirror.cc_mipmask >> 32));
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc_mm + 4, (uint32_t)rdpq_state_mirror.cc_mipmask);
+    }
 
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_om      + 0, (uint32_t)(som_dmem >> 32));
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_om      + 4, (uint32_t)som_dmem);
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc      + 0, (uint32_t)(rdpq_state_mirror.cc >> 32));
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc      + 4, (uint32_t)rdpq_state_mirror.cc);
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc_mm   + 0, (uint32_t)(rdpq_state_mirror.cc_mipmask >> 32));
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_cc_mm   + 4, (uint32_t)rdpq_state_mirror.cc_mipmask);
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_bs0,         rdpq_state_mirror.blender_steps[0]);
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_bs1,         rdpq_state_mirror.blender_steps[1]);
-    /* DMEM RDPQ_SCISSOR_RECT stores the *full* SET_SCISSOR command, with the
-     * 0xED RDP opcode byte in the high byte of word 0. The CPU mirror, however,
-     * only stores the data bits (XH/YH/XL/YL), because that is what userland
-     * rdpq_set_scissor() passes to __rdpq_set_scissor(). 
-     * The RSP-side RDPQCmd_SetScissorEx handler ORs in 0xED before writing to DMEM. 
-     * We must do the same here, otherwise we wipe the opcode byte and subsequent
-     * RDPQ_FinalizeOtherModes / RDPQCmd_PopMode loads (which copy DMEM straight
-     * to the staging area) end up emitting a NOP-looking command to the RDP. */
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_scissor + 0,
-        0xED000000u | (uint32_t)(rdpq_state_mirror.scissor >> 32));
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_scissor + 4, (uint32_t)rdpq_state_mirror.scissor);
-    rspq_int_write(RSPQ_CMD_WRITE_WORD, off_fill,        rdpq_state_mirror.fill_color);
+    if (groups & RDPQ_WRITE_READS_BLENDER) {
+        uint32_t off_bs0 = offsetof(rsp_queue_t, rdp_mode.blend_step0);
+        uint32_t off_bs1 = offsetof(rsp_queue_t, rdp_mode.blend_step1);
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_bs0, rdpq_state_mirror.blender_steps[0]);
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_bs1, rdpq_state_mirror.blender_steps[1]);
+    }
 
-    /* PRIM_COLOR_EX / PRIM_COLOR_RGBA live in the rdpq overlay state (rsp_rdpq.S)
-     * and are not part of rsp_queue_t. Compute the offset relative to RDPQ_MODE
-     * end + scissor/buffers etc. is non-trivial for phase 3 MVP we skip them.
-     * Consequence: rdpq_set_prim_lod_frac / set_detail_factor called *after* a
-     * frozen block will see DMEM RDPQ_PRIM_COLOR_EX from the previous non-frozen
-     * call. Acceptable since these partial-update APIs are rarely interleaved
-     * across frozen-block boundaries; the staleness check on the CPU mirror
-     * catches genuine drift on re-record. */
+    if (groups & RDPQ_WRITE_READS_SCISSOR) {
+        /* DMEM RDPQ_SCISSOR_RECT stores the *full* SET_SCISSOR command, with the
+         * 0xED RDP opcode byte in the high byte of word 0. The CPU mirror, however,
+         * only stores the data bits (XH/YH/XL/YL), because that is what userland
+         * rdpq_set_scissor() passes to __rdpq_set_scissor().
+         * The RSP-side RDPQCmd_SetScissorEx handler ORs in 0xED before writing to DMEM.
+         * We must do the same here, otherwise we wipe the opcode byte and subsequent
+         * RDPQ_FinalizeOtherModes / RDPQCmd_PopMode loads (which copy DMEM straight
+         * to the staging area) end up emitting a NOP-looking command to the RDP. */
+        uint32_t off_scissor = offsetof(rsp_queue_t, rdp_scissor_rect);
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_scissor + 0,
+            0xED000000u | (uint32_t)(rdpq_state_mirror.scissor >> 32));
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_scissor + 4, (uint32_t)rdpq_state_mirror.scissor);
+    }
+
+    if (groups & RDPQ_WRITE_READS_COLORS) {
+        uint32_t off_fill = offsetof(rsp_queue_t, rdp_fill_color);
+        rspq_int_write(RSPQ_CMD_WRITE_WORD, off_fill, rdpq_state_mirror.fill_color);
+
+        /* PRIM_COLOR_EX / PRIM_COLOR_RGBA live in the rdpq overlay state (rsp_rdpq.S)
+         * and are not part of rsp_queue_t, so they are not republished here.
+         * Consequence: rdpq_set_prim_lod_frac / set_detail_factor called *after* a
+         * frozen block will see DMEM RDPQ_PRIM_COLOR_EX from the previous non-frozen
+         * call. Acceptable since these partial-update APIs are rarely interleaved
+         * across frozen-block boundaries; the staleness check on the CPU mirror
+         * catches genuine drift on re-record. */
+    }
 
     /* RDPQ_TARGET_BITDEPTH is 1 byte sharing a word with RDPQ_SYNCFULL_ONGOING;
      * not republished here (frozen blocks rarely change render target). */
+}
+
+/* Called via #rdpq_write for commands flagged RDPQ_WRITE_READS_* (e.g. t3d
+ * triangles). During frozen-block recording the material's RDP commands have
+ * already been written to the static buffer but DMEM is stale; this emits
+ * WRITE_WORD commands into the block buffer for the requested-and-still-dirty
+ * groups, so interleaved RSP commands see the correct RSP-side state at
+ * playback time. The flushed groups are cleared so repeated reads are cheap.
+ *
+ * Outside frozen-block recording this is a no-op (DMEM is maintained by the
+ * RSP-side resolver). */
+void __rdpq_frozen_sync_dmem(unsigned int groups)
+{
+    struct rdpq_block_state_s *st = &rdpq_block_state;
+    if (!st->frozen)
+        return;
+    unsigned int todo = groups & st->frozen_dmem_pending;
+    if (todo) {
+        __rdpq_frozen_publish_post_state(todo);
+        st->frozen_dmem_pending &= ~todo;
+    }
 }
 
 void __rdpq_frozen_emit_scissor_adjusted(void)

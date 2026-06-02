@@ -1446,14 +1446,6 @@ void rspq_block_run(rspq_block_t *block)
     // Notify rdpq engine we have run a block
     if(block->rdp_block) {
       __rdpq_block_run_with_rdp(block->rdp_block);
-      // Frozen blocks: emit a "publish post-state" sequence right after the
-      // CALL so that when the RSP finishes processing the block's RDP buffers
-      // and returns, DMEM is updated to reflect the resolved RDP state the CPU
-      // baked into the block. This must happen before any subsequent RSP
-      // command (internal or from a different ucode) reads the DMEM rdpq state
-      // slots.
-      if (block->rdp_block->frozen)
-        __rdpq_frozen_publish_post_state();
     } else {
       __rdpq_block_run_no_rdp();
     }
