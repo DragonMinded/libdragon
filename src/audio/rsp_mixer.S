@@ -1187,13 +1187,6 @@ Mix8Loop:
 
 #define MAX_VADPCM_FRAMES     94
 
-	# Number of input bytes fetched synchronously before the decode loop starts.
-	# The remainder of the (largest) input transfer is streamed asynchronously and
-	# overlapped with the decode loop, which consumes frames far slower than the
-	# DMA delivers them. Must be a multiple of 8 (DMA granularity) and large enough
-	# to cover the priming reads of frame 0.
-#define VADPCM_INPUT_HEAD     64
-
 	.section .bssovl1
 
 					# Codebook must be aligned to allow for xor trick
@@ -1268,7 +1261,6 @@ VADPCM_BUFFER_END:	.space 8    # Extra 8 bytes for misalignment
 
 	.func VADPCM_Decompress
 VADPCM_Decompress:
-	xtracestart
 	li dmem_codebook, %lo(VADPCM_CODEBOOK)
 	li dmem_state, %lo(VADPCM_STATE)
 
@@ -1333,31 +1325,11 @@ VADPCM_Decompress:
 	assert_eq t3, t2, 0x1234
 	#endif
 
-	# Fetch the input buffer (size nframes*9+misalignment). This is the largest
-	# transfer, so to overlap most of it with the decode loop we DMA only a small
-	# head synchronously (enough for the decode to start) and stream the rest in
-	# the background. The decode consumes frames far slower than the DMA delivers
-	# them, so the tail lands in DMEM long before the loop reads it (and before the
-	# in-place output writes ever reach that region).
+	# Fetch the input buffer. Calculate size as nframes*9+misalignemnt
 	move s0, rdram_input
-	move s4, dmem_input
-	addiu t3, buffer_in_size, -VADPCM_INPUT_HEAD   # t3 = tail size (bytes)
-	blez t3, 1f                                    # whole buffer fits in the head
-	 li t0, DMA_SIZE(VADPCM_INPUT_HEAD, 1)         # (delay) head transfer size
-	# Split transfer: blocking head, then async tail.
-	jal DMAIn
-	 nop
-	addiu s0, rdram_input, VADPCM_INPUT_HEAD       # tail source in RDRAM
-	addiu s4, dmem_input, VADPCM_INPUT_HEAD        # tail dest in DMEM
-	jal DMAInAsync
-	 addiu t0, t3, -1                              # DMA_SIZE(tail size, 1)
-	b 2f
-	 nop
-1:	# Small buffer: single blocking transfer.
 	addiu t0, buffer_in_size, -1
 	jal DMAIn
-	 nop
-2:
+	 move s4, dmem_input
 
 	move stereo_toggle, a2
 	lqv vstate1, 0x00,dmem_state
@@ -1461,7 +1433,6 @@ VADPCM_Decompress:
 
 	# ---- Decode loop: one frame (16 samples) per iteration ----
 	# This loop runs at 35 cycles/frame (2.187 cycles/sample)
-	xtracestop
 	.balign 8
 VADPCM_DecodeLoop:
 	# ---- block 0: samples 0..7 = matrix * residuals + state feedback ----
