@@ -298,13 +298,10 @@ void __rdpq_frozen_publish_post_state(unsigned int groups)
  * RSP-side resolver). */
 void __rdpq_frozen_sync_dmem(unsigned int groups)
 {
-    struct rdpq_block_state_s *st = &rdpq_block_state;
-    if (!st->frozen)
-        return;
-    unsigned int todo = groups & st->frozen_dmem_pending;
+    unsigned int todo = groups & __rdpq_frozen_dmem_pending;
     if (todo) {
-        __rdpq_frozen_publish_post_state(todo);
-        st->frozen_dmem_pending &= ~todo;
+      __rdpq_frozen_publish_post_state(todo);
+      __rdpq_frozen_dmem_pending &= ~todo;
     }
 }
 

@@ -407,6 +407,9 @@ static uint32_t rdpq_config;
 /** @brief RDP block management state */
 rdpq_block_state_t rdpq_block_state;
 
+/** @brief Frozen-block DMEM staleness mask (global, persists across blocks). */
+uint16_t __rdpq_frozen_dmem_pending;
+
 /** @brief Tracking state of RDP */
 rdpq_tracking_t rdpq_tracking;
 
@@ -1008,7 +1011,7 @@ void __rdpq_block_update(volatile uint32_t *wptr)
     // reads. (Coarse: a single passthrough may have touched only one group, but
     // re-publishing an unchanged group is harmless and keeps this hot path cheap.)
     if (st->frozen)
-        st->frozen_dmem_pending = RDPQ_WRITE_READS_RDP_STATE;
+        __rdpq_frozen_dmem_pending = RDPQ_WRITE_READS_RDP_STATE;
 
     assertf((phys_old & 0x7) == 0, "old not aligned to 8 bytes: %lx", phys_old);
     assertf((phys_new & 0x7) == 0, "new not aligned to 8 bytes: %lx", phys_new);

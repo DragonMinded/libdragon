@@ -166,20 +166,21 @@ typedef struct rdpq_block_state_s {
      * staleness checks at playback time.
      */
     bool frozen;
-    /**
-     * @brief Frozen blocks: bitmask of RDP state groups stale in DMEM.
-     *
-     * Set (to all RDPQ_WRITE_READS_* groups) whenever a frozen-block RDP command
-     * is written to the static buffer (mode change, scissor, fill, texture,
-     * etc.), marking that DMEM no longer reflects the RDP render state. A
-     * RDPQ_WRITE_READS_* command flushes the groups it requests (via
-     * #__rdpq_frozen_sync_dmem) and clears those bits, so repeated reads of the
-     * same group (e.g. per-triangle) are cheap.
-     */
-    uint16_t frozen_dmem_pending;
 } rdpq_block_state_t;
 
 extern rdpq_block_state_t rdpq_block_state;
+
+/**
+ * @brief Frozen blocks: global bitmask of RDP state groups stale in DMEM.
+ *
+ * Set (to all RDPQ_WRITE_READS_* groups) whenever a frozen-block RDP command
+ * is written to the static buffer (mode change, scissor, fill, texture,
+ * etc.), marking that DMEM no longer reflects the RDP render state. A
+ * RDPQ_WRITE_READS_* command flushes the groups it requests (via
+ * #__rdpq_frozen_sync_dmem) and clears those bits, so repeated reads of the
+ * same group (e.g. per-triangle) are cheap.
+ */
+extern uint16_t __rdpq_frozen_dmem_pending;
 
 void __rdpq_block_begin();
 void __rdpq_block_recycle(rdpq_block_t *head);

@@ -1761,7 +1761,7 @@ void rdpq_call_deferred(void (*func)(void *), void *arg);
     int __wflags = (flags); \
     /* Backward-compat: "-1" used to mean "unbounded count" (and nothing else). \
      * Normalize it before testing any other flag bits. */ \
-    if (__wflags == -1) __wflags = RDPQ_WRITE_COUNT_UNKNOWN; \
+    if (__wflags == -1) __wflags = RDPQ_WRITE_COUNT_UNKNOWN | RDPQ_WRITE_READS_RDP_STATE; \
     int __num_rdp_commands = (__wflags & RDPQ_WRITE_COUNT_UNKNOWN) \
         ? -1 : (__wflags & RDPQ_WRITE_COUNT_MASK); \
     if (!__builtin_constant_p(__num_rdp_commands) || __num_rdp_commands != 0) { \
@@ -1769,7 +1769,7 @@ void rdpq_call_deferred(void (*func)(void *), void *arg);
             __rdpq_block_reserve(__num_rdp_commands); \
         } \
     } \
-    if ((__wflags & RDPQ_WRITE_READS_RDP_STATE) && __builtin_expect(rspq_block != NULL, 0)) { \
+    if (__wflags & RDPQ_WRITE_READS_RDP_STATE) { \
         __rdpq_frozen_sync_dmem(__wflags & RDPQ_WRITE_READS_RDP_STATE); \
     } \
     rspq_write(ovl_id, cmd_id, ##__VA_ARGS__); \
