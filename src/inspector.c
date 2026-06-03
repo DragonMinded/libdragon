@@ -874,7 +874,7 @@ void __inspector_cppexception(const char *exctype, const char *what) {
 }
 
 /** @brief Register the inspector as a syscall handler (global constructor run before main). */
-__attribute__((constructor))
+__attribute__((constructor(130)))
 void __inspector_init(void) {
     // Register SYSCALL 0x1 for assertion failures
     void handler(exception_t* ex, uint32_t code) {
