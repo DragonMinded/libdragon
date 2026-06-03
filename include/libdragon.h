@@ -30,6 +30,7 @@
 #include "entropy.h"
 #include "console.h"
 #include "emux.h"
+#include "asan.h"
 #include "debug.h"
 #include "fat.h"
 #include "joybus.h"

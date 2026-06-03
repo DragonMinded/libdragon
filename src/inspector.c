@@ -844,11 +844,13 @@ void __inspector_add_page(inspector_page_t page) {
 
 __attribute__((noreturn))
 void __inspector_exception(exception_t* ex) {
+    emux_xasan_disable();
     inspector(ex, MODE_EXCEPTION);
 }
 
 __attribute__((noreturn))
 void __inspector_assertion(const char *failedexpr, const char *msg, va_list args) {
+    emux_xasan_disable();
     asm volatile (
         "move $a0, %0\n"
         "move $a1, %1\n"
@@ -861,6 +863,7 @@ void __inspector_assertion(const char *failedexpr, const char *msg, va_list args
 
 __attribute__((noreturn))
 void __inspector_cppexception(const char *exctype, const char *what) {
+    emux_xasan_disable();
     asm volatile (
         "move $a0, %0\n"
         "move $a1, %1\n"

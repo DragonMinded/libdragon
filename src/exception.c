@@ -104,9 +104,11 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 			fprintf(out, "Syscall code: %05lX\n", (*(uint32_t*)ex->regs->epc >> 6) & 0xfffff);
 			break;
 
-		case EXCEPTION_CODE_EMUX:
-			fprintf(out, "On hardware, the console would now be frozen.\n");
+		case EXCEPTION_CODE_EMUX: {
+			if (strncmp(ex->info, "ASAN", 4) != 0)
+				fprintf(out, "On hardware, the console would now be frozen.\n");
 			/* fall through */
+		}
 		case EXCEPTION_CODE_D_BUS_ERROR: {
 			uint32_t opcode = *(uint32_t*)epc;
 			uint64_t base = ex->regs->gpr[((opcode >> 21) & 0x1F)];
@@ -461,12 +463,24 @@ static const char* __get_exception_name(exception_t *ex)
 			return "Integer divide by zero";
 	}	return exceptionMap[ex->code];
 	case EXCEPTION_CODE_EMUX: {
-		uint32_t kind = C0_CACHEERR() & 0xFF;
+		uint32_t cacheerr = C0_CACHEERR();
+		uint32_t kind = cacheerr & 0xFF;
+		uint32_t tag = (cacheerr >> 8) & 0xFF;
 		C0_WRITE_CACHEERR(0);
 		switch (kind) {
 		case 0:  return "Cached access to non-RDRAM area";
 		case 1:  return "64-bit read from non-RDRAM area";
 		case 2:  return "Access to RCP unmapped area";
+		case 4:
+			switch (tag) {
+			case 0xf1: return "ASAN: heap-buffer-underflow (left redzone)";
+			case 0xf2: return "ASAN: heap-buffer-overflow (right redzone)";
+			case 0xf3: return "ASAN: use-after-free";
+			case 0xf4: return "ASAN: global-buffer-overflow";
+			case 0xf6: return "ASAN: access to unallocated heap memory";
+			case 0xf5: return "ASAN: access to poisoned region";
+			default:   return "ASAN: invalid memory access";
+			}
 		default: return "Unknown emux";
 		}
 	}
