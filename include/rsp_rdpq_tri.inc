@@ -392,10 +392,7 @@ RDPQ_Triangle_Send_Async:
     # Calculate minimum W (between e0 and e2) 
     vsubc v__,  vw_f, vw_f.e2;                  luv attr2_r, VTX_ATTR_RGBA,vtx2
     vlt   vw_i, vw_i, vw_i.e2;                  or tricmd, t1
-
-#if RSPQ_PROFILE == 0
     vmrg  vw_f, vw_f, vw_f.e2;                  lsv vinvw_f.e6, VTX_ATTR_INVWf,vtx3
-#endif
 
     # NR: R*(X/2)                               # Load other invw components
     vmudl vtmp_f, vslope_f, vhml.q1;            lsv vinvw_f.e4, VTX_ATTR_INVWf,vtx1           
@@ -411,13 +408,11 @@ RDPQ_Triangle_Send_Async:
     vmadn vtmp_f, vk1, VKM1;                    mfc2 t0, my
     vmadh vtmp_i, vk1, VKM1;                    mfc2 t1, hx
 
-#if RSPQ_PROFILE == 0
     # Calculate minimum W (between e0 and e4)   
     # Now vw_if.e0 contains the minimum W       # Load invw components    
     vsubc v__,  vw_f, vw_f.e4;                  lsv vinvw_i.e5, VTX_ATTR_INVWi,vtx2
     vlt   vw_i, vw_i, vw_i.e4;                  lsv vinvw_i.e6, VTX_ATTR_INVWi,vtx3
     vmrg  vw_f, vw_f, vw_f.e4;                  lsv vinvw_i.e4, VTX_ATTR_INVWi,vtx1
-#endif
 
     # NR: -2*X * (R*X/2 - 1)
     #   =  2*X * (1 - R*X/2)
@@ -500,11 +495,9 @@ RDPQ_Triangle_Send_Async:
     vmadh vedges_i, vslope_i, vfy_i.e4;         sdv vinvw_f.e4, 16,s3
 
     # Multiply S/T by INVW
-#if RSPQ_PROFILE == 0
     vmulf vtex1, vinvw_f.h0;                    lsv attr1_invw, 16,s3
     vmulf vtex2, vinvw_f.h1;                    lsv attr2_invw, 18,s3
     vmulf vtex3, vinvw_f.h2;                    lsv attr3_invw, 20,s3
-#endif
 
     # Convert X1 and X2 into                    # Check if DMA is busy.
     # 16.16 precision                           # If it is, jump to a busy loop, otherwise
@@ -635,21 +628,16 @@ rdpq_triangle_change_buffer_done:
                                                     # Store updated RDRAM pointer.
     vmov vde_f.e6, vde_i.e7;                        sw rdram_cur, %lo(RDPQ_CURRENT)
                                                     # Store Z values
-#if RSPQ_PROFILE == 0
-    vmov vzout1.e1, vfinal_f.e7;                    # sdv vfinal_f.e0, 0x10,color_dmem
-    vmov vzout1.e0, vfinal_i.e7;                    # sdv vfinal_f.e4, 0x10,tex_dmem
-    vmov vzout1.e3, vdx_f.e7;                       # sdv vfinal_i.e0, 0x00,color_dmem    
-    vmov vzout1.e2, vdx_i.e7;                       # sdv vfinal_i.e4, 0x00,tex_dmem
+    vmov vzout1.e1, vfinal_f.e7;                    sdv vfinal_f.e0, 0x10,color_dmem
+    vmov vzout1.e0, vfinal_i.e7;                    sdv vfinal_f.e4, 0x10,tex_dmem
+    vmov vzout1.e3, vdx_f.e7;                       sdv vfinal_i.e0, 0x00,color_dmem    
+    vmov vzout1.e2, vdx_i.e7;                       sdv vfinal_i.e4, 0x00,tex_dmem
                                                     # Store Z slopes, that were
                                                     # compacted via vmov.
-
                                                     slv vde_f.e6, 0x08,z_dmem
                                                     slv vdy_f.e6, 0x0C,z_dmem
-#endif
                                                     addiu prim_size, -1
-#if RSPQ_PROFILE == 0
                                                     sdv vzout1.e0, 0x00,z_dmem
-#endif
 
 #if RDPQ_TRIANGLE_PROFILE
     xtracestop
