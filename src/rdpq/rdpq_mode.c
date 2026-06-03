@@ -336,6 +336,16 @@ void __rdpq_frozen_emit_raw_som_and_scissor(void)
     rdpq_write(rdpq_tracking.mode_freeze ? num_frozen_rdp_commands : num_rdp_commands, ##__VA_ARGS__); \
 })
 
+/* Emit the resolved mode pair that was deferred by the coalescing logic, if any.
+ * Called from the draw hook (#__rdpq_autosync_use) and at block end. */
+void __rdpq_frozen_flush_pending_mode(void)
+{
+    if (__rdpq_frozen_mode_pending) {
+        __rdpq_frozen_emit_resolved_mode();
+        __rdpq_frozen_mode_pending = false;
+    }
+}
+
 extern void __rdpq_mirror_change_som(uint32_t w0, uint32_t w1, uint32_t w2);
 
 /**
@@ -366,8 +376,9 @@ void __rdpq_fixup_mode(uint32_t cmd_id, uint32_t w0, uint32_t w1)
 
     // Frozen-block recording: emit a fully-resolved SET_COMBINE+SET_OTHER_MODES
     // pair into the static RDP buffer, bypassing the RSP-side mode pipeline.
+    // During a mode_begin/end batch the emit is deferred and coalesced.
     if (rdpq_block_state.frozen) {
-        __rdpq_frozen_emit_resolved_mode();
+        __rdpq_frozen_mode_pending = true;
         return;
     }
 
@@ -386,7 +397,7 @@ void __rdpq_fixup_mode3(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2)
         __rdpq_mirror_change_som(w0, w1, w2);
 
     if (rdpq_block_state.frozen) {
-        __rdpq_frozen_emit_resolved_mode();
+        __rdpq_frozen_mode_pending = true;
         return;
     }
 
@@ -407,7 +418,7 @@ void __rdpq_fixup_mode4(uint32_t cmd_id, uint32_t w0, uint32_t w1, uint32_t w2, 
     }
 
     if (rdpq_block_state.frozen) {
-        __rdpq_frozen_emit_resolved_mode();
+        __rdpq_frozen_mode_pending = true;
         return;
     }
 
@@ -431,11 +442,10 @@ void __rdpq_reset_render_mode(uint32_t w0, uint32_t w1, uint32_t w2, uint32_t w3
     rdpq_state_mirror.blender_steps[1] = 0;
 
     if (rdpq_block_state.frozen) {
-        // Reset also emits SET_SCISSOR (with cycle adjustment) to match the RSP
-        // path which goes through RDPQCmd_ResetMode -> RDPQ_WriteSetScissor.
-        __rdpq_frozen_emit_raw_som_and_scissor();
-        // Then also emit the resolved CC (and resolved SOM again).
-        __rdpq_frozen_emit_resolved_mode();
+        // Reset emits SET_SCISSOR (with cycle adjustment) to match the RSP path.
+        __rdpq_frozen_emit_scissor_adjusted();
+        // The resolved CC+SOM emit is deferred if inside a mode_begin/end batch.
+        __rdpq_frozen_mode_pending = true;
         return;
     }
 
@@ -491,10 +501,11 @@ void rdpq_mode_pop(void)
     rdpq_tracking.cycle_type_known = 0;
 
     // Frozen recording: re-emit the popped state (scissor + resolved mode)
-    // directly as raw RDP commands. No rspq overlay command needed.
+    // directly as raw RDP commands. No rspq overlay command needed. The
+    // resolved mode emit is coalesced if inside a mode_begin/end batch.
     if (rdpq_block_state.frozen) {
         __rdpq_frozen_emit_scissor_adjusted();
-        __rdpq_frozen_emit_resolved_mode();
+        __rdpq_frozen_mode_pending = true;
         return;
     }
 
@@ -571,14 +582,10 @@ void rdpq_mode_begin(void)
     rdpq_tracking.mode_freeze = true;
     rdpq_tracking.cycle_type_frozen = 0;
 
-    // In frozen-block recording, each mode change is already emitted as a
-    // fully-resolved SET_COMBINE+SET_OTHER_MODES pair directly into the
-    // static RDP buffer. SOMX_UPDATE_FREEZE is an RSP-only flag that tells
-    // the RSP resolver to skip recalculation during batched updates; the
-    // CPU resolver doesn't use it. Skip the SOM update to avoid emitting
-    // redundant RDP commands into the static buffer.
-    if (!rdpq_block_state.frozen)
+    // nop in frozen blocks, they will batch modes automatically
+    if (!rdpq_block_state.frozen) {
         __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, SOMX_UPDATE_FREEZE);
+    }
 }
 
 void rdpq_mode_end(void)
@@ -586,8 +593,10 @@ void rdpq_mode_end(void)
     rdpq_tracking.mode_freeze = false;
     rdpq_tracking.cycle_type_known = rdpq_tracking.cycle_type_frozen;
 
-    if (!rdpq_block_state.frozen)
+    // nop in frozen blocks, they will batch modes automatically
+    if (!rdpq_block_state.frozen) {
         __rdpq_mode_change_som(SOMX_UPDATE_FREEZE, 0);
+    }
 }
 
 

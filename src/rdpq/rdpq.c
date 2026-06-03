@@ -410,6 +410,9 @@ rdpq_block_state_t rdpq_block_state;
 /** @brief Frozen-block DMEM staleness mask (global, persists across blocks). */
 uint16_t __rdpq_frozen_dmem_pending;
 
+/** @brief Frozen-block deferred-mode flag (see rdpq_internal.h). */
+bool __rdpq_frozen_mode_pending;
+
 /** @brief Tracking state of RDP */
 rdpq_tracking_t rdpq_tracking;
 
@@ -621,6 +624,12 @@ extern inline void __rdpq_autosync_use(uint32_t res);
  * The SYNC command will then reset the "use" status of each respective resource.
  */
 void __rdpq_autosync_change(uint32_t res) {
+    // Before changing RDP render state through the RSP pipeline (whose handlers read the current state from DMEM),
+    // sync any DMEM state left stale by a previously-run frozen block.
+    if (__builtin_expect(__rdpq_frozen_dmem_pending && !rdpq_block_state.frozen, 0)) {
+        __rdpq_frozen_sync_dmem(RDPQ_WRITE_READS_RDP_STATE);
+    }
+
     res &= rdpq_tracking.autosync;
     if (res) {
         if ((res & AUTOSYNC_TILES) && (rdpq_config & RDPQ_CFG_AUTOSYNCTILE))
@@ -665,20 +674,14 @@ void __rdpq_block_begin()
     rdpq_block_state.previous_tracking = rdpq_tracking;
 
     // Save the CPU mirror. The mirror keeps advancing during recording so it
-    // reflects the post-state of the block; at __rdpq_block_end we capture it
+    // reflects the post-state of the block, at __rdpq_block_end we capture it
     // onto the block and restore this saved copy.
     rdpq_block_state.previous_mirror = rdpq_state_mirror;
 
-    // If RDPQ_CFG_FROZEN_BLOCKS is enabled at this point, the block being
-    // recorded becomes a frozen block: its baseline RDP state (= current
-    // mirror) is captured onto the block in __rdpq_block_end, and the block
-    // becomes eligible for staleness checks at playback time.
-    //
-    // Note we deliberately do NOT assert that mirror.unknown is clear here:
-    // the mirror "unknown" flag is itself a mirror field, so a consistent
-    // code path will always reach this point in the same state, and the
-    // snapshot will compare equal at playback time.
     rdpq_block_state.frozen = (rdpq_config & RDPQ_CFG_FROZEN_BLOCKS) != 0;
+
+    __rdpq_frozen_mode_pending = false;
+    __rdpq_frozen_dmem_pending = 0;
 
     // Set for unknown state (like if we just run another unknown block: we lost track of the RDP state)
     __rdpq_block_run_no_rdp();
@@ -702,6 +705,8 @@ void __rdpq_block_recycle(rdpq_block_t *head)
     st->previous_tracking = rdpq_tracking;
     st->previous_mirror = rdpq_state_mirror;
     st->frozen = (rdpq_config & RDPQ_CFG_FROZEN_BLOCKS) != 0;
+    __rdpq_frozen_mode_pending = false;
+    __rdpq_frozen_dmem_pending = 0;
     __rdpq_block_run_no_rdp();
 
     st->first_node = head;
@@ -817,6 +822,11 @@ rdpq_block_t* __rdpq_block_end()
     struct rdpq_block_state_s *st = &rdpq_block_state;
     rdpq_block_t *ret = st->first_node;
 
+    // stop coalescing modes in frozen blocks and flush snything pending out
+    if (st->frozen) {
+        __rdpq_frozen_flush_pending_mode();
+    }
+
     // Save the current autosync state in the first node of the RDP block.
     // This makes it easy to recover it when the block is run
     if (st->first_node) {
@@ -876,6 +886,12 @@ void __rdpq_block_run_with_rdp(rdpq_block_t *block)
   // Apply the block's post-state to the CPU mirror. After this point the
   // mirror reflects what the RDP/RSP state will be once the block has run.
   rdpq_state_mirror = block->mirror_post;
+
+  if (block->frozen) {
+    // Now that raw RDP commands have been commited without the RSP knowing about if,
+    // mark those as pending to start the logic that performs the lazy emitting when needed.
+      __rdpq_frozen_dmem_pending = RDPQ_WRITE_READS_RDP_STATE;
+  }
 
   // The called block has switched static buffer. Adjust our state to set
   // our buffer as pending; if a new RDP command is issued, we will switch

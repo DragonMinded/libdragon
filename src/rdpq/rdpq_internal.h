@@ -182,6 +182,16 @@ extern rdpq_block_state_t rdpq_block_state;
  */
 extern uint16_t __rdpq_frozen_dmem_pending;
 
+/**
+ * @brief Frozen blocks: sets if resolved render mode is deferred, awaiting the next draw.
+ *
+ * Inside a frozen block, mode changes (combiner/blender/SOM) do not emit immediately. 
+ * They advance the CPU mirror and set this flag, 
+ * the resolved SET_OTHER_MODES + SET_COMBINE pair is emitted by #__rdpq_frozen_flush_pending_mode.
+ */
+extern bool __rdpq_frozen_mode_pending;
+void __rdpq_frozen_flush_pending_mode(void);
+
 void __rdpq_block_begin();
 void __rdpq_block_recycle(rdpq_block_t *head);
 rdpq_block_t* __rdpq_block_end();
@@ -218,6 +228,11 @@ inline void __rdpq_tracking_state_reset(rdpq_tracking_t *state) {
 inline void __rdpq_autosync_use(uint32_t res)
 {
     rdpq_tracking.autosync |= res;
+    // Frozen-block mode coalescing: a pipe-using command (draw) is about to be written, 
+    // so flush any deferred resolved mode into the static RDP buffer first.
+    if (__builtin_expect((res & AUTOSYNC_PIPE) && __rdpq_frozen_mode_pending, 0)) {
+        __rdpq_frozen_flush_pending_mode();
+    }
 }
 void __rdpq_autosync_change(uint32_t res);
 

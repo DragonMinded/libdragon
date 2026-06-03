@@ -1337,11 +1337,11 @@ rspq_block_t* rspq_block_end(void)
 {
     assertf(rspq_block, "a block was not being created");
 
-    // Frozen blocks: flush any remaining stale DMEM state.
-    if (__rdpq_frozen_dmem_pending) {
-      __rdpq_frozen_publish_post_state(__rdpq_frozen_dmem_pending);
-      __rdpq_frozen_dmem_pending = 0;
-    }
+    // Frozen blocks: do NOT eagerly publish the post-state to DMEM here.
+    // The DMEM staleness left by the block is republished lazily at run time, 
+    // by the first rdpq command after the block that reads RDP state.
+    // Any pending state accumulated while recording is either already baked or re-established at block run.
+    __rdpq_frozen_dmem_pending = 0;
 
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
