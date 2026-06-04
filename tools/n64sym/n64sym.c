@@ -350,9 +350,9 @@ static bool disasm_get_fields(const char *line, char **mnemonic_out, char **oper
 static bool mnemonic_can_trap(const char *mn, const char *ops)
 {
     static const char *memory_mnemonics[] = {
-        "lb", "lbu", "lh", "lhu", "lw", "lwl", "lwr", "ld",
-        "sb", "sh", "sw", "swl", "swr", "sd",
-        "ll", "sc",
+        "lb", "lbu", "lh", "lhu", "lw", "lwl", "lwr", "ld", "ldl", "ldr",
+        "sb", "sh", "sw", "swl", "swr", "sd", "sdl", "sdr",
+        "ll", "sc", "lld", "scd",
         "lwc1", "swc1", "ldc1", "sdc1",
     };
     static const char *fault_mnemonics[] = {
