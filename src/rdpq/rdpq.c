@@ -883,14 +883,11 @@ void __rdpq_block_run_with_rdp(rdpq_block_t *block)
   if (rdpq_tracking.cycle_type_frozen == 0)
       rdpq_tracking.cycle_type_frozen = prev.cycle_type_frozen;
 
-  // Apply the block's post-state to the CPU mirror. After this point the
-  // mirror reflects what the RDP/RSP state will be once the block has run.
-  rdpq_state_mirror = block->mirror_post;
-
   if (block->frozen) {
-    // Now that raw RDP commands have been commited without the RSP knowing about if,
-    // mark those as pending to start the logic that performs the lazy emitting when needed.
-      __rdpq_frozen_dmem_pending = RDPQ_WRITE_READS_RDP_STATE;
+    rdpq_state_mirror = block->mirror_post;
+    // Raw RDP commands were committed without the RSP knowing about it,
+    // mark DMEM render state pending so it is lazily re-published when next read.
+    __rdpq_frozen_dmem_pending = RDPQ_WRITE_READS_RDP_STATE;
   }
 
   // The called block has switched static buffer. Adjust our state to set
