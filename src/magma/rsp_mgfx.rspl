@@ -9,6 +9,8 @@ include "rsp_magma.inc"
 #include "../../include/magma_constants.h"
 #include "../../include/mgfx_constants.h"
 
+#define SCRATCH_TEXSCALE    0x80
+
 //#define TRACE_VTX_LOOP          1
 
 state
@@ -169,13 +171,21 @@ shader mgfx()
     vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
     vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
 
-    #ifndef ENABLE_ENV_MAP
+    vec16 vtexscale;
+    vtexscale.xy = load(TEXTURING_SCALE).xy;
+    vtexscale.XY = load(TEXTURING_SCALE).xy;
+
+    #ifdef ENABLE_ENV_MAP
+    {
+        vec32 vtexscale2 = vtexscale >> 3;
+        store(vtexscale2, MG_SCRATCH_MEM, SCRATCH_TEXSCALE);
+    }
+    undef vtexscale;
+    #else
     vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
     vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
 
-    vec16 vtexscale, vtexoffset;
-    vtexscale.xy = load(TEXTURING_SCALE).xy;
-    vtexscale.XY = load(TEXTURING_SCALE).xy;
+    vec16 vtexoffset;
     vtexoffset.xy = load(TEXTURING_OFFSET).xy;
     vtexoffset.XY = load(TEXTURING_OFFSET).xy;
 
@@ -448,9 +458,9 @@ shader mgfx()
             vtex:sint = vrefl +* vtmp.xxxxXXXX;
         }
 
-        vec16 vtexscale, vtexoffset;
-        vtexscale.xy = load(TEXTURING_SCALE).xy;
-        vtexscale.XY = load(TEXTURING_SCALE).xy;
+        vec32 vtexscale;
+        vec16 vtexoffset;
+        vtexscale = load(MG_SCRATCH_MEM, SCRATCH_TEXSCALE);
         vtexoffset.xy = load(TEXTURING_OFFSET).xy;
         vtexoffset.XY = load(TEXTURING_OFFSET).xy;
         #endif
