@@ -10,8 +10,6 @@
 
 /** @brief Helper macro to convert normalized u8 to normalized i16 */
 #define U8_TO_I16(x) ((x) << 7)
-/** @brief Helper macro to convert float to s10.5 */
-#define FLOAT_TO_S10_5(x) ((x) * (1<<5))
 /** @brief Helper macro to convert float to normalized i16 */
 #define FLOAT_TO_I16(x) (CLAMP(x, -1.f, 1.f) * 0x7FFF)
 
@@ -71,15 +69,15 @@ static int mgfx_get_light(mgfx_light_t *dst, const mgfx_light_parms_t *parms)
         dst->position[0] = -FLOAT_TO_I16(p->x / magnitude);
         dst->position[1] = -FLOAT_TO_I16(p->y / magnitude);
         dst->position[2] = -FLOAT_TO_I16(p->z / magnitude);
-        dst->position[3] = FLOAT_TO_I16(0.0f);
+        dst->position[3] = 0;
         dst->intensity = 0;
         return 0;
     } else {
-        dst->position[0] = FLOAT_TO_S10_5(p->x);
-        dst->position[1] = FLOAT_TO_S10_5(p->y);
-        dst->position[2] = FLOAT_TO_S10_5(p->z);
-        dst->position[3] = FLOAT_TO_S10_5(1.0f);
-        dst->intensity = sqrtf(parms->intensity) * (1<<5);
+        dst->position[0] = p->x;
+        dst->position[1] = p->y;
+        dst->position[2] = p->z;
+        dst->position[3] = 1;
+        dst->intensity = sqrtf(parms->intensity) * (1<<6);
         return 1;
     }
 }
