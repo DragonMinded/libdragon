@@ -94,11 +94,13 @@ static void asan_poison_region(const void *addr, size_t size, void (*poison_fn)(
 
 void asan_poison(void *ptr, size_t size)
 {
+    if (!__asan_active) return;
     asan_poison_region(ptr, size, emux_xasan_poison_user);
 }
 
 void asan_unpoison(void *ptr, size_t size)
 {
+    if (!__asan_active) return;
     asan_poison_region(ptr, size, emux_xasan_unpoison);
 }
 
