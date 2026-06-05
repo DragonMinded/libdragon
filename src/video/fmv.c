@@ -267,6 +267,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 
     rspq_wait();
 
+    if (subrenderer) subrenderer_free(subrenderer);
     if (audio) {
         mixer_ch_stop(parms->audio_mixer_channel);
         wav64_close(audio);
