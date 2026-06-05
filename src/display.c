@@ -341,16 +341,6 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
 
     /* Workaround for VI bug */
     vi_bug_workaround = (res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED);
-    if (vi_bug_workaround) {
-        /* VI hits a rendering bug when HSTART < 128 && 16-bpp && X_SCALE <= 0x200,
-           and resampling is disabled (see vi.c for this). HSTART < 128 is the
-           default border configuration on NTSC. Since X_SCALE=0x200 means
-           width=320 which happens to be the most common resolution, let's apply
-           a simple workaround.
-           A X_SCALE of 0x201 will behave exactly like 0x200 would if it worked,
-           and introduce zero rendering artifacts (without resampling, that is). */
-        vi_write(VI_X_SCALE, 0x201);
-    }
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -416,6 +406,16 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     display_queue_tail = 0;
     display_queue_count = 0;
     vi_show(&surfaces[0]);
+    if (vi_bug_workaround) {
+        /* VI hits a rendering bug when HSTART < 128 && 16-bpp && X_SCALE <= 0x200,
+           and resampling is disabled (see vi.c for this). HSTART < 128 is the
+           default border configuration on NTSC. Since X_SCALE=0x200 means
+           width=320 which happens to be the most common resolution, let's apply
+           a simple workaround.
+           A X_SCALE of 0x201 will behave exactly like 0x200 would if it worked,
+           and introduce zero rendering artifacts (without resampling, that is). */
+        vi_write(VI_X_SCALE, 0x201);
+    }
 
     /* Calculate actual refresh rate for this configuration */
     refresh_rate = vi_get_refresh_rate();
