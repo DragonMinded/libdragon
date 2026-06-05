@@ -282,6 +282,8 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
                     "Please use FILTERS_RESAMPLE instead.");
             }
             vi_set_aa_mode(VI_AA_MODE_NONE);
+            vi_set_divot(false);
+            vi_set_dedither(false);
             break;
         case FILTERS_RESAMPLE:
             /* Set AA on resample */
@@ -289,6 +291,8 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
 
             /* Dither filter should not be enabled with this AA mode
                as it will cause ugly vertical streaks */
+            vi_set_divot(false);
+            vi_set_dedither(false);
             break;
         case FILTERS_DEDITHER:
             /* Set AA off flag and dedither on
@@ -299,10 +303,13 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
                     "FILTERS_DEDITHER is not supported by the hardware for widths <= 320.\n"
                     "Please use FILTERS_RESAMPLE instead.");
                 vi_set_aa_mode(VI_AA_MODE_NONE);
+                vi_set_divot(false);
                 vi_set_dedither(true);
             } else {
                 vi_set_aa_mode(VI_AA_MODE_NONE);
-            }
+                vi_set_divot(false);
+                vi_set_dedither(false);
+                }
             break;
         case FILTERS_RESAMPLE_ANTIALIAS:
             /* Set AA on resample and fetch as well as divot on.
@@ -320,6 +327,7 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
             else
                 vi_set_aa_mode(VI_AA_MODE_RESAMPLE_FETCH_NEEDED);
             vi_set_divot(true);
+            vi_set_dedither(false);
             break;
         case FILTERS_RESAMPLE_ANTIALIAS_DEDITHER:
             /* Set AA on resample always and fetch as well as dedither on
