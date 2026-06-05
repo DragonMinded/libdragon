@@ -231,6 +231,20 @@ void mixer_set_vol(float vol) {
 	Mixer.vol = vol;
 }
 
+/* Global post-process effect (registered by mixer_reverb_init, etc.). */
+static mixer_global_effect_f global_effect = NULL;
+
+void mixer_register_global_effect(mixer_global_effect_f fn)
+{
+    global_effect = fn;
+}
+
+void mixer_unregister_global_effect(mixer_global_effect_f fn)
+{
+    if (global_effect == fn)
+        global_effect = NULL;
+}
+
 void mixer_close(void) {
 	assert(mixer_initialized());
 
@@ -802,6 +816,7 @@ void mixer_poll(int16_t *out16, int num_samples) {
 		int ns = MIN(num_samples, e ? e->ticks - Mixer.ticks : num_samples);
 		if (ns > 0) {
 			mixer_exec(out, ns);
+			if (global_effect) global_effect(out, ns);
 			out += ns;
 			num_samples -= ns;
 		}

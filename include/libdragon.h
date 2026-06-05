@@ -76,6 +76,7 @@
 #include "mpeg1.h"
 #include "h264.h"
 #include "mixer.h"
+#include "mixer_reverb.h"
 #include "samplebuffer.h"
 #include "wav64.h"
 #include "xm64.h"

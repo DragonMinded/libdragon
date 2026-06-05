@@ -18,6 +18,7 @@ EXAMPLES += lossysprite
 EXAMPLES += meshviewer
 EXAMPLES += micro-ui
 EXAMPLES += mixertest
+EXAMPLES += mixerreverb
 EXAMPLES += ovldemo
 EXAMPLES += overlays
 EXAMPLES += pixelshader
