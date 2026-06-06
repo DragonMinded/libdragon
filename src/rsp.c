@@ -16,6 +16,7 @@
 #include "rsp.h"
 #include "rdp.h"
 #include "debug.h"
+#include "emux.h"
 #include "console.h"
 #include "regsinternal.h"
 #include "n64sys.h"
@@ -219,6 +220,8 @@ void __rsp_crash(const char *file, int line, const char *func, const char *msg, 
     // Disable interrupts right away. We're going to abort soon, so let's
     // avoid being preempted for any reason.
     disable_interrupts();
+
+    emux_xasan_disable();
 
     // Read the status registers right away. Its value can mutate at any time
     // so the earlier the better.
