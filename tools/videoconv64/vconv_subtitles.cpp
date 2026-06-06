@@ -527,6 +527,7 @@ static void write_sub64(
 	}
 
 	int64_t max_frame = actions.empty() ? 0 : actions.back().frame;
+	uint32_t num_frames = (uint32_t)(max_frame + 1);
 
 	// Decide sync_frames. These are the frames that will be directly seekable
     // without decoding the subtitle stream. We pick a gap frame at approximately
@@ -558,7 +559,7 @@ static void write_sub64(
     w8(f, 1);    // version
 	w16(f, 0);   // flags
 	wf32(f, (float)fps);
-    w32(f, max_frame+1); // number of frames
+    w32(f, num_frames); // number of frames
 	w32(f, (uint32_t)sync_frames.size()); // num_syncs
 	wpad(f, 44+44+4); // runtime state
 
@@ -589,6 +590,13 @@ static void write_sub64(
 
 		wvaru(f, delta);
 	}
+
+	// Write a terminal delta (without a matching opcode) so the runtime can
+	// compute the exclusive end of the last subtitle state.
+	uint32_t tail_delta = (uint32_t)((int64_t)num_frames - last_fr);
+	if (tail_delta == 0) tail_delta = 1;
+	wvaru(f, tail_delta);
+
 	// Same rationale as OPC0/TXT0: no EOF syncpoints.
 	assert(sync_i == (int)sync_frames.size());
 
