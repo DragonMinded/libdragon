@@ -55,7 +55,10 @@ static bool parse_hex_string(const char *hex_str, int hex_len, uint8_t *output, 
 }
 
 /**
- * @brief Calculate the actual length of a N64 codepage string (excluding zero padding)
+ * @brief Calculate the actual length of a N64 codepage string
+ *
+ * The length is the number of bytes in the string, excluding zero padding.
+ * Internal 0x00 (NUL) characters are instead part of the string.
  */
 static int n64_string_length(const uint8_t *str, int max_len)
 {
@@ -521,6 +524,16 @@ int cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int bufle
     if (ext_len > 0) {
         if (!append_char(&out, end, '.')) goto truncate;
         if (!append_n64_string(&out, end, path->ext, 4)) goto truncate;
+    } else {
+        // If no extension is present but there is a dot in the filename,
+        // append a dot to the filename so that it is later parsed correctly.
+        int name_len = n64_string_length(path->filename, 16);
+        for (int i = 0; i < name_len; i++) {
+            if (path->filename[i] == 0x3C) { // dot character
+                if (!append_char(&out, end, '.')) goto truncate;
+                break;
+            }
+        }
     }
 
     // Success - no truncation occurred

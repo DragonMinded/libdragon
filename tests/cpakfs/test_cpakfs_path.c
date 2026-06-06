@@ -134,6 +134,11 @@ static const path_test_case_t valid_path_tests[] = {
         .expected_path = { "GAME", "01", "\x1F\x28\x28\x3C\x1B\x1A\x2B", "\x1B\x1A\x33" },
     },
     {
+        .description = "Multiple dots in filename without extension (trailing dot disambiguation)",
+        .utf8_fullname = "GAME.01-FOO.BAR.",
+        .expected_path = { "GAME", "01", "\x1F\x28\x28\x3C\x1B\x1A\x2B", "" },
+    },
+    {
         .description = "Multiple dots with extension",
         .utf8_fullname = "TEST.99-A.B.C.D",
         .expected_path = { "TEST", "99", "\x1A\x3C\x1B\x3C\x1C", "\x1D" },
