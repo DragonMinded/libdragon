@@ -386,6 +386,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __alloc_height = res.height;
     __alloc_bitdepth = __bitdepth;
 
+    /* Set up pending config variables to affect display.h getters */
+    pending_res = res;
+    pending_bit = bit;
+    pending_gamma = gamma;
+    pending_filters = filters;
+    pending_interlace_mode = res.interlaced;
     pending_vi_frames_left = -1;
 
     apply_display_vi_config(res, bit, gamma, filters);
@@ -650,17 +656,17 @@ void display_show( surface_t* surf )
 
 uint32_t display_get_width(void)
 {
-    return __width;
+    return pending_res.width;
 }
 
 uint32_t display_get_height(void)
 {
-    return __height;
+    return pending_res.height;
 }
 
 uint32_t display_get_bitdepth(void)
 {
-    return __bitdepth;
+    return pending_bit == DEPTH_16_BPP ? 2 : 4;
 }
 
 uint32_t display_get_num_buffers(void)
