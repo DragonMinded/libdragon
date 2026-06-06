@@ -38,23 +38,6 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 
     bool vi_16bpp = display_get_bitdepth() == 2;
 
-    // In 16bpp mode, we configure:
-    // * Dithering in the YUV blitter
-    // * Dedithering at the VI level
-    // This achieves the best possible quality for a video playback,
-    // given that all video codecs are natively 32bpp, so you would otherwise
-    // get huge banding artifacts.
-    vi_aa_mode_t saved_aa_mode = 0;
-    bool saved_dedither = false;
-    if (vi_16bpp) {
-        saved_aa_mode = vi_get_aa_mode();
-        saved_dedither = vi_get_dedither();
-        vi_write_begin();
-        vi_set_aa_mode(VI_AA_MODE_RESAMPLE_FETCH_ALWAYS);
-        vi_set_dedither(true);
-        vi_write_end();
-    }
-
     yuv_init();
     yuv_blitter_t yuv = yuv_blitter_new_fmv(
         info.width, info.height,
@@ -63,7 +46,7 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
             .cs = &info.colorspace,
             .video_aspect_ratio = info.aspect_ratio,
             .display_aspect_ratio = vi_get_aspect_ratio(),
-            .enable_dithering = vi_16bpp,
+            .enable_dithering = vi_16bpp, // YUV blitter will dither in 16bpp mode
         }
     );
 
@@ -279,12 +262,6 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     video_close(video);
     display_set_fps_limit(0);
 
-    if (vi_16bpp) {
-        vi_write_begin();
-        vi_set_aa_mode(saved_aa_mode);
-        vi_set_dedither(saved_dedither);
-        vi_write_end();
-    }
     if (!parms->disable_display_init)
         display_close();
 }
