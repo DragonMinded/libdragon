@@ -58,7 +58,6 @@ typedef struct fmv_parms_s {
      * resolution for the video playback. This will be a custom VI resolution
      * to perfectly match the video resolution *and* aspect ratio, so that any
      * required letterboxing will be be performed at zero cost by VI itself.
-     * The resolution will use 32 bpp to achieve the best quality.
      *
      * Alternatively, #fmv_play can also render the video over an existing display
      * configuration. This is mostly useful for cases where you need a smooth
@@ -68,8 +67,10 @@ typedef struct fmv_parms_s {
      *
      * In this case, the video will be automatically scaled to the display size,
      * and aspect ratio will be preserved by actively drawing black bars into
-     * the framebuffers. Moreover, if the display is 16 bpp, RDP dithering will
-     * and VI dedithering will be activated.
+     * the framebuffers.
+     *
+     * Notice that if you are using a 16bpp display, the best results quality-wise
+     * are achieved with #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER.
      */
     bool disable_display_init;
     /** 
