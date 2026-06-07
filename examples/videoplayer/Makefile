@@ -3,7 +3,7 @@ include $(N64_INST)/include/n64.mk
 
 MOVIE_FILE=caminandes.ogv
 MOVIE_URL=https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.ogv
-DFS_FILES=filesystem/caminandes.h264
+DFS_FILES=filesystem/caminandes.h264 filesystem/caminandes.wav64 filesystem/caminandes.seek
 
 src = videoplayer.c
 
@@ -52,6 +52,8 @@ filesystem/caminandes.h264: $(MOVIE_FILE)
 		touch "$@" ; \
 	fi
 
+filesystem/caminandes.wav64: filesystem/caminandes.h264
+filesystem/caminandes.seek: filesystem/caminandes.h264
 
 # Download the movie file if wget or curl is available and it isn't already downloaded
 $(MOVIE_FILE):

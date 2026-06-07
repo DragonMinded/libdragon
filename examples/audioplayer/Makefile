@@ -48,7 +48,7 @@ audioplayer.z64: N64_ROM_TITLE="Audio Player"
 audioplayer.z64: $(BUILD_DIR)/audioplayer.dfs
 
 clean:
-	rm -rf $(BUILD_DIR) audioplayer.z64
+	rm -rf $(BUILD_DIR) audioplayer.z64 filesystem
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 
