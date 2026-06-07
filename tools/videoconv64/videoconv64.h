@@ -53,6 +53,7 @@ struct Config {
 	int audio_rate = 32000;           // passed to audioconv64 --wav-resample
 	int audio_channels = 1;           // 1 => --wav-mono, 2 => no flag
 	std::string quant_matrix = "n64";
+	std::vector<std::string> ffmpeg_opts; // extra ffmpeg argv tokens, appended near output (repeatable --ffmpeg-opts)
 
 	std::string ffmpeg_path = "ffmpeg";
 	std::string ffprobe_path = "ffprobe";

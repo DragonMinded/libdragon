@@ -171,6 +171,7 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 		std::vector<std::string> cmd = base;
 		// Single-pass, avoid extra analysis passes; still provide machine-parseable progress.
 		cmd.insert(cmd.end(), { "-progress", "pipe:1", "-v", "error" });
+		cmd.insert(cmd.end(), cfg.ffmpeg_opts.begin(), cfg.ffmpeg_opts.end());
 		cmd.push_back(er.video_path);
 		int rc = run_ffmpeg_with_progress(cmd, duration_sec, 0, ps);
 		if (rc != 0) fatal("ffmpeg failed (rc=%d)", rc);
@@ -197,7 +198,9 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 
 	{
 		std::vector<std::string> cmd = base;
-		cmd.insert(cmd.end(), { "-pass", "1", "-passlogfile", passlog, "-progress", "pipe:1", "-f", "null", null_sink, "-v", "error" });
+		cmd.insert(cmd.end(), { "-pass", "1", "-passlogfile", passlog, "-progress", "pipe:1", "-f", "null", "-v", "error" });
+		cmd.insert(cmd.end(), cfg.ffmpeg_opts.begin(), cfg.ffmpeg_opts.end());
+		cmd.push_back(null_sink);
 		verbose(1, "Encoding pass 1...");
 		int rc = run_ffmpeg_with_progress(cmd, duration_sec, 0, ps);
 		if (rc != 0) {
@@ -209,6 +212,7 @@ EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 	{
 		std::vector<std::string> cmd = base;
 		cmd.insert(cmd.end(), { "-pass", "2", "-passlogfile", passlog, "-progress", "pipe:1", "-v", "error" });
+		cmd.insert(cmd.end(), cfg.ffmpeg_opts.begin(), cfg.ffmpeg_opts.end());
 		cmd.push_back(er.video_path);
 		verbose(1, "Encoding pass 2...");
 		int rc = run_ffmpeg_with_progress(cmd, duration_sec, 1, ps);

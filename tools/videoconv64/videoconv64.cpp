@@ -97,6 +97,7 @@ static void usage(void) {
 	printf("                                Content profile for optimized filtering (default: auto)\n");
 	printf("       --quant-matrix <n64|std> Quantization matrix to use (default: n64)\n");
 	printf("       --audio-parms <R,C>      Audio params: RATE,CHANNELS (default: 32000,1)\n");
+	printf("       --ffmpeg-opts <arg>      Append raw ffmpeg arg (repeatable, applied near output)\n");
 	printf("       --ffmpeg-path <path>     Path to ffmpeg executable (default: ffmpeg)\n");
 	printf("       --ffprobe-path <path>    Path to ffprobe executable (default: ffprobe)\n");
 	printf("\n");
@@ -339,6 +340,9 @@ int main(int argc, char **argv) {
 		} else if (arg == "--quant-matrix") {
 			if (++i >= argc) fatal("Missing argument for %s", arg.c_str());
 			cfg.quant_matrix = argv[i];
+		} else if (arg == "--ffmpeg-opts") {
+			if (++i >= argc) fatal("Missing argument for %s", arg.c_str());
+			cfg.ffmpeg_opts.push_back(argv[i]);
 		} else if (arg == "--ffmpeg-path") {
 			if (++i >= argc) fatal("Missing argument for %s", arg.c_str());
 			cfg.ffmpeg_path = argv[i];
