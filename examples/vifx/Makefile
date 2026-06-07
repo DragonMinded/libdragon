@@ -19,7 +19,7 @@ $(BUILD_DIR)/vifx.dfs: $(assets_conv)
 $(BUILD_DIR)/vifx.elf: $(OBJS)
 
 clean:
-	rm -rf $(BUILD_DIR) *.z64
+	rm -rf $(BUILD_DIR) *.z64 filesystem
 .PHONY: clean
 
 -include $(wildcard $(BUILD_DIR)/*.d)
