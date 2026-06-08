@@ -402,28 +402,39 @@ void graphics_draw_box( surface_t* disp, int x, int y, int width, int height, ui
     int x0, y0, x1, y1;
     if( !__clip_box( disp, x, y, width, height, &x0, &y0, &x1, &y1 ) ) { return; }
 
-    int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
-    if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )
-    {
-        uint16_t *buffer16 = (uint16_t *)__get_buffer( disp );
+    tex_format_t format = surface_get_format(disp);
+    size_t row_bytes = TEX_FORMAT_PIX2BYTES(format, x1 - x0);
+    size_t box_bytes = row_bytes * (size_t)(y1 - y0);
+    uint8_t *row_ptr = (uint8_t *)__get_buffer(disp) + y0 * disp->stride + TEX_FORMAT_PIX2BYTES(format, x0);
 
-        for(int j = y0; j < y1; j++)
+    if( TEX_FORMAT_BITDEPTH(format) == 16 )
+    {
+        uint16_t color16 = (uint16_t)color;
+        if( row_bytes == disp->stride )
         {
-            for(int i = x0; i < x1; i++)
+            sys_hw_memset16(row_ptr, color16, box_bytes);
+        }
+        else
+        {
+            for(int j = y0; j < y1; j++)
             {
-                __set_pixel( buffer16, i, j, color );
+                sys_hw_memset16(row_ptr, color16, row_bytes);
+                row_ptr += disp->stride;
             }
         }
     }
     else
     {
-        uint32_t *buffer32 = (uint32_t *)__get_buffer( disp );
-
-        for(int j = y0; j < y1; j++)
+        if( row_bytes == disp->stride )
         {
-            for(int i = x0; i < x1; i++)
+            sys_hw_memset32(row_ptr, color, box_bytes);
+        }
+        else
+        {
+            for(int j = y0; j < y1; j++)
             {
-                __set_pixel( buffer32, i, j, color );
+                sys_hw_memset32(row_ptr, color, row_bytes);
+                row_ptr += disp->stride;
             }
         }
     }
