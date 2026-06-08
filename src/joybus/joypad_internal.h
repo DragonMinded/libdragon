@@ -13,7 +13,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "joypad_accessory.h"
+#include "joypad_accessory_internal.h"
 #include "utils.h"
 
 /**

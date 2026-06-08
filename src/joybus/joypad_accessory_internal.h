@@ -1,5 +1,5 @@
 /**
- * @file joypad_accessory.h
+ * @file joypad_accessory_internal.h
  * @author Christopher Bonhage <me@christopherbonhage.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Joypad accessory helpers

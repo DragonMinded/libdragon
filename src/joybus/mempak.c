@@ -12,7 +12,7 @@
 #include "regsinternal.h"
 #include "joybus.h"
 #include "joybus_accessory.h"
-#include "joypad_accessory.h"
+#include "joypad_accessory_internal.h"
 #include "mempak.h"
 #include "cpak.h"
 #include "cpakfs.h"
