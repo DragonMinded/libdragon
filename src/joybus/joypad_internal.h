@@ -1,6 +1,7 @@
 /**
  * @file joypad_internal.h
  * @author Christopher Bonhage <me@christopherbonhage.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Joypad internal
  * @ingroup joypad
  */
@@ -121,6 +122,39 @@ extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
  * @return Joypad inputs structure (#joypad_inputs_t)
  */
 joypad_inputs_t joypad_read_n64_inputs(joypad_port_t port);
+
+/** 
+  * @brief Joypad accessory library vtable.
+  *
+  * This structure is used to allow avoid linking the Joypad accessory library
+  * into the application if it is not needed. WHen the library is linked, the
+  * __joypad_accessory_vtable will be set to a valid vtable by a constructor.
+  */
+typedef struct {
+    /** @brief Initialize the accessory library. */
+    void (*init)(void);
+
+    /** @brief Close the accessory library. */
+    void (*close)(void);
+
+    /** @brief Reset accessory state for a given port. */
+    void (*reset)(joypad_port_t port);
+
+    /** @brief Detect the accessory on a given port, asynchronously. */
+    void (*detect_async)(joypad_port_t port);
+} joypad_accessory_library_vtable_t;
+
+extern const joypad_accessory_library_vtable_t *__joypad_accessory_vtable;
+
+/**
+ * @brief Returns true if joypad_init has been called.
+ */
+bool __joypad_is_initialized(void);
+
+/**
+ * @brief Toggle GameCube rumble and keep cached read command in sync.
+ */
+void __joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active);
 
 #ifdef __cplusplus
 }

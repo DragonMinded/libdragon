@@ -11,7 +11,6 @@
 
 #include "n64sys.h"
 #include "vi.h"
-#include "timer.h"
 #include "debug.h"
 #include "interrupt.h"
 #include "joypad_internal.h"
@@ -77,6 +76,8 @@ volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT] = {0};
 volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT] = {0};
 /** @brief Joypad accessories for each port. */
 volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT] = {0};
+/** @brief Accessory library hooks (set only when accessory module is linked). */
+const joypad_accessory_library_vtable_t *__joypad_accessory_vtable = NULL;
 /** @} */ /* joypad_hot_state */
 
 /**
@@ -227,7 +228,7 @@ static joypad_inputs_t joypad_inputs_from_gcn_controller_read(
  * @param port Joypad port of the GameCube controller.
  * @param active Whether to enable (true) or disable (false) rumble motors.
  */
-static void joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active)
+void __joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active)
 {
     volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
     device->rumble_active = active;
@@ -328,11 +329,24 @@ static void joypad_gcn_origin_check_async(void)
     joybus_exec_async(input, joypad_gcn_origin_callback, NULL);
 }
 
+static void joypad_accessory_reset_optional(joypad_port_t port)
+{
+    const joypad_accessory_library_vtable_t *vtable = __joypad_accessory_vtable;
+    if (vtable && vtable->reset)
+    {
+        vtable->reset(port);
+    }
+    else
+    {
+        memset((void *)&joypad_accessories_hot[port], 0, sizeof(joypad_accessories_hot[port]));
+    }
+}
+
 static void joypad_device_reset(int port)
 {
     memset((void *)&joypad_devices_hot[port], 0, sizeof(joypad_devices_hot[port]));
     joypad_origins_hot[port] = JOYPAD_GCN_ORIGIN_INIT;
-    joypad_accessory_reset(port);
+    joypad_accessory_reset_optional(port);
     joypad_read_input_valid = false;
 }
 
@@ -380,11 +394,15 @@ static void joypad_accessory_polled(int port, uint8_t new_status)
     );
     if (accessory_changed)
     {
-        joypad_accessory_detect_async(port);
+        const joypad_accessory_library_vtable_t *vtable = __joypad_accessory_vtable;
+        if (vtable && vtable->detect_async)
+        {
+            vtable->detect_async(port);
+        }
     }
     else if (accessory_disconnected)
     {
-        joypad_accessory_reset(port);
+        joypad_accessory_reset_optional(port);
     }
     accessory->status = accessory_status;
 }
@@ -535,43 +553,6 @@ static void joypad_vi_interrupt_callback(void* ctx)
 }
 
 /**
- * @brief Callback for NMI/Reset interrupt to stop rumble motors.
- */
-static void joypad_reset_interrupt_callback(void)
-{
-    // BBPlayer does not support rumble
-    if( sys_bbplayer() ) return;
-
-    const joybus_cmd_n64_accessory_write_port_t n64_motor_cmd = { .send = {
-        .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE,
-        .addr_checksum = joybus_accessory_calculate_addr_checksum(JOYBUS_ACCESSORY_ADDR_RUMBLE_MOTOR),
-        .data = { 0 },
-    } };
-
-    const joybus_cmd_gcn_controller_read_port_t gcn_motor_cmd = { .send = {
-        .command = JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ,
-        .mode = 3,
-        .rumble = false,
-    } };
-
-    JOYPAD_PORT_FOREACH (port)
-    {
-        if( !joypad_get_rumble_supported(port) ) continue;
-        switch( joypad_get_style(port) )
-        {
-            case JOYPAD_STYLE_N64:
-                joybus_exec_cmd_struct(port, n64_motor_cmd);
-                break;
-            case JOYPAD_STYLE_GCN:
-                joybus_exec_cmd_struct(port, gcn_motor_cmd);
-                break;
-            default:
-                break;
-        }
-    }
-}
-
-/**
  * @brief Read Joypad inputs and wait for completion.
  * 
  * Implicitly scans the read inputs to save you a step.
@@ -624,8 +605,11 @@ void joypad_init(void)
     // Initialize the VI subsystem so that we can poll in sync with VI interrupts
     vi_init();
 
-    // Initialize the timer subsystem (used by accessory detection)
-    timer_init();
+    const joypad_accessory_library_vtable_t *vtable = __joypad_accessory_vtable;
+    if (vtable && vtable->init)
+    {
+        vtable->init();
+    }
 
     // Reset global structures
     JOYPAD_PORT_FOREACH (port)
@@ -642,8 +626,6 @@ void joypad_init(void)
 
     // Update the Joypads on vblank interrupt
     vi_install_vblank_handler(joypad_vi_interrupt_callback, NULL);
-    // Stop rumble on console reset
-    register_RESET_handler(joypad_reset_interrupt_callback);
 }
 
 void joypad_close(void)
@@ -653,12 +635,18 @@ void joypad_close(void)
 
     // Stop updating the Joypads on vblank interrupt
     vi_uninstall_vblank_handler(joypad_vi_interrupt_callback, NULL);
-    unregister_RESET_handler(joypad_reset_interrupt_callback);
-
-    // Decrement the timer subsystem refcount (possibly closing it)
-    timer_close();
+    const joypad_accessory_library_vtable_t *vtable = __joypad_accessory_vtable;
+    if (vtable && vtable->close)
+    {
+        vtable->close();
+    }
     vi_close();
     joybus_close();
+}
+
+bool __joypad_is_initialized(void)
+{
+    return joypad_init_refcount > 0;
 }
 
 void joypad_poll(void)
@@ -799,28 +787,6 @@ bool joypad_get_rumble_active(joypad_port_t port)
     ASSERT_JOYPAD_INITIALIZED();
     ASSERT_JOYPAD_PORT_VALID(port);
     return joypad_devices_hot[port].rumble_active;
-}
-
-void joypad_set_rumble_active(joypad_port_t port, bool active)
-{
-    ASSERT_JOYPAD_INITIALIZED();
-    ASSERT_JOYPAD_PORT_VALID(port);
-
-    // Rumble motor operations are disabled during reset
-    if( exception_reset_time() > 0 ) { return; }
-
-    disable_interrupts();
-    volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
-    joypad_rumble_method_t rumble_method = device->rumble_method;
-    if (rumble_method == JOYPAD_RUMBLE_METHOD_N64_RUMBLE_PAK)
-    {
-        joypad_rumble_pak_toggle_async(port, active);
-    }
-    else if (rumble_method == JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER)
-    {
-        joypad_gcn_controller_rumble_toggle(port, active);
-    }
-    enable_interrupts();
 }
 
 joypad_inputs_t joypad_get_inputs(joypad_port_t port)
