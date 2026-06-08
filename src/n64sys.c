@@ -56,6 +56,7 @@ static bool hw_memset_broken = false;
 #define INDEX_CREATE_DIRTY              (3)
 #define HIT_INVALIDATE                  (4)
 #define HIT_WRITEBACK_INVALIDATE        (5)
+#define HIT_FILL                        (5)
 #define HIT_WRITEBACK                   (6)
 
 /// @endcond
@@ -123,6 +124,11 @@ void inst_cache_hit_writeback(volatile const void * addr, unsigned long length)
 void inst_cache_hit_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(build_opcode(HIT_INVALIDATE, CACHE_INST_FLAG), CACHE_INST_LINESIZE);
+}
+
+void inst_cache_hit_fill(volatile void * addr, unsigned long length)
+{
+    cache_op(build_opcode(HIT_FILL, CACHE_INST_FLAG), CACHE_INST_LINESIZE);
 }
 
 void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
