@@ -30,7 +30,8 @@
 enum Mode {
     MODE_EXCEPTION,
     MODE_ASSERTION,
-    MODE_CPP_EXCEPTION
+    MODE_CPP_EXCEPTION,
+    MODE_STACK_SMASHING
 };
 
 enum {
@@ -434,6 +435,17 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, joypad_bu
             printf("\aWThread:\n    %s\n\n", kthread_current()->name);
         }
         bt_skip = 5;
+        break;
+    }
+    case MODE_STACK_SMASHING: {
+        printf("Stack Smashing\n");
+        printf("\aOStack smashing detected\n");
+        printf("The function return address was likely corrupted\n\n");
+        
+        if (__kernel) {
+            printf("\aWThread:\n    %s\n\n", kthread_current()->name);
+        }
+        bt_skip = 2;
         break;
     }
     }
@@ -873,6 +885,14 @@ void __inspector_cppexception(const char *exctype, const char *what) {
     __builtin_unreachable();    
 }
 
+__attribute__((noreturn))
+void __inspector_stack_smashing(void) {
+    asm volatile (
+        "syscall 0x3\n"
+    );
+    __builtin_unreachable();        
+}
+
 /** @brief Register the inspector as a syscall handler (global constructor run before main). */
 __attribute__((constructor(130)))
 void __inspector_init(void) {
@@ -880,8 +900,9 @@ void __inspector_init(void) {
     void handler(exception_t* ex, uint32_t code) {
         if (code == 1) inspector(ex, MODE_ASSERTION);
         if (code == 2) inspector(ex, MODE_CPP_EXCEPTION);
+        if (code == 3) inspector(ex, MODE_STACK_SMASHING);
     }
-    register_syscall_handler(handler, 0x00001, 0x00002);
+    register_syscall_handler(handler, 0x00001, 0x00003);
 
 	if (emux_detect(1) & EMUX_FEAT1_EXCEPTION)
 	{

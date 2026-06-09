@@ -84,8 +84,10 @@ N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 
 ifeq ($(N64_ASAN),1)
+N64_C_AND_CXX_FLAGS += -fstack-protector-strong
 N64_LDFLAGS += -ldragon_asan
-N64_LDFLAGS += --wrap _malloc_r --wrap _free_r --wrap _realloc_r --wrap _calloc_r --wrap _memalign_r --wrap sbrk_top --wrap _mallinfo_r -u __asan_init
+N64_LDFLAGS += --wrap=_malloc_r --wrap=_free_r --wrap=_realloc_r --wrap=_calloc_r --wrap=_memalign_r --wrap=sbrk_top --wrap=_mallinfo_r -u __asan_init
+N64_LDFLAGS += --wrap=__stack_chk_fail
 endif
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
 

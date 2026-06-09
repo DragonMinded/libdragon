@@ -17,6 +17,7 @@
 #include "emux.h"
 #include "debug.h"
 #include "n64sys.h"
+#include "exception_internal.h"
 
 /** @brief Left redzone padding between header and payload (bytes) */
 #define ASAN_LEFT_RZ        8
@@ -262,4 +263,9 @@ struct mallinfo __wrap__mallinfo_r(struct _reent *r)
     struct mallinfo m = __real__mallinfo_r(r);
     emux_xasan_enable();
     return m;
+}
+
+void __wrap___stack_chk_fail(void)
+{
+    __inspector_stack_smashing();
 }
