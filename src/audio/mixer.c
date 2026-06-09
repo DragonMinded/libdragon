@@ -67,7 +67,7 @@ DEFINE_RSP_UCODE(rsp_mixer);
 #define CH_FLAGS_STEREO     	(1<<3)   ///< Set if the channel is stereo (left)
 #define CH_FLAGS_STEREO_SUB 	(1<<4)   ///< The channel is the second half of a stereo (right)
 #define CH_FLAGS_STEREO_ALLOC	(1<<5)   ///< The channel has a buffer sized for stereo
-#define CH_FLAGS_MONO_FOLD  	(1<<6)   ///< Fold this channel's output to both buses (mono downmix). CPU-side only; RSP ucode ignores this bit.
+#define CH_FLAGS_FORCE_MONO  	(1<<6)   ///< Fold this channel's output to both buses (mono downmix). CPU-side only; RSP ucode ignores this bit.
 
 /// @brief Fixed point value used in waveform position calculations.
 /// This is a signed 64-bit integer with the fractional part using
@@ -268,20 +268,20 @@ void mixer_ch_set_vol_pan(int ch, float vol, float pan) {
 	mixer_ch_set_vol(ch, vol * (1.f - pan), vol * pan);
 }
 
-void mixer_ch_set_mono_fold(int ch, bool enable) {
+void mixer_ch_set_force_mono(int ch, bool enable) {
 	assert(ch < Mixer.num_channels);
-	if (enable) Mixer.channels[ch].flags |=  CH_FLAGS_MONO_FOLD;
-	else        Mixer.channels[ch].flags &= ~CH_FLAGS_MONO_FOLD;
+	if (enable) Mixer.channels[ch].flags |=  CH_FLAGS_FORCE_MONO;
+	else        Mixer.channels[ch].flags &= ~CH_FLAGS_FORCE_MONO;
 }
 
-bool mixer_ch_get_mono_fold(int ch) {
+bool mixer_ch_get_force_mono(int ch) {
 	assert(ch < Mixer.num_channels);
-	return (Mixer.channels[ch].flags & CH_FLAGS_MONO_FOLD) != 0;
+	return (Mixer.channels[ch].flags & CH_FLAGS_FORCE_MONO) != 0;
 }
 
-void mixer_set_mono_fold(bool enable) {
+void mixer_set_force_mono(bool enable) {
 	for (int i = 0; i < Mixer.num_channels; i++) {
-		mixer_ch_set_mono_fold(i, enable);
+		mixer_ch_set_force_mono(i, enable);
 	}
 }
 
@@ -669,11 +669,11 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		mixer_channel_t *c = &Mixer.channels[ch];
 
 		// Stereo sub-channel. Will be ignored by RSP but we need to configure
-		// volume correctly. The mono-fold flag lives on the OWNER channel
+		// volume correctly. The force-mono flag lives on the OWNER channel
 		// (ch-1), since it's a property of the voice — check there.
 		if (c->flags & CH_FLAGS_STEREO_SUB) {
 			rsp_wv[ch].ptr = 0;
-			if (Mixer.channels[ch-1].flags & CH_FLAGS_MONO_FOLD) {
+			if (Mixer.channels[ch-1].flags & CH_FLAGS_FORCE_MONO) {
 				// R sample stream → half-amplitude to both buses.
 				mixer_fx15_t v = Mixer.rvol[ch-1] >> 1;
 				settings->lvol[ch] = v;
@@ -722,7 +722,7 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		}
 
 		if (c->flags & CH_FLAGS_STEREO) {
-			if (c->flags & CH_FLAGS_MONO_FOLD) {
+			if (c->flags & CH_FLAGS_FORCE_MONO) {
 				// L sample stream → half-amplitude to both buses.
 				// Combined with the SUB branch above, this folds a stereo
 				// voice to mono: L_out = R_out = 0.5*(L*lvol + R*rvol).
@@ -734,7 +734,7 @@ static void mixer_exec(int32_t *out, int num_samples) {
 				settings->rvol[ch] = 0;
 			}
 		} else {
-			if (c->flags & CH_FLAGS_MONO_FOLD) {
+			if (c->flags & CH_FLAGS_FORCE_MONO) {
 				// Mono source: average the pan and write to both buses.
 				// A hard-panned source loses its panning and -6 dB; a
 				// centered source (lvol==rvol) is unaffected.

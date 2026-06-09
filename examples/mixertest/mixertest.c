@@ -34,6 +34,7 @@ int main(void) {
 	wav64_set_loop(sfx_monosample, true);
 
 	bool music = false;
+	bool force_mono = false;
 	int music_frequency = sfx_monosample->wave.frequency;
 
 	while (1) {
@@ -45,6 +46,9 @@ int main(void) {
 		graphics_draw_text(disp, 50, 70, "B - Play laser (keep pressed)");
 		graphics_draw_text(disp, 50, 80, "Z - Start / stop background music");
 		graphics_draw_text(disp, 70, 90, "L/R - Change music frequency");
+		graphics_draw_text(disp, 50, 100, "C-Left / C-Right - Cannon panned hard L/R");
+		graphics_draw_text(disp, 50, 110, "C-Up - Toggle force mono");
+		graphics_draw_text(disp, 50, 120, force_mono ? "Output: MONO" : "Output: STEREO");
 		graphics_draw_text(disp, 50, 140, "Music courtesy of MishtaLu / indiegamemusic.com");
 		display_show(disp);
 
@@ -53,10 +57,32 @@ int main(void) {
 
 		if (ckeys.a) {
 			wav64_play(sfx_cannon, CHANNEL_SFX1);
+			// Restore centered vol — C-Left/C-Right leave SFX1's
+			// stored vol hard-panned, and mixer_ch_play does not
+			// reset it.
+			mixer_ch_set_vol(CHANNEL_SFX1, 1.0f, 1.0f);
 		}
 		if (ckeys.b) {
 			wav64_play(sfx_laser, CHANNEL_SFX2);
 			mixer_ch_set_vol(CHANNEL_SFX2, 0.25f, 0.25f);
+		}
+		if (ckeys.c_left) {
+			// Hard-pan to the left so the force-mono toggle has an audible
+			// effect: with it off, the cannon only hits the left speaker;
+			// with it on, it splits across both at half amplitude.
+			wav64_play(sfx_cannon, CHANNEL_SFX1);
+			mixer_ch_set_vol(CHANNEL_SFX1, 1.0f, 0.0f);
+		}
+		if (ckeys.c_right) {
+			wav64_play(sfx_cannon, CHANNEL_SFX1);
+			mixer_ch_set_vol(CHANNEL_SFX1, 0.0f, 1.0f);
+		}
+		if (ckeys.c_up) {
+			force_mono = !force_mono;
+			// Global toggle: re-applies the flag across every channel
+			// the mixer currently owns. Voices already playing pick
+			// up the change at the next mixer_poll without restart.
+			mixer_set_force_mono(force_mono);
 		}
 		if (ckeys.z) {
 			music = !music;
