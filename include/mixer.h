@@ -169,7 +169,7 @@ void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
 	float c, float sl, float sr);
 
 /**
- * @brief Enable or disable mono-fold on a single channel.
+ * @brief Enable or disable force-mono on a single channel.
  *
  * When enabled, the channel's output is folded equally onto both output buses
  * regardless of its panning or stereo routing:
@@ -183,20 +183,20 @@ void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
  * @param[in]   ch              Channel index
  * @param[in]   enable          true to fold, false to restore stereo routing
  */
-void mixer_ch_set_mono_fold(int ch, bool enable);
+void mixer_ch_set_force_mono(int ch, bool enable);
 
 /**
- * @brief Query the mono-fold flag for a channel.
+ * @brief Query the force-mono flag for a channel.
  */
-bool mixer_ch_get_mono_fold(int ch);
+bool mixer_ch_get_force_mono(int ch);
 
 /**
- * @brief Enable or disable mono-fold on every channel at once.
+ * @brief Enable or disable force-mono on every channel at once.
  *
  * Convenience wrapper for a global "Mono" output preference. Applies the
  * flag to all currently-allocated channels.
  */
-void mixer_set_mono_fold(bool enable);
+void mixer_set_force_mono(bool enable);
 
 /**
  * @brief Start playing the specified waveform on the specified channel.
