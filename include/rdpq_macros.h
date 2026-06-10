@@ -555,6 +555,8 @@ typedef uint32_t rdpq_blender_t;
 #define SOMX_NUMLODS_MASK      ((cast64(7))<<59)            ///< Rdpq extension: number of LODs
 #define SOMX_NUMLODS_SHIFT     59                           ///< Rdpq extension: number of LODs shift
 #define SOMX_FOG               ((cast64(1))<<58)            ///< RDPQ special state: fogging is enabled
+#define SOMX_ALPHACOMPARE      ((cast64(1))<<57)            ///< RDPQ special state: alpha compare is enabled (logical state; see mode API)
+#define SOMX_ALPHACOMPARE_SHIFT 57                           ///< Shift of #SOMX_ALPHACOMPARE in the 64-bit SOM word
 
 #define SOM_ATOMIC_PRIM        ((cast64(1))<<55)            ///< Atomic: serialize command execution 
 
