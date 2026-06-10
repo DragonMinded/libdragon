@@ -163,8 +163,7 @@ __rdpq_resolved_t __rdpq_resolve_mode(const rdpq_state_mirror_t *m)
     som = (som & ~(uint64_t)_AA_BLEND_MASK_C) | (uint64_t)(aa_bits & _AA_BLEND_MASK_C);
 
     /* AA + alpha-compare interaction */
-    uint64_t ac_mask = SOM_ALPHACOMPARE_THRESHOLD | SOM_BLALPHA_CVG;
-    if ((som & ac_mask) == ac_mask) {
+    if ((som & SOMX_ALPHACOMPARE) && (som & SOM_BLALPHA_CVG)) {
         som |= SOM_BLALPHA_CVG_TIMES_CC;
         som &= ~SOM_ALPHACOMPARE_MASK;
     }
