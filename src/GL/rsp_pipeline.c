@@ -75,7 +75,7 @@ static phys_addr_t magma_rsp_state;
 static const int16_t vtx_default[3] = {0, 0, 0};
 static const uint8_t col_default[4] = {0, 0, 0, 255};
 
-#define POS_CONVERT(v)  MGFX_S10_5(v)
+#define POS_CONVERT(v)  MGFX_FIXED_POINT(v, GLP_VTX_POS_SHIFT)
 
 DEFINE_READ_FUNC(vtx_read_i8,   int16_t, int8_t,    POS_CONVERT, 3, vtx_default)
 DEFINE_READ_FUNC(vtx_read_i16,  int16_t, int16u_t,  POS_CONVERT, 3, vtx_default)
@@ -113,7 +113,7 @@ DEFINE_READ_FUNC(col_read_i32,  uint8_t,    int32u_t,  COL_CONVERT_I32, 4, col_d
 DEFINE_READ_FUNC(col_read_f32,  uint8_t,    floatu,    COL_CONVERT_F32, 4, col_default)
 DEFINE_READ_FUNC(col_read_f64,  uint8_t,    doubleu,   COL_CONVERT_F64, 4, col_default)
 
-#define TEX_CONVERT(v)  MGFX_S8_8(v)
+#define TEX_CONVERT(v)  MGFX_FIXED_POINT(v, GLP_VTX_TEX_SHIFT)
 
 DEFINE_READ_FUNC(tex_read_i8,   int16_t, int8_t,    TEX_CONVERT, 2, vtx_default)
 DEFINE_READ_FUNC(tex_read_i16,  int16_t, int16u_t,  TEX_CONVERT, 2, vtx_default)

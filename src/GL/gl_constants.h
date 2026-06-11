@@ -180,8 +180,8 @@
 #define GLP_BINDING_LIGHTING           2
 #define GLP_BINDING_FOG                3
 
-#define GLP_VTX_POS_SHIFT      MGFX_VTX_POS_SHIFT
-#define GLP_VTX_TEX_SHIFT      MGFX_VTX_TEX_SHIFT
+#define GLP_VTX_POS_SHIFT      5
+#define GLP_VTX_TEX_SHIFT      8
 
 #define GLP_MATERIAL_FLAG_DIFFUSE   0x1
 #define GLP_MATERIAL_FLAG_AMBIENT   0x2
