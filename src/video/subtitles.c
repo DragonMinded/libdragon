@@ -48,6 +48,9 @@
  * - `delta_frames = read_varuint(DELT)`
  * - `opcode = OPC0[i]`
  *
+ * `DELT` includes one final terminal delta (without a matching opcode),
+ * used to define the exclusive end frame of the last subtitle state.
+ *
  * Some opcodes also consume one NUL-terminated UTF-8 string from `TXT0` (in order).
  *
  * @subsection sub64_opcodes Opcodes and regions
@@ -218,6 +221,11 @@ static void parse_next(sub_state_t *state)
 
 void subtitles_next_frame(subtitles_t *sub)
 {
+    // End-of-stream guard
+    if (sub->cur_frame_idx >= (int)sub->num_frames - 1) {
+        return;
+    }
+
     sub->cur_frame_idx++;
     if (sub->cur_frame_idx >= sub->state.end_frame_idx) {
         parse_next(&sub->state);

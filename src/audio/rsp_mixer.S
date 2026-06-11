@@ -105,6 +105,7 @@
 	####################################################################
 
 #include <rsp_queue.inc>
+#include <emux.inc>
 
 .set noreorder
 .set at
@@ -1178,8 +1179,6 @@ Mix8Loop:
 	#
 	########################################
 
-#define VADPCM_PROFILING      0
-
 #define VADPCM_ORDER_SHIFT    1
 #define VADPCM_ORDER          (1<<VADPCM_ORDER_SHIFT)
 
@@ -1215,6 +1214,11 @@ VADPCM_BUFFER_END:	.space 8    # Extra 8 bytes for misalignment
 #define stereo_toggle       k1
 #define rdram_input		    a0
 #define rdram_output	    a1
+#define cb_xor              t2   // codebook toggle: 0 (mono) / VADPCM_CODEBOOK_SIZE*16 (stereo)
+#define slot_xor            t3   // scratch-slot toggle: 0 (mono) / 16 (stereo)
+#define slot_ptr            t4   // pointer into RSPQ_SCRATCH_MEM (2x 16-byte channel state slots)
+#define db_base             t5   // stereo deinterleave: buffer base (saved before decode loop)
+#define db_count            t9   // stereo deinterleave: number of L/R pairs
 
 #define vscale  $v01
 #define vstatef $v02
@@ -1231,19 +1235,32 @@ VADPCM_BUFFER_END:	.space 8    # Extra 8 bytes for misalignment
 #define vres0    $v16
 #define vres1    $v17
 
+#define next_vres0 $v22   // upcoming frame's residuals, sign-extended: even lanes
+#define next_vres1 $v23   // (next_vres0) and odd lanes (next_vres1), pre-scaling
+
 #define vstate0 $v18
 #define vstate1 $v19
 #define vstate2 $v20
 #define vstate3 $v21
+#define vresult $v03   // current frame's decoded second sub-block (samples 8..15);
+                       // also becomes the input state for the next same-channel frame
 
 #define v____ 	$v29
 
+	// Stereo deinterleave scratch: two banks of 4 registers that are dead by the
+	// time the deinterleave runs. Bank A (v_il*) holds the pair being stored; bank
+	// B (v_ib*) holds the next pair being computed (software-pipelined).
+#define v_il0   $v06
+#define v_il1   $v07
+#define v_il2   $v08
+#define v_il3   $v09
+#define v_ib0   $v10
+#define v_ib1   $v11
+#define v_ib2   $v12
+#define v_ib3   $v13
+
 	.func VADPCM_Decompress
 VADPCM_Decompress:
-	#if VADPCM_PROFILING
-	mfc0 k0, COP0_DP_CLOCK
-	#endif
-
 	li dmem_codebook, %lo(VADPCM_CODEBOOK)
 	li dmem_state, %lo(VADPCM_STATE)
 
@@ -1318,34 +1335,69 @@ VADPCM_Decompress:
 	lqv vstate1, 0x00,dmem_state
 	lqv vstate3, 0x10,dmem_state
 	addiu dmem_input, 1
+	li t1, 1                          # loop-invariant: base for (1<<scaling)
 
 	##################################################################
 
-VADPCM_DecompressLoop:
-VADPCM_DecompressMono:
-	# Read from input: control byte, plus residuals
+	# ---- VADPCM decode ----
+	# VADPCM packs audio in 9-byte frames that each decode to 16 samples. A frame
+	# is a control byte (high nibble = scaling shift, low nibble = predictor index
+	# into the codebook) followed by 16 packed 4-bit residuals. The 16 samples are
+	# produced as two sub-blocks of 8 (samples 0..7 then 8..15), each an order-2
+	# linear prediction. Calling p0,p1 = codebook[2*index + 0,1] the two predictor
+	# vectors and s[] the 8 samples of the PREVIOUS sub-block, sub-block sample j is
+	#
+	#   out[j] = p0[j]*s[6] + p1[j]*s[7]                 (state feedback, order 2)
+	#          + (r[j] << 11)                            (this residual, Q11)
+	#          + sum_{k<j} r[k] * v[j-1-k]               (residual convolution)
+	#
+	# where r[k] = ext4(residual_k) << scaling is the signed, scaled residual and
+	# v = p1 is the predictor's second vector. Fixed point is Q11 throughout: the
+	# codebook coefficients and the residual's own term (the "<< 11" identity) are
+	# 1.0 = 2048, samples accumulate in Q11 in the 48-bit vector accumulator, and
+	# the final step recovers the integer sample as clamp16(acc >> 11).
+	#
+	# This is evaluated as a matrix-vector product. pred1a..pred1h are the 8
+	# columns of the residual->sample matrix (a lower-triangular Toeplitz matrix:
+	# 2048 on the diagonal, v on the sub-diagonals); pred0,pred1 hold p0,p1 for the
+	# state feedback. Even residuals live in vres0, odd residuals in vres1, already
+	# multiplied by 2^scaling. A frame is decoded as: block 0 (samples 0..7) ->
+	# combine 0 (extract+round) -> block 1 (samples 8..15) -> combine 1.
+	#
+	# The same loop decodes mono and stereo; they differ only in two parameters:
+	#   cb_xor   - 0 (mono) / VADPCM_CODEBOOK_SIZE*16 (stereo). Stereo interleaves
+	#              frames L0 R0 L1 R1 ...; XORing dmem_codebook by cb_xor each frame
+	#              selects the L or R codebook for that frame.
+	#   slot_xor - 0 (mono) / 16 (stereo). The per-channel input state lives in two
+	#              16-byte slots of RSPQ_SCRATCH_MEM. Each frame reads its state from
+	#              slot[cur^slot_xor] and writes its result to slot[cur]. For mono
+	#              (xor 0) this is one slot carrying the running state; for stereo
+	#              the two slots alternate, so each frame sees its own channel's
+	#              previous frame (two frames back in the interleaved stream).
+	# Stereo emits per-frame L/R blocks, so a deinterleave pass at the end turns
+	# L0 R0 L1 R1 ... into sample-interleaved output.
+
+	# ---- Priming for frame 0 (shared by both modes) ----
+	# On entry the loop body expects the frame's residuals already scaled into
+	# vres0/vres1 and its full convolution matrix already in pred0/pred1/pred1a..h.
+	# This block establishes that for frame 0: read the control byte, sign-extend
+	# the residuals, build vscale = 2^scaling and the predictor address, load the
+	# matrix, and scale the residuals. (Frame 0 is the left channel for stereo, so
+	# the base codebook address is correct.)
 	lbu t0, -1(dmem_input)
-	lpv vres0, 0,dmem_input
-	lpv vres1, 0,dmem_input
-
-	# Process control byte: scaling
-	li t1, 1
+	lpv next_vres0, 0,dmem_input
+	lpv next_vres1, 0,dmem_input
 	srl scaling, t0, 4
-	sllv scaling, t1, scaling
-	mtc2 scaling, vscale.e0
-
-	# Process control byte: compute predictors address
 	andi predictor, t0, 0xF
-	sll predictor, VADPCM_ORDER_SHIFT + 4    # multiply by order + sizeof(vector)
-	add predictor, dmem_codebook              
+	sllv scaling, t1, scaling				
+	mtc2 scaling, vscale.e0;					vsra8 next_vres0, next_vres0, 12
+	sll predictor, VADPCM_ORDER_SHIFT + 4;      vsll  next_vres1, next_vres1, 4
+	add predictor, dmem_codebook;				vsra8 next_vres1, next_vres1, 12			# next_vres1 = residual * 2^scaling
 	
-	vsra8 vres0, vres0, 12             # 4bit unpacking
-	vsll vres1, vres1, 4
-	vsra8 vres1, vres1, 12
-	vmudh vres0, vscale.e0
-	vmudh vres1, vscale.e0
-
-	# Load state and predictors (ORDER=2)
+	# Load the whole convolution matrix for frame 0: pred0/pred1 are the two
+	# predictor vectors p0,p1; pred1a.e1..pred1g.e7 fill the Toeplitz sub-diagonals
+	# with v=p1 at increasing element offsets (the diagonal already holds the 2048
+	# identity from init).
 	lqv pred0.e0,  0x00,predictor
 	lqv pred1.e0,  0x10,predictor
 	lqv pred1a.e1, 0x10,predictor
@@ -1355,93 +1407,214 @@ VADPCM_DecompressMono:
 	lqv pred1e.e5, 0x10,predictor
 	lqv pred1f.e6, 0x10,predictor
 	lqv pred1g.e7, 0x10,predictor
+	# Scale frame 0's residuals: vres0/vres1 = residual * 2^scaling.
+	vmudh vres0, next_vres0, vscale.e0
+	vmudh vres1, next_vres1, vscale.e0
 
-	vmudh v____,  pred0,  vstate1.e6
-	vmadh v____,  pred1,  vstate1.e7
-	vmadh v____,  pred1a, vres0.e0
-	vmadh v____,  pred1b, vres1.e0
-	vmadh v____,  pred1c, vres0.e1
-	vmadh v____,  pred1d, vres1.e1
-	vmadh v____,  pred1e, vres0.e2
-	vmadh v____,  pred1f, vres1.e2
-	vmadh v____,  pred1g, vres0.e3
-	vmadh v____,  pred1h, vres1.e3
-	vsar  vstatef, COP2_ACC_MD
-	vsar  vstate0, COP2_ACC_HI
-	vmudn v____, vstatef, vshift.e2
-	vmadh vstate0, vstate0, vshift.e2
+	# Per-mode parameters and initial channel state. The loop carries each frame's
+	# result in vresult and writes it to slot[cur] for the next same-channel frame
+	# to read as input state. To make frame 0 read a valid initial state, vresult
+	# is primed with the channel's incoming state (loaded earlier from dmem_state):
+	# the left state for mono, the right state for stereo (frame 0 is left, so it
+	# must read the left state from the other slot, seeded directly below).
+	# db_base/db_count record the buffer base and L/R pair count for the stereo
+	# deinterleave pass.
+	li slot_ptr, %lo(RSPQ_SCRATCH_MEM)
+	lqv vresult, 0x00,dmem_state      # mono: initial state = left  (delay slot, always runs)
+	li slot_xor, 0
+	bgez a2, VADPCM_DecodeLoop
+	 li cb_xor, 0
+	li slot_xor, 16
+	li cb_xor, VADPCM_CODEBOOK_SIZE*16
+	lqv vresult, 0x10,dmem_state       # stereo: initial state = right
+	move db_base, dmem_output          # buffer base for the deinterleave
+	srl db_count, nframes, 1           # number of L/R pairs
+	sqv vstate1, 16,slot_ptr           # slot[1] = left initial state (read by frame 0)
 
-	vmudh v____,  pred0,  vstate0.e6
+	# ---- Decode loop: one frame (16 samples) per iteration ----
+	# This loop runs at 35 cycles/frame (2.187 cycles/sample)
+	.balign 8
+VADPCM_DecodeLoop:
+	# ---- block 0: samples 0..7 = matrix * residuals + state feedback ----
+	# The VU accumulates the 8 residual terms (even residuals from vres0.e0..e3,
+	# odd from vres1.e0..e3, each times its convolution-matrix column) and the two
+	# state-feedback terms (pred0*s[6] + pred1*s[7], where s = vstate1 is the
+	# previous sub-block of this channel). The accumulator is exact, so term order
+	# is free. In parallel the SU advances the per-frame bookkeeping:
+	#   vresult holds the previous frame's result; store it to its channel slot
+	#   (where the next same-channel frame reads it) and to the output buffer,
+	#   select this frame's slot, load this frame's input state into vstate1, then
+	#   read the next frame's control byte and residual nibbles.
+	vmudh v____,  pred1a, vres0.e0;    sqv vresult, 0,slot_ptr         # prev result -> this frame's channel slot
+	vmadh v____,  pred1c, vres0.e1;    xor slot_ptr, slot_xor          # select this frame's channel slot
+	vmadh v____,  pred1e, vres0.e2;    sqv vresult, -16,dmem_output    # prev result -> output (samples 8..15)
+	vmadh v____,  pred1g, vres0.e3;    lqv vstate1, 0,slot_ptr         # input state = prev same-channel frame's samples 8..15
+	vmadh v____,  pred1b, vres1.e0;    srv vresult, 0x00,dmem_output
+	vmadh v____,  pred1d, vres1.e1;    addiu dmem_input, 9             # advance to next frame (9 bytes)
+	vmadh v____,  pred1f, vres1.e2;    lbu t0, -1(dmem_input)          # next frame's control byte
+	vmadh v____,  pred1h, vres1.e3;    lpv next_vres0, 0,dmem_input    # next frame's residual nibbles
+	vmadh v____,  pred0,  vstate1.e6;  lpv next_vres1, 0,dmem_input
+	vmadh v____,  pred1,  vstate1.e7;  addiu nframes, -1
+
+	# ---- combine 0 -> vstate0 (samples 0..7) ----
+	# Round the Q11 accumulator to integer samples: read the mid/high accumulator
+	# words (acc >> 16) and multiply by 2^5 (vshift.e2 = K32), giving acc >> 11;
+	# the vmadh saturates to signed 16-bit, i.e. clamp16. vstate0 = samples 0..7.
+	# The SU decodes the next frame's header (scaling shift and predictor index ->
+	# vscale and predictor address, toggling the codebook for stereo via cb_xor),
+	# and unpacks its residuals: even nibbles into next_vres0 (sign-extend by >>12
+	# after lpv put each nibble pair in the high byte), odd nibbles into next_vres1
+	# (shift left 4 first, then sign-extend).
+	vsar  vstatef, COP2_ACC_MD;        srl scaling, t0, 4              # scaling shift = control >> 4
+	vsar  vstate0, COP2_ACC_HI;        andi predictor, t0, 0xF         # predictor index = control & 15
+	vsra8 next_vres0, next_vres0, 12;  xor dmem_codebook, cb_xor       # select this channel's codebook
+	vsll  next_vres1, next_vres1, 4;   sll predictor, VADPCM_ORDER_SHIFT + 4
+	vmudn v____, vstatef, vshift.e2;   add predictor, dmem_codebook    # &codebook[2*index]
+	vmadh vstate0, vstate0, vshift.e2; sllv scaling, t1, scaling       # vscale source = 1 << shift
+
+	# ---- block 1: samples 8..15 = matrix * residuals + state feedback ----
+	# Same product as block 0 but for the second sub-block: residuals from lanes
+	# e4..e7 of vres0/vres1, and the state feedback now comes from vstate0.e6/e7
+	# (samples 6,7 just produced by this frame's first sub-block). The SU builds
+	# the next frame's matrix: mtc2 loads its vscale, and the lqv's fill the
+	# Toeplitz sub-diagonals (v at offsets e1..e7) from its predictor address.
+	vmudh v____,  pred1a, vres0.e4;    mtc2 scaling, vscale.e0         # next frame's vscale = 1 << shift
+	vmadh v____,  pred1b, vres1.e4;    lqv pred1a.e1, 0x10,predictor
+	vmadh v____,  pred1c, vres0.e5;    lqv pred1b.e2, 0x10,predictor
+	vmadh v____,  pred1d, vres1.e5;    lqv pred1c.e3, 0x10,predictor
+	vmadh v____,  pred1e, vres0.e6;    lqv pred1d.e4, 0x10,predictor
+	vmadh v____,  pred1f, vres1.e6;    lqv pred1e.e5, 0x10,predictor
+	vmadh v____,  pred1g, vres0.e7;    lqv pred1f.e6, 0x10,predictor
+	vmadh v____,  pred1h, vres1.e7;    lqv pred1g.e7, 0x10,predictor
+	vmadh v____,  pred0,  vstate0.e6
 	vmadh v____,  pred1,  vstate0.e7
-	vmadh v____,  pred1a, vres0.e4
-	vmadh v____,  pred1b, vres1.e4
-	vmadh v____,  pred1c, vres0.e5
-	vmadh v____,  pred1d, vres1.e5
-	vmadh v____,  pred1e, vres0.e6
-	vmadh v____,  pred1f, vres1.e6
-	vmadh v____,  pred1g, vres0.e7
-	vmadh v____,  pred1h, vres1.e7
-	vsar  vstatef, COP2_ACC_MD
-	vsar  vstate1, COP2_ACC_HI
-	vmudn v____, vstatef, vshift.e2
-	vmadh vstate1, vstate1, vshift.e2
 
-	sqv vstate0, 0x00,dmem_output
-	srv vstate0, 0x10,dmem_output
-	sqv vstate1, 0x10,dmem_output
-	srv vstate1, 0x20,dmem_output
+	# ---- combine 1 -> vresult (samples 8..15) ----
+	# Round the accumulator to samples 8..15 exactly as combine 0 (acc >> 11 with
+	# clamp16) into vresult. The SU writes this frame's first sub-block (vstate0,
+	# samples 0..7) to the output buffer, loads the next frame's predictor vectors
+	# pred0/pred1, scales the next frame's residuals into vres0/vres1, and advances
+	# the output pointer by 32 bytes (16 samples).
+	vsar  vstatef, COP2_ACC_MD;         sqv vstate0, 0x00,dmem_output
+	vsar  vresult, COP2_ACC_HI;         srv vstate0, 0x10,dmem_output
+	vsra8 next_vres1, next_vres1, 12;   lqv pred0.e0, 0x00,predictor
+	vmudh vres0, next_vres0, vscale.e0; lqv pred1.e0, 0x10,predictor   # next frame's even residuals scaled
+	vmudn v____, vstatef, vshift.e2;    addiu dmem_output, 32
+	vmadh vresult, vresult, vshift.e2;  bgtz nframes, VADPCM_DecodeLoop
+	 vmudh vres1, next_vres1, vscale.e0                                # next frame's odd residuals scaled
 
-	addiu nframes, -1
-	addiu dmem_input, 9
-	bgez a2, VADPCM_Output
-	 addiu dmem_output, 32
+	# ---- End of decode loop ----
 
-	vcopy vstate1, vstate3
-	xori dmem_codebook, VADPCM_CODEBOOK_SIZE*16
-	bltz stereo_toggle, VADPCM_DecompressMono
-	xor stereo_toggle, a2
+	# The loop writes each frame's result one iteration after producing it, so the
+	# last frame's result is still only in vresult: write it to the output buffer
+	# (samples 8..15) and to its channel slot. slot_ptr still selects that slot.
+	sqv vresult, -16,dmem_output
+	srv vresult, 0x00,dmem_output
+	sqv vresult, 0,slot_ptr
 
-	# Stereo deinterleave
-	addiu dmem_output, -64
+	# The saved state for the next call is each channel's last sub-block. For mono
+	# that is slot[0] (vstate1 currently holds unrelated data, so reload it).
+	# vstate3 is unused for mono. Stereo first deinterleaves the per-frame L/R
+	# blocks into sample order, then reloads both channels' final states.
+	li slot_ptr, %lo(RSPQ_SCRATCH_MEM)
+	bgez a2, VADPCM_SaveState
+	 lqv vstate1, 0,slot_ptr           # mono: left final state = slot[0]
 
+	# ---- Stereo deinterleave: per-frame L/R blocks -> sample-interleaved ----
+	# The loop emitted each L/R pair as a 16-sample left block (L0..L15) followed
+	# by a 16-sample right block (R0..R15), 64 bytes per pair. Rewrite each pair in
+	# place to sample-interleaved order L0 R0 L1 R1 ... L15 R15.
+	#
+	# The duplicate swizzles .q0 = [0,0,2,2,4,4,6,6] and .q1 = [1,1,3,3,5,5,7,7]
+	# gather the even/odd lanes of a vector. Merging L.q0 (even lanes) with R.q0
+	# (odd lanes, via VCC = 0x55) yields the even-sample L/R pairs interleaved
+	# [L0 R0 L2 R2 L4 R4 L6 R6]; .q1 yields the odd-sample pairs [L1 R1 L3 R3 ...].
+	# Each lane-pair (e0,e2,e4,e6) is one finished [Lk Rk] output word; slv scatters
+	# them to their interleaved byte offsets (even samples at 0,8,..; odd at 4,12,..).
+	#
+	# Software-pipelined: each iteration stores the previous pair (bank A, v_il*)
+	# while loading and computing the current pair (bank B, v_ib*); bank B is then
+	# copied into bank A for the next store. The stores read bank A and the loads
+	# write the next 64-byte block, so an iteration's stores and the next pair's
+	# compute are independent and the abundant VU work folds under the slv stores.
+	li t0, 0x55
+	ctc2 t0, COP2_CTRL_VCC              # vmrg mask: even lanes <- L, odd lanes <- R
+	move dmem_output, db_base
+	# Prologue: compute the first pair into bank A (v_il*).
 	lqv vstate0, 0x00,dmem_output
 	lrv vstate0, 0x10,dmem_output
 	lqv vstate1, 0x10,dmem_output
 	lrv vstate1, 0x20,dmem_output
-	lqv vstate2, 0x20,dmem_output
-	lrv vstate2, 0x30,dmem_output
-	lqv vstate3, 0x30,dmem_output
-	lrv vstate3, 0x40,dmem_output
-VADPCM_InterleaveStereo:
-	ssv vstate0.e0, 0x00,dmem_output
-	ssv vstate2.e0, 0x02,dmem_output
-	ssv vstate0.e1, 0x04,dmem_output
-	ssv vstate2.e1, 0x06,dmem_output
-	ssv vstate0.e2, 0x08,dmem_output
-	ssv vstate2.e2, 0x0A,dmem_output
-	ssv vstate0.e3, 0x0C,dmem_output
-	ssv vstate2.e3, 0x0E,dmem_output
+	lqv vstate2, 0x20,dmem_output;     vcopy v_il0, vstate0.q0
+	lrv vstate2, 0x30,dmem_output;     vcopy v_il1, vstate0.q1
+	lqv vstate3, 0x30,dmem_output;     vcopy v_il2, vstate1.q0
+	lrv vstate3, 0x40,dmem_output;     vcopy v_il3, vstate1.q1
+	vmrg v_il0, v_il0, vstate2.q0                            # L0 R0 L2 R2 ..
+	vmrg v_il1, v_il1, vstate2.q1                            # L1 R1 L3 R3 ..
+	vmrg v_il2, v_il2, vstate3.q0                            # L8 R8 L10 R10 ..
+	vmrg v_il3, v_il3, vstate3.q1                            # L9 R9 L11 R11 ..
+	addiu db_count, -1
+	blez db_count, VADPCM_DeintLast    # only one pair: store it directly
+	 nop
+	# This loop is 30 cycles per 8 stereo-samples / 16 samples = 1.875 cycles/sample
+	.balign 8
+VADPCM_Deinterleave:
+	# Store bank A (current pair) while loading + computing the next pair (bank B).
+	slv v_il0.e0, 0x00,dmem_output
+	lqv vstate0,  0x40,dmem_output
+	slv v_il1.e0, 0x04,dmem_output
+	lrv vstate0,  0x50,dmem_output
+	slv v_il0.e2, 0x08,dmem_output
+	lqv vstate1,  0x50,dmem_output
+	slv v_il1.e2, 0x0C,dmem_output
+	lrv vstate1,  0x60,dmem_output
+	slv v_il0.e4, 0x10,dmem_output
+	lqv vstate2,  0x60,dmem_output
+	slv v_il1.e4, 0x14,dmem_output
+	lrv vstate2,  0x70,dmem_output
+	slv v_il0.e6, 0x18,dmem_output
+	lqv vstate3,  0x70,dmem_output
+	slv v_il1.e6, 0x1C,dmem_output
+	lrv vstate3,  0x80,dmem_output
+	slv v_il2.e0, 0x20,dmem_output;    vcopy v_ib0, vstate0.q0
+	slv v_il3.e0, 0x24,dmem_output;    vcopy v_ib1, vstate0.q1
+	slv v_il2.e2, 0x28,dmem_output;    vcopy v_ib2, vstate1.q0
+	slv v_il3.e2, 0x2C,dmem_output;    vcopy v_ib3, vstate1.q1
+	slv v_il2.e4, 0x30,dmem_output;    vmrg v_ib0, v_ib0, vstate2.q0
+	slv v_il3.e4, 0x34,dmem_output;    vmrg v_ib1, v_ib1, vstate2.q1
+	slv v_il2.e6, 0x38,dmem_output;    vmrg v_ib2, v_ib2, vstate3.q0
+	slv v_il3.e6, 0x3C,dmem_output;    vmrg v_ib3, v_ib3, vstate3.q1
+	vcopy v_il0, v_ib0;                addiu dmem_output, 64
+	vcopy v_il1, v_ib1;                addiu db_count, -1
+	vcopy v_il2, v_ib2;                bgtz db_count, VADPCM_Deinterleave
+	 vcopy v_il3, v_ib3
+VADPCM_DeintLast:
+	# Epilogue: store the last computed pair (bank A).
+	slv v_il0.e0, 0x00,dmem_output
+	slv v_il1.e0, 0x04,dmem_output
+	slv v_il0.e2, 0x08,dmem_output
+	slv v_il1.e2, 0x0C,dmem_output
+	slv v_il0.e4, 0x10,dmem_output
+	slv v_il1.e4, 0x14,dmem_output
+	slv v_il0.e6, 0x18,dmem_output
+	slv v_il1.e6, 0x1C,dmem_output
+	slv v_il2.e0, 0x20,dmem_output
+	slv v_il3.e0, 0x24,dmem_output
+	slv v_il2.e2, 0x28,dmem_output
+	slv v_il3.e2, 0x2C,dmem_output
+	slv v_il2.e4, 0x30,dmem_output
+	slv v_il3.e4, 0x34,dmem_output
+	slv v_il2.e6, 0x38,dmem_output
+	slv v_il3.e6, 0x3C,dmem_output
 
-	ssv vstate0.e4, 0x10,dmem_output
-	ssv vstate2.e4, 0x12,dmem_output
-	ssv vstate0.e5, 0x14,dmem_output
-	ssv vstate2.e5, 0x16,dmem_output
-	ssv vstate0.e6, 0x18,dmem_output
-	ssv vstate2.e6, 0x1A,dmem_output
-	ssv vstate0.e7, 0x1C,dmem_output
-	ssv vstate2.e7, 0x1E,dmem_output
+	# Reload the final per-channel states (the deinterleave reused vstate1/3).
+	# Left frames write slot[1], right frames write slot[0], so each slot now holds
+	# its channel's last decoded sub-block.
+	li slot_ptr, %lo(RSPQ_SCRATCH_MEM)
+	lqv vstate1, 16,slot_ptr           # slot[1] = left  final state
+	lqv vstate3, 0,slot_ptr            # slot[0] = right final state
 
-	vcopy vstate0, vstate1
-	vcopy vstate2, vstate3
-	addiu dmem_output, 0x20
-	bltz stereo_toggle, VADPCM_InterleaveStereo 
-	xor stereo_toggle, a2
-
-	# Write output into RDRAM (async)
-VADPCM_Output:
-	bgtz nframes, VADPCM_DecompressLoop
-	nop
-
+VADPCM_SaveState:
 	##################################################################
 
 	# Save back state
@@ -1478,19 +1651,8 @@ VADPM_OutputDma:
 	# Save back output buffer
 	li s4, %lo(VADPCM_BUFFER)
 	move s0, rdram_output
-	jal DMAOut
 	addiu t0, buffer_out_size, -1
-	
-	#if VADPCM_PROFILING
-	mfc0 k1, COP0_DP_CLOCK
-	subu k1, k1, k0
-	and k1, k1, 0x00FFFFFF
-	li k0, 4096-4
-	sw k1, 0(k0)
-	#endif
-
-	j RSPQ_Loop
-	nop
+	jal_and_j DMAOutAsync, RSPQ_Loop
 
 	.endfunc
 

@@ -12,10 +12,14 @@
 #include "interrupt.h"
 #include "kernel/kernel_internal.h"
 #include "kirq.h"
+#include "n64sys.h"
 #include "timer.h"
 #include "joypad_internal.h"
 #include "../rand_internal.h"
 
+static void joypad_accessory_library_init(void);
+static void joypad_accessory_library_close(void);
+static void joypad_rumble_pak_reset_interrupt_callback(void);
 static void joypad_accessory_detect_read_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_accessory_detect_write_callback(uint64_t *out_dwords, void *ctx);
 static void joypad_accessory_detect_state_machine(joypad_port_t port, const joybus_cmd_n64_accessory_read_port_t *cmdr, const joybus_cmd_n64_accessory_write_port_t *cmdw);
@@ -31,6 +35,30 @@ static void joypad_transfer_pak_wait_timer_callback(int ovfl, void *ctx);
  * @addtogroup joypad
  * @{
  */
+
+static const joypad_accessory_library_vtable_t joypad_accessory_library_vtable = {
+    .init = joypad_accessory_library_init,
+    .close = joypad_accessory_library_close,
+    .reset = joypad_accessory_reset,
+    .detect_async = joypad_accessory_detect_async,
+};
+
+__attribute__((constructor))
+static void joypad_accessory_library_constructor(void)
+{
+    __joypad_accessory_vtable = &joypad_accessory_library_vtable;
+}
+
+static void joypad_accessory_library_init(void)
+{
+    // TODO: this is only required for applications using rumble motors.
+    register_RESET_handler(joypad_rumble_pak_reset_interrupt_callback);
+}
+
+static void joypad_accessory_library_close(void)
+{
+    unregister_RESET_handler(joypad_rumble_pak_reset_interrupt_callback);
+}
 
 /**
  * @brief Determine whether the accessory read command was successful. Retry if necessary.
@@ -646,6 +674,43 @@ void joypad_accessory_detect_async(joypad_port_t port)
 }
 
 /**
+ * @brief Callback for NMI/Reset interrupt to stop rumble motors.
+ */
+static void joypad_rumble_pak_reset_interrupt_callback(void)
+{
+    // BBPlayer does not support rumble.
+    if (sys_bbplayer()) return;
+
+    const joybus_cmd_n64_accessory_write_port_t n64_motor_cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_N64_ACCESSORY_WRITE,
+        .addr_checksum = joybus_accessory_calculate_addr_checksum(JOYBUS_ACCESSORY_ADDR_RUMBLE_MOTOR),
+        .data = { 0 },
+    } };
+    const joybus_cmd_gcn_controller_read_port_t gcn_motor_cmd = { .send = {
+        .command = JOYBUS_COMMAND_ID_GCN_CONTROLLER_READ,
+        .mode = 3,
+        .rumble = false,
+    } };
+
+    JOYPAD_PORT_FOREACH (port)
+    {
+        volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
+        if (device->rumble_method == JOYPAD_RUMBLE_METHOD_NONE) continue;
+        switch (device->style)
+        {
+            case JOYPAD_STYLE_N64:
+                joybus_exec_cmd_struct(port, n64_motor_cmd);
+                break;
+            case JOYPAD_STYLE_GCN:
+                joybus_exec_cmd_struct(port, gcn_motor_cmd);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+/**
  * @brief Callback for the accessory write commands used by #joypad_rumble_pak_toggle_async.
  * 
  * @param out_dwords Joybus output block
@@ -697,14 +762,35 @@ void joypad_rumble_pak_toggle_async(joypad_port_t port, bool active)
     );
 }
 
+void joypad_set_rumble_active(joypad_port_t port, bool active)
+{
+    assertf(__joypad_is_initialized(), "joypad_init() was not called");
+    ASSERT_JOYPAD_PORT_VALID(port);
+
+    // Rumble motor operations are disabled during reset.
+    if (exception_reset_time() > 0) { return; }
+
+    disable_interrupts();
+    volatile joypad_device_hot_t *device = &joypad_devices_hot[port];
+    joypad_rumble_method_t rumble_method = device->rumble_method;
+    if (rumble_method == JOYPAD_RUMBLE_METHOD_N64_RUMBLE_PAK)
+    {
+        joypad_rumble_pak_toggle_async(port, active);
+    }
+    else if (rumble_method == JOYPAD_RUMBLE_METHOD_GCN_CONTROLLER)
+    {
+        __joypad_gcn_controller_rumble_toggle(port, active);
+    }
+    enable_interrupts();
+}
+
 static void joypad_accessory_read_callback(uint64_t *out_dwords, void *ctx)
 {
     const uint8_t *out_bytes = (void *)out_dwords;
     joypad_port_t port = (joypad_port_t)ctx;
     volatile joypad_accessory_t *accessory = &joypad_accessories_hot[port];
     volatile joypad_accessory_io_t *io = &accessory->io;
-    joypad_accessory_state_t state = accessory->state;
-    assert(state == JOYPAD_ACCESSORY_STATE_READ);
+    assert(accessory->state == JOYPAD_ACCESSORY_STATE_READ);
 
     const joybus_cmd_n64_accessory_read_port_t *cmd =
         (void *)&out_bytes[port + JOYBUS_COMMAND_METADATA_SIZE];

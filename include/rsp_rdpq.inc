@@ -582,6 +582,10 @@ set_1cyc:
     move blend_final, blend_1cyc
     li cycle_type, ((SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32)  | 0x10000000
 set_cycle_type:
+    # Before clearing the MSB in som_hi extract the SOMX ALPHACOMPARE flag into
+    # t3 (bit 31) that might be useful later.
+    sll t3, som_hi, 31 - (SOMX_ALPHACOMPARE_SHIFT-32)
+
     # Set cycle type bits in other modes high word. Also put the correct
     # command (0xEF) in the top byte: we achieve this by first setting the
     # top byte to 0xFF, and then xoring with 0x10 (which is included in
@@ -633,10 +637,10 @@ set_cycle_type:
     # Additionally we need to disable the actual alpha compare feature since it would
     # compare the threshold with the alpha multiplied by coverage in this case, which would
     # lead to visible seams at polygon edges.
-    li t0, SOM_ALPHACOMPARE_THRESHOLD | SOM_BLALPHA_CVG
-    and t1, som_lo, t0
-    bne t0, t1, 1f
-    nop
+    sll t0, som_lo, 31 - (SOM_BLALPHA_SHIFT+1)          # SOM_BLALPHA_CVG goes to bit 31
+    and t0, t3                                          # SOMX_ALPHACOMPARE is already in bit 31
+    bgez t0, 1f
+     nop
     or som_lo, SOM_BLALPHA_CVG_TIMES_CC
     and som_lo, ~SOM_ALPHACOMPARE_MASK
 1:

@@ -6,7 +6,7 @@
  */
 
 #include "cpak.h"
-#include "joypad_accessory.h"
+#include "joypad_accessory_internal.h"
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>

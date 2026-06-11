@@ -7,7 +7,7 @@
 #define LIBDRAGON_CPAKFS_INTERNAL_H
 
 #include "joypad.h"
-#include "joypad_accessory.h"
+#include "joypad_accessory_internal.h"
 #include "joybus_accessory.h"
 #include <assert.h>
 

@@ -128,9 +128,11 @@ decompress_shrinkler_full_fast:
     sll $t0, 9
     xor parity, $t0
     li prev_match, 1<<31
-    blt match_off, match_len, .Lmatch1_loop_check   # check if we can do 8-byte copy
+    blt match_off, 8, .Lmatch1_loop_check       # if offset < 8, we can't do 8-byte copies
      sub $v0, outbuf, match_off                 # calculate start of match
-.Lmatch8_loop:                                  # 8-byte copy loop
+.Lmatch8_loop:                                  # 8-byte copy loop (safe for offset >= 8,
+                                                # even if match_len > offset: each chunk
+                                                # only reads bytes already written)
     ldl $t0, 0($v0)                             # load 8 bytes
     ldr $t0, 7($v0)
     addiu $v0, 8

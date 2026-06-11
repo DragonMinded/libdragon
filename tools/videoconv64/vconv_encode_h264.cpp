@@ -102,7 +102,8 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		cmd.insert(cmd.end(), kf.begin(), kf.end());
 	}
 
-    cmd.push_back(er.video_path);
+	cmd.insert(cmd.end(), cfg.ffmpeg_opts.begin(), cfg.ffmpeg_opts.end());
+	cmd.push_back(er.video_path);
 
 	progress_state_t ps = { .pass_count = 1, .start_ms = now_ms(), .last_draw_ms = 0 };
 	int rc = run_ffmpeg_with_progress(cmd, ar.meta.duration, 0, ps);

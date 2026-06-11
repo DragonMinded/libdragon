@@ -57,7 +57,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     int flags = 0;
     int layout_cap = 32;
     if (!layout) {
-        layout = malloc(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * layout_cap);
+        layout = malloc(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * (layout_cap + 1));
         assertf(layout, "Out of memory");
         flags = RDPQ_PARAGRAPH_FLAG_MALLOC;
     } else {
@@ -482,7 +482,8 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
         }
     }
 
-    // Make sure there is always a terminator.
+    // Make sure there is always a terminator. Notice that the array is allocated with
+    // one extra slot (capactiy + 1) so that we can always add a terminator.
     assertf(builder.layout->nchars <= builder.layout->capacity,
         "paragraph too long (%d/%d chars)", builder.layout->nchars, builder.layout->capacity);
     builder.layout->chars[builder.layout->nchars].sort_key = 0;

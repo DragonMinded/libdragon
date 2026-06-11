@@ -33,7 +33,7 @@ rdpqdemo.z64: N64_ROM_TITLE="RSPQ Demo"
 rdpqdemo.z64: $(BUILD_DIR)/rdpqdemo.dfs 
 
 clean:
-	rm -rf $(BUILD_DIR) rdpqdemo.z64
+	rm -rf $(BUILD_DIR) rdpqdemo.z64 filesystem
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 

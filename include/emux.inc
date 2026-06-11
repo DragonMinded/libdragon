@@ -3,6 +3,9 @@
 #
 # Authors: Giovanni Bajo <giovannibajo@gmail.com>
 ############################################################
+#ifndef LIBDRAGON_EMUX_INC
+#define LIBDRAGON_EMUX_INC
+
 #include "emux.h"
 
 .macro xdetect rd, code
@@ -129,3 +132,5 @@ __xlog_string_\@: .asciiz "\str"
 .macro xioctl_exit
     .word EMUX_XIOCTL(EMUX_IOCTL_EXIT)
 .endm
+
+#endif // LIBDRAGON_EMUX_INC

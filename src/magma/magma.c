@@ -22,7 +22,7 @@
  * However, the core magma ucode doesn't actually contain the pipeline at all.
  * Instead, that command jumps to a small bootstrapping segment which will load the actual pipeline into IMEM first.
  * More precisely, it will load the shader code (see below) of the currently bound pipeline.
- * It is loaded at the same address as the bootstrapper, ovewriting it.
+ * It is loaded at the same address as the bootstrapper, overwriting it.
  * This means, that as long as rspq doesn't switch overlays, the pipeline remains there and is directly jumped to whenever `MG_CMD_LOAD_VERTICES` is called.
  * When the overlay does get switched, the bootstrapper will be run again the next time the pipeline is invoked.
  * 
@@ -136,10 +136,19 @@
  * ### Clipping
  * 
  * Some triangles need to be clipped to avoid overflows while assembling the RDP command.
+ * To reduce the number of clipped triangles, magma uses a so called "guard band".
+ * See #mg_set_clip_factor for details.
+ * 
  * The clipping check is performed automatically by the triangle assembling routine in `rsp_rdpq_tri.inc`.
  * Magma registers as the clipping callback another bootstrapping function that will load the actual clipping routine into IMEM.
- * This is done to reserve more IMEM for vertex shaders, since clipping should occur relatively rarely in most scenes.
- * The clipping routine will in fact overwrite any currently loaded vertex shader.
+ * This is done to reserve more IMEM for vertex shaders, at the cost of some performance when clipping occurs.
+ * This tradeoff is considered appropriate under the assumption that most triangles will not be clipped in typical game scenes.
+ * 
+ * Due to how the guard band works, large triangles are most affected by clipping.
+ * This can especially happen when they are distorted by perspective projection.
+ * Preventing this can therefore be a potential method of improving performance.
+ * 
+ * The clipping routine will overwrite any currently loaded vertex shader when loaded in.
  * This will also restore the vertex shader bootstrapper (see above).
  * 
  * ### Skinning

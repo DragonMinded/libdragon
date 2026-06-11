@@ -485,6 +485,16 @@ void inst_cache_hit_writeback(volatile const void *, unsigned long);
 void inst_cache_hit_invalidate(volatile void *, unsigned long);
 
 /**
+ * @brief Force an instruction cache fill over a memory region
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
+ void inst_cache_hit_fill(volatile void *, unsigned long);
+ 
+ /**
  * @brief Force an instruction cache index invalidate over a memory region
  *
  * @param[in] addr

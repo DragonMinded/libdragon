@@ -1856,6 +1856,16 @@ void test_rdpq_mode_alphacompare(TestContext *ctx) {
          SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG_TIMES_CC,
         "invalid SOM configuration: %08llx", som);
 
+    rdpq_debug_log_msg("aa+threshold>0+tlut");
+    rdpq_mode_tlut(TLUT_RGBA16);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_ALPHACOMPARE_MASK      | SOM_BLALPHA_MASK), 
+         SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG_TIMES_CC,
+        "invalid SOM configuration after tlut: %08llx", som);
+    rdpq_mode_tlut(TLUT_NONE);
+
     rdpq_debug_log_msg("aa+threshold<0");
     rdpq_mode_alphacompare(-1);
     draw_tri();

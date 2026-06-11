@@ -40,6 +40,7 @@ enum {
     XEND = 640-48,
     YSTART = 16,
     YEND = 240-8-8,
+    YBODY_END = 240-8-8-8,
 };
 
 /** @brief Pack a 16-bit color into a 32-bit word. */
@@ -73,6 +74,8 @@ static int disasm_offset = 0;
 static int thread_offset = 0;
 static int num_threads = 0;
 static int backtrace_count = 0;
+static int page_scroll_y = 0, page_scroll_max = 0;
+static bool page_scroll_on;
 
 const char *__mips_gpr[34] = {
 	"zr", "at", "v0", "v1", "a0", "a1", "a2", "a3",
@@ -223,7 +226,7 @@ static bool disasm_valid_pc(uint32_t pc) {
 static bool is_wrap_break_char(char c)
 {
     switch (c) {
-    case ' ': case ',': case '(': case ')':
+    case ' ': case ',': case '/':
     case '<': case '>': case ':': case '&':
     case '*': case '[': case ']':
         return true;
@@ -254,8 +257,6 @@ static int next_token_width_px(const char *buf, unsigned int len, int start)
 
 static int inspector_stdout(char *buf, unsigned int len) {
     for (int i=0; i<len; i++) {
-        if (cursor_x >= 640) break;
-
         switch (buf[i]) {
         case '\a': {
             uint32_t color = COLOR_TEXT;
@@ -293,6 +294,7 @@ static int inspector_stdout(char *buf, unsigned int len) {
             if (cursor_wordwrap && cursor_x >= XEND) {
                 cursor_x = XSTART + cursor_wrap_indent;
                 cursor_y += 8;
+                if (page_scroll_on && cursor_y > page_scroll_max) page_scroll_max = cursor_y;
             }
             break;
         case '\n':
@@ -303,6 +305,7 @@ static int inspector_stdout(char *buf, unsigned int len) {
             } else {
                 cursor_y += 8;
             }
+            if (page_scroll_on && cursor_y > page_scroll_max) page_scroll_max = cursor_y;
             cursor_wordwrap = false;
             graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
             break;
@@ -310,15 +313,23 @@ static int inspector_stdout(char *buf, unsigned int len) {
             if (cursor_wordwrap && cursor_x >= XEND) {
                 cursor_x = XSTART + cursor_wrap_indent;
                 cursor_y += 8;
+                if (page_scroll_on && cursor_y > page_scroll_max) page_scroll_max = cursor_y;
             }
             if (cursor_x < XEND) {
-                graphics_draw_character(disp, cursor_x, cursor_y, buf[i]);
+                if (page_scroll_on && cursor_y >= YSTART) {
+                    int y = cursor_y - page_scroll_y;
+                    if (y >= YSTART && y <= YBODY_END)
+                        graphics_draw_character(disp, cursor_x, y, buf[i]);
+                } else {
+                    graphics_draw_character(disp, cursor_x, cursor_y, buf[i]);
+                }
                 cursor_x += 8;
                 if (cursor_wordwrap && is_wrap_break_char(buf[i])) {
                     int next_word_px = next_token_width_px(buf, len, i + 1);
                     if (next_word_px > 0 && cursor_x + next_word_px > XEND) {
                         cursor_x = XSTART + cursor_wrap_indent;
                         cursor_y += 8;
+                        if (page_scroll_on && cursor_y > page_scroll_max) page_scroll_max = cursor_y;
                     }
                 }
             }
@@ -717,6 +728,7 @@ static void inspector(exception_t* ex, enum Mode mode) {
     joypad_buttons_t key_pressed = {0};
     int prevPad = -1;
 	int page = 0;
+    int prev_page = -1;
     int page_count = sizeof(inspector_pages) / sizeof(inspector_pages[0]);
     while (inspector_pages[page_count-1] == NULL) {
         page_count--;
@@ -733,6 +745,15 @@ static void inspector(exception_t* ex, enum Mode mode) {
             page--;
             if (page < 0) page = page_count - 1;
         }
+        if (page != prev_page) {
+            page_scroll_y = 0;
+            prev_page = page;
+        } else if (page == 0) {
+            if (key_pressed.d_up && page_scroll_y >= 8) page_scroll_y -= 8;
+            if (key_pressed.d_down) page_scroll_y += 8;
+        }
+        page_scroll_max = 0;
+        page_scroll_on = (page == 0);
 		disp = &fb[fbidx];
 
         // Clear the screen, initialize printf cursor position
@@ -747,6 +768,12 @@ static void inspector(exception_t* ex, enum Mode mode) {
         // Draw the current page
         inspector_pages[page](disp, ex, &key_pressed);
         fflush(stdout);
+        if (page == 0) {
+            int max = page_scroll_max - YBODY_END;
+            if (page_scroll_y < 0) page_scroll_y = 0;
+            else if (max > 0 && page_scroll_y > max) page_scroll_y = max;
+        }
+        page_scroll_on = false;
 
         // Draw the footer
         cursor_x = XSTART;

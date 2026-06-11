@@ -39,6 +39,7 @@ int main()
     // a uniform buffer that sets everything to sane values. 
     uniforms *uniform_data = malloc_uncached(sizeof(uniforms));
 
+    // This disables fog completely, because both start and end are initialized to 0.
     mgfx_get_fog(&uniform_data->fog, &(mgfx_fog_parms_t) {});
 
     // Lighting is never explicitly turned off, but it can be set to "pass through"

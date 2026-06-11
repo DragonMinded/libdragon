@@ -282,6 +282,8 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
                     "Please use FILTERS_RESAMPLE instead.");
             }
             vi_set_aa_mode(VI_AA_MODE_NONE);
+            vi_set_divot(false);
+            vi_set_dedither(false);
             break;
         case FILTERS_RESAMPLE:
             /* Set AA on resample */
@@ -289,6 +291,8 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
 
             /* Dither filter should not be enabled with this AA mode
                as it will cause ugly vertical streaks */
+            vi_set_divot(false);
+            vi_set_dedither(false);
             break;
         case FILTERS_DEDITHER:
             /* Set AA off flag and dedither on
@@ -299,10 +303,13 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
                     "FILTERS_DEDITHER is not supported by the hardware for widths <= 320.\n"
                     "Please use FILTERS_RESAMPLE instead.");
                 vi_set_aa_mode(VI_AA_MODE_NONE);
+                vi_set_divot(false);
                 vi_set_dedither(true);
             } else {
                 vi_set_aa_mode(VI_AA_MODE_NONE);
-            }
+                vi_set_divot(false);
+                vi_set_dedither(false);
+                }
             break;
         case FILTERS_RESAMPLE_ANTIALIAS:
             /* Set AA on resample and fetch as well as divot on.
@@ -320,6 +327,7 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
             else
                 vi_set_aa_mode(VI_AA_MODE_RESAMPLE_FETCH_NEEDED);
             vi_set_divot(true);
+            vi_set_dedither(false);
             break;
         case FILTERS_RESAMPLE_ANTIALIAS_DEDITHER:
             /* Set AA on resample always and fetch as well as dedither on
@@ -341,16 +349,6 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
 
     /* Workaround for VI bug */
     vi_bug_workaround = (res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED);
-    if (vi_bug_workaround) {
-        /* VI hits a rendering bug when HSTART < 128 && 16-bpp && X_SCALE <= 0x200,
-           and resampling is disabled (see vi.c for this). HSTART < 128 is the
-           default border configuration on NTSC. Since X_SCALE=0x200 means
-           width=320 which happens to be the most common resolution, let's apply
-           a simple workaround.
-           A X_SCALE of 0x201 will behave exactly like 0x200 would if it worked,
-           and introduce zero rendering artifacts (without resampling, that is). */
-        vi_write(VI_X_SCALE, 0x201);
-    }
 }
 
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
@@ -388,6 +386,12 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     __alloc_height = res.height;
     __alloc_bitdepth = __bitdepth;
 
+    /* Set up pending config variables to affect display.h getters */
+    pending_res = res;
+    pending_bit = bit;
+    pending_gamma = gamma;
+    pending_filters = filters;
+    pending_interlace_mode = res.interlaced;
     pending_vi_frames_left = -1;
 
     apply_display_vi_config(res, bit, gamma, filters);
@@ -416,6 +420,16 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
     display_queue_tail = 0;
     display_queue_count = 0;
     vi_show(&surfaces[0]);
+    if (vi_bug_workaround) {
+        /* VI hits a rendering bug when HSTART < 128 && 16-bpp && X_SCALE <= 0x200,
+           and resampling is disabled (see vi.c for this). HSTART < 128 is the
+           default border configuration on NTSC. Since X_SCALE=0x200 means
+           width=320 which happens to be the most common resolution, let's apply
+           a simple workaround.
+           A X_SCALE of 0x201 will behave exactly like 0x200 would if it worked,
+           and introduce zero rendering artifacts (without resampling, that is). */
+        vi_write(VI_X_SCALE, 0x201);
+    }
 
     /* Calculate actual refresh rate for this configuration */
     refresh_rate = vi_get_refresh_rate();
@@ -642,17 +656,17 @@ void display_show( surface_t* surf )
 
 uint32_t display_get_width(void)
 {
-    return __width;
+    return pending_res.width;
 }
 
 uint32_t display_get_height(void)
 {
-    return __height;
+    return pending_res.height;
 }
 
 uint32_t display_get_bitdepth(void)
 {
-    return __bitdepth;
+    return pending_bit == DEPTH_16_BPP ? 2 : 4;
 }
 
 uint32_t display_get_num_buffers(void)
