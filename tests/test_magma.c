@@ -16,7 +16,7 @@ void assert_block_contents(const uint32_t *expected_commands, uint32_t expected_
     const uint32_t *current_cmd = block->cmds;
     uint32_t block_size = RSPQ_BLOCK_MIN_SIZE;
 
-    const uint32_t *block_end = current_cmd + block_size;
+    const uint32_t *block_end = current_cmd + block_size - 1;
     while (*--block_end == 0x00) {}
     uint32_t commands_left = block_end - current_cmd;
 
@@ -32,7 +32,7 @@ void assert_block_contents(const uint32_t *expected_commands, uint32_t expected_
             if ((cmd>>24) == RSPQ_CMD_JUMP) {
                 current_cmd = (const uint32_t*)VirtualUncachedAddr(cmd & 0xFFFFFF);
                 if (block_size < RSPQ_BLOCK_MAX_SIZE) block_size *= 2;
-                const uint32_t *block_end = current_cmd + block_size;
+                const uint32_t *block_end = current_cmd + block_size - 1;
                 while (*--block_end == 0x00) {}
                 commands_left = block_end - current_cmd;
             } else {
