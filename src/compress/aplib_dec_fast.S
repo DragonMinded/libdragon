@@ -61,19 +61,19 @@ decompress_aplib_full_fast:
     b .Lcmd_literal
      li cc_count, -1
 
-    # Main copy-match loop. This is the basic LZ constrcut, where
+    # Main copy-match loop. This is the basic LZ construct, where
     # we copy match_len bytes from match_off bytes before the current
     # outbuf pointer. Notice that match_off can be less than match_len
-    # in which case it is mandatory to copy byte by byte for correct
-    # behavior (memmove() vs memcpy()).
+    # (overlapping match): the 8-byte loop is still correct as long as
+    # match_off >= 8, as each chunk only reads bytes already written.
     # We implement 3 different loops for optimization purposes:
-    #  - 1-byte copy loop: copy 1 byte at a time
-    #  - 8-byte copy loop: copy 8 bytes at a time
+    #  - 1-byte copy loop: copy 1 byte at a time (match_off 2..7)
+    #  - 8-byte copy loop: copy 8 bytes at a time (match_off >= 8)
     #  - memset loop: read one 1 byte (match_off=1), memset 8 bytes at a time
     # To make the second and third loop more generally useful, we
     # allow the code to write past the end of the output buffer (up to 8 bytes).
 .Lmatch:
-    blt match_off, match_len, .Lmatch1_loop_check
+    blt match_off, 8, .Lmatch1_loop_check
      sub $v0, outbuf, match_off
 .Lmatch8_loop:                                  # 8-byte copy loop
     ldl $t0, 0($v0)                             # load 8 bytes
