@@ -113,6 +113,13 @@ void* hashtable_remove(hashtable_t *h, uint32_t key);
  */
 void hashtable_visit(hashtable_t *h, void (*visitor)(uint32_t key, void *value, int refcount));
 
+/**
+ * @brief Remove all objects from the hashtable, regardless of their reference count.
+ *
+ * @param h Pointer to a hashtable_t.
+ */
+void hashtable_clear(hashtable_t *h);
+
 #ifdef __cplusplus
 }
 #endif
