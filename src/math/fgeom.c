@@ -41,20 +41,6 @@ void fm_vec3_rotate(fm_vec3_t *out, const fm_vec3_t *i, const fm_quat_t *q)
     out->z = i->z + qw * tz + (qx * ty - qy * tx);
 }
 
-// Create a quaternion 
-void fm_quat_from_euler(fm_quat_t *out, const float euler[3])
-{
-    float c1, c2, c3, s1, s2, s3;
-    fm_sincosf(euler[0] * 0.5f, &s1, &c1);
-    fm_sincosf(euler[1] * 0.5f, &s2, &c2);
-    fm_sincosf(euler[2] * 0.5f, &s3, &c3);
-
-    *out = (fm_quat_t){{ s1 * c2 * c3 - c1 * s2 * s3,
-                         c1 * s2 * c3 + s1 * c2 * s3,
-                         c1 * c2 * s3 - s1 * s2 * c3,
-                         c1 * c2 * c3 + s1 * s2 * s3 }};
-}
-
 void fm_quat_from_euler_zyx(fm_quat_t *out, float x, float y, float z)
 {
     float xs, xc, ys, yc, zs, zc;
