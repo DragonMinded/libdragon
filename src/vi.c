@@ -51,8 +51,8 @@ const vi_timing_preset_t VI_TIMING_PAL = {
 };
 
 const vi_timing_preset_t VI_TIMING_MPAL = {
-    .vi_h_total = VI_H_TOTAL_SET(0b00000, 772.25),
-    .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(775.25, 775.25),
+    .vi_h_total = VI_H_TOTAL_SET(0b00000, 772.75),
+    .vi_h_total_leap = VI_H_TOTAL_LEAP_SET(774.50, 774.50), ///< (774.00, 774.00) is slightly more stable for interlaced over composite
     .vi_v_total = VI_V_TOTAL_SET(526),
     .vi_burst = VI_BURST_SET(70, 5, 30, 57),
     .vi_v_burst = VI_V_BURST_SET(14, 516),
