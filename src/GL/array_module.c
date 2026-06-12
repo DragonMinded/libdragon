@@ -1,10 +1,13 @@
 /**
- * @file array.c
+ * @file array_module.c
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief OpenGL array and attribute pointer management for vertex data.
  */
 #include "gl_internal.h"
 #include "debug.h"
+#include "array_object.h"
+#include "draw_call_cache.h"
+#include "buffer.h"
 #include <malloc.h>
 
 extern gl_state_t *state;
@@ -37,133 +40,45 @@ static const gl_interleaved_array_t interleaved_arrays[] = {
     /* GL_T4F_C4F_N3F_V4F */ { .et = true,  .ec = true,  .en = true,  .st = 4, .sc = 4, .sv = 4, .tc = GL_FLOAT,         .pc = 4*ILA_F, .pn = 8*ILA_F, .pv = 11*ILA_F,        .s = 15*ILA_F },
 };
 
-extern const cpu_read_attrib_func cpu_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT];
-extern const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT];
-
-gl_array_type_t gl_array_type_from_enum(GLenum array)
+static array_type_t gl_array_type_from_enum(GLenum array)
 {
     switch (array) {
     case GL_VERTEX_ARRAY:
-        return ATTRIB_VERTEX;
-    case GL_TEXTURE_COORD_ARRAY:
-        return ATTRIB_TEXCOORD;
+        return ARRAY_VERTEX;
     case GL_NORMAL_ARRAY:
-        return ATTRIB_NORMAL;
+        return ARRAY_NORMAL;
     case GL_COLOR_ARRAY:
-        return ATTRIB_COLOR;
+        return ARRAY_COLOR;
+    case GL_TEXTURE_COORD_ARRAY:
+        return ARRAY_TEXCOORD;
     case GL_MATRIX_INDEX_ARRAY_ARB:
-        return ATTRIB_MTX_INDEX;
+        return ARRAY_MTX_INDEX;
     default:
-        return -1;
+        assertf(0, "Invalid array type!");
     }
 }
 
-void gl_update_array(gl_array_t *array, gl_array_type_t array_type)
+void array_module_init()
 {
-    uint32_t size_shift = 0;
-    
-    switch (array->type) {
-    case GL_BYTE:
-    case GL_UNSIGNED_BYTE:
-        size_shift = 0;
-        break;
-    case GL_SHORT:
-    case GL_UNSIGNED_SHORT:
-    case GL_HALF_FIXED_N64:
-        size_shift = 1;
-        break;
-    case GL_INT:
-    case GL_UNSIGNED_INT:
-    case GL_FLOAT:
-        size_shift = 2;
-        break;
-    case GL_DOUBLE:
-        size_shift = 3;
-        break;
-    }
-
-    array->final_stride = array->stride == 0 ? array->size << size_shift : array->stride;
-
-    uint32_t func_index = gl_type_to_index(array->type);
-    array->cpu_read_func = cpu_read_funcs[array_type][func_index];
-    array->rsp_read_func = rsp_read_funcs[array_type][func_index];
-
-    assertf(array->cpu_read_func != NULL, "CPU read function is missing");
-    assertf(array->rsp_read_func != NULL, "RSP read function is missing");
+    array_object_init(&state->default_array_object);
+    glBindVertexArray(0);
 }
 
-void gl_update_array_pointer(gl_array_t *array)
+void array_module_close()
 {
-    if (array->binding != NULL) {
-        array->final_pointer = array->binding->storage.data + (uint32_t)array->pointer;
-    } else {
-        array->final_pointer = array->pointer;
-    }
+    glBindVertexArray(0);
+    array_object_destroy(&state->default_array_object);
 }
 
-void gl_update_array_pointers(gl_array_object_t *obj)
+static void assert_valid_array(GLuint array)
 {
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
-    {
-        gl_update_array_pointer(&obj->arrays[i]);
-    }
+    assertf(array == 0 || is_valid_object_id(array),
+            "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
 }
 
-void gl_array_object_init(gl_array_object_t *obj)
+static void set_array_parms(array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
 {
-    obj->arrays[ATTRIB_VERTEX].size = 4;
-    obj->arrays[ATTRIB_VERTEX].type = GL_FLOAT;
-    obj->arrays[ATTRIB_COLOR].size = 4;
-    obj->arrays[ATTRIB_COLOR].type = GL_FLOAT;
-    obj->arrays[ATTRIB_COLOR].normalize = true;
-    obj->arrays[ATTRIB_TEXCOORD].size = 4;
-    obj->arrays[ATTRIB_TEXCOORD].type = GL_FLOAT;
-    obj->arrays[ATTRIB_NORMAL].size = 3;
-    obj->arrays[ATTRIB_NORMAL].type = GL_FLOAT;
-    obj->arrays[ATTRIB_NORMAL].normalize = true;
-    obj->arrays[ATTRIB_MTX_INDEX].size = 0;
-    obj->arrays[ATTRIB_MTX_INDEX].type = GL_UNSIGNED_BYTE;
-
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
-    {
-        gl_update_array(&obj->arrays[i], i);
-    }
-}
-
-void gl_array_init()
-{
-    gl_array_object_init(&state->default_array_object);
-    state->array_object = &state->default_array_object;
-}
-
-void gl_set_array(gl_array_type_t array_type, GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
-{
-    if (stride < 0) {
-        gl_set_error(GL_INVALID_VALUE, "Stride must not be negative");
-        return;
-    }
-
-    // From the spec (https://registry.khronos.org/OpenGL/extensions/ARB/ARB_vertex_array_object.txt):
-    // An INVALID_OPERATION error is generated if any of the *Pointer commands
-    // specifying the location and organization of vertex data are called while
-    // a non-zero vertex array object is bound, zero is bound to the
-    // ARRAY_BUFFER buffer object, and the pointer is not NULL[fn].
-    //     [fn: This error makes it impossible to create a vertex array
-    //           object containing client array pointers.]
-    if (state->array_object != &state->default_array_object && state->array_buffer == NULL && pointer != NULL) {
-        gl_set_error(GL_INVALID_OPERATION, "Vertex array objects can only be used in conjunction with vertex buffer objects");
-        return;
-    }
-
-    gl_array_t *array = &state->array_object->arrays[array_type];
-
-    array->size = size;
-    array->type = type;
-    array->stride = stride;
-    array->pointer = pointer;
-    array->binding = state->array_buffer;
-
-    gl_update_array(array, array_type);
+    array_object_set_array_params(state->array_object, array_type, size, type, stride, pointer);
 }
 
 void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -192,7 +107,7 @@ void glVertexPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *poin
         return;
     }
 
-    gl_set_array(ATTRIB_VERTEX, size, type, stride, pointer);
+    set_array_parms(ARRAY_VERTEX, size, type, stride, pointer);
 }
 
 void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -222,7 +137,7 @@ void glTexCoordPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *po
         return;
     }
 
-    gl_set_array(ATTRIB_TEXCOORD, size, type, stride, pointer);
+    set_array_parms(ARRAY_TEXCOORD, size, type, stride, pointer);
 }
 
 void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -235,13 +150,14 @@ void glNormalPointer(GLenum type, GLsizei stride, const GLvoid *pointer)
     case GL_INT:
     case GL_FLOAT:
     case GL_DOUBLE:
+    case GL_SHORT_5_6_5_N64:
         break;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid normal data type", type);
         return;
     }
 
-    gl_set_array(ATTRIB_NORMAL, 3, type, stride, pointer);
+    set_array_parms(ARRAY_NORMAL, 3, type, stride, pointer);
 }
 
 void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -272,7 +188,7 @@ void glColorPointer(GLint size, GLenum type, GLsizei stride, const GLvoid *point
         return;
     }
 
-    gl_set_array(ATTRIB_COLOR, size, type, stride, pointer);
+    set_array_parms(ARRAY_COLOR, size, type, stride, pointer);
 }
 
 void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvoid *pointer)
@@ -294,13 +210,12 @@ void glMatrixIndexPointerARB(GLint size, GLenum type, GLsizei stride, const GLvo
         return;
     }
 
-    gl_set_array(ATTRIB_MTX_INDEX, size, type, stride, pointer);
+    set_array_parms(ARRAY_MTX_INDEX, size, type, stride, pointer);
 }
 
-void gl_set_array_enabled(gl_array_type_t array_type, bool enabled)
+static void set_array_enabled(array_type_t array_type, bool enabled)
 {
-    gl_array_t *array = &state->array_object->arrays[array_type];
-    array->enabled = enabled;
+    array_object_set_array_enabled(state->array_object, array_type, enabled);
 }
 
 void glEnableClientState(GLenum array)
@@ -313,7 +228,7 @@ void glEnableClientState(GLenum array)
     case GL_NORMAL_ARRAY:
     case GL_COLOR_ARRAY:
     case GL_MATRIX_INDEX_ARRAY_ARB:
-        gl_set_array_enabled(gl_array_type_from_enum(array), true);
+        set_array_enabled(gl_array_type_from_enum(array), true);
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_INDEX_ARRAY:
@@ -333,7 +248,7 @@ void glDisableClientState(GLenum array)
     case GL_NORMAL_ARRAY:
     case GL_COLOR_ARRAY:
     case GL_MATRIX_INDEX_ARRAY_ARB:
-        gl_set_array_enabled(gl_array_type_from_enum(array), false);
+        set_array_enabled(gl_array_type_from_enum(array), false);
         break;
     case GL_EDGE_FLAG_ARRAY:
     case GL_INDEX_ARRAY:
@@ -406,9 +321,9 @@ void glGenVertexArrays(GLsizei n, GLuint *arrays)
 
     for (GLsizei i = 0; i < n; i++)
     {
-        gl_array_object_t *new_obj = calloc(sizeof(gl_array_object_t), 1);
+        gl_array_object_t *new_obj = calloc(1, sizeof(gl_array_object_t));
         assertf(new_obj, "Out of memory");
-        gl_array_object_init(new_obj);
+        array_object_init(new_obj);
         arrays[i] = (GLuint)new_obj;
     }
 }
@@ -419,8 +334,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 
     for (GLsizei i = 0; i < n; i++)
     {
-        assertf(arrays[i] == 0 || is_valid_object_id(arrays[i]), 
-            "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", arrays[i]);
+        assert_valid_array(arrays[i]);
 
         gl_array_object_t *obj = (gl_array_object_t*)arrays[i];
         if (obj == NULL) {
@@ -431,6 +345,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
             glBindVertexArray(0);
         }
 
+        array_object_destroy(obj);
         free(obj);
     }
 }
@@ -438,8 +353,7 @@ void glDeleteVertexArrays(GLsizei n, const GLuint *arrays)
 void glBindVertexArray(GLuint array)
 {
     if (!gl_ensure_no_begin_end()) return;
-    assertf(array == 0 || is_valid_object_id(array), 
-        "Not a valid array object: %#lx. Make sure to allocate IDs via glGenVertexArray", array);
+    assert_valid_array(array);
 
     gl_array_object_t *obj = (gl_array_object_t*)array;
 

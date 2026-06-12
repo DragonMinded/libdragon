@@ -15,6 +15,7 @@
 #define GL_FLOAT                                        0x1406
 #define GL_DOUBLE                                       0x140A
 #define GL_HALF_FIXED_N64                               0x6F00
+#define GL_SHORT_5_6_5_N64                              0x6F01
 
 #define GL_NO_ERROR                                     0
 #define GL_INVALID_ENUM                                 0x0500

@@ -1,0 +1,411 @@
+#include "../../include/magma_constants.h"
+#include "gl_constants.h"
+#include "../../include/GL/gl_enums.h"
+
+state {
+    extern vec16 GL_MATRIX_MODELVIEW[4];
+    extern vec16 GL_MATRIX_PROJECTION[4];
+    extern vec16 GL_MATRIX_TEXTURE[4];
+    extern vec16 GL_MATRIX_PALETTE[4];
+    extern u32 GL_PALETTE_PTR;
+    extern u32 GL_STATE_PALETTE_INDEX;
+    extern u8 GL_LIGHTS;
+    extern u8 GL_TEX_GEN;
+    extern u16 GL_VIEWPORT_SCALE[4];
+    extern u8 GL_PIPELINES;
+    extern s16 GL_STATE_LIGHT_AMBIENT[4];
+    extern s16 GL_MAT_AMBIENT[4];
+    extern s16 GL_MAT_DIFFUSE[4];
+    extern s16 GL_MAT_EMISSIVE[4];
+    extern u16 GL_MAT_COLOR_TARGET;
+    extern u32 GL_STATE_FLAGS;
+    extern u16 GL_STATE_FOG_PARAMS[4];
+    extern s16 GL_STATE_TEX_SIZE[2];
+    extern s16 GL_STATE_TEX_OFFSET[2];
+    extern s16 GL_CUR_COLOR[4];
+    extern u8 GL_CUR_MTX_INDEX;
+    extern u16 GL_TRI_CMD;
+    extern u8 GL_TRI_CULL;
+}
+
+temp_state {
+    extern u8 MG_STATE_STAGING;
+    extern u8 MG_STATE_STAGING_END;
+
+    u16 MG_VIEWPORT[8];
+    u16 MG_CLIP_FACTORS[4];
+    u16 MG_VERTEX_SIZE[4];
+    u32 MG_SHADER_TEXT;
+    u32 MG_SHADER_TEXT_SIZE;
+    u32 MG_VERTEX_BUFFER;
+    u16 MG_TRI_CMD;
+    u8 MG_CULL_MODE;
+    u8 MG_OUTPUT_OFFSET;
+
+    vec16 MATRICES_MVP[4];
+    vec16 MATRICES_MV[4];
+    vec16 MATRICES_NORMAL[2];
+
+    vec16 TEXTURE_MATRIX[3];
+    s16 TEXTURE_SIZE[2];
+    s16 TEXTURE_OFFSET[2];
+
+    u8 LIGHTING_LIGHTS[GLP_LIGHT_SIZE][LIGHT_COUNT];
+    s16 LIGHTING_AMBIENT[3];
+    u8 LIGHTING_HAS_POINTS;
+    u8 LIGHTING_COUNT;
+    s16 MATERIAL_DIFFUSE[4];
+    s16 MATERIAL_AMBIENT[3];
+    u16 MATERIAL_FLAGS;
+    s16 MATERIAL_EMISSIVE[3];
+
+    s16 FOG_PARAMS[3];
+    u8 FOG_MASK;
+}
+
+function DmaMagmaState();
+function GL_MtxMult();
+
+macro MakeNormalMatrix(vec32 m0, vec32 m1)
+{
+    // TODO: transpose inverse
+
+    // Multiply by 0x7FFF to convert to s0.15 with proper saturation
+    vec16 c;
+    c.x = 0x7FFF;
+    m0 = m0 * c.x;
+    m1 = m1 * c.x;
+
+    store(m0:sint, MATRICES_NORMAL, 0x00);
+    store(m1:sint, MATRICES_NORMAL, 0x10);
+}
+
+command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
+{
+    u32<$k0> flags = load(GL_STATE_FLAGS, 0);
+
+    // Pipeline
+    {
+        u32 features = 0;
+
+        u32 env_mask = 0x30000000; // FLAG_TEX_GEN_S | FLAG_TEX_GEN_T
+        u32 tmp = flags & env_mask;
+        if (tmp == env_mask)
+        {
+            u16 sphere_map = GL_SPHERE_MAP;
+            u16 mode_s = load(GL_TEX_GEN, TEX_GEN_MODE_OFFSET);
+            u16 mode_t = load(GL_TEX_GEN, TEX_GEN_MODE_T_OFFSET);
+            if (mode_s == sphere_map)
+            {
+                if (mode_t == sphere_map)
+                {
+                    features |= 1;
+                }
+            }
+        }
+
+        u32 normalize_enabled = flags & 0x1000; // FLAG_NORMALIZE
+        if (normalize_enabled != 0)
+        {
+            features |= 2;
+        }
+
+        features = features << 3;
+
+        vec16 pipeline = load(features, GL_PIPELINES).xyzw;
+        store(pipeline.xyzw, MG_SHADER_TEXT);
+    }
+
+    // Viewport
+    {
+        vec16 viewport = load(GL_VIEWPORT_SCALE, 0);
+        store(viewport, MG_VIEWPORT, 0);
+    }
+
+    // W normalization factor
+    {
+        // Check m[2][3] == 0
+        s16 m23i = load(GL_MATRIX_PROJECTION, 0x16);
+        u16 m23f = load(GL_MATRIX_PROJECTION, 0x36);
+        u16 m23 = m23i | m23f;
+        if (m23 == 0)
+        {
+            // If so, the projection matrix is not a perspective, so we set the
+            // normalization factor to 1
+            u16 norm_factor = 0xFFFF; // 1 as 0.16 
+            store(norm_factor, MG_VIEWPORT, 0x6);
+        }
+        else
+        {
+            /*
+                If it is not zero, then the projection matrix is a perspective
+                The normalization factor is defined as:
+
+                    factor = 2 / (near_plane + far_plane)
+                
+                That means we need to extract the Z-planes from the projection matrix, like so:
+
+                    near_plane = m[3][2] / (m[2][2] - 1)
+                    far_plane  = m[3][2] / (m[2][2] + 1)
+                
+                If we substitute these in the first equation and simplify, we get:
+
+                    factor = (m[2][2]*m[2][2] - 1) / (m[3][2]*m[2][2])
+            */
+
+            // m20 | m21 | m22 | m23 | m30 | m31 | m32 | m33
+            vec32 m;
+            m:sint = load(GL_MATRIX_PROJECTION, 0x10);
+            m:ufract = load(GL_MATRIX_PROJECTION, 0x30);
+
+            // Get m22^2 and m32*m22
+            vec32 a = m * m.z;
+            // m22^2 - 1
+            vec32 b = a - 1;
+            // 1 / 2*m32*m22
+            a.x = invert_half(a).Z;
+            // (m22^2 - 1) / m32*m22
+            a *= b.z;
+            a *= 2;
+
+            store(a:sfract.x, MG_VIEWPORT, 0x6);
+        }
+    }
+
+    // Geometry flags
+    {
+        u16 tri_cmd = load(GL_TRI_CMD, 0);
+        store(tri_cmd, MG_TRI_CMD, 0);
+    }
+
+    // Cull mode
+    {
+        u8 cull = load(GL_TRI_CULL, 0);
+        store(cull, MG_CULL_MODE, 0);
+    }
+
+    // Matrices
+    {
+        u32<$s0> rdram_ptr;
+        u16<$s4> dmem_ptr;
+        u16<$s5> mtx_lhs;
+        u16<$s6> mtx_rhs;
+        u16<$s7> mtx_dst;
+
+        mtx_lhs = GL_MATRIX_PROJECTION;
+        mtx_dst = MATRICES_MVP;
+
+        u32 palette_enabled = flags & 0x4000; // FLAG_MATRIX_PALETTE
+        if (palette_enabled != 0)
+        {
+            u32 palette_index = load(GL_STATE_PALETTE_INDEX);
+            rdram_ptr = load(GL_PALETTE_PTR);
+            rdram_ptr += palette_index;
+            dmem_ptr = GL_MATRIX_PALETTE;
+            dma_out_async(dmem_ptr, rdram_ptr, MATRIX_SIZE);
+
+            mtx_rhs = MATRICES_MV;
+
+            dmem_ptr = MATRICES_MVP;
+            rdram_ptr = load(GL_PALETTE_PTR);
+            u16 i = 0;
+            while (i < MATRIX_PALETTE_SIZE) {
+                dma_in(dmem_ptr, rdram_ptr, MATRICES_SIZE);
+
+                vec32 m0;
+                vec32 m1;
+                m0:sint   = load(MATRICES_MV, 0x00);
+                m1:sint   = load(MATRICES_MV, 0x10);
+                m0:ufract = load(MATRICES_MV, 0x20);
+                m1:ufract = load(MATRICES_MV, 0x30);
+
+                MakeNormalMatrix(m0, m1);
+
+                // TODO: reuse modelview matrix already loaded into registers
+                GL_MtxMult();
+                dma_out_async(dmem_ptr, rdram_ptr, MATRICES_SIZE);
+                rdram_ptr += MATRICES_SIZE;
+                i += 1;
+            }
+
+            u8 cur_mtx_index = load(GL_CUR_MTX_INDEX);
+            u32 tmp = cur_mtx_index << 7;
+            palette_index = cur_mtx_index << 5;
+            palette_index += tmp; // cur_mtx_index * (128 + 32)
+
+            rdram_ptr = load(GL_PALETTE_PTR);
+            rdram_ptr += palette_index;
+            dma_in(dmem_ptr, rdram_ptr, MATRICES_SIZE);
+        }
+        else
+        {
+            mtx_rhs = GL_MATRIX_MODELVIEW;
+            GL_MtxMult();
+
+            vec32 m0;
+            vec32 m1;
+            m0:sint   = load(GL_MATRIX_MODELVIEW, 0x00);
+            m1:sint   = load(GL_MATRIX_MODELVIEW, 0x10);
+            m0:ufract = load(GL_MATRIX_MODELVIEW, 0x20);
+            m1:ufract = load(GL_MATRIX_MODELVIEW, 0x30);
+
+            store(m0:sint, MATRICES_MV, 0x00);
+            store(m1:sint, MATRICES_MV, 0x10);
+            store(m0:ufract, MATRICES_MV, 0x20);
+            store(m1:ufract, MATRICES_MV, 0x30);
+
+            MakeNormalMatrix(m0, m1);
+        }
+    }
+
+    // Texturing
+    {
+        vec32 tm0;
+        vec32 tm1;
+        vec32 tm3;
+        tm0:sint   = load(GL_MATRIX_TEXTURE, 0x00).xyzw;
+        tm0:ufract = load(GL_MATRIX_TEXTURE, 0x20).xyzw;
+        tm1:sint   = load(GL_MATRIX_TEXTURE, 0x08).xyzw;
+        tm1:ufract = load(GL_MATRIX_TEXTURE, 0x28).xyzw;
+        tm3:sint   = load(GL_MATRIX_TEXTURE, 0x18).xyzw;
+        tm3:ufract = load(GL_MATRIX_TEXTURE, 0x38).xyzw;
+
+        vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+        vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
+
+        store(tm0:sint.xyzw,    TEXTURE_MATRIX, 0x00);
+        store(tm0:ufract.xyzw,  TEXTURE_MATRIX, 0x18);
+        store(tm1:sint.xyzw,    TEXTURE_MATRIX, 0x08);
+        store(tm1:ufract.xyzw,  TEXTURE_MATRIX, 0x20);
+        store(tm3:sint.xyzw,    TEXTURE_MATRIX, 0x10);
+        store(tm3:ufract.xyzw,  TEXTURE_MATRIX, 0x28);
+
+        vec16 tex_size = load(GL_STATE_TEX_SIZE, 0).xy;
+        vec16 tex_offset = load(GL_STATE_TEX_SIZE, 4).xy;
+
+        tex_size = tex_size << TEX_SIZE_SHIFT;
+
+        store(tex_size.xy, TEXTURE_SIZE);
+        store(tex_offset.xy, TEXTURE_OFFSET);
+    }
+
+    // Lighting
+    {
+        u32 color_constant = 0;
+        if (client_flags == 0) {
+            color_constant = 1;
+        }
+
+        vec16 light_ambient;
+        vec16 ambient;
+        vec16 diffuse;
+        vec16 emissive;
+        u8 light_count = 0;
+        u8 point_count = 0;
+
+        u16 color_material = 0;
+
+        u32 enabled = flags & 0x400; // FLAG_LIGHTING
+        if (enabled != 0)
+        {
+            light_ambient.xyzw = load(GL_STATE_LIGHT_AMBIENT, 0);
+            ambient.xyzw = load(GL_MAT_AMBIENT, 0);
+            diffuse.xyzw = load(GL_MAT_DIFFUSE, 0);
+            emissive.xyzw = load(GL_MAT_EMISSIVE, 0);
+
+            vec16 color;
+            u32 color_material_enabled = flags & 0x800; // FLAG_COLOR_MATERIAL;
+            if (color_material_enabled != 0) {
+                color_material = load(GL_MAT_COLOR_TARGET);
+                if (client_flags == 0) {
+                    vec16 color = load(GL_CUR_COLOR).xyzw;
+                    u16 tmp = color_material & GLP_MATERIAL_FLAG_DIFFUSE;
+                    if (tmp != 0) {
+                        diffuse = color;
+                    }
+                    tmp = color_material & GLP_MATERIAL_FLAG_AMBIENT;
+                    if (tmp != 0) {
+                        ambient = color;
+                    } 
+                    tmp = color_material & GLP_MATERIAL_FLAG_EMISSIVE;
+                    if (tmp != 0) {
+                        emissive = color;
+                    }
+
+                    color_material = 0;
+                }
+            }
+
+            u32 light_flag = 0x100000; // FLAG_LIGHT0
+            u16 light_ptr = GL_LIGHTS;
+            u16 light_end = GL_TEX_GEN;
+            u16 out_ptr = LIGHTING_LIGHTS;
+            while (light_ptr < light_end)
+            {
+                u32 light_enabled = flags & light_flag;
+                if (light_enabled != 0) {
+                    vec16 light_props0 = load(light_ptr, 0x00);
+                    vec16 light_props1 = load(light_ptr, 0x10);
+
+                    store(light_props0.xyzw, out_ptr, 0x00);
+                    store(light_props0.XYZW, out_ptr, 0x08);
+                    store(light_props1.xyzw, out_ptr, 0x10);
+                    store(light_props1.XYZW, out_ptr, 0x18);
+
+                    s16 w = load(light_ptr, GLP_LIGHT_POSITIONW);
+                    if (w != 0) {
+                        point_count += 1;
+                    }
+
+                    light_count += 1;
+                    out_ptr += GLP_LIGHT_SIZE;
+                }
+                light_ptr += GLP_LIGHT_SIZE;
+                light_flag = light_flag << 1;
+            }
+        } else {
+            emissive = VZERO;
+            light_ambient.x = 0x7FFF;
+            light_ambient = light_ambient.x;
+
+            if (client_flags != 0) {
+                color_material = GLP_MATERIAL_FLAG_DIFFUSE | GLP_MATERIAL_FLAG_AMBIENT;
+            } else {
+                ambient = load(GL_CUR_COLOR).xyzw;
+                diffuse = ambient;
+            }
+        }
+
+        @Barrier("store_lighting") store(light_ambient.xyzw, LIGHTING_AMBIENT, 0);
+        @Barrier("store_lighting") store(point_count, LIGHTING_HAS_POINTS, 0);
+        @Barrier("store_lighting") store(light_count, LIGHTING_COUNT, 0);
+        @Barrier("store_lighting") store(diffuse.xyzw, MATERIAL_DIFFUSE, 0);
+        @Barrier("store_lighting") store(ambient.xyzw, MATERIAL_AMBIENT, 0);
+        @Barrier("store_lighting") store(color_material, MATERIAL_FLAGS, 0);
+        @Barrier("store_lighting") store(emissive.xyzw, MATERIAL_EMISSIVE, 0);
+    }
+
+    // Fog
+    {
+        vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
+        vec32 diff = fog_parms - fog_parms.x;
+        vec32 factor;
+        factor.x = invert_half(diff).y;
+        vec16 factor_f = factor << 11;
+        vec32 offset = VZERO - fog_parms.x;
+        offset = offset << GLP_VTX_POS_SHIFT;
+
+        u32 enabled = flags & 0x8; // FLAG_FOG
+        u8 mask = 0x77;
+        if (enabled == 0) {
+            mask = 0xFF;
+        }
+
+        store(offset:sint.x, FOG_PARAMS, 0x0);
+        store(offset:ufract.x, FOG_PARAMS, 0x2);
+        store(factor_f.x, FOG_PARAMS, 0x4);
+        store(mask, FOG_MASK, 0);
+    }
+
+    DmaMagmaState();
+}
