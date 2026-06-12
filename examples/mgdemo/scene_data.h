@@ -77,15 +77,15 @@ static const uint32_t object_material_ids[][MAX_SUBMESH_COUNT] = {
 };
 static const fm_vec3_t object_positions[] = {
     {{ 0.0f, 0.0f, 0.0f }},
-    {{ -10.0f, 0.0f, 0.0f }},
-    {{ 10.0f, 0.0f, 0.0f }},
-    {{ 0.0f, 10.0f, -10.0f }},
-    {{ 10.0f, 10.0f, 0.0f }},
-    {{ 5.0f, -5.0f, 9.0f }},
-    {{ -15.0f, -8.0f, 0.0f }},
-    {{ 4.0f, 3.0f, -12.0f }},
-    {{ -14.0f, 6.0f, 8.0f }},
-    {{ -4.0f, 16.0f, 0.0f }},
+    {{ -640.0f, 0.0f, 0.0f }},
+    {{ 640.0f, 0.0f, 0.0f }},
+    {{ 0.0f, 640.0f, -640.0f }},
+    {{ 640.0f, 640.0f, 0.0f }},
+    {{ 320.0f, -320.0f, 576.0f }},
+    {{ -960.0f, -512.0f, 0.0f }},
+    {{ 256.0f, 192.0f, -768.0f }},
+    {{ -896.0f, 384.0f, 512.0f }},
+    {{ -256.0f, 1024.0f, 0.0f }},
 };
 
 
@@ -96,7 +96,7 @@ static const uint32_t light_colors[] = {
 };
 static const fm_vec4_t light_positions[] = {
     {{ 0.196116f, -0.784465f, -0.588348f, 0.0f }},
-    {{ 0.0f, 10.0f, 0.0f, 1.0f }}
+    {{ 0.0f, 640.0f, 0.0f, 1.0f }}
 };
 static const float light_intensities[] = {
     0.0f,
@@ -106,13 +106,13 @@ static const uint32_t ambient_light_color = 0x101010ff;
 
 /* Environment */
 static const uint32_t fog_color = 0x000000ff;
-static const float fog_start = 25.0f;
-static const float fog_end = 100.0f;
+static const float fog_start = 1600.0f;
+static const float fog_end = 6400.0f;
 
 /* Camera */
 static const float camera_fov = 65.0f;
-static const float camera_near_plane = 1.0f;
-static const float camera_far_plane = 100.0f;
-static const fm_vec3_t camera_start_position = {{0,0,30}};
+static const float camera_near_plane = 64.0f;
+static const float camera_far_plane = 6400.0f;
+static const fm_vec3_t camera_start_position = {{0,0,1800}};
 
 #endif

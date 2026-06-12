@@ -12,9 +12,7 @@
 #define ENABLE_RDPQ_DEBUG 0
 #define SINGLE_FRAME      0
 
-#define VTX_TEX_SHIFT   8
 #define RDP_TEX_SHIFT   5
-#define TEX_SIZE_SHIFT  (VTX_TEX_SHIFT-RDP_TEX_SHIFT)
 #define RDP_HALF_TEXEL  (1<<(RDP_TEX_SHIFT-1))
 
 #define MAX_DRAW_CALL_COUNT (OBJECT_COUNT * MAX_SUBMESH_COUNT)
@@ -24,8 +22,8 @@
 
 #define CAMERA_YAW_SPEED            0.015f
 #define CAMERA_PITCH_SPEED          0.015f
-#define CAMERA_DISTANCE_SPEED       0.05f
-#define CAMERA_DISTANCE_SPEED_FAST  0.5f
+#define CAMERA_DISTANCE_SPEED       2.0f
+#define CAMERA_DISTANCE_SPEED_FAST  20.0f
 #define CAMERA_MIN_PITCH            (-M_PI_2 * 0.9)
 #define CAMERA_MAX_PITCH            (M_PI_2 * 0.9)
 
@@ -315,8 +313,8 @@ void material_create(material_data *material, sprite_t *texture, mgfx_features_t
     int tex_y_scale = (features & MGFX_FEATURE_ENV_MAP) ? -1 : 1;
     material->buffer = malloc_uncached(sizeof(material_raw_data));
     mgfx_get_texturing(&material->buffer->texturing, &(mgfx_texturing_parms_t) {
-        .scale[0] = texture->width  >> TEX_SIZE_SHIFT,
-        .scale[1] = (texture->height * tex_y_scale) >> TEX_SIZE_SHIFT,
+        .scale[0] = texture->width,
+        .scale[1] = (texture->height * tex_y_scale),
         .offset[0] = -RDP_HALF_TEXEL,
         .offset[1] = -RDP_HALF_TEXEL
     });

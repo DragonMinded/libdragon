@@ -1304,6 +1304,13 @@ int convert(const char *infn, const char *outfn)
     }
 
     // Convert meshes
+    const convert_mesh_config config = {
+        .verbose = flag_verbose,
+        // TODO: add CLI flag for strict mode
+        .strict = false,
+        .position_scale = 1<<GLP_VTX_POS_SHIFT,
+        .texcoord_scale = 1<<GLP_VTX_TEX_SHIFT,
+    };
 
     model->num_meshes = data->meshes_count;
     model->meshes = calloc(data->meshes_count, sizeof(mgfx_mesh_t));
@@ -1317,8 +1324,7 @@ int convert(const char *infn, const char *outfn)
             }
         }
 
-        // TODO: add CLI flag for strict mode
-        if (convert_mesh(&data->meshes[i], &model->meshes[i], flag_verbose, false) != 0) {
+        if (convert_mesh(&data->meshes[i], &model->meshes[i], &config) != 0) {
             if (data->meshes[i].name != NULL) {
                 fprintf(stderr, "Error: failed converting mesh %s\n", data->meshes[i].name);
             } else {

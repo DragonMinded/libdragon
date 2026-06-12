@@ -17,7 +17,15 @@
 #define MAX_CONVERSION_COUNT   4
 #define MAX_WEIGHT_ATTRIBUTE_COUNT 8
 
-typedef void (*convert_func)(uint8_t*,const float*);
+typedef struct
+{
+    bool verbose;
+    bool strict;
+    float position_scale;
+    float texcoord_scale;
+} convert_mesh_config;
+
+typedef void (*convert_func)(uint8_t*,const float*,const convert_mesh_config*);
 
 typedef struct
 {
@@ -65,13 +73,17 @@ void cpybe16(uint8_t *dst, const int16_t *src, size_t count)
     }
 }
 
-void convert_position(uint8_t *dst, const float *src)
+void convert_position(uint8_t *dst, const float *src, const convert_mesh_config *config)
 {
-    int16_t pos[3] = MGFX_POS(src[0], src[1], src[2]);
+    int16_t pos[3] = {
+        src[0] * config->position_scale,
+        src[1] * config->position_scale,
+        src[2] * config->position_scale
+    };
     cpybe16(dst, pos, 3);
 }
 
-void convert_normal(uint8_t *dst, const float *src)
+void convert_normal(uint8_t *dst, const float *src, const convert_mesh_config *config)
 {
     int16_t x = CLAMP(roundf(src[0] * 15.5f), -16.0f, 15.0f);
     int16_t y = CLAMP(roundf(src[1] * 31.5f), -32.0f, 31.0f);
@@ -80,7 +92,7 @@ void convert_normal(uint8_t *dst, const float *src)
     cpybe16(dst, &packed, 1);
 }
 
-void convert_color(uint8_t *dst, const float *src)
+void convert_color(uint8_t *dst, const float *src, const convert_mesh_config *config)
 {
     // Pre-gamma-correct vertex colors (excluding alpha)
     for (size_t i = 0; i < 3; i++) {
@@ -89,13 +101,16 @@ void convert_color(uint8_t *dst, const float *src)
     dst[3] = src[3] * 0xFF;
 }
 
-void convert_texcoord(uint8_t *dst, const float *src)
+void convert_texcoord(uint8_t *dst, const float *src, const convert_mesh_config *config)
 {
-    int16_t tex[2] = MGFX_TEX(src[0], src[1]);
+    int16_t tex[2] = {
+        src[0] * config->texcoord_scale,
+        src[1] * config->texcoord_scale,
+    };
     cpybe16(dst, tex, 2);
 }
 
-int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
+int optimize_submesh_buffers(mgfx_submesh_t *submesh, const convert_mesh_config *config)
 {
     const uint32_t invalid_index = 0xFFFFFFFF;
 
@@ -219,7 +234,7 @@ int optimize_submesh_buffers(mgfx_submesh_t *submesh, int flag_verbose)
     }
 
     if (submesh->vertices_count != emitted_vtx_count) {
-        if (flag_verbose) {
+        if (config->verbose) {
             printf("Vertex count changed during optimization: %d -> %d\n", submesh->vertices_count, emitted_vtx_count);
         }
         submesh->vertices_count = emitted_vtx_count;
@@ -240,7 +255,7 @@ int read_accessor_data(const cgltf_accessor *in_accessor, float **out_data, size
     return 0;
 }
 
-int convert_mtx_indices(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh, int flag_verbose, bool strict)
+int convert_mtx_indices(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh, const convert_mesh_config *config)
 {
     size_t attr_count = 0;
 
@@ -309,7 +324,7 @@ int convert_mtx_indices(cgltf_primitive *in_primitive, mgfx_submesh_t *out_subme
                 }
             }
 
-            if (strict && used_weights_count > 1) {
+            if (config->strict && used_weights_count > 1) {
                 fprintf(stderr, "Error: Primitive is not rigidly skinned\n");
                 has_error = true;
                 break;
@@ -333,7 +348,7 @@ int convert_mtx_indices(cgltf_primitive *in_primitive, mgfx_submesh_t *out_subme
     return has_error ? 1 : 0;
 }
 
-int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh, int flag_verbose, bool strict)
+int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh, const convert_mesh_config *config)
 {
     out_submesh->primitive_restart_enabled = false;
     out_submesh->primitive_topology = convert_primitive_topology(in_primitive->type);
@@ -436,11 +451,11 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
                 const float *src = conversions[j].buffer + i * conversions[j].component_count;
                 float tmp[4] = {0, 0, 0, 1}; // Make sure that missing components are always replaced with sensible defaults
                 memcpy(tmp, src, sizeof(float) * conversions[j].component_count);
-                conversions[j].convert_func(dst + conversions[j].out_offset, tmp);
+                conversions[j].convert_func(dst + conversions[j].out_offset, tmp, config);
             }
         }
 
-        if (convert_mtx_indices(in_primitive, out_submesh, flag_verbose, strict) != 0) {
+        if (convert_mtx_indices(in_primitive, out_submesh, config) != 0) {
             has_error = true;
         }
     }
@@ -474,7 +489,7 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
         for (size_t i = 0; i < in_indices->count; i++) out_submesh->indices[i] = tmp_indices[i];
         free(tmp_indices);
 
-        if (optimize_submesh_buffers(out_submesh, flag_verbose) != 0) {
+        if (optimize_submesh_buffers(out_submesh, config) != 0) {
             fprintf(stderr, "Error: failed optimizing vertex and index buffers\n");
             return 1;
         }
@@ -483,18 +498,18 @@ int convert_primitive(cgltf_primitive *in_primitive, mgfx_submesh_t *out_submesh
     return 0;
 }
 
-int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh, int flag_verbose, bool strict)
+int convert_mesh(const cgltf_mesh *in_mesh, mgfx_mesh_t *out_mesh, const convert_mesh_config *config)
 {
     out_mesh->submesh_count = in_mesh->primitives_count;
     out_mesh->submeshes = calloc(in_mesh->primitives_count, sizeof(mgfx_submesh_t));
 
     for (size_t i = 0; i < in_mesh->primitives_count; i++)
     {
-        if (flag_verbose) {
+        if (config->verbose) {
             printf("Converting primitive %zd\n", i);
         }
 
-        if (convert_primitive(&in_mesh->primitives[i], &out_mesh->submeshes[i], flag_verbose, strict) != 0) {
+        if (convert_primitive(&in_mesh->primitives[i], &out_mesh->submeshes[i], config) != 0) {
             fprintf(stderr, "Error: failed converting primitive %zd\n", i);
             return 1;
         }

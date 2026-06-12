@@ -21,6 +21,15 @@ int convert_meshdb(const cgltf_data *data, mgfx_meshdb_t *out_meshdb)
     out_meshdb->version = MGFX_MESHDB_VERSION;
     out_meshdb->mesh_count = data->meshes_count;
 
+    const convert_mesh_config config = {
+        .verbose = flag_verbose,
+        // TODO: add CLI flag for strict mode
+        .strict = false,
+        // TODO: add CLI option for scale
+        .position_scale = 64,
+        .texcoord_scale = 32,
+    };
+
     for (size_t i = 0; i < data->meshes_count; i++)
     {
         const cgltf_mesh *in_mesh = &data->meshes[i];
@@ -33,7 +42,7 @@ int convert_meshdb(const cgltf_data *data, mgfx_meshdb_t *out_meshdb)
         entry->mesh = calloc(1, sizeof(mgfx_mesh_t));
 
         // TODO: add CLI flag for strict mode
-        if (convert_mesh(in_mesh, entry->mesh, flag_verbose, false) != 0) {
+        if (convert_mesh(in_mesh, entry->mesh, &config) != 0) {
             fprintf(stderr, "Error: failed converting mesh %s\n", in_mesh->name);
             return 1;
         }
