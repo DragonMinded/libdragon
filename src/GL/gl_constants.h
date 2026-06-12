@@ -171,9 +171,10 @@
 #define GLP_LIGHT_ATT_FRAC     26
 #define GLP_LIGHT_SIZE         32
 
-#define GLP_ATTRIBUTE_POS_NORM         0
-#define GLP_ATTRIBUTE_COLOR            1
-#define GLP_ATTRIBUTE_TEXCOORD         2
+#define GLP_ATTRIBUTE_POSITION         0
+#define GLP_ATTRIBUTE_NORMAL           1
+#define GLP_ATTRIBUTE_COLOR            2
+#define GLP_ATTRIBUTE_TEXCOORD         3
 
 #define GLP_BINDING_MATRICES           0
 #define GLP_BINDING_TEXTURING          1

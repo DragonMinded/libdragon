@@ -57,7 +57,8 @@ uniform<GLP_BINDING_FOG> FOG
     u8 FOG_MASK;
 }
 
-attribute<GLP_ATTRIBUTE_POS_NORM>  s16 POS_NORM[4];
+attribute<GLP_ATTRIBUTE_POSITION>  s16 POSITION[3];
+attribute<GLP_ATTRIBUTE_NORMAL>    s16 NORMAL?;
 attribute<GLP_ATTRIBUTE_COLOR>     u32 COLOR?;
 attribute<GLP_ATTRIBUTE_TEXCOORD>  s16 TEXCOORD[2]?;
 
@@ -218,10 +219,10 @@ shader gl_pipeline()
         }
     }
 
-    @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
-    @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
-    @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
-    @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+    @AttrLoader("NORMAL") vnorm.x = load(vtx_in0_ptr).x;
+    @AttrLoader("NORMAL") vnorm.X = load(vtx_in1_ptr).x;
+    @AttrLoader("POSITION") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+    @AttrLoader("POSITION") vpos.XYZW = load(vtx_in1_ptr).xyzw;
     @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
     @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
 
@@ -258,7 +259,7 @@ shader gl_pipeline()
         #endif
         
         // Eye space normals
-        vnorm = vnormmask & vnorm.wwwwWWWW;
+        vnorm = vnormmask & vnorm.xxxxXXXX;
         vnorm *= vnormfactor;
 
         // Clip space position
@@ -542,10 +543,10 @@ shader gl_pipeline()
         vtx_out0_ptr += MG_VTX_SIZE2;
         vtx_out1_ptr += MG_VTX_SIZE2;
 
-        @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
-        @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
-        @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
-        @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+        @AttrLoader("NORMAL") vnorm.x = load(vtx_in0_ptr).x;
+        @AttrLoader("NORMAL") vnorm.X = load(vtx_in1_ptr).x;
+        @AttrLoader("POSITION") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+        @AttrLoader("POSITION") vpos.XYZW = load(vtx_in1_ptr).xyzw;
         @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
         @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
 

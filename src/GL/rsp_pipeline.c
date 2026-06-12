@@ -194,7 +194,8 @@ const rsp_read_attrib_func rsp_read_funcs[ARRAY_COUNT][ATTRIB_TYPE_COUNT] = {
 static void create_begin_end_layout(vertex_layout_t *layout)
 {
     vertex_layout_init(layout);
-    vertex_layout_add(layout, GLP_ATTRIBUTE_POS_NORM, offsetof(native_vertex_t, position), sizeof(int16_t)*4);
+    vertex_layout_add(layout, GLP_ATTRIBUTE_POSITION, offsetof(native_vertex_t, position), sizeof(int16_t)*3);
+    vertex_layout_add(layout, GLP_ATTRIBUTE_NORMAL, offsetof(native_vertex_t, normal), sizeof(int16_t));
     vertex_layout_add(layout, GLP_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
     vertex_layout_add(layout, GLP_ATTRIBUTE_TEXCOORD, offsetof(native_vertex_t, texcoord), sizeof(int16_t)*2);
     vertex_layout_set_stride(layout, sizeof(native_vertex_t));

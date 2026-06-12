@@ -1,6 +1,6 @@
 ## Auto-generated file, transpiled with RSPL
-#define ENABLE_ENV_MAP 
-#define __MAGMA_CONSTANTS 
+#define ENABLE_ENV_MAP
+#define __MAGMA_CONSTANTS
 #define MG_VERTEX_CACHE_COUNT 48
 #define MG_DEFAULT_GUARD_BAND 2
 #define MG_INLINE_UNIFORM_HEADER 12
@@ -22,11 +22,12 @@
 #define MG_VTX_SIZE 40
 #define MG_VTX_SIZE2 80
 #define MG_MAX_UNIFORMS_SIZE 0x200
-#define __GL_CONSTANTS 
-#define __MGFX_CONSTANTS 
-#define MGFX_ATTRIBUTE_POS_NORM 0
-#define MGFX_ATTRIBUTE_COLOR 1
-#define MGFX_ATTRIBUTE_TEXCOORD 2
+#define __GL_CONSTANTS
+#define __MGFX_CONSTANTS
+#define MGFX_ATTRIBUTE_POSITION 0
+#define MGFX_ATTRIBUTE_NORMAL 1
+#define MGFX_ATTRIBUTE_COLOR 2
+#define MGFX_ATTRIBUTE_TEXCOORD 3
 #define MGFX_BINDING_MATRICES 0
 #define MGFX_BINDING_TEXTURING 1
 #define MGFX_BINDING_LIGHTING 2
@@ -38,12 +39,9 @@
 #define MGFX_LIGHT_INTENSITY 14
 #define MGFX_LIGHT_SIZE 16
 #define MGFX_MATRIX_SIZE 64
-#define MGFX_VTX_POS_SHIFT 5
-#define MGFX_VTX_TEX_SHIFT 8
-#define PIPELINE_FEATURE_COUNT 1
-#define PIPELINE_FEATURES_MASK ((1<<1)-1)
-#define PIPELINE_COUNT (1<<(1+1))
-#define PIPELINE_PSEUDO_FEATURE_FLAG (1<<1)
+#define MGFX_VTX_TEX_SHIFT 5
+#define PIPELINE_FEATURE_COUNT 2
+#define PIPELINE_COUNT (1<<2)
 #define MODELVIEW_STACK_SIZE 32
 #define PROJECTION_STACK_SIZE 2
 #define TEXTURE_STACK_SIZE 2
@@ -164,9 +162,10 @@
 #define GLP_LIGHT_ATT_INT 20
 #define GLP_LIGHT_ATT_FRAC 26
 #define GLP_LIGHT_SIZE 32
-#define GLP_ATTRIBUTE_POS_NORM 0
-#define GLP_ATTRIBUTE_COLOR 1
-#define GLP_ATTRIBUTE_TEXCOORD 2
+#define GLP_ATTRIBUTE_POSITION 0
+#define GLP_ATTRIBUTE_NORMAL 1
+#define GLP_ATTRIBUTE_COLOR 2
+#define GLP_ATTRIBUTE_TEXCOORD 3
 #define GLP_BINDING_MATRICES 0
 #define GLP_BINDING_TEXTURING 1
 #define GLP_BINDING_LIGHTING 2
@@ -299,448 +298,451 @@ MgEndShaderUniforms
 
 MgBeginVertexInput
   MgBeginVertexAttribute 0, 0
-    MgVertexAttributeLoaders LOAD_POS_NORM516, LOAD_POS_NORM517, LOAD_POS_NORM518, LOAD_POS_NORM519, LOAD_POS_NORM840, LOAD_POS_NORM843, LOAD_POS_NORM841, LOAD_POS_NORM842
+    MgVertexAttributeLoaders LOAD_POSITION589, LOAD_POSITION590, LOAD_POSITION913, LOAD_POSITION914
   MgEndVertexAttribute
 
   MgBeginVertexAttribute 1, 1
-    MgVertexAttributeLoaders LOAD_COLOR520, LOAD_COLOR521, LOAD_COLOR844, LOAD_COLOR845
+    MgVertexAttributeLoaders LOAD_NORMAL587, LOAD_NORMAL588, LOAD_NORMAL911, LOAD_NORMAL912
   MgEndVertexAttribute
 
   MgBeginVertexAttribute 2, 1
+    MgVertexAttributeLoaders LOAD_COLOR591, LOAD_COLOR592, LOAD_COLOR916, LOAD_COLOR915
+  MgEndVertexAttribute
+
+  MgBeginVertexAttribute 3, 1
   MgEndVertexAttribute
 
 MgEndVertexInput
 
 MgBeginShader
-  addiu $t0, $gp, %lo(RSPQ_DMEM_BUFFER)  -6          ## L:414  |      ^ | u32 inputs_ptr = get_cmd_address(0x2);
-  ori $at, $zero, %lo(MG_VERTEX_SIZE)                ## L:415  |      2 | vec16 vvtx_size = load(MG_VERTEX_SIZE).xyzw;
-  ldv $v02, 0, 0, $t0                                ## L:416  |      3 | vec16 vinputs = load(inputs_ptr).xyzw;
-  ldv $v01, 0, 0, $at                                ## L:415  |      4 | vec16 vvtx_size = load(MG_VERTEX_SIZE).xyzw;
-  ori $s4, $zero, %lo(MG_VERTEX_CACHE_END)           ## L:440  |   ***8 | vtx_in0_ptr = MG_VERTEX_CACHE_END;
-  vmudh $v04, $v02, $v01.v                           ## L:418  |      ^ | vec32 vproducts = vinputs * vvtx_size;
-  lw $s0, %lo(MG_VERTEX_BUFFER + 0)                  ## L:432  |      9 | u32<$s0> vtx_buffer = load(MG_VERTEX_BUFFER);
-  vsar $v03, COP2_ACC_HI                             ## L:418  |      ^ | vec32 vproducts = vinputs * vvtx_size;
-  ori $at, $zero, %lo(RSPQ_SCRATCH_MEM)              ## L:419  |     10 | @Barrier("inputs0") store(vproducts:ufract.xyzw, RSPQ_SCRATCH_MEM); ## Barrier: 0x1
-  vsar $v04, COP2_ACC_MD                             ## L:418  |      ^ | vec32 vproducts = vinputs * vvtx_size;
-  ssv $v03, 0, 8, $at                                ## L:420  |   **13 | @Barrier("inputs1") store(vproducts.x, RSPQ_SCRATCH_MEM, 0x8); ## Barrier: 0x2
-  ssv $v04, 0, 10, $at                               ## L:420  |     14 | @Barrier("inputs1") store(vproducts.x, RSPQ_SCRATCH_MEM, 0x8); ## Barrier: 0x2
-  lw $t2, %lo(RSPQ_SCRATCH_MEM + 8)                  ## L:430  |     15 | @Barrier("inputs1") buffer_offset = load(RSPQ_SCRATCH_MEM, 0x8); ## Barrier: 0x2
-  sdv $v04, 0, 0, $at                                ## L:419  |     16 | @Barrier("inputs0") store(vproducts:ufract.xyzw, RSPQ_SCRATCH_MEM); ## Barrier: 0x1
-  lhu $s7, %lo(RSPQ_SCRATCH_MEM + 2)                 ## L:426  |     17 | @Barrier("inputs0") vtx_out0_ptr = load(RSPQ_SCRATCH_MEM, 0x2); ## Barrier: 0x1
-  lhu $t1, %lo(RSPQ_SCRATCH_MEM + 4)                 ## L:428  |     18 | @Barrier("inputs0") vertices_size = load(RSPQ_SCRATCH_MEM, 0x4); ## Barrier: 0x1
-  andi $t3, $t2, 7                                   ## L:435  |     19 | u32 misalignment = buffer_offset & 0x7;
-  addu $s0, $s0, $t2                                 ## L:433  |     20 | vtx_buffer += buffer_offset;
-  addiu $t2, $zero, 12                               ## L:443  |     21 | dma_in(vtx_in0_ptr, vtx_buffer, dma_size);
-  addu $t0, $t1, $t3                                 ## L:436  |     22 | dma_size = vertices_size + misalignment;
-  addiu $t0, $t0, 7                                  ## L:437  |     23 | dma_size += 0x7;
-  andi $t0, $t0, 4088                                ## L:438  |     24 | dma_size &= 0xFF8;
-  subu $s4, $s4, $t0                                 ## L:441  |     25 | vtx_in0_ptr -= dma_size;
-  jal DMAExec                                        ## L:443  |     26 | dma_in(vtx_in0_ptr, vtx_buffer, dma_size); ## Args: $t0, $t1, $s0, $s4, $t2
-  addiu $t0, $t0, -1                                 ## L:443  |    *28 | dma_in(vtx_in0_ptr, vtx_buffer, dma_size);
-  ori $t0, $zero, %lo(MATRICES_MVP)                  ## L:457  |     29 | u16 mvpaddr = MATRICES_MVP;
-  ori $at, $zero, %lo(MATRICES_NORMAL)               ## L:462  |     30 | vmn0 = load(MATRICES_NORMAL, 0x00).xyzwxyzw;
-  ori $t2, $zero, %lo(MG_SCRATCH_MEM)                ## L:476  |     31 | u16 prev_out0 = MG_SCRATCH_MEM;
-  ldv $v02, 0, 32, $t0                               ## L:396  |     32 | m0:ufract = load(address, 0x20).xyzwxyzw;
-  ldv $v03, 0, 8, $t0                                ## L:397  |     33 | m1:sint   = load(address, 0x08).xyzwxyzw;
-  ldv $v04, 0, 40, $t0                               ## L:398  |     34 | m1:ufract = load(address, 0x28).xyzwxyzw;
-  ldv $v09, 0, 0, $at                                ## L:462  |     35 | vmn0 = load(MATRICES_NORMAL, 0x00).xyzwxyzw;
-  ldv $v01, 0, 0, $t0                                ## L:395  |     36 | m0:sint   = load(address, 0x00).xyzwxyzw;
-  ldv $v11, 0, 16, $at                               ## L:464  |     37 | vmn2 = load(MATRICES_NORMAL, 0x10).xyzwxyzw;
-  ldv $v08, 0, 56, $t0                               ## L:402  |     38 | m3:ufract = load(address, 0x38).xyzwxyzw;
-  ldv $v01, 8, 0, $t0                                ## L:395  |     39 | m0:sint   = load(address, 0x00).xyzwxyzw;
-  addiu $k0, $zero, 48                               ## L:488  |     40 | u16 mat_ptr_diffuse  = 0x30;
-  ldv $v10, 0, 8, $at                                ## L:463  |     41 | vmn1 = load(MATRICES_NORMAL, 0x08).xyzwxyzw;
-  ldv $v04, 8, 40, $t0                               ## L:398  |     42 | m1:ufract = load(address, 0x28).xyzwxyzw;
-  lhu $fp, %lo(MATERIAL_FLAGS + 0)                   ## L:501  |     43 | u16 mat_flags = load(MATERIAL_FLAGS);
-  ldv $v10, 8, 8, $at                                ## L:463  |     44 | vmn1 = load(MATRICES_NORMAL, 0x08).xyzwxyzw;
-  ori $t3, $zero, %lo(MG_SCRATCH_MEM)                ## L:477  |     45 | u16 prev_out1 = MG_SCRATCH_MEM;
-  ldv $v03, 8, 8, $t0                                ## L:397  |     46 | m1:sint   = load(address, 0x08).xyzwxyzw;
-  ldv $v11, 8, 16, $at                               ## L:464  |     47 | vmn2 = load(MATRICES_NORMAL, 0x10).xyzwxyzw;
-  ldv $v09, 8, 0, $at                                ## L:462  |     48 | vmn0 = load(MATRICES_NORMAL, 0x00).xyzwxyzw;
-  ori $at, $zero, %lo(MG_NORMAL_MASK)                ## L:466  |     49 | vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
-  lhu $t8, %lo(MG_VERTEX_SIZE + 0)                   ## L:445  |     50 | vtx_size = load(MG_VERTEX_SIZE);
-  addu $s6, $s4, $t1                                 ## L:448  |     51 | vtx_in_end = vtx_in0_ptr + vertices_size;
-  ldv $v12, 0, 0, $at                                ## L:466  |     52 | vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
-  ldv $v13, 0, 8, $at                                ## L:467  |     53 | vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
-  ldv $v13, 8, 8, $at                                ## L:467  |     54 | vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
-  ldv $v07, 0, 24, $t0                               ## L:401  |     55 | m3:sint   = load(address, 0x18).xyzwxyzw;
-  ldv $v08, 8, 56, $t0                               ## L:402  |     56 | m3:ufract = load(address, 0x38).xyzwxyzw;
-  addiu $s7, $s7, %lo(MG_VERTEX_CACHE)               ## L:449  |     57 | vtx_out0_ptr += MG_VERTEX_CACHE;
-  ldv $v12, 8, 0, $at                                ## L:466  |     58 | vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
-  ldv $v02, 8, 32, $t0                               ## L:396  |     59 | m0:ufract = load(address, 0x20).xyzwxyzw;
-  ori $at, $zero, %lo(MATERIAL_DIFFUSE)              ## L:493  |     60 | vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
-  ldv $v21, 0, 0, $at                                ## L:493  |     61 | vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
-  ldv $v21, 8, 0, $at                                ## L:493  |     62 | vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
-  andi $s0, $fp, 1                                   ## L:502  |     63 | u16 tmp = mat_flags & 0x1;
-  ldv $v07, 8, 24, $t0                               ## L:401  |     64 | m3:sint   = load(address, 0x18).xyzwxyzw;
-  ori $at, $zero, %lo(MATERIAL_AMBIENT)              ## L:494  |     65 | vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
-  ldv $v22, 0, 0, $at                                ## L:494  |     66 | vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
-  ldv $v06, 0, 48, $t0                               ## L:400  |     67 | m2:ufract = load(address, 0x30).xyzwxyzw;
-  addiu $k1, $zero, 64                               ## L:489  |     68 | u16 mat_ptr_ambient  = 0x40;
-  ldv $v06, 8, 48, $t0                               ## L:400  |     69 | m2:ufract = load(address, 0x30).xyzwxyzw;
-  ldv $v22, 8, 0, $at                                ## L:494  |     70 | vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
-  ori $at, $zero, %lo(MATERIAL_EMISSIVE)             ## L:495  |     71 | vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
-  ldv $v05, 0, 16, $t0                               ## L:399  |     72 | m2:sint   = load(address, 0x10).xyzwxyzw;
-  ldv $v05, 8, 16, $t0                               ## L:399  |     73 | m2:sint   = load(address, 0x10).xyzwxyzw;
-  ldv $v23, 0, 0, $at                                ## L:495  |     74 | vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
-  ldv $v23, 8, 0, $at                                ## L:495  |     75 | vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
-  ori $at, $zero, %lo(MG_SCRATCH_MEM)                ## L:497  |     76 | store(vdiffuse, MG_SCRATCH_MEM, 0x30);
-  sll $t9, $t8, 1                                    ## L:446  |     77 | vtx_size2 = vtx_size * 2;
-  addiu $sp, $zero, 80                               ## L:490  |     78 | u16 mat_ptr_emissive = 0x50;
-  addiu $t1, $s7, 40                                 ## L:474  |     79 | u16 vtx_out1_ptr = vtx_out0_ptr + 40;
-  sqv $v22, 0, 64, $at                               ## L:498  |     80 | store(vambient, MG_SCRATCH_MEM, 0x40);
-  sqv $v21, 0, 48, $at                               ## L:497  |     81 | store(vdiffuse, MG_SCRATCH_MEM, 0x30);
-  addu $t0, $s4, $t8                                 ## L:473  |     82 | u16 vtx_in1_ptr = vtx_in0_ptr + vtx_size;
-  beq $s0, $zero, LABEL_gl_pipeline_0001             ## L:503  |     83 | if (tmp != 0) {
-  sqv $v23, 0, 80, $at                               ## L:499  |    *85 | store(vemissive, MG_SCRATCH_MEM, 0x50);
-  addiu $k0, $zero, 96                               ## L:504  |     86 | mat_ptr_diffuse = 0x60;
+  ori $at, $zero, %lo(MG_VERTEX_SIZE)                ## L:486  |      ^ | vec16 vvtx_size = load(MG_VERTEX_SIZE).xyzw;
+  ldv $v01, 0, 0, $at                                ## L:486  |      2 | vec16 vvtx_size = load(MG_VERTEX_SIZE).xyzw;
+  addiu $t0, $gp, %lo(RSPQ_DMEM_BUFFER)  -6          ## L:485  |      3 | u32 inputs_ptr = get_cmd_address(0x2);
+  ldv $v02, 0, 0, $t0                                ## L:487  |      4 | vec16 vinputs = load(inputs_ptr).xyzw;
+  ori $at, $zero, %lo(RSPQ_SCRATCH_MEM)              ## L:490  |   ***8 | @Barrier("inputs0") store(vproducts:ufract.xyzw, RSPQ_SCRATCH_MEM); ## Barrier: 0x1
+  vmudh $v04, $v02, $v01.v                           ## L:489  |      ^ | vec32 vproducts = vinputs * vvtx_size;
+  lw $s0, %lo(MG_VERTEX_BUFFER + 0)                  ## L:503  |      9 | u32<$s0> vtx_buffer = load(MG_VERTEX_BUFFER);
+  vsar $v03, COP2_ACC_HI                             ## L:489  |      ^ | vec32 vproducts = vinputs * vvtx_size;
+  ori $s4, $zero, %lo(MG_VERTEX_CACHE_END)           ## L:511  |     10 | vtx_in0_ptr = MG_VERTEX_CACHE_END;
+  vsar $v04, COP2_ACC_MD                             ## L:489  |      ^ | vec32 vproducts = vinputs * vvtx_size;
+  ssv $v03, 0, 8, $at                                ## L:491  |   **13 | @Barrier("inputs1") store(vproducts.x, RSPQ_SCRATCH_MEM, 0x8); ## Barrier: 0x2
+  sdv $v04, 0, 0, $at                                ## L:490  |     14 | @Barrier("inputs0") store(vproducts:ufract.xyzw, RSPQ_SCRATCH_MEM); ## Barrier: 0x1
+  ssv $v04, 0, 10, $at                               ## L:491  |     15 | @Barrier("inputs1") store(vproducts.x, RSPQ_SCRATCH_MEM, 0x8); ## Barrier: 0x2
+  lw $t2, %lo(RSPQ_SCRATCH_MEM + 8)                  ## L:501  |     16 | @Barrier("inputs1") buffer_offset = load(RSPQ_SCRATCH_MEM, 0x8); ## Barrier: 0x2
+  lhu $s7, %lo(RSPQ_SCRATCH_MEM + 2)                 ## L:497  |     17 | @Barrier("inputs0") vtx_out0_ptr = load(RSPQ_SCRATCH_MEM, 0x2); ## Barrier: 0x1
+  lhu $t1, %lo(RSPQ_SCRATCH_MEM + 4)                 ## L:499  |     18 | @Barrier("inputs0") vertices_size = load(RSPQ_SCRATCH_MEM, 0x4); ## Barrier: 0x1
+  andi $t3, $t2, 7                                   ## L:506  |     19 | u32 misalignment = buffer_offset & 0x7;
+  addu $s0, $s0, $t2                                 ## L:504  |     20 | vtx_buffer += buffer_offset;
+  addu $t0, $t1, $t3                                 ## L:507  |     21 | dma_size = vertices_size + misalignment;
+  addiu $t0, $t0, 7                                  ## L:508  |     22 | dma_size += 0x7;
+  andi $t0, $t0, 4088                                ## L:509  |     23 | dma_size &= 0xFF8;
+  subu $s4, $s4, $t0                                 ## L:512  |     24 | vtx_in0_ptr -= dma_size;
+  addiu $t0, $t0, -1                                 ## L:514  |     25 | dma_in(vtx_in0_ptr, vtx_buffer, dma_size);
+  jal DMAExec                                        ## L:514  |     26 | dma_in(vtx_in0_ptr, vtx_buffer, dma_size); ## Args: $t0, $t1, $s0, $s4, $t2
+  addiu $t2, $zero, 12                               ## L:514  |    *28 | dma_in(vtx_in0_ptr, vtx_buffer, dma_size);
+  addiu $k0, $zero, 48                               ## L:559  |     29 | u16 mat_ptr_diffuse  = 0x30;
+  addu $s6, $s4, $t1                                 ## L:519  |     30 | vtx_in_end = vtx_in0_ptr + vertices_size;
+  addiu $sp, $zero, 80                               ## L:561  |     31 | u16 mat_ptr_emissive = 0x50;
+  ori $t2, $zero, %lo(MG_SCRATCH_MEM)                ## L:547  |     32 | u16 prev_out0 = MG_SCRATCH_MEM;
+  ori $t0, $zero, %lo(MATRICES_MVP)                  ## L:528  |     33 | u16 mvpaddr = MATRICES_MVP;
+  ori $at, $zero, %lo(MATRICES_NORMAL)               ## L:533  |     34 | vmn0 = load(MATRICES_NORMAL, 0x00).xyzwxyzw;
+  ldv $v06, 0, 48, $t0                               ## L:471  |     35 | m2:ufract = load(address, 0x30).xyzwxyzw;
+  lhu $t8, %lo(MG_VERTEX_SIZE + 0)                   ## L:516  |     36 | vtx_size = load(MG_VERTEX_SIZE);
+  ldv $v09, 0, 0, $at                                ## L:533  |     37 | vmn0 = load(MATRICES_NORMAL, 0x00).xyzwxyzw;
+  ldv $v07, 0, 24, $t0                               ## L:472  |     38 | m3:sint   = load(address, 0x18).xyzwxyzw;
+  ldv $v08, 0, 56, $t0                               ## L:473  |     39 | m3:ufract = load(address, 0x38).xyzwxyzw;
+  ldv $v10, 0, 8, $at                                ## L:534  |     40 | vmn1 = load(MATRICES_NORMAL, 0x08).xyzwxyzw;
+  ldv $v11, 0, 16, $at                               ## L:535  |     41 | vmn2 = load(MATRICES_NORMAL, 0x10).xyzwxyzw;
+  ldv $v01, 0, 0, $t0                                ## L:466  |     42 | m0:sint   = load(address, 0x00).xyzwxyzw;
+  ldv $v11, 8, 16, $at                               ## L:535  |     43 | vmn2 = load(MATRICES_NORMAL, 0x10).xyzwxyzw;
+  ldv $v10, 8, 8, $at                                ## L:534  |     44 | vmn1 = load(MATRICES_NORMAL, 0x08).xyzwxyzw;
+  ldv $v04, 0, 40, $t0                               ## L:469  |     45 | m1:ufract = load(address, 0x28).xyzwxyzw;
+  ldv $v01, 8, 0, $t0                                ## L:466  |     46 | m0:sint   = load(address, 0x00).xyzwxyzw;
+  ldv $v09, 8, 0, $at                                ## L:533  |     47 | vmn0 = load(MATRICES_NORMAL, 0x00).xyzwxyzw;
+  ldv $v08, 8, 56, $t0                               ## L:473  |     48 | m3:ufract = load(address, 0x38).xyzwxyzw;
+  ldv $v05, 0, 16, $t0                               ## L:470  |     49 | m2:sint   = load(address, 0x10).xyzwxyzw;
+  ldv $v07, 8, 24, $t0                               ## L:472  |     50 | m3:sint   = load(address, 0x18).xyzwxyzw;
+  ori $at, $zero, %lo(MG_NORMAL_MASK)                ## L:537  |     51 | vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
+  ldv $v03, 0, 8, $t0                                ## L:468  |     52 | m1:sint   = load(address, 0x08).xyzwxyzw;
+  ori $t3, $zero, %lo(MG_SCRATCH_MEM)                ## L:548  |     53 | u16 prev_out1 = MG_SCRATCH_MEM;
+  ldv $v13, 0, 8, $at                                ## L:538  |     54 | vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
+  lhu $fp, %lo(MATERIAL_FLAGS + 0)                   ## L:572  |     55 | u16 mat_flags = load(MATERIAL_FLAGS);
+  ldv $v02, 0, 32, $t0                               ## L:467  |     56 | m0:ufract = load(address, 0x20).xyzwxyzw;
+  ldv $v04, 8, 40, $t0                               ## L:469  |     57 | m1:ufract = load(address, 0x28).xyzwxyzw;
+  addiu $k1, $zero, 64                               ## L:560  |     58 | u16 mat_ptr_ambient  = 0x40;
+  ldv $v13, 8, 8, $at                                ## L:538  |     59 | vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
+  ldv $v12, 0, 0, $at                                ## L:537  |     60 | vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
+  addiu $s7, $s7, %lo(MG_VERTEX_CACHE)               ## L:520  |     61 | vtx_out0_ptr += MG_VERTEX_CACHE;
+  ldv $v12, 8, 0, $at                                ## L:537  |     62 | vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
+  ldv $v03, 8, 8, $t0                                ## L:468  |     63 | m1:sint   = load(address, 0x08).xyzwxyzw;
+  ori $at, $zero, %lo(MATERIAL_DIFFUSE)              ## L:564  |     64 | vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
+  ldv $v05, 8, 16, $t0                               ## L:470  |     65 | m2:sint   = load(address, 0x10).xyzwxyzw;
+  ldv $v21, 0, 0, $at                                ## L:564  |     66 | vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
+  ldv $v21, 8, 0, $at                                ## L:564  |     67 | vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
+  ori $at, $zero, %lo(MATERIAL_AMBIENT)              ## L:565  |     68 | vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
+  ldv $v22, 0, 0, $at                                ## L:565  |     69 | vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
+  ldv $v22, 8, 0, $at                                ## L:565  |     70 | vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
+  addiu $t1, $s7, 40                                 ## L:545  |     71 | u16 vtx_out1_ptr = vtx_out0_ptr + 40;
+  ori $at, $zero, %lo(MATERIAL_EMISSIVE)             ## L:566  |     72 | vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
+  ldv $v23, 0, 0, $at                                ## L:566  |     73 | vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
+  ldv $v06, 8, 48, $t0                               ## L:471  |     74 | m2:ufract = load(address, 0x30).xyzwxyzw;
+  ldv $v02, 8, 32, $t0                               ## L:467  |     75 | m0:ufract = load(address, 0x20).xyzwxyzw;
+  ldv $v23, 8, 0, $at                                ## L:566  |     76 | vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
+  addu $t0, $s4, $t8                                 ## L:544  |     77 | u16 vtx_in1_ptr = vtx_in0_ptr + vtx_size;
+  ori $at, $zero, %lo(MG_SCRATCH_MEM)                ## L:568  |     78 | store(vdiffuse, MG_SCRATCH_MEM, 0x30);
+  sqv $v22, 0, 64, $at                               ## L:569  |     79 | store(vambient, MG_SCRATCH_MEM, 0x40);
+  sqv $v23, 0, 80, $at                               ## L:570  |     80 | store(vemissive, MG_SCRATCH_MEM, 0x50);
+  sqv $v21, 0, 48, $at                               ## L:568  |     81 | store(vdiffuse, MG_SCRATCH_MEM, 0x30);
+  andi $s0, $fp, 1                                   ## L:573  |     82 | u16 tmp = mat_flags & 0x1;
+  beq $s0, $zero, LABEL_gl_pipeline_0001             ## L:574  |     83 | if (tmp != 0) {
+  sll $t9, $t8, 1                                    ## L:517  |    *85 | vtx_size2 = vtx_size * 2;
+  addiu $k0, $zero, 96                               ## L:575  |     86 | mat_ptr_diffuse = 0x60;
   LABEL_gl_pipeline_0001:
-  andi $s0, $fp, 2                                   ## L:506  |     87 | tmp = mat_flags & 0x2;
-  beq $s0, $zero, LABEL_gl_pipeline_0002             ## L:507  |     88 | if (tmp != 0 ) {
-  nop                                                ## L:507  |    *90 | if (tmp != 0 ) {
-  addiu $k1, $zero, 96                               ## L:508  |     91 | mat_ptr_ambient = 0x60;
+  andi $s0, $fp, 2                                   ## L:577  |     87 | tmp = mat_flags & 0x2;
+  beq $s0, $zero, LABEL_gl_pipeline_0002             ## L:578  |     88 | if (tmp != 0 ) {
+  nop                                                ## L:578  |    *90 | if (tmp != 0 ) {
+  addiu $k1, $zero, 96                               ## L:579  |     91 | mat_ptr_ambient = 0x60;
   LABEL_gl_pipeline_0002:
-  andi $s0, $fp, 4                                   ## L:510  |     92 | tmp = mat_flags & 0x4;
-  beq $s0, $zero, LABEL_gl_pipeline_0003             ## L:511  |     93 | if (tmp != 0) {
-  nop                                                ## L:511  |    *95 | if (tmp != 0) {
-  addiu $sp, $zero, 96                               ## L:512  |     96 | mat_ptr_emissive = 0x60;
+  andi $s0, $fp, 4                                   ## L:581  |     92 | tmp = mat_flags & 0x4;
+  beq $s0, $zero, LABEL_gl_pipeline_0003             ## L:582  |     93 | if (tmp != 0) {
+  nop                                                ## L:582  |    *95 | if (tmp != 0) {
+  addiu $sp, $zero, 96                               ## L:583  |     96 | mat_ptr_emissive = 0x60;
   LABEL_gl_pipeline_0003:
-  LOAD_COLOR520: llv $v18, 0, 0, $s4                 ## L:520  |     97 | @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
-  LOAD_POS_NORM516: ldv $v15, 0, 0, $s4              ## L:516  |     98 | @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
-  LOAD_COLOR521: llv $v18, 4, 0, $t0                 ## L:521  |     99 | @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
-  LOAD_POS_NORM517: ldv $v15, 8, 0, $t0              ## L:517  |    100 | @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
-  LOAD_POS_NORM518: ldv $v14, 0, 0, $s4              ## L:518  |    101 | @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
-  LOAD_POS_NORM519: ldv $v14, 8, 0, $t0              ## L:519  |    102 | @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+  LOAD_NORMAL587: lsv $v15, 0, 0, $s4                ## L:587  |     97 | @AttrLoader("NORMAL") vnorm.x = load(vtx_in0_ptr).x;
+  LOAD_POSITION589: ldv $v14, 0, 0, $s4              ## L:589  |     98 | @AttrLoader("POSITION") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+  LOAD_NORMAL588: lsv $v15, 8, 0, $t0                ## L:588  |     99 | @AttrLoader("NORMAL") vnorm.X = load(vtx_in1_ptr).x;
+  LOAD_COLOR591: llv $v18, 0, 0, $s4                 ## L:591  |    100 | @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
+  LOAD_COLOR592: llv $v18, 4, 0, $t0                 ## L:592  |    101 | @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
+  LOAD_POSITION590: ldv $v14, 8, 0, $t0              ## L:590  |    102 | @AttrLoader("POSITION") vpos.XYZW = load(vtx_in1_ptr).xyzw;
   VERTEX_LOOP:
-  ori $at, $zero, %lo(RSPQ_SCRATCH_MEM)              ## L:543  |   *104 | @Barrier("unpack_col") store(vrgba_in.xyzw, RSPQ_SCRATCH_MEM); ## Barrier: 0x100
-  vand $v15, $v12, $v15.h3                           ## L:556  |      ^ | vnorm = vnormmask & vnorm.wwwwWWWW;
-  sdv $v18, 0, 0, $at                                ## L:543  |    105 | @Barrier("unpack_col") store(vrgba_in.xyzw, RSPQ_SCRATCH_MEM); ## Barrier: 0x100
-  luv $v18, 0, 0, $at                                ## L:544  |    106 | @Barrier("unpack_col") vrgba_in = load_vec_u8(RSPQ_SCRATCH_MEM); ## Barrier: 0x100
-  suv $v17, 0, 8, $t2                                ## L:537  |    107 | @Barrier("st_tex0") store_vec_u8(vrgba.x, prev_out0, 8); ## Barrier: 0x40
-  ori $at, $zero, %lo(MG_SCRATCH_MEM)                ## L:545  |    108 | store(vrgba_in, MG_SCRATCH_MEM, 0x60);
-  vmudn $v15, $v15, $v13.v                           ## L:557  |      ^ | vnorm *= vnormfactor;
-  vmudn $v29, $v02, $v14.h0                          ## L:560  |    109 | VTEMP = vmvp0  * vpos.xxxxXXXX;
-  sdv $v19, 0, 0, $t2                                ## L:529  |      ^ | @Barrier("st_c0") @Barrier("st_tr0") store(vpos_clip:sint.xyzw, prev_out0, 0); ## Barrier: 0xC
-  vmadh $v29, $v01, $v14.h0                          ## L:560  |    110 | VTEMP = vmvp0  * vpos.xxxxXXXX;
-  sqv $v18, 0, 96, $at                               ## L:545  |      ^ | store(vrgba_in, MG_SCRATCH_MEM, 0x60);
-  suv $v17, 4, 8, $t3                                ## L:538  |    111 | @Barrier("st_tex1") store_vec_u8(vrgba.X, prev_out1, 8); ## Barrier: 0x80
-  vmadn $v29, $v04, $v14.h1                          ## L:561  |      ^ | VTEMP = vmvp1 +* vpos.yyyyYYYY;
-  vmadh $v29, $v03, $v14.h1                          ## L:561  |    112 | VTEMP = vmvp1 +* vpos.yyyyYYYY;
-  ori $at, $zero, %lo(MG_CLIP_FACTORS)               ## L:585  |      ^ | vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
-  vmadn $v29, $v06, $v14.h2                          ## L:562  |    113 | VTEMP = vmvp2 +* vpos.zzzzZZZZ;
-  ldv $v21, 0, 0, $at                                ## L:585  |      ^ | vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
-  vmadh $v29, $v05, $v14.h2                          ## L:562  |    114 | VTEMP = vmvp2 +* vpos.zzzzZZZZ;
-  slv $v16, 8, 12, $t3                               ## L:541  |      ^ | @Barrier("st_tex1") store(vtex.XY, prev_out1, 12); ## Barrier: 0x80
-  ldv $v21, 8, 0, $at                                ## L:585  |    115 | vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
-  vmadn $v20, $v08, $v30.e2                          ## L:563  |      ^ | vpos_clip = vmvp3 +* 0x20;
-  sdv $v19, 8, 0, $t3                                ## L:530  |    116 | @Barrier("st_c1") @Barrier("st_tr1") store(vpos_clip:sint.XYZW, prev_out1, 0); ## Barrier: 0x30
-  vmadh $v19, $v07, $v30.e2                          ## L:563  |      ^ | vpos_clip = vmvp3 +* 0x20;
-  vmulf $v29, $v09, $v15.h0                          ## L:565  |    117 | VTEMP = vmn0:sfract  * vnorm:sfract.xxxxXXXX;
-  ori $at, $zero, %lo(FOG_PARAMS)                    ## L:600  |      ^ | vec16 vfog_parms = load(FOG_PARAMS).xyzwxyzw;
-  sb $t4, 6($t2)                                     ## L:532  |    118 | @Barrier("st_c0") store(c0, prev_out0, 6); ## Barrier: 0x4
-  vmacf $v29, $v10, $v15.h1                          ## L:566  |      ^ | VTEMP = vmn1:sfract +* vnorm:sfract.yyyyYYYY;
-  slv $v16, 0, 12, $t2                               ## L:540  |    119 | @Barrier("st_tex0") store(vtex.xy, prev_out0, 12); ## Barrier: 0x40
-  vmacf $v15, $v11, $v15.h2                          ## L:567  |      ^ | vnorm = vmn2:sfract +* vnorm:sfract.zzzzZZZZ;
-  vmudn $v23, $v20, $v21.v                           ## L:586  |    120 | vec32 vguard = vpos_clip * vclip_factors;
-  sdv $v19, 8, 24, $t1                               ## L:596  |      ^ | @Barrier("st_cp1") store(vpos_clip.XYZW, vtx_out1_ptr, 24); ## Barrier: 0x400
-  vmadh $v22, $v19, $v21.v                           ## L:586  |    121 | vec32 vguard = vpos_clip * vclip_factors;
-  sb $t5, 6($t3)                                     ## L:533  |      ^ | @Barrier("st_c1") store(c1, prev_out1, 6); ## Barrier: 0x10
-  sb $t7, 7($t3)                                     ## L:535  |    122 | @Barrier("st_tr1") store(tr1, prev_out1, 7); ## Barrier: 0x20
-  sdv $v19, 0, 24, $s7                               ## L:595  |    123 | @Barrier("st_cp0") store(vpos_clip.xyzw, vtx_out0_ptr, 24); ## Barrier: 0x200
-  sdv $v20, 0, 32, $s7                               ## L:595  |    124 | @Barrier("st_cp0") store(vpos_clip.xyzw, vtx_out0_ptr, 24); ## Barrier: 0x200
-  sb $t6, 7($t2)                                     ## L:534  |    125 | @Barrier("st_tr0") store(tr0, prev_out0, 7); ## Barrier: 0x8
-  vch $v29, $v22, $v22.h3                            ## L:587  |      ^ | u16 clip_codes = clip(vguard, vguard.wwwwWWWW);
-  vcl $v29, $v23, $v23.h3                            ## L:587  |    126 | u16 clip_codes = clip(vguard, vguard.wwwwWWWW);
-  sdv $v20, 8, 32, $t1                               ## L:596  |      ^ | @Barrier("st_cp1") store(vpos_clip.XYZW, vtx_out1_ptr, 24); ## Barrier: 0x400
-  cfc2 $fp, $vcc                                     ## L:587  |    127 | u16 clip_codes = clip(vguard, vguard.wwwwWWWW);
-  ldv $v22, 0, 0, $at                                ## L:600  |    128 | vec16 vfog_parms = load(FOG_PARAMS).xyzwxyzw;
-  vch $v29, $v19, $v19.h3                            ## L:591  |      ^ | u16 tr_codes = clip(vpos_clip, vpos_clip.wwwwWWWW);
-  ldv $v22, 8, 0, $at                                ## L:600  |    129 | vec16 vfog_parms = load(FOG_PARAMS).xyzwxyzw;
-  andi $s1, $fp, 1799                                ## L:361  |    130 | t0 = codes & 0x707;
-  srl $s2, $s1, 5                                    ## L:362  |    131 | t1 = t0 >> 5;
-  or $t4, $s1, $s2                                   ## L:369  |    132 | result = t0 | t1;
-  vcl $v29, $v20, $v20.h3                            ## L:591  |      ^ | u16 tr_codes = clip(vpos_clip, vpos_clip.wwwwWWWW);
-  vaddc $v23, $v20, $v22.h1                          ## L:601  |    133 | vec16 vtmp:ufract = vpos_clip:ufract + vfog_parms:ufract.yyyyYYYY;
-  srl $s0, $fp, 4                                    ## L:381  |      ^ | u16 codes2 = codes >> 4;
-  vadd $v21, $v19, $v22.h0                           ## L:602  |    134 | vfog:sint = vpos_clip:sint + vfog_parms:sint.xxxxXXXX;
-  andi $s1, $s0, 1799                                ## L:361  |      ^ | t0 = codes & 0x707;
-  ori $fp, $zero, %lo(MATRICES_MV)                   ## L:639  |    135 | u16 addr = MATRICES_MV;
-  ldv $v03, 0, 8, $fp                                ## L:397  |    136 | m1:sint   = load(address, 0x08).xyzwxyzw;
-  ldv $v07, 0, 24, $fp                               ## L:401  |    137 | m3:sint   = load(address, 0x18).xyzwxyzw;
-  ori $at, $zero, %lo(MG_VIEWPORT)                   ## L:609  |    138 | vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
-  ldv $v07, 8, 24, $fp                               ## L:401  |    139 | m3:sint   = load(address, 0x18).xyzwxyzw;
-  cfc2 $s0, $vcc                                     ## L:591  |    140 | u16 tr_codes = clip(vpos_clip, vpos_clip.wwwwWWWW);
-  vmudn $v29, $v23, $v22.h2                          ## L:604  |      ^ | VTEMP = vtmp:ufract * vfog_parms:sint.zzzzZZZZ;
-  vmadh $v21, $v21, $v22.h2                          ## L:605  |    141 | vfog = vfog:sint +* vfog_parms:sint.zzzzZZZZ;
-  srl $s2, $s1, 5                                    ## L:362  |      ^ | t1 = t0 >> 5;
-  ldv $v23, 0, 8, $at                                ## L:610  |    142 | vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
-  ldv $v22, 0, 0, $at                                ## L:609  |    143 | vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
-  ldv $v22, 8, 0, $at                                ## L:609  |    144 | vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
-  ldv $v23, 8, 8, $at                                ## L:610  |    145 | vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
-  ldv $v03, 8, 8, $fp                                ## L:397  |    146 | m1:sint   = load(address, 0x08).xyzwxyzw;
-  ldv $v05, 0, 16, $fp                               ## L:399  |    147 | m2:sint   = load(address, 0x10).xyzwxyzw;
-  or $t5, $s1, $s2                                   ## L:369  |    148 | result = t0 | t1;
-  vge $v21, $v00, $v21.h2                            ## L:606  |      ^ | vfog = max(VZERO, vfog.zzzzZZZZ);
-  andi $s2, $s0, 1799                                ## L:361  |    149 | t0 = codes & 0x707;
-  vmudl $v20, $v20, $v22.h3                          ## L:612  |      ^ | vpos_clip *= vviewscale:sfract.wwwwWWWW;
-  vmadm $v19, $v19, $v22.h3                          ## L:612  |    150 | vpos_clip *= vviewscale:sfract.wwwwWWWW;
-  ldv $v08, 0, 56, $fp                               ## L:402  |      ^ | m3:ufract = load(address, 0x38).xyzwxyzw;
-  ldv $v06, 0, 48, $fp                               ## L:400  |    151 | m2:ufract = load(address, 0x30).xyzwxyzw;
-  vmadn $v20, $v00, $v00                             ## L:612  |      ^ | vpos_clip *= vviewscale:sfract.wwwwWWWW;
-  ldv $v02, 0, 32, $fp                               ## L:396  |    152 | m0:ufract = load(address, 0x20).xyzwxyzw;
-  ldv $v04, 0, 40, $fp                               ## L:398  |    153 | m1:ufract = load(address, 0x28).xyzwxyzw;
-  ldv $v06, 8, 48, $fp                               ## L:400  |    154 | m2:ufract = load(address, 0x30).xyzwxyzw;
-  ldv $v04, 8, 40, $fp                               ## L:398  |    155 | m1:ufract = load(address, 0x28).xyzwxyzw;
-  srl $s1, $s0, 4                                    ## L:388  |    156 | u16 codes2 = codes >> 4;
-  srl $s3, $s2, 5                                    ## L:362  |    157 | t1 = t0 >> 5;
-  ldv $v02, 8, 32, $fp                               ## L:396  |    158 | m0:ufract = load(address, 0x20).xyzwxyzw;
-  ldv $v05, 8, 16, $fp                               ## L:399  |    159 | m2:sint   = load(address, 0x10).xyzwxyzw;
-  ori $at, $zero, %lo(LIGHTING_AMBIENT)              ## L:648  |    160 | vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
-  vrcph $v24.e3, $v19.e3                             ## L:619  |      ^ | vinvw.w = invert_half(vpos_clip).w;
-  ldv $v17, 0, 0, $at                                ## L:648  |    161 | vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
-  vrcpl $v25.e3, $v20.e3                             ## L:619  |      ^ | vinvw.w = invert_half(vpos_clip).w;
-  vrcph $v24.e3, $v19.e7                             ## L:620  |    162 | vinvw.W = invert_half(vpos_clip).W;
-  ssv $v19, 14, 16, $t1                              ## L:616  |      ^ | @Barrier("st_w1") store(vpos_clip.W, vtx_out1_ptr, 16); ## Barrier: 0x1000
-  vrcpl $v25.e7, $v20.e7                             ## L:620  |    163 | vinvw.W = invert_half(vpos_clip).W;
-  ldv $v17, 8, 0, $at                                ## L:648  |      ^ | vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
-  ssv $v19, 6, 16, $s7                               ## L:615  |    164 | @Barrier("st_w0") store(vpos_clip.w, vtx_out0_ptr, 16); ## Barrier: 0x800
-  vrcph $v24.e7, $v00.e7                             ## L:620  |      ^ | vinvw.W = invert_half(vpos_clip).W;
-  ssv $v20, 6, 18, $s7                               ## L:615  |   *166 | @Barrier("st_w0") store(vpos_clip.w, vtx_out0_ptr, 16); ## Barrier: 0x800
-  ssv $v20, 14, 18, $t1                              ## L:616  |    167 | @Barrier("st_w1") store(vpos_clip.W, vtx_out1_ptr, 16); ## Barrier: 0x1000
-  nor $t6, $s2, $s3                                  ## L:376  |    168 | result = t0 ~| t1;
-  vmudl $v29, $v20, $v25.h3                          ## L:625  |      ^ | vpos_clip *= vinvw.wwwwWWWW;
-  vmadm $v29, $v19, $v25.h3                          ## L:625  |    169 | vpos_clip *= vinvw.wwwwWWWW;
-  andi $s2, $s1, 1799                                ## L:361  |      ^ | t0 = codes & 0x707;
-  ldv $v01, 0, 0, $fp                                ## L:395  |    170 | m0:sint   = load(address, 0x00).xyzwxyzw;
-  ssv $v24, 14, 20, $t1                              ## L:623  |    171 | @Barrier("st_iw1") store(vinvw.W, vtx_out1_ptr, 20); ## Barrier: 0x4000
-  vmadn $v20, $v20, $v24.h3                          ## L:625  |      ^ | vpos_clip *= vinvw.wwwwWWWW;
-  ldv $v01, 8, 0, $fp                                ## L:395  |    172 | m0:sint   = load(address, 0x00).xyzwxyzw;
-  vmadh $v19, $v19, $v24.h3                          ## L:625  |      ^ | vpos_clip *= vinvw.wwwwWWWW;
-  vmudh $v29, $v23, $v30.e7                          ## L:629  |    173 | VTEMP = vviewoff:sint * 1;
-  addiu $at, $k0, MG_SCRATCH_MEM                     ## L:650  |      ^ | vec16 vdiffuse = load(mat_ptr_diffuse, MG_SCRATCH_MEM);
-  ori $s0, $zero, %lo(LIGHTING_LIGHTS)               ## L:661  |    174 | u16 light_ptr = LIGHTING_LIGHTS;
-  ssv $v24, 6, 20, $s7                               ## L:622  |    175 | @Barrier("st_iw0") store(vinvw.w, vtx_out0_ptr, 20); ## Barrier: 0x2000
-  vmadn $v20, $v20, $v22.v                           ## L:630  |      ^ | vpos_clip = vpos_clip +* vviewscale;
-  srl $s3, $s2, 5                                    ## L:362  |    176 | t1 = t0 >> 5;
-  vmadh $v19, $v19, $v22.v                           ## L:630  |      ^ | vpos_clip = vpos_clip +* vviewscale;
-  vmudn $v29, $v02, $v14.h0                          ## L:642  |    177 | VTEMP = vmvp0  * vpos.xxxxXXXX;
-  ldv $v08, 8, 56, $fp                               ## L:402  |      ^ | m3:ufract = load(address, 0x38).xyzwxyzw;
-  lqv $v22, 0, 0, $at                                ## L:650  |    178 | vec16 vdiffuse = load(mat_ptr_diffuse, MG_SCRATCH_MEM);
-  vmadh $v29, $v01, $v14.h0                          ## L:642  |      ^ | VTEMP = vmvp0  * vpos.xxxxXXXX;
-  addiu $at, $k1, MG_SCRATCH_MEM                     ## L:651  |    179 | vec16 vambient = load(mat_ptr_ambient, MG_SCRATCH_MEM);
-  vmadn $v29, $v04, $v14.h1                          ## L:643  |      ^ | VTEMP = vmvp1 +* vpos.yyyyYYYY;
-  lbu $fp, %lo(LIGHTING_COUNT + 0)                   ## L:659  |    180 | u8 light_count = load(LIGHTING_COUNT);
-  vmadh $v29, $v03, $v14.h1                          ## L:643  |      ^ | VTEMP = vmvp1 +* vpos.yyyyYYYY;
-  vmadn $v29, $v06, $v14.h2                          ## L:644  |    181 | VTEMP = vmvp2 +* vpos.zzzzZZZZ;
-  lqv $v23, 0, 0, $at                                ## L:651  |      ^ | vec16 vambient = load(mat_ptr_ambient, MG_SCRATCH_MEM);
-  addiu $at, $sp, MG_SCRATCH_MEM                     ## L:652  |    182 | vec16 vemissive = load(mat_ptr_emissive, MG_SCRATCH_MEM);
-  lqv $v24, 0, 0, $at                                ## L:652  |    183 | vec16 vemissive = load(mat_ptr_emissive, MG_SCRATCH_MEM);
-  ssv $v25, 14, 22, $t1                              ## L:623  |    184 | @Barrier("st_iw1") store(vinvw.W, vtx_out1_ptr, 20); ## Barrier: 0x4000
-  vmadh $v29, $v05, $v14.h2                          ## L:644  |      ^ | VTEMP = vmvp2 +* vpos.zzzzZZZZ;
-  nor $t7, $s2, $s3                                  ## L:376  |    185 | result = t0 ~| t1;
-  vmadn $v29, $v08, $v30.e2                          ## L:645  |      ^ | vpos = vmvp3 +* 0x20;
-  ssv $v25, 6, 22, $s7                               ## L:622  |    186 | @Barrier("st_iw0") store(vinvw.w, vtx_out0_ptr, 20); ## Barrier: 0x2000
-  vmadh $v14, $v07, $v30.e2                          ## L:645  |      ^ | vpos = vmvp3 +* 0x20;
-  vmudh $v29, $v24, $v30.e7                          ## L:654  |    187 | VTEMP = vemissive:sint * 1;
-  beq $fp, $zero, LIGHT_END                          ## L:662  |      ^ | if (light_count == 0) goto LIGHT_END;
-  vmacf $v17, $v17, $v23.v                           ## L:655  |   *189 | vrgba:sfract = vrgba:sfract +* vambient:sfract;
+  ori $at, $zero, %lo(RSPQ_SCRATCH_MEM)              ## L:614  |    103 | @Barrier("unpack_col") store(vrgba_in.xyzw, RSPQ_SCRATCH_MEM); ## Barrier: 0x100
+  vand $v15, $v12, $v15.h0                           ## L:627  |      ^ | vnorm = vnormmask & vnorm.xxxxXXXX;
+  suv $v17, 4, 8, $t3                                ## L:609  |   *105 | @Barrier("st_tex1") store_vec_u8(vrgba.X, prev_out1, 8); ## Barrier: 0x80
+  sdv $v19, 8, 0, $t3                                ## L:601  |    106 | @Barrier("st_c1") @Barrier("st_tr1") store(vpos_clip:sint.XYZW, prev_out1, 0); ## Barrier: 0x30
+  sdv $v18, 0, 0, $at                                ## L:614  |    107 | @Barrier("unpack_col") store(vrgba_in.xyzw, RSPQ_SCRATCH_MEM); ## Barrier: 0x100
+  vmudn $v15, $v15, $v13.v                           ## L:628  |      ^ | vnorm *= vnormfactor;
+  vmudn $v29, $v02, $v14.h0                          ## L:631  |    108 | VTEMP = vmvp0  * vpos.xxxxXXXX;
+  luv $v18, 0, 0, $at                                ## L:615  |      ^ | @Barrier("unpack_col") vrgba_in = load_vec_u8(RSPQ_SCRATCH_MEM); ## Barrier: 0x100
+  sdv $v19, 0, 0, $t2                                ## L:600  |    109 | @Barrier("st_c0") @Barrier("st_tr0") store(vpos_clip:sint.xyzw, prev_out0, 0); ## Barrier: 0xC
+  vmadh $v29, $v01, $v14.h0                          ## L:631  |      ^ | VTEMP = vmvp0  * vpos.xxxxXXXX;
+  vmadn $v29, $v04, $v14.h1                          ## L:632  |    110 | VTEMP = vmvp1 +* vpos.yyyyYYYY;
+  ori $at, $zero, %lo(MG_SCRATCH_MEM)                ## L:616  |      ^ | store(vrgba_in, MG_SCRATCH_MEM, 0x60);
+  vmadh $v29, $v03, $v14.h1                          ## L:632  |   *112 | VTEMP = vmvp1 +* vpos.yyyyYYYY;
+  sqv $v18, 0, 96, $at                               ## L:616  |      ^ | store(vrgba_in, MG_SCRATCH_MEM, 0x60);
+  vmadn $v29, $v06, $v14.h2                          ## L:633  |    113 | VTEMP = vmvp2 +* vpos.zzzzZZZZ;
+  sb $t4, 6($t2)                                     ## L:603  |      ^ | @Barrier("st_c0") store(c0, prev_out0, 6); ## Barrier: 0x4
+  vmadh $v29, $v05, $v14.h2                          ## L:633  |    114 | VTEMP = vmvp2 +* vpos.zzzzZZZZ;
+  ori $at, $zero, %lo(MG_CLIP_FACTORS)               ## L:656  |      ^ | vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
+  ldv $v21, 0, 0, $at                                ## L:656  |    115 | vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
+  vmadn $v20, $v08, $v30.e2                          ## L:634  |      ^ | vpos_clip = vmvp3 +* 0x20;
+  vmadh $v19, $v07, $v30.e2                          ## L:634  |    116 | vpos_clip = vmvp3 +* 0x20;
+  sb $t6, 7($t2)                                     ## L:605  |      ^ | @Barrier("st_tr0") store(tr0, prev_out0, 7); ## Barrier: 0x8
+  vmulf $v29, $v09, $v15.h0                          ## L:636  |    117 | VTEMP = vmn0:sfract  * vnorm:sfract.xxxxXXXX;
+  ldv $v21, 8, 0, $at                                ## L:656  |      ^ | vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
+  vmacf $v29, $v10, $v15.h1                          ## L:637  |    118 | VTEMP = vmn1:sfract +* vnorm:sfract.yyyyYYYY;
+  slv $v16, 8, 12, $t3                               ## L:612  |      ^ | @Barrier("st_tex1") store(vtex.XY, prev_out1, 12); ## Barrier: 0x80
+  ori $at, $zero, %lo(FOG_PARAMS)                    ## L:671  |    119 | vec16 vfog_parms = load(FOG_PARAMS).xyzwxyzw;
+  sb $t7, 7($t3)                                     ## L:606  |    120 | @Barrier("st_tr1") store(tr1, prev_out1, 7); ## Barrier: 0x20
+  vmacf $v15, $v11, $v15.h2                          ## L:638  |      ^ | vnorm = vmn2:sfract +* vnorm:sfract.zzzzZZZZ;
+  vmudn $v23, $v20, $v21.v                           ## L:657  |    121 | vec32 vguard = vpos_clip * vclip_factors;
+  suv $v17, 0, 8, $t2                                ## L:608  |      ^ | @Barrier("st_tex0") store_vec_u8(vrgba.x, prev_out0, 8); ## Barrier: 0x40
+  sdv $v19, 0, 24, $s7                               ## L:666  |    122 | @Barrier("st_cp0") store(vpos_clip.xyzw, vtx_out0_ptr, 24); ## Barrier: 0x200
+  vmadh $v22, $v19, $v21.v                           ## L:657  |      ^ | vec32 vguard = vpos_clip * vclip_factors;
+  slv $v16, 0, 12, $t2                               ## L:611  |    123 | @Barrier("st_tex0") store(vtex.xy, prev_out0, 12); ## Barrier: 0x40
+  sdv $v19, 8, 24, $t1                               ## L:667  |    124 | @Barrier("st_cp1") store(vpos_clip.XYZW, vtx_out1_ptr, 24); ## Barrier: 0x400
+  sb $t5, 6($t3)                                     ## L:604  |    125 | @Barrier("st_c1") store(c1, prev_out1, 6); ## Barrier: 0x10
+  sdv $v20, 8, 32, $t1                               ## L:667  |    126 | @Barrier("st_cp1") store(vpos_clip.XYZW, vtx_out1_ptr, 24); ## Barrier: 0x400
+  vch $v29, $v22, $v22.h3                            ## L:658  |      ^ | u16 clip_codes = clip(vguard, vguard.wwwwWWWW);
+  sdv $v20, 0, 32, $s7                               ## L:666  |    127 | @Barrier("st_cp0") store(vpos_clip.xyzw, vtx_out0_ptr, 24); ## Barrier: 0x200
+  vcl $v29, $v23, $v23.h3                            ## L:658  |      ^ | u16 clip_codes = clip(vguard, vguard.wwwwWWWW);
+  cfc2 $fp, $vcc                                     ## L:658  |    128 | u16 clip_codes = clip(vguard, vguard.wwwwWWWW);
+  ldv $v22, 0, 0, $at                                ## L:671  |    129 | vec16 vfog_parms = load(FOG_PARAMS).xyzwxyzw;
+  vch $v29, $v19, $v19.h3                            ## L:662  |      ^ | u16 tr_codes = clip(vpos_clip, vpos_clip.wwwwWWWW);
+  vcl $v29, $v20, $v20.h3                            ## L:662  |    130 | u16 tr_codes = clip(vpos_clip, vpos_clip.wwwwWWWW);
+  ldv $v22, 8, 0, $at                                ## L:671  |      ^ | vec16 vfog_parms = load(FOG_PARAMS).xyzwxyzw;
+  andi $s1, $fp, 1799                                ## L:432  |    131 | t0 = codes & 0x707;
+  srl $s2, $s1, 5                                    ## L:433  |    132 | t1 = t0 >> 5;
+  or $t4, $s1, $s2                                   ## L:440  |    133 | result = t0 | t1;
+  srl $s0, $fp, 4                                    ## L:452  |    134 | u16 codes2 = codes >> 4;
+  vaddc $v23, $v20, $v22.h1                          ## L:672  |      ^ | vec16 vtmp:ufract = vpos_clip:ufract + vfog_parms:ufract.yyyyYYYY;
+  vadd $v21, $v19, $v22.h0                           ## L:673  |    135 | vfog:sint = vpos_clip:sint + vfog_parms:sint.xxxxXXXX;
+  ori $fp, $zero, %lo(MATRICES_MV)                   ## L:710  |      ^ | u16 addr = MATRICES_MV;
+  andi $s1, $s0, 1799                                ## L:432  |    136 | t0 = codes & 0x707;
+  cfc2 $s0, $vcc                                     ## L:662  |    137 | u16 tr_codes = clip(vpos_clip, vpos_clip.wwwwWWWW);
+  srl $s2, $s1, 5                                    ## L:433  |    138 | t1 = t0 >> 5;
+  ori $at, $zero, %lo(MG_VIEWPORT)                   ## L:680  |    139 | vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
+  vmudn $v29, $v23, $v22.h2                          ## L:675  |      ^ | VTEMP = vtmp:ufract * vfog_parms:sint.zzzzZZZZ;
+  vmadh $v21, $v21, $v22.h2                          ## L:676  |    140 | vfog = vfog:sint +* vfog_parms:sint.zzzzZZZZ;
+  ldv $v22, 0, 0, $at                                ## L:680  |      ^ | vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
+  ldv $v22, 8, 0, $at                                ## L:680  |    141 | vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
+  ldv $v23, 0, 8, $at                                ## L:681  |    142 | vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
+  ldv $v06, 0, 48, $fp                               ## L:471  |    143 | m2:ufract = load(address, 0x30).xyzwxyzw;
+  ldv $v05, 0, 16, $fp                               ## L:470  |    144 | m2:sint   = load(address, 0x10).xyzwxyzw;
+  vge $v21, $v00, $v21.h2                            ## L:677  |      ^ | vfog = max(VZERO, vfog.zzzzZZZZ);
+  ldv $v08, 0, 56, $fp                               ## L:473  |    145 | m3:ufract = load(address, 0x38).xyzwxyzw;
+  vmudl $v20, $v20, $v22.h3                          ## L:683  |      ^ | vpos_clip *= vviewscale:sfract.wwwwWWWW;
+  vmadm $v19, $v19, $v22.h3                          ## L:683  |    146 | vpos_clip *= vviewscale:sfract.wwwwWWWW;
+  or $t5, $s1, $s2                                   ## L:440  |      ^ | result = t0 | t1;
+  vmadn $v20, $v00, $v00                             ## L:683  |    147 | vpos_clip *= vviewscale:sfract.wwwwWWWW;
+  ldv $v07, 0, 24, $fp                               ## L:472  |      ^ | m3:sint   = load(address, 0x18).xyzwxyzw;
+  andi $s2, $s0, 1799                                ## L:432  |    148 | t0 = codes & 0x707;
+  srl $s3, $s2, 5                                    ## L:433  |    149 | t1 = t0 >> 5;
+  ssv $v19, 14, 16, $t1                              ## L:687  |    150 | @Barrier("st_w1") store(vpos_clip.W, vtx_out1_ptr, 16); ## Barrier: 0x1000
+  vrcph $v24.e3, $v19.e3                             ## L:690  |      ^ | vinvw.w = invert_half(vpos_clip).w;
+  vrcpl $v25.e3, $v20.e3                             ## L:690  |    151 | vinvw.w = invert_half(vpos_clip).w;
+  nor $t6, $s2, $s3                                  ## L:447  |      ^ | result = t0 ~| t1;
+  ldv $v23, 8, 8, $at                                ## L:681  |    152 | vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
+  ldv $v01, 0, 0, $fp                                ## L:466  |    153 | m0:sint   = load(address, 0x00).xyzwxyzw;
+  vrcph $v24.e3, $v19.e7                             ## L:691  |      ^ | vinvw.W = invert_half(vpos_clip).W;
+  ldv $v05, 8, 16, $fp                               ## L:470  |    154 | m2:sint   = load(address, 0x10).xyzwxyzw;
+  ori $at, $zero, %lo(LIGHTING_AMBIENT)              ## L:719  |    155 | vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
+  vrcpl $v25.e7, $v20.e7                             ## L:691  |      ^ | vinvw.W = invert_half(vpos_clip).W;
+  vrcph $v24.e7, $v00.e7                             ## L:691  |    156 | vinvw.W = invert_half(vpos_clip).W;
+  srl $s1, $s0, 4                                    ## L:459  |      ^ | u16 codes2 = codes >> 4;
+  ldv $v04, 0, 40, $fp                               ## L:469  |    157 | m1:ufract = load(address, 0x28).xyzwxyzw;
+  ssv $v20, 14, 18, $t1                              ## L:687  |    158 | @Barrier("st_w1") store(vpos_clip.W, vtx_out1_ptr, 16); ## Barrier: 0x1000
+  ldv $v17, 0, 0, $at                                ## L:719  |    159 | vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
+  ssv $v19, 6, 16, $s7                               ## L:686  |    160 | @Barrier("st_w0") store(vpos_clip.w, vtx_out0_ptr, 16); ## Barrier: 0x800
+  vmudl $v29, $v20, $v25.h3                          ## L:696  |      ^ | vpos_clip *= vinvw.wwwwWWWW;
+  vmadm $v29, $v19, $v25.h3                          ## L:696  |    161 | vpos_clip *= vinvw.wwwwWWWW;
+  ldv $v08, 8, 56, $fp                               ## L:473  |      ^ | m3:ufract = load(address, 0x38).xyzwxyzw;
+  ssv $v20, 6, 18, $s7                               ## L:686  |    162 | @Barrier("st_w0") store(vpos_clip.w, vtx_out0_ptr, 16); ## Barrier: 0x800
+  ldv $v04, 8, 40, $fp                               ## L:469  |    163 | m1:ufract = load(address, 0x28).xyzwxyzw;
+  vmadn $v20, $v20, $v24.h3                          ## L:696  |      ^ | vpos_clip *= vinvw.wwwwWWWW;
+  ldv $v17, 8, 0, $at                                ## L:719  |    164 | vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
+  vmadh $v19, $v19, $v24.h3                          ## L:696  |      ^ | vpos_clip *= vinvw.wwwwWWWW;
+  vmudh $v29, $v23, $v30.e7                          ## L:700  |    165 | VTEMP = vviewoff:sint * 1;
+  ldv $v02, 0, 32, $fp                               ## L:467  |      ^ | m0:ufract = load(address, 0x20).xyzwxyzw;
+  ldv $v01, 8, 0, $fp                                ## L:466  |    166 | m0:sint   = load(address, 0x00).xyzwxyzw;
+  ldv $v02, 8, 32, $fp                               ## L:467  |    167 | m0:ufract = load(address, 0x20).xyzwxyzw;
+  andi $s2, $s1, 1799                                ## L:432  |    168 | t0 = codes & 0x707;
+  ldv $v06, 8, 48, $fp                               ## L:471  |    169 | m2:ufract = load(address, 0x30).xyzwxyzw;
+  ldv $v03, 0, 8, $fp                                ## L:468  |    170 | m1:sint   = load(address, 0x08).xyzwxyzw;
+  vmadn $v20, $v20, $v22.v                           ## L:701  |      ^ | vpos_clip = vpos_clip +* vviewscale;
+  vmadh $v19, $v19, $v22.v                           ## L:701  |    171 | vpos_clip = vpos_clip +* vviewscale;
+  addiu $at, $k0, MG_SCRATCH_MEM                     ## L:721  |      ^ | vec16 vdiffuse = load(mat_ptr_diffuse, MG_SCRATCH_MEM);
+  vmudn $v29, $v02, $v14.h0                          ## L:713  |    172 | VTEMP = vmvp0  * vpos.xxxxXXXX;
+  ldv $v03, 8, 8, $fp                                ## L:468  |      ^ | m1:sint   = load(address, 0x08).xyzwxyzw;
+  srl $s3, $s2, 5                                    ## L:433  |    173 | t1 = t0 >> 5;
+  lqv $v22, 0, 0, $at                                ## L:721  |    174 | vec16 vdiffuse = load(mat_ptr_diffuse, MG_SCRATCH_MEM);
+  ldv $v07, 8, 24, $fp                               ## L:472  |    175 | m3:sint   = load(address, 0x18).xyzwxyzw;
+  vmadh $v29, $v01, $v14.h0                          ## L:713  |      ^ | VTEMP = vmvp0  * vpos.xxxxXXXX;
+  addiu $at, $k1, MG_SCRATCH_MEM                     ## L:722  |    176 | vec16 vambient = load(mat_ptr_ambient, MG_SCRATCH_MEM);
+  vmadn $v29, $v04, $v14.h1                          ## L:714  |      ^ | VTEMP = vmvp1 +* vpos.yyyyYYYY;
+  lqv $v23, 0, 0, $at                                ## L:722  |    177 | vec16 vambient = load(mat_ptr_ambient, MG_SCRATCH_MEM);
+  ssv $v24, 14, 20, $t1                              ## L:694  |    178 | @Barrier("st_iw1") store(vinvw.W, vtx_out1_ptr, 20); ## Barrier: 0x4000
+  vmadh $v29, $v03, $v14.h1                          ## L:714  |      ^ | VTEMP = vmvp1 +* vpos.yyyyYYYY;
+  vmadn $v29, $v06, $v14.h2                          ## L:715  |    179 | VTEMP = vmvp2 +* vpos.zzzzZZZZ;
+  lbu $fp, %lo(LIGHTING_COUNT + 0)                   ## L:730  |      ^ | u8 light_count = load(LIGHTING_COUNT);
+  vmadh $v29, $v05, $v14.h2                          ## L:715  |    180 | VTEMP = vmvp2 +* vpos.zzzzZZZZ;
+  ssv $v24, 6, 20, $s7                               ## L:693  |      ^ | @Barrier("st_iw0") store(vinvw.w, vtx_out0_ptr, 20); ## Barrier: 0x2000
+  addiu $at, $sp, MG_SCRATCH_MEM                     ## L:723  |    181 | vec16 vemissive = load(mat_ptr_emissive, MG_SCRATCH_MEM);
+  lqv $v24, 0, 0, $at                                ## L:723  |    182 | vec16 vemissive = load(mat_ptr_emissive, MG_SCRATCH_MEM);
+  ssv $v25, 14, 22, $t1                              ## L:694  |    183 | @Barrier("st_iw1") store(vinvw.W, vtx_out1_ptr, 20); ## Barrier: 0x4000
+  ori $s0, $zero, %lo(LIGHTING_LIGHTS)               ## L:732  |    184 | u16 light_ptr = LIGHTING_LIGHTS;
+  vmadn $v29, $v08, $v30.e2                          ## L:716  |      ^ | vpos = vmvp3 +* 0x20;
+  ssv $v25, 6, 22, $s7                               ## L:693  |    185 | @Barrier("st_iw0") store(vinvw.w, vtx_out0_ptr, 20); ## Barrier: 0x2000
+  vmadh $v14, $v07, $v30.e2                          ## L:716  |      ^ | vpos = vmvp3 +* 0x20;
+  nor $t7, $s2, $s3                                  ## L:447  |    186 | result = t0 ~| t1;
+  vmudh $v29, $v24, $v30.e7                          ## L:725  |      ^ | VTEMP = vemissive:sint * 1;
+  beq $fp, $zero, LIGHT_END                          ## L:733  |    187 | if (light_count == 0) goto LIGHT_END;
+  vmacf $v17, $v17, $v23.v                           ## L:726  |   *189 | vrgba:sfract = vrgba:sfract +* vambient:sfract;
   LIGHT_LOOP:
-  addiu $s1, $s0, 14                                 ## L:665  |    190 | u16 amb_ptr = light_ptr + 14;
-  ldv $v25, 0, 8, $s0                                ## L:667  |    191 | vec16 vlcol = load(light_ptr, 8).xyzwxyzw;
-  ldv $v25, 8, 8, $s0                                ## L:667  |    192 | vec16 vlcol = load(light_ptr, 8).xyzwxyzw;
-  ldv $v24, 0, 0, $s1                                ## L:666  |    193 | vec16 vlambient = load(amb_ptr, 0).xyzwxyzw;
-  ldv $v24, 8, 0, $s1                                ## L:666  |    194 | vec16 vlambient = load(amb_ptr, 0).xyzwxyzw;
-  lh $s2, 6($s0)                                     ## L:672  |    195 | s16 light_w = load(light_ptr, 6);
-  ldv $v26, 0, 0, $s0                                ## L:668  |    196 | vec16 vlpos = load(light_ptr, 0).xyzwxyzw;
-  vmulf $v25, $v25, $v22.v                           ## L:670  |      ^ | vlcol:sfract *= vdiffuse;
-  ldv $v26, 8, 0, $s0                                ## L:668  |    197 | vec16 vlpos = load(light_ptr, 0).xyzwxyzw;
-  beq $s2, $zero, LABEL_gl_pipeline_0005             ## L:673  |    198 | if (light_w != 0)
-  nop                                                ## L:779  |   *200 | VTEMP = vzunit:sint +* 1;
-  addiu $s3, $s0, 20                                 ## L:681  |    201 | u16 att_ptr = light_ptr + 20;
-  vsubc $v26, $v26, $v14.v                           ## L:687  |      ^ | vlpos -= vpos;
-  vmudh $v04, $v26, $v26.v                           ## L:688  | ***205 | vec32 vsqdist = vlpos * vlpos;
-  ldv $v01, 0, 0, $s3                                ## L:683  |      ^ | vatten:sint = load(att_ptr, 0).xyzwxyzw;
-  ldv $v01, 8, 0, $s3                                ## L:683  |    206 | vatten:sint = load(att_ptr, 0).xyzwxyzw;
-  vsar $v04, COP2_ACC_MD                             ## L:688  |      ^ | vec32 vsqdist = vlpos * vlpos;
-  vsar $v03, COP2_ACC_HI                             ## L:688  |    207 | vec32 vsqdist = vlpos * vlpos;
-  addiu $s3, $s3, 6                                  ## L:684  |      ^ | att_ptr += 6;
-  ldv $v02, 0, 0, $s3                                ## L:685  |    208 | vatten:ufract = load(att_ptr, 0).xyzwxyzw;
-  ldv $v02, 8, 0, $s3                                ## L:685  |   *210 | vatten:ufract = load(att_ptr, 0).xyzwxyzw;
-  vaddc $v06, $v04, $v04.h1                          ## L:689  |      ^ | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
-  vadd $v05, $v03, $v03.h1                           ## L:689  |    211 | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
-  vaddc $v04, $v06, $v04.h2                          ## L:690  |  **214 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
-  vadd $v03, $v05, $v03.h2                           ## L:690  |    215 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
-  vrsqh $v05.e0, $v03.e0                             ## L:692  | ***219 | vtmp.x = invert_half_sqrt(vsqdist).x;
-  vrsql $v06.e0, $v04.e0                             ## L:692  |    220 | vtmp.x = invert_half_sqrt(vsqdist).x;
-  vrsqh $v05.e0, $v03.e4                             ## L:693  |    221 | vtmp.X = invert_half_sqrt(vsqdist).X;
-  vrsql $v06.e4, $v04.e4                             ## L:693  |    222 | vtmp.X = invert_half_sqrt(vsqdist).X;
-  vrsqh $v05.e4, $v00.e0                             ## L:693  |    223 | vtmp.X = invert_half_sqrt(vsqdist).X;
-  vmudl $v29, $v06, $v04.v                           ## L:695  |  **226 | vec32 vdist = vtmp * vsqdist;
-  vmadm $v29, $v05, $v04.v                           ## L:695  |    227 | vec32 vdist = vtmp * vsqdist;
-  vmadn $v08, $v06, $v03.v                           ## L:695  |    228 | vec32 vdist = vtmp * vsqdist;
-  vmadh $v07, $v05, $v03.v                           ## L:695  |    229 | vec32 vdist = vtmp * vsqdist;
-  vmudm $v29, $v26, $v06.h0                          ## L:697  |    230 | vlpos *= vtmp.xxxxXXXX;
-  vmadh $v26, $v26, $v05.h0                          ## L:697  |    231 | vlpos *= vtmp.xxxxXXXX;
-  vmudn $v29, $v02, $v30.e7                          ## L:699  |    232 | VTEMP = vatten * 1;
-  vmadh $v29, $v01, $v30.e7                          ## L:699  |    233 | VTEMP = vatten * 1;
-  vmadl $v29, $v08, $v02.h1                          ## L:700  |    234 | VTEMP = vdist +* vatten.yyyyYYYY;
-  vmadm $v29, $v07, $v02.h1                          ## L:700  |    235 | VTEMP = vdist +* vatten.yyyyYYYY;
-  vmadn $v29, $v08, $v01.h1                          ## L:700  |    236 | VTEMP = vdist +* vatten.yyyyYYYY;
-  vmadh $v29, $v07, $v01.h1                          ## L:700  |    237 | VTEMP = vdist +* vatten.yyyyYYYY;
-  vmadl $v29, $v04, $v02.h2                          ## L:701  |    238 | vatten = vsqdist +* vatten.zzzzZZZZ;
-  vmadm $v29, $v03, $v02.h2                          ## L:701  |    239 | vatten = vsqdist +* vatten.zzzzZZZZ;
-  vmadn $v02, $v04, $v01.h2                          ## L:701  |    240 | vatten = vsqdist +* vatten.zzzzZZZZ;
-  vmadh $v01, $v03, $v01.h2                          ## L:701  |    241 | vatten = vsqdist +* vatten.zzzzZZZZ;
-  vrcph $v01.e0, $v01.e0                             ## L:703  | ***245 | vatten.x = invert_half(vatten).x;
-  vrcpl $v02.e0, $v02.e0                             ## L:703  |    246 | vatten.x = invert_half(vatten).x;
-  vrcph $v01.e0, $v01.e4                             ## L:704  |  **249 | vatten.X = invert_half(vatten).X;
-  vrcpl $v02.e4, $v02.e4                             ## L:704  |    250 | vatten.X = invert_half(vatten).X;
-  vrcph $v01.e4, $v00.e4                             ## L:704  |    251 | vatten.X = invert_half(vatten).X;
-  vmudm $v29, $v25, $v02.h0                          ## L:706  |  **254 | vlcol *= vatten.xxxxXXXX;
-  vmadh $v25, $v25, $v01.h0                          ## L:706  |    255 | vlcol *= vatten.xxxxXXXX;
+  ldv $v25, 0, 8, $s0                                ## L:738  |    190 | vec16 vlcol = load(light_ptr, 8).xyzwxyzw;
+  ldv $v26, 0, 0, $s0                                ## L:739  |    191 | vec16 vlpos = load(light_ptr, 0).xyzwxyzw;
+  ldv $v26, 8, 0, $s0                                ## L:739  |    192 | vec16 vlpos = load(light_ptr, 0).xyzwxyzw;
+  lh $s2, 6($s0)                                     ## L:743  |    193 | s16 light_w = load(light_ptr, 6);
+  addiu $s1, $s0, 14                                 ## L:736  |    194 | u16 amb_ptr = light_ptr + 14;
+  ldv $v25, 8, 8, $s0                                ## L:738  |    195 | vec16 vlcol = load(light_ptr, 8).xyzwxyzw;
+  ldv $v24, 0, 0, $s1                                ## L:737  |    196 | vec16 vlambient = load(amb_ptr, 0).xyzwxyzw;
+  ldv $v24, 8, 0, $s1                                ## L:737  |    197 | vec16 vlambient = load(amb_ptr, 0).xyzwxyzw;
+  beq $s2, $zero, LABEL_gl_pipeline_0005             ## L:744  |    198 | if (light_w != 0)
+  vmulf $v25, $v25, $v22.v                           ## L:741  |   *200 | vlcol:sfract *= vdiffuse;
+  vsubc $v26, $v26, $v14.v                           ## L:758  |    201 | vlpos -= vpos;
+  addiu $s3, $s0, 20                                 ## L:752  |      ^ | u16 att_ptr = light_ptr + 20;
+  vmudh $v04, $v26, $v26.v                           ## L:759  | ***205 | vec32 vsqdist = vlpos * vlpos;
+  ldv $v01, 0, 0, $s3                                ## L:754  |      ^ | vatten:sint = load(att_ptr, 0).xyzwxyzw;
+  ldv $v01, 8, 0, $s3                                ## L:754  |    206 | vatten:sint = load(att_ptr, 0).xyzwxyzw;
+  vsar $v04, COP2_ACC_MD                             ## L:759  |      ^ | vec32 vsqdist = vlpos * vlpos;
+  addiu $s3, $s3, 6                                  ## L:755  |    207 | att_ptr += 6;
+  vsar $v03, COP2_ACC_HI                             ## L:759  |      ^ | vec32 vsqdist = vlpos * vlpos;
+  ldv $v02, 0, 0, $s3                                ## L:756  |    208 | vatten:ufract = load(att_ptr, 0).xyzwxyzw;
+  ldv $v02, 8, 0, $s3                                ## L:756  |   *210 | vatten:ufract = load(att_ptr, 0).xyzwxyzw;
+  vaddc $v06, $v04, $v04.h1                          ## L:760  |      ^ | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+  vadd $v05, $v03, $v03.h1                           ## L:760  |    211 | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+  vaddc $v04, $v06, $v04.h2                          ## L:761  |  **214 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
+  vadd $v03, $v05, $v03.h2                           ## L:761  |    215 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
+  vrsqh $v05.e0, $v03.e0                             ## L:763  | ***219 | vtmp.x = invert_half_sqrt(vsqdist).x;
+  vrsql $v06.e0, $v04.e0                             ## L:763  |    220 | vtmp.x = invert_half_sqrt(vsqdist).x;
+  vrsqh $v05.e0, $v03.e4                             ## L:764  |    221 | vtmp.X = invert_half_sqrt(vsqdist).X;
+  vrsql $v06.e4, $v04.e4                             ## L:764  |    222 | vtmp.X = invert_half_sqrt(vsqdist).X;
+  vrsqh $v05.e4, $v00.e0                             ## L:764  |    223 | vtmp.X = invert_half_sqrt(vsqdist).X;
+  vmudl $v29, $v06, $v04.v                           ## L:766  |  **226 | vec32 vdist = vtmp * vsqdist;
+  vmadm $v29, $v05, $v04.v                           ## L:766  |    227 | vec32 vdist = vtmp * vsqdist;
+  vmadn $v08, $v06, $v03.v                           ## L:766  |    228 | vec32 vdist = vtmp * vsqdist;
+  vmadh $v07, $v05, $v03.v                           ## L:766  |    229 | vec32 vdist = vtmp * vsqdist;
+  vmudm $v29, $v26, $v06.h0                          ## L:768  |    230 | vlpos *= vtmp.xxxxXXXX;
+  vmadh $v26, $v26, $v05.h0                          ## L:768  |    231 | vlpos *= vtmp.xxxxXXXX;
+  vmudn $v29, $v02, $v30.e7                          ## L:770  |    232 | VTEMP = vatten * 1;
+  vmadh $v29, $v01, $v30.e7                          ## L:770  |    233 | VTEMP = vatten * 1;
+  vmadl $v29, $v08, $v02.h1                          ## L:771  |    234 | VTEMP = vdist +* vatten.yyyyYYYY;
+  vmadm $v29, $v07, $v02.h1                          ## L:771  |    235 | VTEMP = vdist +* vatten.yyyyYYYY;
+  vmadn $v29, $v08, $v01.h1                          ## L:771  |    236 | VTEMP = vdist +* vatten.yyyyYYYY;
+  vmadh $v29, $v07, $v01.h1                          ## L:771  |    237 | VTEMP = vdist +* vatten.yyyyYYYY;
+  vmadl $v29, $v04, $v02.h2                          ## L:772  |    238 | vatten = vsqdist +* vatten.zzzzZZZZ;
+  vmadm $v29, $v03, $v02.h2                          ## L:772  |    239 | vatten = vsqdist +* vatten.zzzzZZZZ;
+  vmadn $v02, $v04, $v01.h2                          ## L:772  |    240 | vatten = vsqdist +* vatten.zzzzZZZZ;
+  vmadh $v01, $v03, $v01.h2                          ## L:772  |    241 | vatten = vsqdist +* vatten.zzzzZZZZ;
+  vrcph $v01.e0, $v01.e0                             ## L:774  | ***245 | vatten.x = invert_half(vatten).x;
+  vrcpl $v02.e0, $v02.e0                             ## L:774  |    246 | vatten.x = invert_half(vatten).x;
+  vrcph $v01.e0, $v01.e4                             ## L:775  |  **249 | vatten.X = invert_half(vatten).X;
+  vrcpl $v02.e4, $v02.e4                             ## L:775  |    250 | vatten.X = invert_half(vatten).X;
+  vrcph $v01.e4, $v00.e4                             ## L:775  |    251 | vatten.X = invert_half(vatten).X;
+  vmudm $v29, $v25, $v02.h0                          ## L:777  |  **254 | vlcol *= vatten.xxxxXXXX;
+  vmadh $v25, $v25, $v01.h0                          ## L:777  |    255 | vlcol *= vatten.xxxxXXXX;
   LABEL_gl_pipeline_0005:
-  addiu $fp, $fp, 65535                              ## L:730  |      ^ | light_count -= 1;
-  addiu $s0, $s0, 32                                 ## L:729  |    256 | light_ptr += 32;
-  vmulf $v26, $v26, $v15.v                           ## L:720  |      ^ | vlpos *= vnorm:sfract;
-  vmudn $v29, $v24, $v23.v                           ## L:721  |    257 | VTEMP = vlambient * vambient;
-  vmacf $v29, $v25, $v26.h0                          ## L:722  |  **260 | VTEMP = vlcol:sfract +* vlpos:sfract.xxxxXXXX;
-  vmacf $v29, $v25, $v26.h1                          ## L:723  |    261 | VTEMP = vlcol:sfract +* vlpos:sfract.yyyyYYYY;
-  vmacf $v25, $v25, $v26.h2                          ## L:724  |    262 | vlcol = vlcol:sfract +* vlpos:sfract.zzzzZZZZ;
-  vge $v25, $v25, $v00                               ## L:725  | ***266 | vlcol = max(vlcol, VZERO);
-  bne $fp, $zero, LIGHT_LOOP                         ## L:731  |      ^ | if (light_count != 0) goto LIGHT_LOOP;
-  vadd $v17, $v17, $v25.v                            ## L:727  | ****271 | vrgba:sint += vlcol;
+  addiu $fp, $fp, 65535                              ## L:801  |      ^ | light_count -= 1;
+  vmulf $v26, $v26, $v15.v                           ## L:791  |    256 | vlpos *= vnorm:sfract;
+  vmudn $v29, $v24, $v23.v                           ## L:792  |    257 | VTEMP = vlambient * vambient;
+  vmacf $v29, $v25, $v26.h0                          ## L:793  |  **260 | VTEMP = vlcol:sfract +* vlpos:sfract.xxxxXXXX;
+  vmacf $v29, $v25, $v26.h1                          ## L:794  |    261 | VTEMP = vlcol:sfract +* vlpos:sfract.yyyyYYYY;
+  vmacf $v25, $v25, $v26.h2                          ## L:795  |    262 | vlcol = vlcol:sfract +* vlpos:sfract.zzzzZZZZ;
+  addiu $s0, $s0, 32                                 ## L:800  |      ^ | light_ptr += 32;
+  vge $v25, $v25, $v00                               ## L:796  | ***266 | vlcol = max(vlcol, VZERO);
+  bne $fp, $zero, LIGHT_LOOP                         ## L:802  |      ^ | if (light_count != 0) goto LIGHT_LOOP;
+  vadd $v17, $v17, $v25.v                            ## L:798  | ****271 | vrgba:sint += vlcol;
   LIGHT_END:
-  vmov $v17.e3, $v22.e3                              ## L:735  |    272 | vrgba.w = vdiffuse.w;
-  ori $at, $zero, %lo(TEXTURE_MATRIX)                ## L:804  |      ^ | vmt0:sint   = load(TEXTURE_MATRIX, 0x00).xyzwxyzw;
-  lbu $s1, %lo(FOG_MASK + 0)                         ## L:742  |    273 | u8 fog_mask = load(FOG_MASK);
-  vmov $v17.e7, $v22.e7                              ## L:736  |      ^ | vrgba.W = vdiffuse.W;
-  ctc2 $s1, $vcc                                     ## L:743  |  **276 | set_vcc(fog_mask);
-  ldv $v28, 0, 40, $at                               ## L:809  |    277 | vmt3:ufract = load(TEXTURE_MATRIX, 0x28).xyzwxyzw;
-  vmrg $v17, $v17, $v21.h2                           ## L:744  |      ^ | vrgba = select(vrgba, vfog.zzzzZZZZ);
-  vmudh $v22, $v14, $v14.v                           ## L:755  |    278 | vec32 vsqdist = vpos * vpos;
-  vsar $v22, COP2_ACC_MD                             ## L:755  |    279 | vec32 vsqdist = vpos * vpos;
-  vsar $v21, COP2_ACC_HI                             ## L:755  |    280 | vec32 vsqdist = vpos * vpos;
-  or $t3, $zero, $t1                                 ## L:834  |      ^ | prev_out1 = vtx_out1_ptr;
-  vaddc $v24, $v22, $v22.h1                          ## L:756  |  **283 | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
-  ori $s1, $zero, %lo(MATRICES_MVP)                  ## L:751  |      ^ | u16 addr = MATRICES_MVP;
-  addu $t0, $t0, $t9                                 ## L:836  |    284 | vtx_in1_ptr += vtx_size2;
-  vadd $v23, $v21, $v21.h1                           ## L:756  |      ^ | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
-  vaddc $v22, $v24, $v22.h2                          ## L:757  |  **287 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
-  ldv $v04, 0, 40, $s1                               ## L:398  |      ^ | m1:ufract = load(address, 0x28).xyzwxyzw;
-  ldv $v08, 0, 56, $s1                               ## L:402  |    288 | m3:ufract = load(address, 0x38).xyzwxyzw;
-  vadd $v21, $v23, $v21.h2                           ## L:757  |      ^ | vsqdist = vtmp + vsqdist.zzzzZZZZ;
-  ldv $v05, 0, 16, $s1                               ## L:399  | ***292 | m2:sint   = load(address, 0x10).xyzwxyzw;
-  vrsqh $v23.e0, $v21.e0                             ## L:759  |      ^ | vtmp.x = invert_half_sqrt(vsqdist).x;
-  ldv $v08, 8, 56, $s1                               ## L:402  |    293 | m3:ufract = load(address, 0x38).xyzwxyzw;
-  vrsql $v24.e0, $v22.e0                             ## L:759  |      ^ | vtmp.x = invert_half_sqrt(vsqdist).x;
-  ldv $v05, 8, 16, $s1                               ## L:399  |    294 | m2:sint   = load(address, 0x10).xyzwxyzw;
-  vrsqh $v23.e0, $v21.e4                             ## L:760  |      ^ | vtmp.X = invert_half_sqrt(vsqdist).X;
-  vrsql $v24.e4, $v22.e4                             ## L:760  |    295 | vtmp.X = invert_half_sqrt(vsqdist).X;
-  vrsqh $v23.e4, $v00.e0                             ## L:760  |    296 | vtmp.X = invert_half_sqrt(vsqdist).X;
-  ldv $v04, 8, 40, $s1                               ## L:398  |      ^ | m1:ufract = load(address, 0x28).xyzwxyzw;
-  vmudm $v29, $v14, $v24.h0                          ## L:762  |  **299 | vpos *= vtmp.xxxxXXXX;
-  ldv $v07, 8, 24, $s1                               ## L:401  |      ^ | m3:sint   = load(address, 0x18).xyzwxyzw;
-  addiu $t1, $t1, 80                                 ## L:838  |    300 | vtx_out1_ptr += 80;
-  vmadh $v14, $v14, $v23.h0                          ## L:762  |      ^ | vpos *= vtmp.xxxxXXXX;
-  vmulf $v23, $v14, $v15.v                           ## L:765  | ***304 | vec16 vdot = vpos:sfract * vnorm:sfract;
-  ldv $v07, 0, 24, $s1                               ## L:401  |      ^ | m3:sint   = load(address, 0x18).xyzwxyzw;
-  vadd $v24, $v23, $v23.h1                           ## L:766  | ***308 | vec16 vtmp:sint = vdot + vdot.yyyyYYYY;
-  ldv $v02, 8, 32, $s1                               ## L:396  |      ^ | m0:ufract = load(address, 0x20).xyzwxyzw;
-  vadd $v23, $v24, $v23.h2                           ## L:767  | ***312 | vdot:sint = vtmp + vdot.zzzzZZZZ;
-  vor $v24, $v00, $v00                               ## L:772  |    313 | vec16 vzunit = VZERO;
-  vlt $v23, $v23, $v00                               ## L:769  |  **316 | vdot = min(vdot, VZERO);
-  vmov $v24.e6, $v12.e3                              ## L:774  |    317 | vzunit.Z = vnormmask.w;
-  vsubc $v23, $v00, $v23.v                           ## L:770  |  **320 | vdot = VZERO - vdot;
-  vmov $v24.e2, $v12.e3                              ## L:773  |    321 | vzunit.z = vnormmask.w;
-  vmulf $v29, $v15, $v23.h0                          ## L:776  |  **324 | VTEMP = vnorm:sfract  * vdot.xxxxXXXX;
-  vmacf $v29, $v15, $v23.h0                          ## L:777  |    325 | VTEMP = vnorm:sfract +* vdot.xxxxXXXX;
-  addu $s4, $s4, $t9                                 ## L:835  |      ^ | vtx_in0_ptr += vtx_size2;
-  LOAD_POS_NORM840: ldv $v15, 0, 0, $s4              ## L:840  |    326 | @AttrLoader("POS_NORM") vnorm.xyzw = load(vtx_in0_ptr).xyzw;
-  vmadh $v29, $v14, $v30.e7                          ## L:778  |      ^ | VTEMP = vpos:sint +* 1;
-  vmadh $v29, $v24, $v30.e7                          ## L:779  |    327 | VTEMP = vzunit:sint +* 1;
-  LOAD_COLOR844: llv $v18, 0, 0, $s4                 ## L:844  |      ^ | @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
-  vsar $v24, COP2_ACC_MD                             ## L:782  |    328 | vec32 vrefl = get_acc();
-  vsar $v23, COP2_ACC_HI                             ## L:782  |    329 | vec32 vrefl = get_acc();
-  vmudl $v29, $v24, $v24.v                           ## L:784  |  **332 | vsqdist = vrefl * vrefl;
-  vmadm $v29, $v23, $v24.v                           ## L:784  |    333 | vsqdist = vrefl * vrefl;
-  LOAD_POS_NORM843: ldv $v14, 8, 0, $t0              ## L:843  |      ^ | @AttrLoader("POS_NORM") vpos.XYZW = load(vtx_in1_ptr).xyzw;
-  vmadn $v22, $v24, $v23.v                           ## L:784  |    334 | vsqdist = vrefl * vrefl;
-  vmadh $v21, $v23, $v23.v                           ## L:784  |    335 | vsqdist = vrefl * vrefl;
-  vaddc $v26, $v22, $v22.h1                          ## L:785  |  **338 | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
-  ldv $v27, 0, 16, $at                               ## L:808  |      ^ | vmt3:sint   = load(TEXTURE_MATRIX, 0x10).xyzwxyzw;
-  ldv $v27, 8, 16, $at                               ## L:808  |    339 | vmt3:sint   = load(TEXTURE_MATRIX, 0x10).xyzwxyzw;
-  vadd $v25, $v21, $v21.h1                           ## L:785  |      ^ | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
-  vxor $v16, $v00, $v30.e0                           ## L:791  |    340 | vtex = 0x80;
-  vaddc $v22, $v26, $v22.h2                          ## L:786  |   *342 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
-  vadd $v21, $v25, $v21.h2                           ## L:786  |    343 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
-  vrsqh $v25.e0, $v21.e0                             ## L:788  | ***347 | vtmp.x = invert_half_sqrt(vsqdist).x;
-  vrsql $v26.e0, $v22.e0                             ## L:788  |    348 | vtmp.x = invert_half_sqrt(vsqdist).x;
-  vrsqh $v25.e0, $v21.e4                             ## L:789  |    349 | vtmp.X = invert_half_sqrt(vsqdist).X;
-  vrsql $v26.e4, $v22.e4                             ## L:789  |    350 | vtmp.X = invert_half_sqrt(vsqdist).X;
-  ldv $v03, 0, 8, $s1                                ## L:397  |      ^ | m1:sint   = load(address, 0x08).xyzwxyzw;
-  vrsqh $v25.e4, $v00.e0                             ## L:789  |    351 | vtmp.X = invert_half_sqrt(vsqdist).X;
-  vmudh $v29, $v16, $v30.e7                          ## L:792  |    352 | VTEMP = vtex:sint * 1;
-  ldv $v03, 8, 8, $s1                                ## L:397  |      ^ | m1:sint   = load(address, 0x08).xyzwxyzw;
-  vmadl $v29, $v24, $v26.h0                          ## L:793  |   *354 | vtex:sint = vrefl +* vtmp.xxxxXXXX;
-  ldv $v28, 8, 40, $at                               ## L:809  |      ^ | vmt3:ufract = load(TEXTURE_MATRIX, 0x28).xyzwxyzw;
-  vmadm $v29, $v23, $v26.h0                          ## L:793  |    355 | vtex:sint = vrefl +* vtmp.xxxxXXXX;
-  ldv $v26, 0, 32, $at                               ## L:807  |      ^ | vmt1:ufract = load(TEXTURE_MATRIX, 0x20).xyzwxyzw;
-  vmadn $v29, $v24, $v25.h0                          ## L:793  |    356 | vtex:sint = vrefl +* vtmp.xxxxXXXX;
-  ldv $v24, 0, 24, $at                               ## L:805  |      ^ | vmt0:ufract = load(TEXTURE_MATRIX, 0x18).xyzwxyzw;
-  ldv $v24, 8, 24, $at                               ## L:805  |    357 | vmt0:ufract = load(TEXTURE_MATRIX, 0x18).xyzwxyzw;
-  ldv $v26, 8, 32, $at                               ## L:807  |    358 | vmt1:ufract = load(TEXTURE_MATRIX, 0x20).xyzwxyzw;
-  vmadh $v16, $v23, $v25.h0                          ## L:793  |      ^ | vtex:sint = vrefl +* vtmp.xxxxXXXX;
-  ldv $v23, 0, 0, $at                                ## L:804  |    359 | vmt0:sint   = load(TEXTURE_MATRIX, 0x00).xyzwxyzw;
-  ldv $v23, 8, 0, $at                                ## L:804  |    360 | vmt0:sint   = load(TEXTURE_MATRIX, 0x00).xyzwxyzw;
-  ldv $v25, 0, 8, $at                                ## L:806  |    361 | vmt1:sint   = load(TEXTURE_MATRIX, 0x08).xyzwxyzw;
-  ldv $v25, 8, 8, $at                                ## L:806  |    362 | vmt1:sint   = load(TEXTURE_MATRIX, 0x08).xyzwxyzw;
-  vmudn $v29, $v24, $v16.h0                          ## L:811  |      ^ | VTEMP = vmt0  * vtex.xxxxXXXX;
-  vmadh $v29, $v23, $v16.h0                          ## L:811  |   *364 | VTEMP = vmt0  * vtex.xxxxXXXX;
-  vmadn $v29, $v26, $v16.h1                          ## L:812  |    365 | VTEMP = vmt1 +* vtex.yyyyYYYY;
-  ori $at, $zero, %lo(TEXTURE_SIZE)                  ## L:825  |      ^ | vtex_size.xy = load(TEXTURE_SIZE).xy;
-  vmadh $v29, $v25, $v16.h1                          ## L:812  |    366 | VTEMP = vmt1 +* vtex.yyyyYYYY;
-  or $t2, $zero, $s7                                 ## L:833  |      ^ | prev_out0 = vtx_out0_ptr;
-  addiu $s7, $s7, 80                                 ## L:837  |    367 | vtx_out0_ptr += 80;
-  vmadn $v22, $v28, $v31.e7                          ## L:813  |      ^ | vtex_transformed = vmt3 +* 0x100;
-  vmadh $v21, $v27, $v31.e7                          ## L:813  |    368 | vtex_transformed = vmt3 +* 0x100;
-  ldv $v06, 8, 48, $s1                               ## L:400  |      ^ | m2:ufract = load(address, 0x30).xyzwxyzw;
-  ldv $v01, 0, 0, $s1                                ## L:395  | ***372 | m0:sint   = load(address, 0x00).xyzwxyzw;
-  vrcph $v23.e0, $v21.e3                             ## L:818  |      ^ | vinv_tex.x = invert_half(vtex_transformed).w;
-  vrcpl $v24.e0, $v22.e3                             ## L:818  |    373 | vinv_tex.x = invert_half(vtex_transformed).w;
-  LOAD_COLOR845: llv $v18, 4, 0, $t0                 ## L:845  |      ^ | @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
-  vrcph $v23.e0, $v21.e7                             ## L:819  |    374 | vinv_tex.X = invert_half(vtex_transformed).W;
-  LOAD_POS_NORM841: ldv $v15, 8, 0, $t0              ## L:841  |      ^ | @AttrLoader("POS_NORM") vnorm.XYZW = load(vtx_in1_ptr).xyzw;
-  vrcpl $v24.e4, $v22.e7                             ## L:819  |    375 | vinv_tex.X = invert_half(vtex_transformed).W;
-  vrcph $v23.e4, $v00.e7                             ## L:819  |    376 | vinv_tex.X = invert_half(vtex_transformed).W;
-  ldv $v02, 0, 32, $s1                               ## L:396  |      ^ | m0:ufract = load(address, 0x20).xyzwxyzw;
-  vmudl $v29, $v22, $v24.h0                          ## L:821  |  **379 | vtex_transformed *= vinv_tex.xxxxXXXX;
-  ldv $v06, 0, 48, $s1                               ## L:400  |      ^ | m2:ufract = load(address, 0x30).xyzwxyzw;
-  vmadm $v29, $v21, $v24.h0                          ## L:821  |    380 | vtex_transformed *= vinv_tex.xxxxXXXX;
-  LOAD_POS_NORM842: ldv $v14, 0, 0, $s4              ## L:842  |      ^ | @AttrLoader("POS_NORM") vpos.xyzw = load(vtx_in0_ptr).xyzw;
-  vmadn $v22, $v22, $v23.h0                          ## L:821  |    381 | vtex_transformed *= vinv_tex.xxxxXXXX;
-  ldv $v01, 8, 0, $s1                                ## L:395  |      ^ | m0:sint   = load(address, 0x00).xyzwxyzw;
-  vmadh $v21, $v21, $v23.h0                          ## L:821  |    382 | vtex_transformed *= vinv_tex.xxxxXXXX;
-  llv $v23, 0, 0, $at                                ## L:825  |      ^ | vtex_size.xy = load(TEXTURE_SIZE).xy;
-  llv $v23, 8, 0, $at                                ## L:826  |    383 | vtex_size.XY = load(TEXTURE_SIZE).xy;
-  ori $at, $zero, %lo(TEXTURE_OFFSET)                ## L:827  |    384 | vtex_offset.xy = load(TEXTURE_OFFSET).xy;
-  llv $v24, 0, 0, $at                                ## L:827  |    385 | vtex_offset.xy = load(TEXTURE_OFFSET).xy;
-  llv $v24, 8, 0, $at                                ## L:828  |    386 | vtex_offset.XY = load(TEXTURE_OFFSET).xy;
-  vmudh $v29, $v24, $v30.e7                          ## L:830  | ***390 | VTEMP = vtex_offset:sint * 1;
-  sltu $at, $s4, $s6                                 ## L:847  |      ^ | if (vtx_in0_ptr < vtx_in_end) goto VERTEX_LOOP;
-  vmadn $v29, $v22, $v23.v                           ## L:831  |    391 | vtex = vtex_transformed +* vtex_size;
-  bne $at, $zero, VERTEX_LOOP                        ## L:847  |      ^ | if (vtx_in0_ptr < vtx_in_end) goto VERTEX_LOOP;
-  vmadh $v16, $v21, $v23.v                           ## L:831  |   *393 | vtex = vtex_transformed +* vtex_size;
-  sdv $v19, 0, 0, $t2                                ## L:853  |    394 | @Barrier("st_c0") @Barrier("st_tr0") store(vpos_clip:sint.xyzw, prev_out0, 0); ## Barrier: 0xC
-  suv $v17, 4, 8, $t3                                ## L:862  |    395 | @Barrier("st_tex1") store_vec_u8(vrgba.X, prev_out1, 8); ## Barrier: 0x80
-  sb $t4, 6($t2)                                     ## L:856  |    396 | @Barrier("st_c0") store(c0, prev_out0, 6); ## Barrier: 0x4
-  sb $t6, 7($t2)                                     ## L:858  |    397 | @Barrier("st_tr0") store(tr0, prev_out0, 7); ## Barrier: 0x8
-  sdv $v19, 8, 0, $t3                                ## L:854  |    398 | @Barrier("st_c1") @Barrier("st_tr1") store(vpos_clip:sint.XYZW, prev_out1, 0); ## Barrier: 0x30
-  slv $v16, 8, 12, $t3                               ## L:865  |    399 | @Barrier("st_tex1") store(vtex.XY, prev_out1, 12); ## Barrier: 0x80
-  suv $v17, 0, 8, $t2                                ## L:861  |    400 | @Barrier("st_tex0") store_vec_u8(vrgba.x, prev_out0, 8); ## Barrier: 0x40
-  sb $t5, 6($t3)                                     ## L:857  |    401 | @Barrier("st_c1") store(c1, prev_out1, 6); ## Barrier: 0x10
-  sb $t7, 7($t3)                                     ## L:859  |    402 | @Barrier("st_tr1") store(tr1, prev_out1, 7); ## Barrier: 0x20
-  j RSPQ_Loop                                        ## L:866  |    403 | }
-  slv $v16, 0, 12, $t2                               ## L:864  |   *405 | @Barrier("st_tex0") store(vtex.xy, prev_out0, 12); ## Barrier: 0x40
+  or $t2, $zero, $s7                                 ## L:904  |    272 | prev_out0 = vtx_out0_ptr;
+  vmov $v17.e3, $v22.e3                              ## L:806  |      ^ | vrgba.w = vdiffuse.w;
+  vmov $v17.e7, $v22.e7                              ## L:807  |    273 | vrgba.W = vdiffuse.W;
+  lbu $s1, %lo(FOG_MASK + 0)                         ## L:813  |      ^ | u8 fog_mask = load(FOG_MASK);
+  ctc2 $s1, $vcc                                     ## L:814  |  **276 | set_vcc(fog_mask);
+  ori $at, $zero, %lo(TEXTURE_MATRIX)                ## L:875  |    277 | vmt0:sint   = load(TEXTURE_MATRIX, 0x00).xyzwxyzw;
+  vmrg $v17, $v17, $v21.h2                           ## L:815  |      ^ | vrgba = select(vrgba, vfog.zzzzZZZZ);
+  ldv $v27, 0, 16, $at                               ## L:879  |    278 | vmt3:sint   = load(TEXTURE_MATRIX, 0x10).xyzwxyzw;
+  vmudh $v22, $v14, $v14.v                           ## L:826  |      ^ | vec32 vsqdist = vpos * vpos;
+  ori $s1, $zero, %lo(MATRICES_MVP)                  ## L:822  |    279 | u16 addr = MATRICES_MVP;
+  vsar $v22, COP2_ACC_MD                             ## L:826  |      ^ | vec32 vsqdist = vpos * vpos;
+  vsar $v21, COP2_ACC_HI                             ## L:826  |    280 | vec32 vsqdist = vpos * vpos;
+  ldv $v07, 8, 24, $s1                               ## L:472  |      ^ | m3:sint   = load(address, 0x18).xyzwxyzw;
+  vaddc $v24, $v22, $v22.h1                          ## L:827  |  **283 | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+  vadd $v23, $v21, $v21.h1                           ## L:827  |    284 | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+  ldv $v27, 8, 16, $at                               ## L:879  |      ^ | vmt3:sint   = load(TEXTURE_MATRIX, 0x10).xyzwxyzw;
+  addu $t0, $t0, $t9                                 ## L:907  |  **287 | vtx_in1_ptr += vtx_size2;
+  vaddc $v22, $v24, $v22.h2                          ## L:828  |      ^ | vsqdist = vtmp + vsqdist.zzzzZZZZ;
+  or $t3, $zero, $t1                                 ## L:905  |    288 | prev_out1 = vtx_out1_ptr;
+  vadd $v21, $v23, $v21.h2                           ## L:828  |      ^ | vsqdist = vtmp + vsqdist.zzzzZZZZ;
+  vrsqh $v23.e0, $v21.e0                             ## L:830  | ***292 | vtmp.x = invert_half_sqrt(vsqdist).x;
+  vrsql $v24.e0, $v22.e0                             ## L:830  |    293 | vtmp.x = invert_half_sqrt(vsqdist).x;
+  ldv $v08, 0, 56, $s1                               ## L:473  |      ^ | m3:ufract = load(address, 0x38).xyzwxyzw;
+  ldv $v08, 8, 56, $s1                               ## L:473  |    294 | m3:ufract = load(address, 0x38).xyzwxyzw;
+  vrsqh $v23.e0, $v21.e4                             ## L:831  |      ^ | vtmp.X = invert_half_sqrt(vsqdist).X;
+  vrsql $v24.e4, $v22.e4                             ## L:831  |    295 | vtmp.X = invert_half_sqrt(vsqdist).X;
+  vrsqh $v23.e4, $v00.e0                             ## L:831  |    296 | vtmp.X = invert_half_sqrt(vsqdist).X;
+  addiu $t1, $t1, 80                                 ## L:909  |      ^ | vtx_out1_ptr += 80;
+  ldv $v03, 8, 8, $s1                                ## L:468  |  **299 | m1:sint   = load(address, 0x08).xyzwxyzw;
+  vmudm $v29, $v14, $v24.h0                          ## L:833  |      ^ | vpos *= vtmp.xxxxXXXX;
+  vmadh $v14, $v14, $v23.h0                          ## L:833  |    300 | vpos *= vtmp.xxxxXXXX;
+  vmulf $v23, $v14, $v15.v                           ## L:836  | ***304 | vec16 vdot = vpos:sfract * vnorm:sfract;
+  ldv $v01, 8, 0, $s1                                ## L:466  |      ^ | m0:sint   = load(address, 0x00).xyzwxyzw;
+  ldv $v04, 8, 40, $s1                               ## L:469  |    305 | m1:ufract = load(address, 0x28).xyzwxyzw;
+  ldv $v06, 0, 48, $s1                               ## L:471  |    306 | m2:ufract = load(address, 0x30).xyzwxyzw;
+  ldv $v05, 0, 16, $s1                               ## L:470  |   *308 | m2:sint   = load(address, 0x10).xyzwxyzw;
+  vadd $v24, $v23, $v23.h1                           ## L:837  |      ^ | vec16 vtmp:sint = vdot + vdot.yyyyYYYY;
+  vadd $v23, $v24, $v23.h2                           ## L:838  | ***312 | vdot:sint = vtmp + vdot.zzzzZZZZ;
+  vor $v24, $v00, $v00                               ## L:843  |    313 | vec16 vzunit = VZERO;
+  vlt $v23, $v23, $v00                               ## L:840  |  **316 | vdot = min(vdot, VZERO);
+  vmov $v24.e2, $v12.e3                              ## L:844  |    317 | vzunit.z = vnormmask.w;
+  vsubc $v23, $v00, $v23.v                           ## L:841  |  **320 | vdot = VZERO - vdot;
+  ldv $v04, 0, 40, $s1                               ## L:469  |      ^ | m1:ufract = load(address, 0x28).xyzwxyzw;
+  ldv $v03, 0, 8, $s1                                ## L:468  |    321 | m1:sint   = load(address, 0x08).xyzwxyzw;
+  vmov $v24.e6, $v12.e3                              ## L:845  |      ^ | vzunit.Z = vnormmask.w;
+  vmulf $v29, $v15, $v23.h0                          ## L:847  |  **324 | VTEMP = vnorm:sfract  * vdot.xxxxXXXX;
+  addu $s4, $s4, $t9                                 ## L:906  |      ^ | vtx_in0_ptr += vtx_size2;
+  vmacf $v29, $v15, $v23.h0                          ## L:848  |    325 | VTEMP = vnorm:sfract +* vdot.xxxxXXXX;
+  LOAD_NORMAL911: lsv $v15, 0, 0, $s4                ## L:911  |      ^ | @AttrLoader("NORMAL") vnorm.x = load(vtx_in0_ptr).x;
+  vmadh $v29, $v14, $v30.e7                          ## L:849  |    326 | VTEMP = vpos:sint +* 1;
+  vmadh $v29, $v24, $v30.e7                          ## L:850  |    327 | VTEMP = vzunit:sint +* 1;
+  LOAD_POSITION913: ldv $v14, 0, 0, $s4              ## L:913  |      ^ | @AttrLoader("POSITION") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+  LOAD_POSITION914: ldv $v14, 8, 0, $t0              ## L:914  |    328 | @AttrLoader("POSITION") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+  vsar $v24, COP2_ACC_MD                             ## L:853  |      ^ | vec32 vrefl = get_acc();
+  vsar $v23, COP2_ACC_HI                             ## L:853  |    329 | vec32 vrefl = get_acc();
+  LOAD_COLOR916: llv $v18, 4, 0, $t0                 ## L:916  |      ^ | @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
+  ldv $v07, 0, 24, $s1                               ## L:472  |  **332 | m3:sint   = load(address, 0x18).xyzwxyzw;
+  vmudl $v29, $v24, $v24.v                           ## L:855  |      ^ | vsqdist = vrefl * vrefl;
+  vmadm $v29, $v23, $v24.v                           ## L:855  |    333 | vsqdist = vrefl * vrefl;
+  LOAD_NORMAL912: lsv $v15, 8, 0, $t0                ## L:912  |      ^ | @AttrLoader("NORMAL") vnorm.X = load(vtx_in1_ptr).x;
+  vmadn $v22, $v24, $v23.v                           ## L:855  |    334 | vsqdist = vrefl * vrefl;
+  vmadh $v21, $v23, $v23.v                           ## L:855  |    335 | vsqdist = vrefl * vrefl;
+  ldv $v02, 8, 32, $s1                               ## L:467  |      ^ | m0:ufract = load(address, 0x20).xyzwxyzw;
+  LOAD_COLOR915: llv $v18, 0, 0, $s4                 ## L:915  |  **338 | @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
+  vaddc $v26, $v22, $v22.h1                          ## L:856  |      ^ | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+  vadd $v25, $v21, $v21.h1                           ## L:856  |    339 | vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+  vaddc $v22, $v26, $v22.h2                          ## L:857  |  **342 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
+  vadd $v21, $v25, $v21.h2                           ## L:857  |    343 | vsqdist = vtmp + vsqdist.zzzzZZZZ;
+  vxor $v16, $v00, $v30.e0                           ## L:862  |    344 | vtex = 0x80;
+  vrsqh $v25.e0, $v21.e0                             ## L:859  |  **347 | vtmp.x = invert_half_sqrt(vsqdist).x;
+  vrsql $v26.e0, $v22.e0                             ## L:859  |    348 | vtmp.x = invert_half_sqrt(vsqdist).x;
+  ldv $v05, 8, 16, $s1                               ## L:470  |      ^ | m2:sint   = load(address, 0x10).xyzwxyzw;
+  vrsqh $v25.e0, $v21.e4                             ## L:860  |    349 | vtmp.X = invert_half_sqrt(vsqdist).X;
+  addiu $s7, $s7, 80                                 ## L:908  |      ^ | vtx_out0_ptr += 80;
+  vrsql $v26.e4, $v22.e4                             ## L:860  |    350 | vtmp.X = invert_half_sqrt(vsqdist).X;
+  vrsqh $v25.e4, $v00.e0                             ## L:860  |    351 | vtmp.X = invert_half_sqrt(vsqdist).X;
+  vmudh $v29, $v16, $v30.e7                          ## L:863  |    352 | VTEMP = vtex:sint * 1;
+  ldv $v28, 0, 40, $at                               ## L:880  |      ^ | vmt3:ufract = load(TEXTURE_MATRIX, 0x28).xyzwxyzw;
+  vmadl $v29, $v24, $v26.h0                          ## L:864  |   *354 | vtex:sint = vrefl +* vtmp.xxxxXXXX;
+  ldv $v28, 8, 40, $at                               ## L:880  |      ^ | vmt3:ufract = load(TEXTURE_MATRIX, 0x28).xyzwxyzw;
+  vmadm $v29, $v23, $v26.h0                          ## L:864  |    355 | vtex:sint = vrefl +* vtmp.xxxxXXXX;
+  ldv $v26, 0, 32, $at                               ## L:878  |      ^ | vmt1:ufract = load(TEXTURE_MATRIX, 0x20).xyzwxyzw;
+  vmadn $v29, $v24, $v25.h0                          ## L:864  |    356 | vtex:sint = vrefl +* vtmp.xxxxXXXX;
+  ldv $v24, 0, 24, $at                               ## L:876  |      ^ | vmt0:ufract = load(TEXTURE_MATRIX, 0x18).xyzwxyzw;
+  vmadh $v16, $v23, $v25.h0                          ## L:864  |    357 | vtex:sint = vrefl +* vtmp.xxxxXXXX;
+  ldv $v24, 8, 24, $at                               ## L:876  |      ^ | vmt0:ufract = load(TEXTURE_MATRIX, 0x18).xyzwxyzw;
+  ldv $v26, 8, 32, $at                               ## L:878  |    358 | vmt1:ufract = load(TEXTURE_MATRIX, 0x20).xyzwxyzw;
+  ldv $v23, 0, 0, $at                                ## L:875  |    359 | vmt0:sint   = load(TEXTURE_MATRIX, 0x00).xyzwxyzw;
+  ldv $v23, 8, 0, $at                                ## L:875  |    360 | vmt0:sint   = load(TEXTURE_MATRIX, 0x00).xyzwxyzw;
+  ldv $v25, 0, 8, $at                                ## L:877  |    361 | vmt1:sint   = load(TEXTURE_MATRIX, 0x08).xyzwxyzw;
+  vmudn $v29, $v24, $v16.h0                          ## L:882  |      ^ | VTEMP = vmt0  * vtex.xxxxXXXX;
+  ldv $v25, 8, 8, $at                                ## L:877  |    362 | vmt1:sint   = load(TEXTURE_MATRIX, 0x08).xyzwxyzw;
+  ori $at, $zero, %lo(TEXTURE_SIZE)                  ## L:896  |   *364 | vtex_size.xy = load(TEXTURE_SIZE).xy;
+  vmadh $v29, $v23, $v16.h0                          ## L:882  |      ^ | VTEMP = vmt0  * vtex.xxxxXXXX;
+  vmadn $v29, $v26, $v16.h1                          ## L:883  |    365 | VTEMP = vmt1 +* vtex.yyyyYYYY;
+  vmadh $v29, $v25, $v16.h1                          ## L:883  |    366 | VTEMP = vmt1 +* vtex.yyyyYYYY;
+  vmadn $v22, $v28, $v31.e7                          ## L:884  |    367 | vtex_transformed = vmt3 +* 0x100;
+  ldv $v01, 0, 0, $s1                                ## L:466  |      ^ | m0:sint   = load(address, 0x00).xyzwxyzw;
+  vmadh $v21, $v27, $v31.e7                          ## L:884  |    368 | vtex_transformed = vmt3 +* 0x100;
+  vrcph $v23.e0, $v21.e3                             ## L:889  | ***372 | vinv_tex.x = invert_half(vtex_transformed).w;
+  vrcpl $v24.e0, $v22.e3                             ## L:889  |    373 | vinv_tex.x = invert_half(vtex_transformed).w;
+  vrcph $v23.e0, $v21.e7                             ## L:890  |    374 | vinv_tex.X = invert_half(vtex_transformed).W;
+  vrcpl $v24.e4, $v22.e7                             ## L:890  |    375 | vinv_tex.X = invert_half(vtex_transformed).W;
+  ldv $v02, 0, 32, $s1                               ## L:467  |      ^ | m0:ufract = load(address, 0x20).xyzwxyzw;
+  vrcph $v23.e4, $v00.e7                             ## L:890  |    376 | vinv_tex.X = invert_half(vtex_transformed).W;
+  vmudl $v29, $v22, $v24.h0                          ## L:892  |  **379 | vtex_transformed *= vinv_tex.xxxxXXXX;
+  ldv $v06, 8, 48, $s1                               ## L:471  |      ^ | m2:ufract = load(address, 0x30).xyzwxyzw;
+  vmadm $v29, $v21, $v24.h0                          ## L:892  |    380 | vtex_transformed *= vinv_tex.xxxxXXXX;
+  vmadn $v22, $v22, $v23.h0                          ## L:892  |    381 | vtex_transformed *= vinv_tex.xxxxXXXX;
+  vmadh $v21, $v21, $v23.h0                          ## L:892  |    382 | vtex_transformed *= vinv_tex.xxxxXXXX;
+  llv $v23, 0, 0, $at                                ## L:896  |      ^ | vtex_size.xy = load(TEXTURE_SIZE).xy;
+  llv $v23, 8, 0, $at                                ## L:897  |    383 | vtex_size.XY = load(TEXTURE_SIZE).xy;
+  ori $at, $zero, %lo(TEXTURE_OFFSET)                ## L:898  |    384 | vtex_offset.xy = load(TEXTURE_OFFSET).xy;
+  llv $v24, 0, 0, $at                                ## L:898  |    385 | vtex_offset.xy = load(TEXTURE_OFFSET).xy;
+  llv $v24, 8, 0, $at                                ## L:899  |    386 | vtex_offset.XY = load(TEXTURE_OFFSET).xy;
+  vmudh $v29, $v24, $v30.e7                          ## L:901  | ***390 | VTEMP = vtex_offset:sint * 1;
+  sltu $at, $s4, $s6                                 ## L:918  |      ^ | if (vtx_in0_ptr < vtx_in_end) goto VERTEX_LOOP;
+  vmadn $v29, $v22, $v23.v                           ## L:902  |    391 | vtex = vtex_transformed +* vtex_size;
+  bne $at, $zero, VERTEX_LOOP                        ## L:918  |      ^ | if (vtx_in0_ptr < vtx_in_end) goto VERTEX_LOOP;
+  vmadh $v16, $v21, $v23.v                           ## L:902  |   *393 | vtex = vtex_transformed +* vtex_size;
+  suv $v17, 4, 8, $t3                                ## L:933  |    394 | @Barrier("st_tex1") store_vec_u8(vrgba.X, prev_out1, 8); ## Barrier: 0x80
+  sdv $v19, 8, 0, $t3                                ## L:925  |    395 | @Barrier("st_c1") @Barrier("st_tr1") store(vpos_clip:sint.XYZW, prev_out1, 0); ## Barrier: 0x30
+  sb $t5, 6($t3)                                     ## L:928  |    396 | @Barrier("st_c1") store(c1, prev_out1, 6); ## Barrier: 0x10
+  suv $v17, 0, 8, $t2                                ## L:932  |    397 | @Barrier("st_tex0") store_vec_u8(vrgba.x, prev_out0, 8); ## Barrier: 0x40
+  sb $t7, 7($t3)                                     ## L:930  |    398 | @Barrier("st_tr1") store(tr1, prev_out1, 7); ## Barrier: 0x20
+  slv $v16, 0, 12, $t2                               ## L:935  |    399 | @Barrier("st_tex0") store(vtex.xy, prev_out0, 12); ## Barrier: 0x40
+  sdv $v19, 0, 0, $t2                                ## L:924  |    400 | @Barrier("st_c0") @Barrier("st_tr0") store(vpos_clip:sint.xyzw, prev_out0, 0); ## Barrier: 0xC
+  slv $v16, 8, 12, $t3                               ## L:936  |    401 | @Barrier("st_tex1") store(vtex.XY, prev_out1, 12); ## Barrier: 0x80
+  sb $t6, 7($t2)                                     ## L:929  |    402 | @Barrier("st_tr0") store(tr0, prev_out0, 7); ## Barrier: 0x8
+  j RSPQ_Loop                                        ## L:937  |    403 | }
+  sb $t4, 6($t2)                                     ## L:927  |   *405 | @Barrier("st_c0") store(c0, prev_out0, 6); ## Barrier: 0x4
 
 MgEndShader
 

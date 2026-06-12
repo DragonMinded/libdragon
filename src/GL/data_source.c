@@ -59,9 +59,10 @@ static void update_layout(data_source_t *data_source)
     {
         if (!is_array_used(data_source, i)) continue;
 
-        uint32_t offset = stride;
+        uint32_t alignment = array_type_get_alignment(i);
+        stride = ROUND_UP(stride, alignment);
 
-        if (i == ARRAY_NORMAL) offset -= sizeof(int16_t);
+        uint32_t offset = stride;
 
         data_source->layout.offsets[array_count++] = offset;
         stride += array_type_get_stride(i);

@@ -8,7 +8,7 @@
 #include "magma.h"
 #include "../utils.h"
 
-#define MAX_VERTEX_ATTRIBUTE_COUNT  3
+#define MAX_VERTEX_ATTRIBUTE_COUNT  4
 
 typedef struct
 {

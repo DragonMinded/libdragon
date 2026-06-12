@@ -11,6 +11,13 @@ void vertex_layout_cache_invalidate(vertex_layout_cache_t *cache)
     cache->dirty = true;
 }
 
+static void layout_append_aligned(vertex_layout_t *layout, uint32_t input, array_type_t type)
+{
+    uint32_t aligned_stride = ROUND_UP(layout->vertex_layout.stride, array_type_get_alignment(type));
+    vertex_layout_set_stride(layout, aligned_stride);
+    vertex_layout_append(layout, input, array_type_get_stride(type));
+}
+
 void vertex_layout_cache_update(vertex_layout_cache_t *cache, const array_t *arrays)
 {
     if (!cache->dirty) {
@@ -22,14 +29,18 @@ void vertex_layout_cache_update(vertex_layout_cache_t *cache, const array_t *arr
     vertex_layout_t *layout = &cache->layout;
 
     vertex_layout_init(layout);
-    vertex_layout_append(layout, GLP_ATTRIBUTE_POS_NORM, array_type_get_stride(ARRAY_VERTEX));
+    layout_append_aligned(layout, GLP_ATTRIBUTE_POSITION, ARRAY_VERTEX);
+
+    if (arrays[ARRAY_NORMAL].enabled) {
+        layout_append_aligned(layout, GLP_ATTRIBUTE_NORMAL, ARRAY_NORMAL);
+    }
 
     if (arrays[ARRAY_COLOR].enabled) {
-        vertex_layout_append(layout, GLP_ATTRIBUTE_COLOR, array_type_get_stride(ARRAY_COLOR));
+        layout_append_aligned(layout, GLP_ATTRIBUTE_COLOR, ARRAY_COLOR);
     }
 
     if (arrays[ARRAY_TEXCOORD].enabled) {
-        vertex_layout_append(layout, GLP_ATTRIBUTE_TEXCOORD, array_type_get_stride(ARRAY_TEXCOORD));
+        layout_append_aligned(layout, GLP_ATTRIBUTE_TEXCOORD, ARRAY_TEXCOORD);
     }
 
     vertex_layout_finalize(layout);

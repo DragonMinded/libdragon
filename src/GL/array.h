@@ -42,9 +42,9 @@ inline uint32_t array_type_get_stride(array_type_t type)
     switch (type)
     {
         case ARRAY_VERTEX:
-            return sizeof(int16_t) * 4;
+            return sizeof(int16_t) * 3;
         case ARRAY_NORMAL:
-            return 0;
+            return sizeof(uint16_t);
         case ARRAY_COLOR:
             return sizeof(uint32_t);
         case ARRAY_TEXCOORD:
@@ -53,6 +53,24 @@ inline uint32_t array_type_get_stride(array_type_t type)
             return sizeof(uint8_t);
         default:
             return 0;
+    }
+}
+
+inline uint32_t array_type_get_alignment(array_type_t type)
+{
+    switch (type)
+    {
+        case ARRAY_VERTEX:
+            return 8;
+        case ARRAY_NORMAL:
+            return 2;
+        case ARRAY_COLOR:
+            return 4;
+        case ARRAY_TEXCOORD:
+            return 4;
+        case ARRAY_MTX_INDEX:
+        default:
+            return 1;
     }
 }
 
