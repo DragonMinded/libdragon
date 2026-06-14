@@ -79,7 +79,8 @@ float gl_mag(const GLfloat *v)
 
 void gl_normalize(GLfloat *d, const GLfloat *v)
 {
-    float inv_mag = 1.0f / gl_mag(v);
+    float mag = gl_mag(v);
+    float inv_mag = mag < FM_EPSILON ? 0.0f : 1.0f / mag;
 
     d[0] = v[0] * inv_mag;
     d[1] = v[1] * inv_mag;

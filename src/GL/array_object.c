@@ -299,8 +299,10 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     case GL_TRIANGLES:
         return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     case GL_TRIANGLE_STRIP:
+    case GL_QUAD_STRIP:
         return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     case GL_TRIANGLE_FAN:
+    case GL_QUADS:
     case GL_POLYGON:
         return MG_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN;
 
@@ -308,8 +310,6 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     case GL_LINES:
     case GL_LINE_LOOP:
     case GL_LINE_STRIP:
-    case GL_QUADS:
-    case GL_QUAD_STRIP:
         assertf(0, "Draw mode %ld is not supported", mode);
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
@@ -317,12 +317,17 @@ static mg_primitive_topology_t get_primitive_topology(GLenum mode)
     }
 }
 
+static bool get_is_restart_enabled(GLenum mode)
+{
+    return mode == GL_QUADS;
+}
+
 mg_input_assembly_parms_t array_object_get_input_assembly_parms(gl_array_object_t *array_object, GLenum mode, index_bounds_t bounds)
 {
     mg_input_assembly_parms_t parms;
 
     parms.primitive_topology = get_primitive_topology(mode);
-    parms.primitive_restart_enabled = false;
+    parms.primitive_restart_enabled = get_is_restart_enabled(mode);
 
     array_t *mtx_index_array = &array_object->arrays[ARRAY_MTX_INDEX];
     if (mtx_index_array->enabled) {

@@ -20,6 +20,7 @@
 #include "fnv1a.h"
 #include "array_convert.h"
 #include "pipelines.h"
+#include "mg_ex.h"
 
 _Static_assert(BEGIN_END_BUFFER_SIZE <= MG_VERTEX_CACHE_COUNT);
 
@@ -348,10 +349,33 @@ static uint32_t draw_batch(GLenum mode, uint32_t count, uint32_t cache_offset)
             return cache_offset;
         }
         case GL_TRIANGLE_FAN:
+        case GL_POLYGON:
         {
             size_t prim_count = MAX(0, count - 2 + cache_offset);
             for (size_t i = 0; i < prim_count; i++) mg_draw_triangle(i+1, i+2, 0);
             return 1;
+        }
+        case GL_QUADS:
+        {
+            size_t prim_count = count / 4;
+            for (size_t i = 0; i < prim_count; i++) {
+                size_t o = 4*i;
+                mg_draw_triangle(o, o+1, o+2);
+                mg_draw_triangle(o, o+2, o+3);
+            }
+            return cache_offset;
+            
+        }
+        case GL_QUAD_STRIP:
+        {
+            size_t prim_count = MAX(0, count - 2) / 2;
+            for (size_t i = 0; i < prim_count; i++)
+            {
+                size_t o = 2*i;
+                mg_draw_triangle(o, o+2, o+1);
+                mg_draw_triangle(o+1, o+2, o+3);
+            }
+            return cache_offset;
         }
         default:
         {
@@ -390,6 +414,7 @@ static void begin_end_prep_next_buffer(const native_vertex_t *prev_end)
     // Appending these vertices is guaranteed to not overflow the buffer since we just started a fresh one
     switch (state->primitive_mode) {
     case GL_TRIANGLE_STRIP:
+    case GL_QUAD_STRIP:
     {
         // The two previous vertices
         begin_end_append_vtx(prev_end - 2);
@@ -587,7 +612,7 @@ static void gl_rsp_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
 
     mg_draw_begin();
     mg_input_assembly_parms_t input_assembly_parms = array_object_get_input_assembly_parms(state->array_object, mode, range);
-    mg_draw(&input_assembly_parms, count, first);
+    mg_ex_draw(&input_assembly_parms, count, first, mode);
     mg_draw_end();
 }
 
@@ -637,7 +662,7 @@ static void draw_elements_from_pointer(GLenum mode, uint32_t count, const void* 
 
     mg_draw_begin();
     mg_input_assembly_parms_t input_assembly_parms = array_object_get_input_assembly_parms(state->array_object, mode, range);
-    mg_draw_indexed(&input_assembly_parms, indices, count, -range.first);
+    mg_ex_draw_indexed(&input_assembly_parms, indices, count, -range.first, mode);
     mg_draw_end();
 }
 

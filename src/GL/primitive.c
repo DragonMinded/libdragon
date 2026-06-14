@@ -75,14 +75,14 @@ bool gl_can_use_rsp_pipeline(GLenum mode)
     case GL_TRIANGLES:
     case GL_TRIANGLE_STRIP:
     case GL_TRIANGLE_FAN:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
     case GL_POLYGON:
         break;
     case GL_POINTS:
     case GL_LINES:
     case GL_LINE_LOOP:
     case GL_LINE_STRIP:
-    case GL_QUADS:
-    case GL_QUAD_STRIP:
     default:
         WARN_CPU_REQUIRED("primitive mode");
         return false;
@@ -518,9 +518,9 @@ void glRectf(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2)        { __RECT_IMP
 void glRectd(GLdouble x1, GLdouble y1, GLdouble x2, GLdouble y2)    { __RECT_IMPL(glVertex2d, x1, y1, x2, y2); }
 
 void glRectsv(const GLshort *v1, const GLshort *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
-void glRectiv(const GLint *v1, const GLint *v2)         { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
-void glRectfv(const GLfloat *v1, const GLfloat *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
-void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+void glRectiv(const GLint *v1, const GLint *v2)         { __RECT_IMPL(glVertex2i, v1[0], v1[1], v2[0], v2[1]); }
+void glRectfv(const GLfloat *v1, const GLfloat *v2)     { __RECT_IMPL(glVertex2f, v1[0], v1[1], v2[0], v2[1]); }
+void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2d, v1[0], v1[1], v2[0], v2[1]); }
 
 void glPointSize(GLfloat size)
 {

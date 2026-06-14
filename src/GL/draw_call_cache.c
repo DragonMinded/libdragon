@@ -2,6 +2,7 @@
 #include "gl_internal.h"
 #include "array_object.h"
 #include "fnv1a.h"
+#include "mg_ex.h"
 
 #define MAX_CACHED_DRAW_CALL_COUNT  8
 
@@ -86,7 +87,7 @@ static rspq_block_t *create_block(const draw_call_parms_t *parms, const void *in
 {
     mg_input_assembly_parms_t input_assembly_parms = array_object_get_input_assembly_parms(array_object, parms->mode, index_range);
     rspq_block_begin();
-    mg_draw_indexed(&input_assembly_parms, index_data, parms->count, -index_range.first);
+    mg_ex_draw_indexed(&input_assembly_parms, index_data, parms->count, -index_range.first, parms->mode);
     return rspq_block_end();
 }
 
