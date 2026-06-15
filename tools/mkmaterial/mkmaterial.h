@@ -70,7 +70,7 @@ struct Texture {
     std::string dithering{"NONE"};
     struct {
         float translate{0};
-        int scale{1};
+        int scale{0};
         float repeats{2048};
         bool mirror{false};
     } s, t;
@@ -113,6 +113,18 @@ struct Blender {
     void validate(void);
 };
 
+struct ColorRegister {
+    int is_set{0};
+    uint32_t value{0};
+    void parse(std::string value);
+};
+
+struct Registers {
+    ColorRegister prim;
+    ColorRegister env;
+    void parse_attr(std::string key, std::string value);
+};
+
 struct Extension {
     MyEnum type{0, {"bool", "int", "string", "float"}};
     std::string name;
@@ -131,6 +143,7 @@ struct Material {
     RenderModes rm;
     Combiner cc;
     Blender bl;
+    Registers reg;
     std::vector<Extension> ext; // extension attributes
 
     Material() = default;

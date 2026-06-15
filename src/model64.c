@@ -572,8 +572,15 @@ static void model64_draw_mesh(model64_t *model, uint32_t mesh_index, uint32_t *m
     mesh_state_t *mesh_state = &model->data->runtime_state->meshes[mesh_index];
     for (size_t i = 0; i < mesh->submesh_count; i++)
     {
+        rdpq_mat_t *material = NULL;
         if (material_indices[i] != INDEX_MISSING) {
-            rdpq_mat_draw_begin(model->data->materials[material_indices[i]].rdpq_mat);
+            material = model->data->materials[material_indices[i]].rdpq_mat;
+            rdpq_mat_draw_begin(material);
+            uint32_t tex_width, tex_height;
+            if (rdpq_mat_ext_get_int(material, "tex0.width", &tex_width) &&
+                rdpq_mat_ext_get_int(material, "tex0.height", &tex_height)) {
+                glTexSizeN64(tex_width, tex_height);
+            }
         }
 
         mgfx_submesh_t *submesh = &mesh->submeshes[i];
@@ -585,8 +592,8 @@ static void model64_draw_mesh(model64_t *model, uint32_t mesh_index, uint32_t *m
             glDrawArrays(submesh_state->prim_mode, 0, submesh->vertices_count);
         }
 
-        if (material_indices[i] != INDEX_MISSING) {
-            rdpq_mat_draw_end(model->data->materials[material_indices[i]].rdpq_mat);
+        if (material != NULL) {
+            rdpq_mat_draw_end(material);
         }
     }
 }

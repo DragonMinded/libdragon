@@ -177,11 +177,11 @@ void Material::write(FILE *f)
     if (rm.z_override >= 0)     flags |= MATFLAG_RMO_ZPRIM;
     if (rm.perspective >= 0)    flags |= MATFLAG_RMO_PERSP;
     if (rm.alpha_compare >= 0)  flags |= MATFLAG_RMO_ACMP;
-    if (has_uni(combexpr::UNIFORM_K4K5))          flags |= MATFLAG_UNIFORM_K4K5;
-    if (has_uni(combexpr::UNIFORM_CHROMAKEY))     flags |= MATFLAG_UNIFORM_CHROMAKEY;
-    if (has_uni(combexpr::UNIFORM_PRIM_LOD_FRAC)) flags |= MATFLAG_UNIFORM_PRIMLODFRAC;
-    if (has_uni(combexpr::UNIFORM_PRIM))          flags |= MATFLAG_UNIFORM_PRIM;
-    if (has_uni(combexpr::UNIFORM_ENV))           flags |= MATFLAG_UNIFORM_ENV;
+    if (has_uni(combexpr::UNIFORM_K4K5))                    flags |= MATFLAG_UNIFORM_K4K5;
+    if (has_uni(combexpr::UNIFORM_CHROMAKEY))               flags |= MATFLAG_UNIFORM_CHROMAKEY;
+    if (has_uni(combexpr::UNIFORM_PRIM_LOD_FRAC))           flags |= MATFLAG_UNIFORM_PRIMLODFRAC;
+    if (has_uni(combexpr::UNIFORM_PRIM) || reg.prim.is_set) flags |= MATFLAG_UNIFORM_PRIM;
+    if (has_uni(combexpr::UNIFORM_ENV) || reg.env.is_set)   flags |= MATFLAG_UNIFORM_ENV;
 
     w16(f, flags);
     int ext_off_pos = ftell(f);
@@ -241,10 +241,18 @@ void Material::write(FILE *f)
         w8(f, uniforms[combexpr::UNIFORM_PRIM_LOD_FRAC]);
     }
     if (flags & MATFLAG_UNIFORM_PRIM) {
-        w32(f, uniforms[combexpr::UNIFORM_PRIM]);
+        if (reg.prim.is_set) {
+            w32(f, reg.prim.value);
+        } else {
+            w32(f, uniforms[combexpr::UNIFORM_PRIM]);
+        }
     }
     if (flags & MATFLAG_UNIFORM_ENV) {
-        w32(f, uniforms[combexpr::UNIFORM_ENV]);
+        if (reg.env.is_set) {
+            w32(f, reg.env.value);
+        } else {
+            w32(f, uniforms[combexpr::UNIFORM_ENV]);
+        }
     }
     w8(f, 0xAB); // end of material
 

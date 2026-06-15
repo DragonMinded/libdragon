@@ -74,6 +74,40 @@ int parse_int(std::string value, int min, int max)
     }
 }
 
+std::vector<std::string> split_string(std::string str, char delimiter) {
+    std::vector<std::string> tokens;
+    size_t start = 0;
+    size_t end = str.find(delimiter);
+    
+    while (end != std::string::npos) {
+        tokens.push_back(str.substr(start, end - start));
+        start = end + 1;
+        end = str.find(delimiter, start);
+    }
+    tokens.push_back(str.substr(start));
+    return tokens;
+}
+
+uint32_t parse_color(std::string value)
+{
+    std::vector<std::string> tokens = split_string(value, ',');
+    if (tokens.size() != 3 && tokens.size() != 4) {
+        throw std::runtime_error("invalid color value: " + value);
+    }
+    uint32_t color = 0;
+    size_t shift = 0;
+    for (auto &&token : tokens) {
+        float fval = parse_float(token, 0.0f, 1.0f);
+        uint8_t ival = fval * 255.0f;
+        color |= ival << shift;
+        shift += 8;
+    }
+    if (tokens.size() == 3) {
+        color |= 0xFF000000;
+    }
+    return color;
+}
+
 std::string parse_enum(std::string value, const std::vector<std::string> &enums)
 {
     for (size_t i = 0; i < enums.size(); i++) {
@@ -247,6 +281,21 @@ void RenderModes::parse_attr(std::string key, std::string value)
     }
 }
 
+void ColorRegister::parse(std::string value)
+{
+    this->value = parse_color(value);
+    is_set = 1;
+}
+
+void Registers::parse_attr(std::string key, std::string value)
+{
+    if (key == "prim") {
+        prim.parse(value);
+    } else if (key == "env") {
+        env.parse(value);
+    }
+}
+
 void Material::parse_attr(std::string key, std::string value)
 {
     if (key.rfind("tex0.", 0) == 0) {
@@ -259,6 +308,8 @@ void Material::parse_attr(std::string key, std::string value)
         cc.parse_attr(key.substr(9), value);
     } else if (key.rfind("blender.", 0) == 0) {
         bl.parse_attr(key.substr(8), value);
+    } else if (key.rfind("register.", 0) == 0) {
+        reg.parse_attr(key.substr(9), value);
     } else if (key.rfind("ext.", 0) == 0) {
         Extension ext_attr;
         ext_attr.name = key.substr(4);
@@ -411,10 +462,13 @@ std::string parse_cc_alpha(const nlohmann::json& cc)
         + parse_cc_component(cc["D_alpha"], ALPHA_SLOTS_D) + ")";
 }
 
-//std::string parse_color(const nlohmann::json& color)
-//{
-//    // TODO
-//}
+std::string parse_color(const nlohmann::json& color)
+{
+    return nlohmann::to_string(color[0]) + ","
+        + nlohmann::to_string(color[1]) + ","
+        + nlohmann::to_string(color[2]) + ","
+        + nlohmann::to_string(color[3]);
+}
 
 bool is_flag_set(const nlohmann::json& f3d_mat, std::string flag)
 {
@@ -422,11 +476,8 @@ bool is_flag_set(const nlohmann::json& f3d_mat, std::string flag)
     return iter != f3d_mat.end() && iter->get<uint32_t>() != 0;
 }
 
-void parse_tex(nlohmann::json& mat, const nlohmann::json& f3d_mat, std::string key)
+void parse_tex(nlohmann::json& mat, const nlohmann::json& f3d_tex, std::string key)
 {
-    if (!f3d_mat.contains(key)) return;
-
-    auto f3d_tex = f3d_mat[key];
     if (!f3d_tex.contains("tex")) return;
 
     auto tex = f3d_tex["tex"];
@@ -435,23 +486,54 @@ void parse_tex(nlohmann::json& mat, const nlohmann::json& f3d_mat, std::string k
     mat[key + ".name"] = tex["name"].get<std::string>();
 }
 
+int parse_tex_size(const nlohmann::json& comp)
+{
+    if (!comp.contains("low") || !comp.contains("high")) return -1;
+    return comp["high"].get<int>() - comp["low"].get<int>() + 1;
+}
+
+void parse_tex_properties(nlohmann::json& mat, const nlohmann::json& f3d_mat, std::string key)
+{
+    if (!f3d_mat.contains(key)) return;
+
+    auto f3d_tex = f3d_mat[key];
+
+    parse_tex(mat, f3d_tex, key);
+
+    if (f3d_tex.contains("S")) {
+        auto width = parse_tex_size(f3d_tex["S"]);
+        if (width >= 0) mat["ext." + key + ".width"] = std::to_string(width);
+    }
+
+    if (f3d_tex.contains("T")) {
+        auto height = parse_tex_size(f3d_tex["T"]);
+        if (height >= 0) mat["ext." + key + ".height"] = std::to_string(height);
+    }
+}
+
 nlohmann::json parse_f3d_mat(const nlohmann::json& f3d_mat)
 {
     using json = nlohmann::json;
     auto mat = json::object();
 
-    auto cc1 = f3d_mat["combiner1"];
-    auto cc2 = f3d_mat["combiner2"];
+    if (is_flag_set(f3d_mat, "set_combiner")) {
+        auto cc1 = f3d_mat["combiner1"];
+        auto cc2 = f3d_mat["combiner2"];
 
-    mat["combiner.rgb.raw"] = parse_cc_rgb(cc1) + "," + parse_cc_rgb(cc2);
-    mat["combiner.alpha.raw"] = parse_cc_alpha(cc1) + "," + parse_cc_alpha(cc2);
+        mat["combiner.rgb.raw"] = parse_cc_rgb(cc1) + "," + parse_cc_rgb(cc2);
+        mat["combiner.alpha.raw"] = parse_cc_alpha(cc1) + "," + parse_cc_alpha(cc2);
+    }
 
-    //if (is_flag_set(f3d_mat, "set_prim")) {
-    //    mat["TODO"] = parse_color(f3d_mat["prim_color"]);
-    //}
+    if (is_flag_set(f3d_mat, "set_prim")) {
+        mat["register.prim"] = parse_color(f3d_mat["prim_color"]);
+    }
 
-    parse_tex(mat, f3d_mat, "tex0");
-    parse_tex(mat, f3d_mat, "tex1");
+    if (is_flag_set(f3d_mat, "set_env")) {
+        mat["register.env"] = parse_color(f3d_mat["env_color"]);
+    }
+
+    parse_tex_properties(mat, f3d_mat, "tex0");
+    parse_tex_properties(mat, f3d_mat, "tex1");
 
     fprintf(stderr, "%s\n", mat.dump().c_str());
     return mat;
