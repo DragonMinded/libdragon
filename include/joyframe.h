@@ -170,7 +170,7 @@ typedef uint8_t joyframe_t[64] __attribute__((aligned(8)));
     uint8_t *send_ptr = &pkt[idx]; \
     pkt[63] = idx + send_len + recv_len - 1; \
     assertf(pkt[63] < 64, "joybus frame overflow"); \
-    (send_len || recv_len) ? send_ptr : NULL; \
+    (send_len | recv_len) ? send_ptr : NULL; \
 })
 
 /**
