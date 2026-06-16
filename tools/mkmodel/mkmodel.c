@@ -289,7 +289,11 @@ void model64_write_node(model64_data_t *model, FILE *out, uint32_t index)
     w32(out, model->nodes[index].num_children);
     w32_placeholderf(out, "node%d_children", index);
     w32(out, model->nodes[index].num_materials);
-    w32_placeholderf(out, "node%d_material_indices", index);
+    if (model->nodes[index].material_indices) {
+        w32_placeholderf(out, "node%d_material_indices", index);
+    } else {
+        w32(out, 0);
+    }
 }
 
 void model64_write_nodes(model64_data_t *model, FILE *out)
@@ -306,9 +310,11 @@ void model64_write_nodes(model64_data_t *model, FILE *out)
         }
     }
     for(uint32_t i=0; i<model->num_nodes; i++) {
-        placeholder_set(out, "node%d_material_indices", i);
-        for(uint32_t j=0; j<model->nodes[i].num_materials; j++) {
-            w32(out, model->nodes[i].material_indices[j]);
+        if (model->nodes[i].material_indices) {
+            placeholder_set(out, "node%d_material_indices", i);
+            for(uint32_t j=0; j<model->nodes[i].num_materials; j++) {
+                w32(out, model->nodes[i].material_indices[j]);
+            }
         }
     }
     for(uint32_t i=0; i<model->num_nodes; i++)
@@ -487,7 +493,9 @@ void convert_node(cgltf_data *data, model64_data_t *model_data, cgltf_node *in_n
     if(in_node->mesh) {
         out_node->mesh_index = cgltf_mesh_index(data, in_node->mesh);
         out_node->num_materials = in_node->mesh->primitives_count;
-        out_node->material_indices = calloc(out_node->num_materials, sizeof(uint32_t));
+        if (out_node->num_materials > 0) {
+            out_node->material_indices = calloc(out_node->num_materials, sizeof(uint32_t));
+        }
         for (size_t i = 0; i < in_node->mesh->primitives_count; i++) {
             if (in_node->mesh->primitives[i].material) {
                 out_node->material_indices[i] = cgltf_material_index(data, in_node->mesh->primitives[i].material);
@@ -547,6 +555,7 @@ void convert_root_node(cgltf_scene *scene, cgltf_data *data, model64_data_t *mod
         model->nodes[model->root_node].transform.mtx[5] = 1.0f;
         model->nodes[model->root_node].transform.mtx[10] = 1.0f;
         model->nodes[model->root_node].transform.mtx[15] = 1.0f;
+        model->nodes[model->root_node].mesh_index = INDEX_MISSING;
         make_node_idx_list(data, scene->nodes, scene->nodes_count, &model->nodes[model->root_node].children);
         //Reassign parent nodes of scene nodes to generated node
         for(uint32_t i=0; i<scene->nodes_count; i++) {
