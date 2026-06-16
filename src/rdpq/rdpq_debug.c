@@ -1508,7 +1508,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
                 tex_fmt_name[rdp.col.fmt], size, size); break;
         }
         uint32_t addr = BITS(buf[0], 0, 24);
-        if (RDPQ_VALIDATE_DETACH_ADDR && addr == RDPQ_VALIDATE_DETACH_ADDR) {
+        if ((RDPQ_VALIDATE_DETACH_ADDR & addr) == RDPQ_VALIDATE_DETACH_ADDR) {
             // special case for libdragon: if the address is 0x800000, then it means
             // that the developer requested to detach the framebuffer. Treat it as
             // if SET_COLOR_IMAGE was never sent.
@@ -1527,7 +1527,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         validate_busy_pipe();
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "Z image must be aligned to 64 bytes");
         uint32_t addr = BITS(buf[0], 0, 24);
-        if (RDPQ_VALIDATE_DETACH_ADDR && addr == RDPQ_VALIDATE_DETACH_ADDR) {
+        if ((RDPQ_VALIDATE_DETACH_ADDR & addr) == RDPQ_VALIDATE_DETACH_ADDR) {
             // special case for libdragon: if the address is 0x800000, then it means
             // that the developer requested to detach the Z buffer. Treat it as
             // if SET_Z_IMAGE was never sent.
