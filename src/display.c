@@ -571,6 +571,7 @@ surface_t* display_try_get(void)
             tex_format_t fmt = __bitdepth == 2 ? FMT_RGBA16 : FMT_RGBA32;
             uint16_t stride = (uint16_t)(__width * __bitdepth);
             surfaces[next] = surface_make(buf, fmt, (uint16_t)__width, (uint16_t)__height, stride);
+            surfaces[next].flags |= SURFACE_FLAGS_OWNEDBUFFER;
             retval = &surfaces[next];
             drawing_mask |= 1U << next;
             assertf(display_queue_count < NUM_BUFFERS, "Display queue overflow");
