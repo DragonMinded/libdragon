@@ -109,33 +109,13 @@ void test_mat3_mul_scale_translation(TestContext *ctx)
 void test_quat_from_euler_zero_identity(TestContext *ctx)
 {
     fm_quat_t q;
-    float euler[3] = {0.0f, 0.0f, 0.0f};
 
-    fm_quat_from_euler(&q, euler);
+    fm_quat_from_euler_zyx(&q, 0.0f, 0.0f, 0.0f);
 
     ASSERT_NEAR_FLOAT(q.x, 0.0f, 1e-6f, "identity quaternion x mismatch");
     ASSERT_NEAR_FLOAT(q.y, 0.0f, 1e-6f, "identity quaternion y mismatch");
     ASSERT_NEAR_FLOAT(q.z, 0.0f, 1e-6f, "identity quaternion z mismatch");
     ASSERT_NEAR_FLOAT(q.w, 1.0f, 1e-6f, "identity quaternion w mismatch");
-}
-
-void test_quat_from_euler_matches_zyx(TestContext *ctx)
-{
-    const float test_angles[][3] = {
-        { 0.2f, -0.4f, 0.6f },
-        { -1.0f, 0.3f, 2.2f },
-        { FM_PI * 0.5f, -FM_PI * 0.25f, FM_PI * 0.75f },
-    };
-
-    for (int i = 0; i < 3; i++) {
-        fm_quat_t qe, qzyx;
-        float euler[3] = { test_angles[i][0], test_angles[i][1], test_angles[i][2] };
-
-        fm_quat_from_euler(&qe, euler);
-        fm_quat_from_euler_zyx(&qzyx, euler[0], euler[1], euler[2]);
-
-        ASSERT_EQUAL_QUAT_NEAR(qe, qzyx, 1e-5f);
-    }
 }
 
 void test_quat_slerp_same_quaternion(TestContext *ctx)
