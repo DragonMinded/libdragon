@@ -526,6 +526,8 @@ nlohmann::json parse_f3d_mat(const nlohmann::json& f3d_mat)
 
     if (is_flag_set(f3d_mat, "set_prim")) {
         mat["register.prim"] = parse_color(f3d_mat["prim_color"]);
+    } else {
+        mat["register.prim"] = "1,1,1,1";
     }
 
     if (is_flag_set(f3d_mat, "set_env")) {
