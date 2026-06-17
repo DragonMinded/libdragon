@@ -54,9 +54,13 @@ void texconvert(Texture &tex)
     static char *mksprite = NULL;
     if (!mksprite) asprintf(&mksprite, "%s/bin/mksprite", n64_inst);
 
-    // Read intput file into memory
-    verbose("converting %s...\n", tex.name.c_str());
-    auto png = slurp(tex.name.c_str());
+    // Read input file into memory
+    if (!tex.name.empty()) {
+        verbose("converting %s...\n", tex.name.c_str());
+        tex.data = slurp(tex.name.c_str());
+    } else {
+        verbose("converting embedded texture...\n");
+    }
 
     // Prepare mksprite command line
     struct subprocess_s subp;
@@ -97,7 +101,7 @@ void texconvert(Texture &tex)
     }
 
     FILE *mksprite_in = subprocess_stdin(&subp);
-    fwrite(&png[0], 1, png.size(), mksprite_in);
+    fwrite(&tex.data[0], 1, tex.data.size(), mksprite_in);
     fclose(mksprite_in); subp.stdin_file = SUBPROCESS_NULL;
 
     // Read stdout
