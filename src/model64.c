@@ -18,6 +18,7 @@
 #include "asset.h"
 #include "debug.h"
 #include "utils.h"
+#include "sprite.h"
 
 #include "model64_catmull.h"
 
@@ -112,6 +113,12 @@ static void init_runtime_state(model64_data_t *model)
     {
         init_mesh(&model->runtime_state->meshes[i], &model->meshes[i]);
     }
+
+    model->runtime_state->materials = calloc(model->num_materials, sizeof(rdpq_mat_t*));
+    for (size_t i = 0; i < model->num_materials; i++)
+    {
+        model->runtime_state->materials[i] = rdpq_matdb_load(model->matdb, model->materials[i]);
+    }
 }
 
 static void cleanup_submesh(submesh_state_t *submesh_state)
@@ -133,6 +140,12 @@ static void cleanup_mesh(mesh_state_t *mesh_state, mgfx_mesh_t *mesh)
 
 static void cleanup_runtime_state(model64_data_t *model)
 {
+    for (size_t i = 0; i < model->num_materials; i++)
+    {
+        rdpq_mat_free(model->runtime_state->materials[i]);
+    }
+    free(model->runtime_state->materials);
+    
     for (size_t i = 0; i < model->num_meshes; i++)
     {
         cleanup_mesh(&model->runtime_state->meshes[i], &model->meshes[i]);
@@ -211,8 +224,9 @@ static model64_data_t *load_model_data_buf(void *buf, int sz, const char* prefix
     }
     for (uint32_t i = 0; i < model->num_materials; i++)
     {
-        model->materials[i].rdpq_mat = rdpq_mat_load_buf(PTR_DECODE(model, model->materials[i].rdpq_mat), model->materials[i].size);
+        model->materials[i] = PTR_DECODE(model, model->materials[i]);
     }
+    model->matdb = PTR_DECODE(model, model->matdb);
 
     init_runtime_state(model);
 
@@ -441,9 +455,9 @@ static void unload_model_data(model64_data_t *model)
     }
     for (uint32_t i = 0; i < model->num_materials; i++)
     {
-        rdpq_mat_free(model->materials[i].rdpq_mat);
-        model->materials[i].rdpq_mat = PTR_ENCODE(model, model->materials[i].rdpq_mat);
+        model->materials[i] = PTR_ENCODE(model, model->materials[i]);
     }
+    model->matdb = PTR_ENCODE(model, model->matdb);
     model->nodes = PTR_ENCODE(model, model->nodes);
     model->skins = PTR_ENCODE(model, model->skins);
     model->anims = PTR_ENCODE(model, model->anims);
@@ -572,6 +586,18 @@ void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float ds
     mtx_copy(dst, model->transforms[node_idx].world_mtx);
 }
 
+static void apply_texture_size(rdpq_mat_t *material)
+{
+    sprite_t *tex0 = NULL;
+    sprite_t *tex1 = NULL;
+    rdpq_mat_get_textures(material, &tex0, &tex1);
+
+    if (tex0) 
+        glTexSizeN64(tex0->width, tex0->height);
+    else if (tex1)
+        glTexSizeN64(tex1->width, tex1->height);
+}
+
 static void model64_draw_mesh(model64_t *model, uint32_t mesh_index, uint32_t *material_indices)
 {
     mgfx_mesh_t *mesh = &model->data->meshes[mesh_index];
@@ -580,13 +606,9 @@ static void model64_draw_mesh(model64_t *model, uint32_t mesh_index, uint32_t *m
     {
         rdpq_mat_t *material = NULL;
         if (material_indices[i] != INDEX_MISSING) {
-            material = model->data->materials[material_indices[i]].rdpq_mat;
+            material = model->data->runtime_state->materials[material_indices[i]];
+            apply_texture_size(material);
             rdpq_mat_draw_begin(material);
-            uint32_t tex_width, tex_height;
-            if (rdpq_mat_ext_get_int(material, "tex0.width", &tex_width) &&
-                rdpq_mat_ext_get_int(material, "tex0.height", &tex_height)) {
-                glTexSizeN64(tex_width, tex_height);
-            }
         }
 
         mgfx_submesh_t *submesh = &mesh->submeshes[i];

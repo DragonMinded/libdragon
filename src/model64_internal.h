@@ -95,11 +95,6 @@ typedef struct model64_anim_s {
     uint16_t *tracks;               ///< Top 2 bits: target component; lowest 14 bits: target node
 } model64_anim_t;
 
-typedef struct model64_mat_s {
-    rdpq_mat_t *rdpq_mat;
-    int size;
-} model64_mat_t;
-
 typedef struct submesh_state_s {
     uint32_t vertex_vbo;
     uint32_t index_vbo;
@@ -114,6 +109,7 @@ typedef struct mesh_state_s {
 
 typedef struct runtime_state_s {
     mesh_state_t *meshes;
+    rdpq_mat_t **materials;
 } runtime_state_t;
 
 /** @brief A model64 file containing a model */
@@ -131,7 +127,9 @@ typedef struct model64_data_s {
     uint32_t num_anims;         ///< Number of animations
     model64_anim_t *anims;      ///< Pointer to first animation
     uint32_t num_materials;
-    model64_mat_t *materials;
+    char **materials;
+    uint32_t matdb_size;
+    rdpq_matdb_t *matdb;
     uint32_t max_tracks;        ///< Maximum number of tracks for animation
     void *anim_data_handle;     ///< Handle for animation data (0 means animations are not streamed)
     runtime_state_t *runtime_state;

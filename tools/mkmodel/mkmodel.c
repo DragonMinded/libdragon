@@ -151,13 +151,6 @@ void anim_free(model64_anim_t *anim)
     }
 }
 
-void mat_free(model64_mat_t *mat)
-{
-    if (mat->rdpq_mat) {
-        free(mat->rdpq_mat);
-    }
-}
-
 void model64_free(model64_data_t *model)
 {
     for (size_t i = 0; i < model->num_nodes; i++) {
@@ -173,7 +166,7 @@ void model64_free(model64_data_t *model)
         anim_free(&model->anims[i]);
     }
     for (size_t i = 0; i < model->num_materials; i++) {
-        mat_free(&model->materials[i]);
+        free(model->materials[i]);
     }
     if (model->meshes) {
         free(model->meshes);
@@ -189,6 +182,9 @@ void model64_free(model64_data_t *model)
     }
     if (model->materials) {
         free(model->materials);
+    }
+    if (model->matdb) {
+        free(model->matdb);
     }
     free(model);
 }
@@ -224,6 +220,8 @@ void model64_write_header(model64_data_t *model, FILE *out)
     w32_placeholderf(out, "anims");
     w32(out, model->num_materials);
     w32_placeholderf(out, "materials");
+    w32(out, model->matdb_size);
+    w32_placeholderf(out, "matdb");
     w32(out, model->max_tracks);
     if(flag_anim_stream) {
         w32(out, 1);
@@ -457,12 +455,15 @@ void model64_write_materials(model64_data_t *model, FILE *out)
     placeholder_set(out, "materials");
     for (size_t i = 0; i < model->num_materials; i++) {
         w32_placeholderf(out, "material%d", i);
-        w32(out, model->materials[i].size);
     }
     for (size_t i = 0; i < model->num_materials; i++) {
         placeholder_set(out, "material%d", i);
-        fwrite(model->materials[i].rdpq_mat, model->materials[i].size, 1, out);
+        fputs(model->materials[i], out);
+        w8(out, 0);
     }
+    walign(out, 2);
+    placeholder_set(out, "matdb");
+    wa(out, model->matdb, model->matdb_size);
 }
 
 void model64_write(model64_data_t *model, FILE *out, FILE *anim_out)
@@ -1218,10 +1219,13 @@ uint32_t get_anim_max_tracks(model64_data_t *model)
     return num_tracks;
 }
 
-int convert_material(cgltf_material *in_mat, model64_mat_t *out_mat, const char *in_dir, const char *out_dir)
+int convert_materials(const char *infn, const char *outfn, model64_data_t *model)
 {
-    static char *mkmaterial = NULL;
-    if (!mkmaterial) asprintf(&mkmaterial, "%s/bin/mkmaterial", n64_inst);
+    const char *in_dir = dirname(infn);
+    const char *out_dir = dirname(outfn);
+
+    char *mkmaterial = NULL;
+    asprintf(&mkmaterial, "%s/bin/mkmaterial", n64_inst);
 
     struct subprocess_s subp;
     const char *cmd_line[] = {
@@ -1231,31 +1235,19 @@ int convert_material(cgltf_material *in_mat, model64_mat_t *out_mat, const char 
         out_dir,
         "-I",
         in_dir,
-        "--raw-material",
-        "-",
+        "-o",
+        out_dir,
+        infn,
         NULL
     };
 
     if (subprocess_create(cmd_line, subprocess_option_no_window|subprocess_option_inherit_environment, &subp)) {
         fprintf(stderr, "Error: cannot run: %s\n", mkmaterial);
+        free(mkmaterial);
         return 1;
     }
 
-    FILE *mkmaterial_in = subprocess_stdin(&subp);
-    fprintf(mkmaterial_in, "{ \"%s\": %s }", in_mat->name, in_mat->extras.data);
-    fclose(mkmaterial_in); subp.stdin_file = SUBPROCESS_NULL;
-
-    FILE *mkmaterial_out = subprocess_stdout(&subp);
-    uint8_t *material = NULL;
-    int material_size = 0;
-    while (1) {
-        uint8_t buf[4096];
-        int n = fread(buf, 1, sizeof(buf), mkmaterial_out);
-        if (n == 0) break;
-        material = realloc(material, material_size + n);
-        memcpy(material + material_size, buf, n);
-        material_size += n;
-    }
+    free(mkmaterial);
 
     forward_to_stderr(subprocess_stderr(&subp), "[mkmaterial] ");
 
@@ -1266,14 +1258,27 @@ int convert_material(cgltf_material *in_mat, model64_mat_t *out_mat, const char 
     }
     subprocess_destroy(&subp);
 
-    if (material_size == 0) {
-        fprintf(stderr, "Error: got empty material\n");
+    const char *basename = strrchr(infn, '/');
+    if (!basename) basename = infn; else basename += 1;
+    char* basename_noext = strdup(basename);
+    char* ext = strrchr(basename_noext, '.');
+    if (ext) *ext = '\0';
+    char *mdbfn = NULL;
+    asprintf(&mdbfn, "%s/%s.mdb", out_dir, basename_noext);
+
+    int mdb_size;
+    uint8_t *mdb = slurp(mdbfn, &mdb_size);
+    if (!mdb) {
+        fprintf(stderr, "Error: cannot open material file: %s\n", mdbfn);
+        free(mdbfn);
         return 1;
     }
 
-    out_mat->rdpq_mat = (rdpq_mat_t*)material;
-    out_mat->size = material_size;
+    remove(mdbfn);
+    free(mdbfn);
 
+    model->matdb_size = mdb_size;
+    model->matdb = (rdpq_matdb_t*)mdb;
     return 0;
 }
 
@@ -1413,30 +1418,15 @@ int convert(const char *infn, const char *outfn)
         model->max_tracks = get_anim_max_tracks(model);
     }
 
-    const char *in_dir = dirname(infn);
-    const char *out_dir = dirname(outfn);
-
+    if (convert_materials(infn, outfn, model)) {
+        goto error;
+    }
     model->num_materials = data->materials_count;
     if (model->num_materials != 0) {
-        model->materials = calloc(model->num_materials, sizeof(model64_mat_t));
+        model->materials = calloc(model->num_materials, sizeof(char*));
         for (size_t i = 0; i < data->materials_count; i++)
         {
-            if (flag_verbose) {
-                if (data->materials[i].name != NULL) {
-                    printf("Converting material %s\n", data->materials[i].name);
-                } else {
-                    printf("Converting material %zd\n", i);
-                }
-            }
-
-            if (convert_material(&data->materials[i], &model->materials[i], in_dir, out_dir) != 0) {
-                if (data->meshes[i].name != NULL) {
-                    fprintf(stderr, "Error: failed converting material %s\n", data->materials[i].name);
-                } else {
-                    fprintf(stderr, "Error: failed converting material %zd\n", i);
-                }
-                goto error;
-            }
+            model->materials[i] = strdup(data->materials[i].name);
         }
     }
     
