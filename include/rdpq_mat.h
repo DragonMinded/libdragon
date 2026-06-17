@@ -80,6 +80,7 @@ extern "C" {
 ///@cond
 typedef struct rdpq_matdb_s rdpq_matdb_t;
 typedef void* rdpq_mat_t;
+typedef struct sprite_s sprite_t;
 
 bool __rdpq_mat_ext_get_bool(rdpq_mat_t *mat, uint32_t ext_key, bool *value);
 bool __rdpq_mat_ext_get_int(rdpq_mat_t *mat, uint32_t ext_key, uint32_t *value);
@@ -276,6 +277,11 @@ void rdpq_mat_free(rdpq_mat_t *mat);
  *                      including filesystem prefix (eg: "rom:/textures")
  */
 void rdpq_mat_set_texture_path(const char *path);
+
+/**
+ * @brief Retrieves textures from a material, if they are present.
+ */
+void rdpq_mat_get_textures(rdpq_mat_t *mat, sprite_t **tex0, sprite_t **tex1);
 
 #ifdef __cplusplus
 }
