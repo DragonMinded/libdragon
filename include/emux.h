@@ -66,12 +66,26 @@
 #define EMUX_XASAN_POISON                       0x2           ///< Poison a memory region
 #define EMUX_XASAN_UNPOISON                     0x3           ///< Unpoison a memory region
 
-#define EMUX_XASAN_TAG_USER                     0             ///< User-poisoned region
+#define EMUX_XASAN_TAG_ACCESSIBLE               0             ///< Accessible region
 #define EMUX_XASAN_TAG_LEFT                     1             ///< Left redzone
 #define EMUX_XASAN_TAG_RIGHT                    2             ///< Right redzone
 #define EMUX_XASAN_TAG_FREED                    3             ///< Freed memory
 #define EMUX_XASAN_TAG_GLOBAL                   4             ///< Global redzone
+#define EMUX_XASAN_TAG_USER                     5             ///< User-poisoned region
 #define EMUX_XASAN_TAG_UNALLOC                  6             ///< Unallocated heap memory
+
+#define EMUX_XASAN_ACCESS_UNKNOWN               0x00
+#define EMUX_XASAN_ACCESS_CPU_READ              0x01
+#define EMUX_XASAN_ACCESS_CPU_WRITE             0x02
+#define EMUX_XASAN_ACCESS_CPU_EXEC              0x03
+#define EMUX_XASAN_ACCESS_STACK                 0x04
+#define EMUX_XASAN_ACCESS_RSP_DMA_READ          0x05
+#define EMUX_XASAN_ACCESS_RSP_DMA_WRITE         0x06
+
+#define EMUX_XASAN_FAULT_UNKNOWN                0x00
+#define EMUX_XASAN_FAULT_PERMISSION             0x01
+#define EMUX_XASAN_FAULT_POISON                 0x02
+#define EMUX_XASAN_FAULT_TAIL                   0x03
 
 #define EMUX_LOG_ASCIIZ                         0x000      ///< Log a zero-terminated string
 #define EMUX_LOG_LENGTH                         0x001      ///< Log a non-zero-terminated string

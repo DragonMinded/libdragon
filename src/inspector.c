@@ -887,6 +887,7 @@ void __inspector_cppexception(const char *exctype, const char *what) {
 
 __attribute__((noreturn))
 void __inspector_stack_smashing(void) {
+    emux_xasan_disable();
     asm volatile (
         "syscall 0x3\n"
     );

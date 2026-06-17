@@ -26,7 +26,7 @@
 #define ASAN_RIGHT_RZ       16
 
 /** @brief Shadow / alignment granule (bytes) */
-#define ASAN_GRANULE        8
+#define ASAN_GRANULE        16
 
 /** @brief Block header size (bytes); must be a multiple of ASAN_GRANULE */
 #define ASAN_HEADER_SIZE    16
@@ -57,11 +57,6 @@ extern void *__real_sbrk_top(int incr);
 extern struct mallinfo __real_mallinfo(void);
 extern struct mallinfo __real__mallinfo_r(struct _reent *r);
 
-static inline size_t asan_round8(size_t n)
-{
-    return (n + ASAN_GRANULE - 1) & ~(size_t)(ASAN_GRANULE - 1);
-}
-
 static inline void *asan_align_ptr(void *p, size_t align)
 {
     uintptr_t v = (uintptr_t)p;
@@ -88,9 +83,7 @@ static bool asan_valid_hdr(const asan_hdr_t *hdr)
 static void asan_poison_region(const void *addr, size_t size, void (*poison_fn)(const void *, size_t))
 {
     if (!size) return;
-    uintptr_t base = (uintptr_t)addr & ~(uintptr_t)(ASAN_GRANULE - 1);
-    uintptr_t end = ((uintptr_t)addr + size + ASAN_GRANULE - 1) & ~(uintptr_t)(ASAN_GRANULE - 1);
-    poison_fn((const void *)base, end - base);
+    poison_fn(addr, size);
 }
 
 void asan_poison(void *ptr, size_t size)
@@ -132,8 +125,8 @@ void *__wrap__malloc_r(struct _reent *r, size_t n)
         return __real__malloc_r(r, n);
     }
 
-    size_t payload_size = asan_round8(n);
-    size_t total = ASAN_PAYLOAD_OFFSET + payload_size + ASAN_RIGHT_RZ;
+    size_t payload_size = n;
+    size_t total = ASAN_PAYLOAD_OFFSET + ASAN_GRANULE - 1 + payload_size + ASAN_RIGHT_RZ;
     void *raw;
     void *payload;
     asan_hdr_t *hdr;
@@ -145,7 +138,7 @@ void *__wrap__malloc_r(struct _reent *r, size_t n)
         return NULL;
     }
 
-    payload = (char *)raw + ASAN_PAYLOAD_OFFSET;
+    payload = asan_align_ptr((char *)raw + ASAN_PAYLOAD_OFFSET, ASAN_GRANULE);
     hdr = asan_hdr(payload);
     asan_write_hdr(hdr, raw, n);
     emux_xasan_enable();
@@ -171,7 +164,7 @@ void __wrap__free_r(struct _reent *r, void *p)
     emux_xasan_disable();
     if (asan_valid_hdr(hdr)) {
         void *raw = hdr->raw;
-        size_t payload_size = asan_round8(hdr->req_size);
+        size_t payload_size = hdr->req_size;
         size_t total = (char *)p + payload_size + ASAN_RIGHT_RZ - (char *)raw;
         emux_xasan_poison_freed(raw, total);
         __real__free_r(r, raw);
@@ -221,7 +214,7 @@ void *__wrap__memalign_r(struct _reent *r, size_t align, size_t n)
     if (align < ASAN_GRANULE)
         align = ASAN_GRANULE;
 
-    size_t payload_size = asan_round8(n);
+    size_t payload_size = n;
     size_t total = ASAN_PAYLOAD_OFFSET + align - 1 + payload_size + ASAN_RIGHT_RZ;
     void *raw;
     void *payload;

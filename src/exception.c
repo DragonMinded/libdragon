@@ -10,6 +10,7 @@
 #include "console.h"
 #include "n64sys.h"
 #include "debug.h"
+#include "emux.h"
 #include "regsinternal.h"
 #include "kernel/kernel_internal.h"
 #include "kernel/ktls_internal.h"
@@ -466,21 +467,43 @@ static const char* __get_exception_name(exception_t *ex)
 		uint32_t cacheerr = C0_CACHEERR();
 		uint32_t kind = cacheerr & 0xFF;
 		uint32_t tag = (cacheerr >> 8) & 0xFF;
+		uint32_t access = (cacheerr >> 16) & 0xFF;
+		uint32_t fault = (cacheerr >> 24) & 0xFF;
+		static char emux_info[128];
 		C0_WRITE_CACHEERR(0);
 		switch (kind) {
 		case 0:  return "Cached access to non-RDRAM area";
 		case 1:  return "64-bit read from non-RDRAM area";
 		case 2:  return "Access to RCP unmapped area";
-		case 4:
-			switch (tag) {
-			case 0xf1: return "ASAN: heap-buffer-underflow (left redzone)";
-			case 0xf2: return "ASAN: heap-buffer-overflow (right redzone)";
-			case 0xf3: return "ASAN: use-after-free";
-			case 0xf4: return "ASAN: global-buffer-overflow";
-			case 0xf6: return "ASAN: access to unallocated heap memory";
-			case 0xf5: return "ASAN: access to poisoned region";
-			default:   return "ASAN: invalid memory access";
+		case 4: {
+			const char *access_name = "memory access";
+			const char *tag_name = "unknown poison";
+			const char *fault_name = "unknown";
+			switch (access) {
+			case EMUX_XASAN_ACCESS_CPU_READ:      access_name = "CPU Read"; break;
+			case EMUX_XASAN_ACCESS_CPU_WRITE:     access_name = "CPU Write"; break;
+			case EMUX_XASAN_ACCESS_CPU_EXEC:      access_name = "CPU Exec"; break;
+			case EMUX_XASAN_ACCESS_STACK:         access_name = "Stack access"; break;
+			case EMUX_XASAN_ACCESS_RSP_DMA_READ:  access_name = "RSP DMA Read"; break;
+			case EMUX_XASAN_ACCESS_RSP_DMA_WRITE: access_name = "RSP DMA Write"; break;
 			}
+			switch (tag) {
+			case EMUX_XASAN_TAG_ACCESSIBLE: tag_name = "accessible memory"; break;
+			case EMUX_XASAN_TAG_LEFT:       tag_name = "left redzone"; break;
+			case EMUX_XASAN_TAG_RIGHT:      tag_name = "right redzone"; break;
+			case EMUX_XASAN_TAG_FREED:      tag_name = "freed memory"; break;
+			case EMUX_XASAN_TAG_GLOBAL:     tag_name = "global redzone"; break;
+			case EMUX_XASAN_TAG_USER:       tag_name = "poisoned region"; break;
+			case EMUX_XASAN_TAG_UNALLOC:    tag_name = "unallocated heap memory"; break;
+			}
+			switch (fault) {
+			case EMUX_XASAN_FAULT_PERMISSION: fault_name = "permission"; break;
+			case EMUX_XASAN_FAULT_POISON:     fault_name = "poison"; break;
+			case EMUX_XASAN_FAULT_TAIL:       fault_name = "tail"; break;
+			}
+			snprintf(emux_info, sizeof(emux_info), "ASAN: %s to %s (%s)", access_name, tag_name, fault_name);
+			return emux_info;
+		}
 		default: return "Unknown emux";
 		}
 	}
