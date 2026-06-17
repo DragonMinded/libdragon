@@ -479,39 +479,17 @@ bool is_flag_set(const nlohmann::json& f3d_mat, std::string flag)
     return iter != f3d_mat.end() && iter->get<uint32_t>() != 0;
 }
 
-void parse_tex(nlohmann::json& mat, const nlohmann::json& f3d_tex, std::string key)
+void parse_tex(nlohmann::json& mat, const nlohmann::json& f3d_mat, std::string key)
 {
+    if (!f3d_mat.contains(key)) return;
+
+    auto f3d_tex = f3d_mat[key];
     if (!f3d_tex.contains("tex")) return;
 
     auto tex = f3d_tex["tex"];
     if (!tex.contains("name")) return;
 
     mat[key + ".name"] = tex["name"].get<std::string>();
-}
-
-int parse_tex_size(const nlohmann::json& comp)
-{
-    if (!comp.contains("low") || !comp.contains("high")) return -1;
-    return comp["high"].get<int>() - comp["low"].get<int>() + 1;
-}
-
-void parse_tex_properties(nlohmann::json& mat, const nlohmann::json& f3d_mat, std::string key)
-{
-    if (!f3d_mat.contains(key)) return;
-
-    auto f3d_tex = f3d_mat[key];
-
-    parse_tex(mat, f3d_tex, key);
-
-    if (f3d_tex.contains("S")) {
-        auto width = parse_tex_size(f3d_tex["S"]);
-        if (width >= 0) mat["ext." + key + ".width"] = std::to_string(width);
-    }
-
-    if (f3d_tex.contains("T")) {
-        auto height = parse_tex_size(f3d_tex["T"]);
-        if (height >= 0) mat["ext." + key + ".height"] = std::to_string(height);
-    }
 }
 
 nlohmann::json parse_f3d_mat(const nlohmann::json& f3d_mat)
@@ -537,8 +515,8 @@ nlohmann::json parse_f3d_mat(const nlohmann::json& f3d_mat)
         mat["register.env"] = parse_color(f3d_mat["env_color"]);
     }
 
-    parse_tex_properties(mat, f3d_mat, "tex0");
-    parse_tex_properties(mat, f3d_mat, "tex1");
+    parse_tex(mat, f3d_mat, "tex0");
+    parse_tex(mat, f3d_mat, "tex1");
 
     fprintf(stderr, "%s\n", mat.dump().c_str());
     return mat;
