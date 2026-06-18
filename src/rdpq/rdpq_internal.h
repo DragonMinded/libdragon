@@ -234,6 +234,19 @@ inline void __rdpq_autosync_use(uint32_t res)
         __rdpq_frozen_flush_pending_mode();
     }
 }
+
+/**
+ * @brief Notify the rdpq engine that a rspq block is about to run, before its CALL command is enqueued.
+ *        This intern *may* flush out pending DMEM states form a frozen blocks
+ */
+inline void __rdpq_block_run_prepare(rdpq_block_t *block)
+{
+    if (__builtin_expect(
+      __rdpq_frozen_dmem_pending && !block->frozen && !rdpq_block_state.frozen, 0)
+    ) {
+        __rdpq_frozen_sync_dmem(RDPQ_WRITE_READS_RDP_STATE);
+    }
+}
 void __rdpq_autosync_change(uint32_t res);
 
 void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);

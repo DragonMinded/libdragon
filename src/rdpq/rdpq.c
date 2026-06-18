@@ -614,6 +614,9 @@ extern inline void __rdpq_tracking_state_reset(rdpq_tracking_t *state);
 /** @brief Autosync engine: mark certain resources as in use */
 extern inline void __rdpq_autosync_use(uint32_t res);
 
+/** @brief Flush stale frozen-block DMEM state before a block CALL is enqueued */
+extern inline void __rdpq_block_run_prepare(rdpq_block_t *block);
+
 /** 
  * @brief Autosync engine: mark certain resources as being changed.
  * 

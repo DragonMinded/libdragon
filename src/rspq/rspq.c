@@ -1430,6 +1430,10 @@ void rspq_block_run(rspq_block_t *block)
 
     assertf(block->nesting_level < block->min_ph_level, "Block nesting level overlaps with used placeholders");
 
+    // flush any pending DMEM state out (e.g. a frozen block ran before we now submit a normal block)
+    if (block->rdp_block)
+      __rdpq_block_run_prepare(block->rdp_block);
+
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current
     // pointer position.
