@@ -24,9 +24,9 @@
 struct placeholder_data {
 	int64_t offset;
 	uint64_t *pending_offsets_64;
-	uint32_t *pending_offsets_32;
-	uint16_t *pending_offsets_16;
-	uint8_t *pending_offsets_8;
+	uint64_t *pending_offsets_32;
+	uint64_t *pending_offsets_16;
+	uint64_t *pending_offsets_8;
 };
 
 struct {
