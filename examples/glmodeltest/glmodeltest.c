@@ -142,7 +142,6 @@ void update(float deltatime)
     glEnable(GL_CULL_FACE);
     glEnable(GL_LIGHTING);
     
-    rdpq_set_prim_color(color_from_packed32(0xAAAAFFFF));
     model64_draw(model);
 
     if (display_metrics) {
