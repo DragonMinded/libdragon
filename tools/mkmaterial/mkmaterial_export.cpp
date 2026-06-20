@@ -149,10 +149,26 @@ void texconvert(Texture &tex)
     free(sprite_outfn);
 }
 
+void normalize_combiner(Combiner &cc)
+{
+    for (size_t ch = 0; ch < 2; ch++) {
+        for (auto &uniform : cc.full.channels[ch].uniforms) {
+            if (!cc.registers[uniform.id].is_set) continue;
+            auto& v = cc.registers[uniform.id].value;
+            if (ch == combexpr::RGB) {
+                uniform.set({v[0], v[1], v[2]});
+            } else if (ch == combexpr::ALPHA) {
+                uniform.set(v[3]);
+            }
+        }
+    }
+}
+
 void mat_convert(Material &mat)
 {
     if (mat.tex[0]) texconvert(mat.tex[0]);
     if (mat.tex[1]) texconvert(mat.tex[1]);
+    normalize_combiner(mat.cc);
 }
 
 void Material::write(FILE *f)
