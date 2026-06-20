@@ -74,6 +74,36 @@ int parse_int(std::string value, int min, int max)
     }
 }
 
+std::vector<std::string> split_string(std::string str, char delimiter) {
+    std::vector<std::string> tokens;
+    size_t start = 0;
+    size_t end = str.find(delimiter);
+    
+    while (end != std::string::npos) {
+        tokens.push_back(str.substr(start, end - start));
+        start = end + 1;
+        end = str.find(delimiter, start);
+    }
+    tokens.push_back(str.substr(start));
+    return tokens;
+}
+
+Vec4 parse_color(std::string value)
+{
+    std::vector<std::string> tokens = split_string(value, ',');
+    if (tokens.size() != 3 && tokens.size() != 4) {
+        throw std::runtime_error("invalid color value: " + value);
+    }
+    Vec4 color{};
+    for (size_t i = 0; i < tokens.size(); i++) {
+        color[i] = parse_float(tokens[i], 0, 1);
+    }
+    if (tokens.size() < 4) {
+        color[3] = 1;
+    }
+    return color;
+}
+
 std::string parse_enum(std::string value, const std::vector<std::string> &enums)
 {
     for (size_t i = 0; i < enums.size(); i++) {
@@ -86,6 +116,19 @@ std::string parse_enum(std::string value, const std::vector<std::string> &enums)
         if (i < enums.size() - 1) error += ", ";
     }
     throw std::runtime_error(error);
+}
+
+void CombinerRegister::parse_float(std::string value)
+{
+    float v = ::parse_float(value, 0, 1);
+    this->value = {v, v, v, v};
+    is_set = true;
+}
+
+void CombinerRegister::parse_color(std::string value)
+{
+    this->value = ::parse_color(value);
+    is_set = true;
 }
 
 void Combiner::parse_attr(std::string key, std::string value)
@@ -130,6 +173,20 @@ void Combiner::parse_attr(std::string key, std::string value)
         } else {
             throw std::runtime_error("invalid alpha.raw combiner expression: must be in format \"(a,b,c,d)\"");
         }
+    } else if (key == "reg.k4") {
+        registers[combexpr::internal::UNIFORM_K4].parse_float(value);
+    } else if (key == "reg.k5") {
+        registers[combexpr::internal::UNIFORM_K5].parse_float(value);
+    } else if (key == "reg.keyscale") {
+        registers[combexpr::internal::UNIFORM_KEYSCALE].parse_float(value);
+    } else if (key == "reg.keycenter") {
+        registers[combexpr::internal::UNIFORM_KEYCENTER].parse_float(value);
+    } else if (key == "reg.prim_lod_frac") {
+        registers[combexpr::internal::UNIFORM_PRIM_LOD_FRAC].parse_float(value);
+    } else if (key == "reg.env") {
+        registers[combexpr::internal::UNIFORM_ENV].parse_color(value);
+    } else if (key == "reg.prim") {
+        registers[combexpr::internal::UNIFORM_PRIM].parse_color(value);
     } else {
         throw std::runtime_error("Unknown combiner key: " + key);
     }

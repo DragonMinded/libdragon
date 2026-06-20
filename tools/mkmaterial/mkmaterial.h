@@ -96,10 +96,21 @@ struct RenderModes {
     void parse_attr(std::string key, std::string value);
 };
 
+typedef std::array<float, 4> Vec4;
+
+struct CombinerRegister {
+    Vec4 value;
+    bool is_set;
+
+    void parse_float(std::string value);
+    void parse_color(std::string value);
+};
+
 struct Combiner {
     combexpr::CombinerExpr rgb{combexpr::CombinerChannel::RGB, "0", "0", "0", "tex0"};
     combexpr::CombinerExpr alpha{combexpr::CombinerChannel::ALPHA, "0", "0", "0", "tex0"};
     combexpr::CombinerExprFull full;
+    CombinerRegister registers[combexpr::internal::UNIFORM_COUNT];
 
     void parse_attr(std::string key, std::string value);
     uint64_t to_rdpq_mode_arg(void);
