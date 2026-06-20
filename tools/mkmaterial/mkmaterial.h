@@ -97,10 +97,19 @@ struct RenderModes {
     void parse_attr(std::string key, std::string value);
 };
 
+struct CombinerRegister {
+    std::array<float, 4> value;
+    bool is_set;
+
+    void parse_float(std::string value);
+    void parse_color(std::string value);
+};
+
 struct Combiner {
     combexpr::CombinerExpr rgb{combexpr::CombinerChannel::RGB, "0", "0", "0", "tex0"};
     combexpr::CombinerExpr alpha{combexpr::CombinerChannel::ALPHA, "0", "0", "0", "tex0"};
     combexpr::CombinerExprFull full;
+    CombinerRegister registers[combexpr::internal::UNIFORM_COUNT];
 
     void parse_attr(std::string key, std::string value);
     uint64_t to_rdpq_mode_arg(void);
@@ -112,18 +121,6 @@ struct Blender {
 
     void parse_attr(std::string key, std::string value);
     void validate(void);
-};
-
-struct ColorRegister {
-    int is_set{0};
-    uint32_t value{0};
-    void parse(std::string value);
-};
-
-struct Registers {
-    ColorRegister prim;
-    ColorRegister env;
-    void parse_attr(std::string key, std::string value);
 };
 
 struct Extension {
@@ -144,7 +141,6 @@ struct Material {
     RenderModes rm;
     Combiner cc;
     Blender bl;
-    Registers reg;
     std::vector<Extension> ext; // extension attributes
 
     Material() = default;

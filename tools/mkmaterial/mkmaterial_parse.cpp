@@ -91,22 +91,18 @@ std::vector<std::string> split_string(std::string str, char delimiter) {
     return tokens;
 }
 
-uint32_t parse_color(std::string value)
+std::array<float, 4> parse_color(std::string value)
 {
     std::vector<std::string> tokens = split_string(value, ',');
     if (tokens.size() != 3 && tokens.size() != 4) {
         throw std::runtime_error("invalid color value: " + value);
     }
-    uint32_t color = 0;
-    size_t shift = 0;
-    for (auto &&token : tokens) {
-        float fval = parse_float(token, 0.0f, 1.0f);
-        uint8_t ival = fval * 255.0f;
-        color |= ival << shift;
-        shift += 8;
+    std::array<float, 4> color{};
+    for (size_t i = 0; i < tokens.size(); i++) {
+        color[i] = parse_float(tokens[i], 0, 1);
     }
-    if (tokens.size() == 3) {
-        color |= 0xFF000000;
+    if (tokens.size() < 4) {
+        color[3] = 1;
     }
     return color;
 }
@@ -123,6 +119,19 @@ std::string parse_enum(std::string value, const std::vector<std::string> &enums)
         if (i < enums.size() - 1) error += ", ";
     }
     throw std::runtime_error(error);
+}
+
+void CombinerRegister::parse_float(std::string value)
+{
+    float v = ::parse_float(value, 0, 1);
+    this->value = {v, v, v, v};
+    is_set = true;
+}
+
+void CombinerRegister::parse_color(std::string value)
+{
+    this->value = ::parse_color(value);
+    is_set = true;
 }
 
 void Combiner::parse_attr(std::string key, std::string value)
@@ -167,6 +176,20 @@ void Combiner::parse_attr(std::string key, std::string value)
         } else {
             throw std::runtime_error("invalid alpha.raw combiner expression: must be in format \"(a,b,c,d)\"");
         }
+    } else if (key == "reg.k4") {
+        registers[combexpr::internal::UNIFORM_K4].parse_float(value);
+    } else if (key == "reg.k5") {
+        registers[combexpr::internal::UNIFORM_K5].parse_float(value);
+    } else if (key == "reg.keyscale") {
+        registers[combexpr::internal::UNIFORM_KEYSCALE].parse_float(value);
+    } else if (key == "reg.keycenter") {
+        registers[combexpr::internal::UNIFORM_KEYCENTER].parse_float(value);
+    } else if (key == "reg.prim_lod_frac") {
+        registers[combexpr::internal::UNIFORM_PRIM_LOD_FRAC].parse_float(value);
+    } else if (key == "reg.env") {
+        registers[combexpr::internal::UNIFORM_ENV].parse_color(value);
+    } else if (key == "reg.prim") {
+        registers[combexpr::internal::UNIFORM_PRIM].parse_color(value);
     } else {
         throw std::runtime_error("Unknown combiner key: " + key);
     }
@@ -284,21 +307,6 @@ void RenderModes::parse_attr(std::string key, std::string value)
     }
 }
 
-void ColorRegister::parse(std::string value)
-{
-    this->value = parse_color(value);
-    is_set = 1;
-}
-
-void Registers::parse_attr(std::string key, std::string value)
-{
-    if (key == "prim") {
-        prim.parse(value);
-    } else if (key == "env") {
-        env.parse(value);
-    }
-}
-
 void Material::parse_attr(std::string key, std::string value)
 {
     if (key.rfind("tex0.", 0) == 0) {
@@ -311,8 +319,6 @@ void Material::parse_attr(std::string key, std::string value)
         cc.parse_attr(key.substr(9), value);
     } else if (key.rfind("blender.", 0) == 0) {
         bl.parse_attr(key.substr(8), value);
-    } else if (key.rfind("register.", 0) == 0) {
-        reg.parse_attr(key.substr(9), value);
     } else if (key.rfind("ext.", 0) == 0) {
         Extension ext_attr;
         ext_attr.name = key.substr(4);
@@ -506,13 +512,13 @@ nlohmann::json parse_f3d_mat(const nlohmann::json& f3d_mat)
     }
 
     if (is_flag_set(f3d_mat, "set_prim")) {
-        mat["register.prim"] = parse_color(f3d_mat["prim_color"]);
+        mat["combiner.reg.prim"] = parse_color(f3d_mat["prim_color"]);
     } else {
-        mat["register.prim"] = "1,1,1,1";
+        mat["combiner.reg.prim"] = "1,1,1,1";
     }
 
     if (is_flag_set(f3d_mat, "set_env")) {
-        mat["register.env"] = parse_color(f3d_mat["env_color"]);
+        mat["combiner.reg.env"] = parse_color(f3d_mat["env_color"]);
     }
 
     parse_tex(mat, f3d_mat, "tex0");

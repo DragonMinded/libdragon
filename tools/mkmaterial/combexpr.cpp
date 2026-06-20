@@ -15,6 +15,7 @@
 #include <cctype>
 #include <map>
 #include <unordered_set>
+#include <array>
 #include <assert.h>
 
 namespace combexpr {
@@ -143,11 +144,14 @@ enum UniformId {
     UNIFORM_PRIM_LOD_FRAC,
     UNIFORM_ENV,
     UNIFORM_PRIM,
+    UNIFORM_COUNT
 };
+
+typedef std::array<float, 3> UniformValue;
 
 struct Uniform {
     UniformId id;
-    float value;
+    UniformValue value;
     bool forbidden;     // true if explicitly used by in the expression, so can't be used as uniform
     bool used;          // true if already allocated as uniform
 
@@ -178,6 +182,11 @@ struct Uniform {
     }
 
     void set(float v) {
+        value = {v, v, v};
+        used = true;
+    }
+
+    void set(UniformValue v) {
         value = v;
         used = true;
     }
@@ -292,7 +301,7 @@ struct CombinerExpr {
                 // Search if there's already an uniform with this value
                 bool found = false;
                 for (int k=0; k<uniforms.size(); k++) {
-                    if (uniforms[k].used && uniforms[k].value == v) {
+                    if (uniforms[k].used && uniforms[k].value[0] == v) {
                         value = uniforms[k].to_slot();
                         found = true;
                         break;
@@ -449,8 +458,8 @@ struct CombinerExprFull {
         auto k5 = channels[RGB].find_uniform(internal::UNIFORM_K5);
         if (k4 || k5) {
             uint32_t value = 0;
-            if (k4) value |= (int)(k4->value * 255 + 0.5f) << 8;
-            if (k5) value |= (int)(k5->value * 255 + 0.5f) << 0;
+            if (k4) value |= (int)(k4->value[0] * 255 + 0.5f) << 8;
+            if (k5) value |= (int)(k5->value[0] * 255 + 0.5f) << 0;
             res[UNIFORM_K4K5] = value;
         }
 
@@ -459,8 +468,8 @@ struct CombinerExprFull {
         auto keyscale  = channels[RGB].find_uniform(internal::UNIFORM_KEYSCALE);
         if (keycenter || keyscale) {
             uint32_t value = 0;
-            if (keycenter) value |= (int)(keycenter->value * 255 + 0.5f) << 8;
-            if (keyscale)  value |= (int)(keyscale->value * 255 + 0.5f) << 0;
+            if (keycenter) value |= (int)(keycenter->value[0] * 255 + 0.5f) << 8;
+            if (keyscale)  value |= (int)(keyscale->value[0] * 255 + 0.5f) << 0;
             res[UNIFORM_CHROMAKEY] = value;
         }
 
@@ -468,7 +477,7 @@ struct CombinerExprFull {
         // there by allocate_uniforms() even if it's just used in the alpha channel
         auto prim_lod_frac = channels[RGB].find_uniform(internal::UNIFORM_PRIM_LOD_FRAC);
         if (prim_lod_frac) {
-            res[UNIFORM_PRIM_LOD_FRAC] = (int)(prim_lod_frac->value * 255 + 0.5f);
+            res[UNIFORM_PRIM_LOD_FRAC] = (int)(prim_lod_frac->value[0] * 255 + 0.5f);
         }
 
         // Prim/Env
@@ -480,13 +489,12 @@ struct CombinerExprFull {
             if (rgb || alpha) {
                 uint32_t value = 0;
                 if (rgb) {
-                    int v = rgb->value * 255 + 0.5f;
-                    value |= v << 24;
-                    value |= v << 16;
-                    value |= v << 8;
+                    value |= (int)(rgb->value[0] * 255 + 0.5f) << 24;
+                    value |= (int)(rgb->value[1] * 255 + 0.5f) << 16;
+                    value |= (int)(rgb->value[2] * 255 + 0.5f) << 8;
                 }
                 if (alpha) {
-                    value |= (int)(alpha->value * 255 + 0.5f) << 0;
+                    value |= (int)(alpha->value[0] * 255 + 0.5f) << 0;
                 }
                 res[udesc.second] = value;
             }

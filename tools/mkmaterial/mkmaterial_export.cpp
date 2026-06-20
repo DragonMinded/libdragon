@@ -153,10 +153,26 @@ void texconvert(Texture &tex)
     free(sprite_outfn);
 }
 
+void normalize_combiner(Combiner &cc)
+{
+    for (size_t ch = 0; ch < 2; ch++) {
+        for (auto &uniform : cc.full.channels[ch].uniforms) {
+            if (!cc.registers[uniform.id].is_set) continue;
+            auto& v = cc.registers[uniform.id].value;
+            if (ch == combexpr::RGB) {
+                uniform.set({v[0], v[1], v[2]});
+            } else if (ch == combexpr::ALPHA) {
+                uniform.set(v[3]);
+            }
+        }
+    }
+}
+
 void mat_convert(Material &mat)
 {
     if (mat.tex[0]) texconvert(mat.tex[0]);
     if (mat.tex[1]) texconvert(mat.tex[1]);
+    normalize_combiner(mat.cc);
 }
 
 void Material::write(FILE *f)
@@ -181,11 +197,11 @@ void Material::write(FILE *f)
     if (rm.z_override >= 0)     flags |= MATFLAG_RMO_ZPRIM;
     if (rm.perspective >= 0)    flags |= MATFLAG_RMO_PERSP;
     if (rm.alpha_compare >= 0)  flags |= MATFLAG_RMO_ACMP;
-    if (has_uni(combexpr::UNIFORM_K4K5))                    flags |= MATFLAG_UNIFORM_K4K5;
-    if (has_uni(combexpr::UNIFORM_CHROMAKEY))               flags |= MATFLAG_UNIFORM_CHROMAKEY;
-    if (has_uni(combexpr::UNIFORM_PRIM_LOD_FRAC))           flags |= MATFLAG_UNIFORM_PRIMLODFRAC;
-    if (has_uni(combexpr::UNIFORM_PRIM) || reg.prim.is_set) flags |= MATFLAG_UNIFORM_PRIM;
-    if (has_uni(combexpr::UNIFORM_ENV) || reg.env.is_set)   flags |= MATFLAG_UNIFORM_ENV;
+    if (has_uni(combexpr::UNIFORM_K4K5))            flags |= MATFLAG_UNIFORM_K4K5;
+    if (has_uni(combexpr::UNIFORM_CHROMAKEY))       flags |= MATFLAG_UNIFORM_CHROMAKEY;
+    if (has_uni(combexpr::UNIFORM_PRIM_LOD_FRAC))   flags |= MATFLAG_UNIFORM_PRIMLODFRAC;
+    if (has_uni(combexpr::UNIFORM_PRIM))            flags |= MATFLAG_UNIFORM_PRIM;
+    if (has_uni(combexpr::UNIFORM_ENV))             flags |= MATFLAG_UNIFORM_ENV;
 
     w16(f, flags);
     int ext_off_pos = ftell(f);
@@ -245,18 +261,10 @@ void Material::write(FILE *f)
         w8(f, uniforms[combexpr::UNIFORM_PRIM_LOD_FRAC]);
     }
     if (flags & MATFLAG_UNIFORM_PRIM) {
-        if (reg.prim.is_set) {
-            w32(f, reg.prim.value);
-        } else {
-            w32(f, uniforms[combexpr::UNIFORM_PRIM]);
-        }
+        w32(f, uniforms[combexpr::UNIFORM_PRIM]);
     }
     if (flags & MATFLAG_UNIFORM_ENV) {
-        if (reg.env.is_set) {
-            w32(f, reg.env.value);
-        } else {
-            w32(f, uniforms[combexpr::UNIFORM_ENV]);
-        }
+        w32(f, uniforms[combexpr::UNIFORM_ENV]);
     }
     w8(f, 0xAB); // end of material
 
