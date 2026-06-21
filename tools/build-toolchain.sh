@@ -276,6 +276,7 @@ popd
 # We need to build the C++ compiler to build the target libstd++ later.
 mkdir -p gcc_compile_target
 pushd gcc_compile_target
+CXXFLAGS="${CXXFLAGS:-} -std=gnu++17" \
 ../"gcc-$GCC_V"/configure "${GCC_CONFIGURE_ARGS[@]}" \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
@@ -345,6 +346,7 @@ else
     # Compile HOST->TARGET gcc
     mkdir -p gcc_compile
     pushd gcc_compile
+    CXXFLAGS="${CXXFLAGS:-} -std=gnu++17" \
     CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
         ../"gcc-$GCC_V"/configure \
         --prefix="$INSTALL_PATH" \
