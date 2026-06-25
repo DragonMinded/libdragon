@@ -545,11 +545,22 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	assert(!mixer_ch_playing(ch));
 	tracef("mixer_ch_set_limits: ch=%d bits=%d maxfreq:%.2f bufsz:%d\n", ch, max_bits, max_frequency, max_buf_sz);
 
-	Mixer.limits[ch] = (channel_limit_t){
+	channel_limit_t newlimits = {
 		.max_bits = max_bits ? max_bits : 16,
 		.max_frequency = max_frequency ? max_frequency : Mixer.sample_rate,
 		.max_buf_sz = max_buf_sz,
 	};
+
+	// No-op if the limits are unchanged: the sample buffer is sized from them,
+	// so it's still valid and we keep it. Freeing it here (to reallocate lazily)
+	// would churn the uncached buffer on every playback for callers that
+	// re-assert the same limit, fragmenting the heap.
+	if (newlimits.max_bits == Mixer.limits[ch].max_bits &&
+	    newlimits.max_frequency == Mixer.limits[ch].max_frequency &&
+	    newlimits.max_buf_sz == Mixer.limits[ch].max_buf_sz)
+		return;
+
+	Mixer.limits[ch] = newlimits;
 
 	// Free the memory immediately, as it doesn't match the new limits anymore.
 	// We will reallocate it later lazily if needed.
