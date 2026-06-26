@@ -571,12 +571,91 @@ MOVE_BUFFER: .space MOVE_BUFFER_SIZE
 
     .func OPUS_memmove
 OPUS_memmove:
+    # Move `a2` bytes from a1 (source) to a0 (destination); the move is
+    # backwards (dst < src). The original implementation required both ends to
+    # be 8-byte aligned; this version also supports the case where they share a
+    # common, even, non-zero offset -- which is what looping Opus needs, since
+    # the mixer's sample buffer is not guaranteed to hand back an 8-byte aligned
+    # decode target. As before, it is fine to write a few extra bytes past the
+    # end when the length is not a multiple of 8.
+    #
+    # Preconditions (checked in debug): (a1 - a0) is a multiple of 8 (so src and
+    # dst share the same offset) and that offset is even (Opus is 16-bit).
+    #
+    # When the shared offset is zero, both ends are aligned and we use the plain
+    # streaming loop. When it is non-zero, the RSP DMA cannot write to an
+    # unaligned RDRAM destination (its low 3 bits are forced to 0), so we work
+    # on the destination's 8-byte-aligned window: read it back to keep the `off`
+    # original head bytes that sit before a0, overlay the source samples, and
+    # write the window out. Only the first chunk needs this head fix-up; every
+    # later chunk is aligned on both ends, so we hand the remainder to the plain
+    # loop. This handles a move of any length.
     #if RSPQ_DEBUG
-    andi t0, a0, 7
-    assert_eq t0, 0, 0x8509
-    andi t0, a1, 7
-    assert_eq t0, 0, 0x8509
+    xor t0, a0, a1
+    andi t0, t0, 7
+    assert_eq t0, 0, 0x8509         # src and dst must share the same offset
+    andi t0, a0, 1
+    assert_eq t0, 0, 0x850B         # the shared offset must be even
     #endif
+    andi t5, a0, 7                  # t5 = shared misalignment (0,2,4,6)
+    beqz t5, OPUS_memmove_loop
+     nop
+
+    # Stash the destination window's original first 8 bytes (covers a head of
+    # up to 6 bytes). DMAIn writes the aligned window into MOVE_BUFFER[0..8).
+    move s0, a0
+    li s4, %lo(MOVE_BUFFER)
+    jal DMAIn
+     addiu t0, zero, 7              # 8 bytes
+    li s4, %lo(MOVE_BUFFER)
+    lw t7, 0(s4)                    # original bytes [a0&~7 .. +4)
+    lw t8, 4(s4)                    # original bytes [a0&~7+4 .. +8)
+
+    # Realign both ends down by `off` and extend the length to include the head.
+    # a0/a1 are now 8-byte aligned and the byte belonging at the original a0
+    # sits at MOVE_BUFFER[off].
+    subu a0, a0, t5                 # a0 = dst & ~7
+    subu a1, a1, t5                 # a1 = src - off (also 8-byte aligned)
+    addu a2, a2, t5                 # a2 = head + data
+
+    # ---- first chunk: load source, restore the original head, write out ----
+    move t4, a2
+    ble t4, MOVE_BUFFER_SIZE, 1f
+     nop
+    li t4, MOVE_BUFFER_SIZE
+1:
+    move s0, a1
+    li s4, %lo(MOVE_BUFFER)
+    jal DMAIn
+     addiu t0, t4, -1
+
+    li s4, %lo(MOVE_BUFFER)
+    srl t9, t7, 16
+    sh t9, 0(s4)                    # restore bytes [0,2)
+    addiu t0, t5, -2
+    blez t0, OPUS_memmove_head_done
+     nop
+    sh t7, 2(s4)                    # restore bytes [2,4)
+    addiu t0, t5, -4
+    blez t0, OPUS_memmove_head_done
+     nop
+    srl t9, t8, 16
+    sh t9, 4(s4)                    # restore bytes [4,6)
+OPUS_memmove_head_done:
+    move s0, a0
+    li s4, %lo(MOVE_BUFFER)
+    jal DMAOut
+     addiu t0, t4, -1
+
+    # Advance; any remaining chunks are aligned on both ends, so let the plain
+    # loop finish them.
+    addu a0, t4
+    addu a1, t4
+    subu a2, a2, t4
+    bgtz a2, OPUS_memmove_loop
+     nop
+    j RSPQ_Loop
+     nop
 
 OPUS_memmove_loop:
     move t4, a2

@@ -147,7 +147,17 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     }
 
     if (wav->wave.loop_len && wpos >= wav->wave.len) {
-        assert(wav->wave.loop_len == wav->wave.len);
+        // Opus decodes whole frames, so a read ending at the waveform tail can
+        // overshoot `len` by up to one frame. Trim the overshoot; the mixer
+        // continues the loop via a separate seeking read at loop_start (see
+        // mixer.c waveform_read). This is valid for both full loops
+        // (loop_start == 0) and partial loops (loop_start > 0), so the only
+        // invariant we still need to protect is that the overshoot stays
+        // within a single frame (otherwise samplebuffer_undo would trim
+        // samples from a previous read).
+        assertf(wpos - wav->wave.len < (int)ext->frame_size,
+                "opus loop tail overshoot too large: %d (frame_size %ld)",
+                wpos - wav->wave.len, (long)ext->frame_size);
         // Round the trim down for the same reason intra_skip is rounded above:
         // the decoder writes through SP DMA, so the write cursor has to stay on
         // a boundary the RSP can write to (see #samplebuffer_align_units), here
