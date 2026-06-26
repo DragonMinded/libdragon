@@ -24,7 +24,7 @@ exec > >(tee "$BUILD_PATH/build-gdb.log") 2>&1
 echo "Build started at: $(date)"
 
 # Dependency source libs (Versions)
-GDB_V=16.2
+GDB_V=17.2
 
 # Defines the build system variables to allow cross compilation.
 N64_HOST=${N64_HOST:-""}
