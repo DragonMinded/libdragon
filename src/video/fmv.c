@@ -39,16 +39,21 @@ void fmv_play(const char *video_fn, const fmv_parms_t *parms)
     bool vi_16bpp = display_get_bitdepth() == 2;
 
     yuv_init();
-    yuv_blitter_t yuv = yuv_blitter_new_fmv(
-        info.width, info.height,
-        display_get_width(), display_get_height(),
-        &(yuv_fmv_parms_t){
-            .cs = &info.colorspace,
-            .video_aspect_ratio = info.aspect_ratio,
-            .display_aspect_ratio = vi_get_aspect_ratio(),
-            .enable_dithering = vi_16bpp, // YUV blitter will dither in 16bpp mode
-        }
-    );
+    yuv_blitter_t yuv;
+    if (parms->create_yuv_blitter) {
+        yuv = parms->create_yuv_blitter(parms->osd_ctx, &info);
+    } else {
+        yuv = yuv_blitter_new_fmv(
+            info.width, info.height,
+            display_get_width(), display_get_height(),
+            &(yuv_fmv_parms_t){
+                .cs = &info.colorspace,
+                .video_aspect_ratio = info.aspect_ratio,
+                .display_aspect_ratio = vi_get_aspect_ratio(),
+                .enable_dithering = vi_16bpp, // YUV blitter will dither in 16bpp mode
+            }
+        );
+    }
 
     // Engage the fps limiter to ensure proper video pacing.
     display_set_fps_limit(info.framerate);
