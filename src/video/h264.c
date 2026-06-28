@@ -45,7 +45,7 @@ typedef struct h264_s {
 
 static void h264_sei_callback(void *ctx, u32 payload_type, const u8 *payload, u32 payload_size) {
     h264_t *player = (h264_t*)ctx;
-    if (payload_type != 5 || payload_size < 28)
+    if (payload_type != 5 || payload_size < 25)
         return;
     if (memcmp(payload, H264_LD_BUFFER_UUID, sizeof(H264_LD_BUFFER_UUID)) != 0 || 
         memcmp(payload + 16, "LDSZ", 4) != 0)
@@ -75,6 +75,7 @@ static int decode_next_slice(h264_t *player) {
 
     // If there's not enough data for a full slice, we need to compact the
     // buffer and do a I/O from ROM.
+    debugf("H264: left=%d max_slice_size=%ld\n", left, player->max_slice_size);
     if (left <= player->max_slice_size) {
         memmove(player->buf, player->buf+player->idx, left);
         int n = read(player->fd, player->buf+left, H264_BUF_SIZE-left);
