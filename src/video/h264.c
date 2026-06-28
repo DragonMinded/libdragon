@@ -20,24 +20,46 @@
 #include <string.h>
 
 // The size of the internal I/O buffer in the H264 decoder. This must be
-// at least MAX_SLICE_SIZE, but hopefully much more than that (so that
-// less shuffling is required for each slice).
+// at least the maximum slice size advertised by videoconv64 metadata.
 #define H264_BUF_SIZE         (64*1024)
 
 #define H264BSD_EOF           (-1)
 
+static const uint8_t H264_LD_BUFFER_UUID[16] = {
+    'L', 'I', 'B', 'D', 'R', 'A', 'G', 'O', 'N', 0, 0, 0, 0, 0, 0, 0,
+};
+
 typedef struct h264_s {
     video_t video;                      ///< Video handle
-    uint8_t buf[H264_BUF_SIZE];         ///< Internal buffered data
     uint8_t *pic;                       ///< Pointer to the decoded picture data
     int idx;                            ///< Current index in the buffer
     int buf_len;                        ///< Number of valid bytes in the buffer
-    storage_t s;                        ///< H264 decoder main structure
     int fd;                             ///< File descriptor of the opened H264 file
     bool in_frame_decoding;             ///< True if we have partially decoded a frame 
     uint32_t max_slice_size;            ///< Maximum size of a slice seen so far
+    bool has_slice_metadata;            ///< True if the stream advertised max_slice_size
     int max_buffered_pics;              ///< Runtime-configured buffered pictures
+    storage_t s;                        ///< H264 decoder main structure
+    uint8_t buf[];                      ///< Internal buffered data
 } h264_t;
+
+static void h264_sei_callback(void *ctx, u32 payload_type, const u8 *payload, u32 payload_size) {
+    h264_t *player = (h264_t*)ctx;
+    if (payload_type != 5 || payload_size < 28)
+        return;
+    if (memcmp(payload, H264_LD_BUFFER_UUID, sizeof(H264_LD_BUFFER_UUID)) != 0 || 
+        memcmp(payload + 16, "LDSZ", 4) != 0)
+        return;
+    assertf(payload[20] == 1, "Invalid SEI LDSZ payload version %d", payload[20]);
+
+    uint32_t max_slice_size;
+    memcpy(&max_slice_size, payload + 21, sizeof(uint32_t));
+    assertf(max_slice_size > 0 && max_slice_size <= H264_BUF_SIZE, 
+        "Invalid max_slice_size: %ld", max_slice_size);
+
+    player->max_slice_size = max_slice_size;
+    player->has_slice_metadata = true;
+}
 
 static void release_current_picture(h264_t *player) {
     if (player->pic) {
@@ -71,7 +93,8 @@ static int decode_next_slice(h264_t *player) {
     PROFILE_STOP(PS_H264);
 
     player->idx += np;
-    player->max_slice_size = MAX(player->max_slice_size, np*1.3f);
+    if (!player->has_slice_metadata)
+        player->max_slice_size = MAX(player->max_slice_size, np*1.3f);
 
     return status;
 }
@@ -149,6 +172,7 @@ static void h264_rewind(video_t *v) {
         h264bsdInit(&player->s, 0);
         h264bsdSetNumBufferedPics(&player->s, (u32)player->max_buffered_pics);
     }
+    h264bsdSetSeiCallback(&player->s, h264_sei_callback, player);
 
     rsph264_begin_frame();
     while (1) {
@@ -172,9 +196,9 @@ static void h264_rewind(video_t *v) {
 }
 
 static video_t* h264_open(const char *fn, const video_parms_t *parms) {
-    h264_t *player = malloc(sizeof(h264_t));
+    h264_t *player = malloc(sizeof(h264_t) + H264_BUF_SIZE);
     assertf(player, "Out of memory");
-    sys_hw_memset(player, 0, sizeof(h264_t));
+    sys_hw_memset(player, 0, sizeof(h264_t) + H264_BUF_SIZE);
     player->fd = -1;
     if (parms && parms->buffered_pics)
         player->max_buffered_pics = parms->buffered_pics;
