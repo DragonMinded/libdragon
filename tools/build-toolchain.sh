@@ -84,7 +84,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
     # Install required dependencies. gsed is really required, the others are optionals
     # and just speed up build.
     # zlib is part of the base OS, and doesn't need to be installed here.
-    brew install -q gmp mpfr libmpc gsed isl make python3 texinfo
+    brew install -q gmp mpfr libmpc gsed isl make python3
 
     # FIXME: we could avoid download/symlink GMP and friends for a cross-compiler
     # but we need to symlink them for the canadian compiler.
@@ -308,8 +308,10 @@ CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" \
     --disable-werror \
     --enable-newlib-multithread \
     --enable-newlib-retargetable-locking
-make -j "$JOBS"
-make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+make MAKEINFO=true -j "$JOBS"
+make MAKEINFO=true install || \
+    sudo env PATH="$PATH" make MAKEINFO=true install || \
+    su -c "env PATH=\"$PATH\" make MAKEINFO=true install"
 popd
 
 # For a standard cross-compiler, the only thing left is to finish compiling the target libraries
@@ -376,8 +378,10 @@ else
         --disable-werror \
         --enable-newlib-multithread \
         --enable-newlib-retargetable-locking
-    make -j "$JOBS"
-    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
+    make MAKEINFO=true -j "$JOBS"
+    make MAKEINFO=true install || \
+        sudo env PATH="$PATH" make MAKEINFO=true install || \
+        su -c "env PATH=\"$PATH\" make MAKEINFO=true install"
     popd
 
     # Finish compiling GCC
