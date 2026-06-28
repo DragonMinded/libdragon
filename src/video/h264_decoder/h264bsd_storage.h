@@ -74,6 +74,12 @@ typedef struct
 #define NUM_PARALLEL_MACROBLOCKS 1
 #endif
 
+typedef void (*h264bsdSeiCallback)(
+    void *ctx,
+    u32 payloadType,
+    const u8 *payload,
+    u32 payloadSize);
+
 
 /* storage data structure, holds all data of a decoder instance */
 typedef struct
@@ -119,6 +125,10 @@ typedef struct
        buffer as a "cushion" for the client (0 = disabled). This is a runtime
        configuration set by the application before decoding starts. */
     u32 maxNumBufferedPics;
+
+    /* Optional application callback for decoded SEI payloads. */
+    h264bsdSeiCallback seiCallback;
+    void *seiCallbackCtx;
 
     /* DPB */
     dpbStorage_t dpb[1];
