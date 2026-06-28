@@ -75,7 +75,6 @@ static int decode_next_slice(h264_t *player) {
 
     // If there's not enough data for a full slice, we need to compact the
     // buffer and do a I/O from ROM.
-    debugf("H264: left=%d max_slice_size=%ld\n", left, player->max_slice_size);
     if (left <= player->max_slice_size) {
         memmove(player->buf, player->buf+player->idx, left);
         int n = read(player->fd, player->buf+left, H264_BUF_SIZE-left);
