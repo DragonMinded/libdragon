@@ -31,15 +31,20 @@
  *
  * DFS files have a maximum size of 256 MiB.  Directories can have an unlimited
  * number of files in them.  Each token (separated by a / in the path) can be 243 characters
- * maximum.  Directories can be 100 levels deep at maximum.  There can be 4 files open
- * simultaneously.
+ * maximum.  Directories can be 100 levels deep at maximum.
+ *
+ * There is no hard limit on how many files can be open at once.  The handles for
+ * the first `DFS_FILE_POOL_SIZE` (128 by default) simultaneously-open files are
+ * served from a small static pool so they never fragment the heap; opening more
+ * than that transparently falls back to the heap.  Define `DFS_FILE_POOL_SIZE`
+ * when building libdragon to tune the pool (each slot costs 12 bytes of BSS).
  *
  * When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix.
  * Files can be accessed either with standard POSIX functions (open, fopen) using the 'rom:/'
  * prefix or the lower-level DFS API calls without prefix. In most cases, it is not necessary
  * to use the DFS API directly, given that the standard C functions are more comprehensive.
- * Files can be opened using both sets of API calls simultaneously as long as no more than
- * four files are open at any one time.
+ * Files can be opened using both sets of API calls simultaneously; open handles
+ * from both share the same pool described above.
  * 
  * DragonFS does not support file compression; if you want to compress your assets,
  * use the asset API (#asset_load / #asset_fopen).

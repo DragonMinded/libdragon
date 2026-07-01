@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include "dragonfs.h"
 #include "n64sys.h"
+#include "interrupt.h"
 #include "dma.h"
 #include "debug.h"
 #include "system.h"
@@ -64,6 +65,80 @@ static pi_addr_t next_entry = 0;
 #define OPENFILE_TO_HANDLE(file)        ((int)PhysicalAddr(file))
 /** @brief Convert a handle to an open file pointer */
 #define HANDLE_TO_OPENFILE(handle)      ((dfs_open_file_t*)((uint32_t)(handle) | 0x80000000))
+
+#ifndef DFS_FILE_POOL_SIZE
+/**
+ * @brief Number of open-file handles served from the static pool.
+ *
+ * Handles for the first DFS_FILE_POOL_SIZE simultaneously-open files come from
+ * a fixed BSS pool (sizeof(dfs_open_file_t) bytes each, 12 on N64) so they never
+ * touch — and never fragment — the system heap. Opening more than this many at
+ * once transparently falls back to malloc(). Override with -DDFS_FILE_POOL_SIZE
+ * to trade static footprint against how many opens stay off the heap.
+ */
+#define DFS_FILE_POOL_SIZE 128
+#endif
+
+/** @brief DFS file handle freelist entry slot */
+typedef union dfs_file_slot_s {
+    dfs_open_file_t file;
+    union dfs_file_slot_s *next;
+} dfs_file_slot_t;
+
+_Static_assert(sizeof(dfs_file_slot_t) == sizeof(dfs_open_file_t),
+    "dfs_file_slot_t must be the same size as dfs_open_file_t");
+
+/** @brief Static pool for dfs_open_file_t to avoid heap fragmentation. */
+static dfs_file_slot_t dfs_file_pool[DFS_FILE_POOL_SIZE];
+static dfs_file_slot_t *dfs_file_freelist;
+static bool dfs_file_pool_inited;
+
+/** @brief Build the intrusive freelist linking every slot in the pool. */
+static void dfs_file_pool_init(void)
+{
+    for (int i = 0; i < DFS_FILE_POOL_SIZE - 1; i++)
+        dfs_file_pool[i].next = &dfs_file_pool[i + 1];
+    dfs_file_pool[DFS_FILE_POOL_SIZE - 1].next = NULL;
+    dfs_file_freelist = &dfs_file_pool[0];
+    dfs_file_pool_inited = true;
+}
+
+/** @brief Take an open-file handle from the pool, or malloc() if it is empty. */
+static dfs_open_file_t *dfs_file_pool_alloc(void)
+{
+    // The freelist (and its lazy init) is shared mutable state: dfs_open() can
+    // be called directly from multiple kthreads. Pop under a disabled-interrupt
+    // critical section — matching how the plain malloc/free this replaced was
+    // serialized — but fall back to malloc() outside it (malloc takes the
+    // newlib lock, which must not be entered with interrupts disabled).
+    disable_interrupts();
+    if (__builtin_expect(!dfs_file_pool_inited, 0))
+        dfs_file_pool_init();
+    dfs_file_slot_t *slot = dfs_file_freelist;
+    if (slot)
+        dfs_file_freelist = slot->next;
+    enable_interrupts();
+    if (!slot)
+        return malloc(sizeof(dfs_open_file_t));
+    return &slot->file;
+}
+
+/** @brief Return a handle to the pool (or free() it if it was malloc()'d). */
+static void dfs_file_pool_free(dfs_open_file_t *f)
+{
+    dfs_file_slot_t *slot = (dfs_file_slot_t *)f;
+    if (slot >= &dfs_file_pool[0] && slot < &dfs_file_pool[DFS_FILE_POOL_SIZE])
+    {
+        disable_interrupts();
+        slot->next = dfs_file_freelist;
+        dfs_file_freelist = slot;
+        enable_interrupts();
+    }
+    else
+    {
+        free(f);
+    }
+}
 
 /**
  * @brief Read a sector from cartspace
@@ -761,7 +836,7 @@ int dfs_open(const char *path)
             return DFS_ENOFILE;
         }
         /* Try to find a free slot */
-        file = malloc(sizeof(dfs_open_file_t));
+        file = dfs_file_pool_alloc();
         if(!file)
         {
             return DFS_ENOMEM;
@@ -782,7 +857,7 @@ int dfs_open(const char *path)
         }
 
         /* Try to find a free slot */
-        file = malloc(sizeof(dfs_open_file_t));
+        file = dfs_file_pool_alloc();
 
         if(!file)
         {
@@ -811,7 +886,7 @@ int dfs_close(uint32_t handle)
     }
 
     /* Free the open file */
-    free(file);
+    dfs_file_pool_free(file);
 
     return DFS_ESUCCESS;
 }
