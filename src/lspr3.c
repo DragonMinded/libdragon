@@ -1,6 +1,7 @@
 /**
  * @file lspr3.c
  * @author Christopher Bonhage <christopher.bonhage@meeq.tech>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Lossy-sprite Level 3: H264I decoder
  */
 
