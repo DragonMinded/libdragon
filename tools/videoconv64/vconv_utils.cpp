@@ -153,6 +153,35 @@ std::string strip_ext(const std::string& name) {
 	return name.substr(0, dot);
 }
 
+std::vector<std::string> split_shell_args(const std::string& s) {
+	std::vector<std::string> out;
+	std::string cur;
+	char quote = 0;
+	for (size_t i = 0; i < s.size(); i++) {
+		char c = s[i];
+		if (quote) {
+			if (c == quote) {
+				quote = 0;
+			} else if (c == '\\' && i + 1 < s.size() && quote == '"') {
+				cur += s[++i];
+			} else {
+				cur += c;
+			}
+		} else if (c == '"' || c == '\'') {
+			quote = c;
+		} else if (c == ' ' || c == '\t') {
+			if (!cur.empty()) {
+				out.push_back(cur);
+				cur.clear();
+			}
+		} else {
+			cur += c;
+		}
+	}
+	if (!cur.empty()) out.push_back(cur);
+	return out;
+}
+
 std::string format_cmdline_for_log(const std::vector<std::string>& argv) {
 	std::string out;
 	for (size_t i = 0; i < argv.size(); i++) {
