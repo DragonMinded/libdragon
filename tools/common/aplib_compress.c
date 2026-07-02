@@ -1,3 +1,4 @@
+#include "../common/polyfill.h"
 // apultra
 #include "apultra/matchfinder.c"
 #include "apultra/shrink.c"

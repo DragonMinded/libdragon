@@ -21,9 +21,16 @@
 #ifdef __cplusplus
 #include <cstdio>
 #endif
+// NOTE: include both assert.h and cassert because we need to make sure
+// _assert and _wassert are declared properly before we mess with them later.
+#include <assert.h>
+#ifdef __cplusplus
+#include <cassert>
+#endif
 #include <stdlib.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <process.h>
 #include <share.h>
@@ -108,6 +115,38 @@ static char *msys2_fallback_strndup(const char *s, size_t n)
     #undef strndup
     #endif
     #define strndup   msys2_fallback_strndup
+#endif
+
+// Replace 'assert' so that it has 'noreturn' behaviour on Windows.
+// (soft reverts this MSYS2 commit: https://sourceforge.net/p/mingw-w64/mingw-w64/ci/ecf2328a328d11dec7044b40b2b5e93b5b2b9d9e/)
+#if defined(MSYS2_RUNTIME_PACMAN_AGE) && MSYS2_RUNTIME_PACMAN_AGE >= 20260611 && !defined(NDEBUG)
+
+    #if defined(_UNICODE) || defined(UNICODE)
+
+__attribute__((used)) __attribute__((noreturn))
+static void msys2_wassert_fix(const wchar_t* _Message, const wchar_t* _File, unsigned _Line)
+{
+    _wassert(_Message, _File, _Line);
+    abort();
+    __builtin_unreachable();
+}
+
+#define _wassert(a,b,c) msys2_wassert_fix(a,b,c)
+
+    #else
+
+__attribute__((used)) __attribute__((noreturn))
+static void msys2_assert_fix(const char* _Message, const char* _File, unsigned _Line)
+{
+    _assert(_Message, _File, _Line);
+    abort();
+    __builtin_unreachable();
+}
+
+#define _assert(a,b,c) msys2_assert_fix(a,b,c)
+
+    #endif // defined(_UNICODE) || defined(UNICODE)
+
 #endif
 
 #if defined(__MSVCRT_VERSION__) && __MSVCRT_VERSION__ >= 0xE00
