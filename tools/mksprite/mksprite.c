@@ -211,6 +211,22 @@ static inline void rgb_to_yuv_bt601full(uint8_t r, uint8_t g, uint8_t b, uint8_t
     *v = CLAMP(vv, 0, 255);
 }
 
+// Inverse of rgb_to_yuv_bt601full (full-range BT.601). Used only to reconstruct
+// an RGB approximation for the -d debug PNG dump of a YUV16 sprite, so that the
+// dumped image reflects the YUV conversion and 4:2:2 chroma subsampling losses.
+// Coefficients are 16.16 fixed point: 1.402, 0.344136, 0.714136, 1.772.
+static inline void yuv_to_rgb_bt601full(uint8_t y, uint8_t u, uint8_t v, uint8_t *r, uint8_t *g, uint8_t *b) {
+    int yy = y;
+    int uu = (int)u - 128;
+    int vv = (int)v - 128;
+    int rr = yy + ((91881 * vv) >> 16);
+    int gg = yy - ((22554 * uu + 46802 * vv) >> 16);
+    int bb = yy + ((116130 * uu) >> 16);
+    *r = CLAMP(rr, 0, 255);
+    *g = CLAMP(gg, 0, 255);
+    *b = CLAMP(bb, 0, 255);
+}
+
 // Convert a 18-bit fixed point 0.15.3 into floating point 14-bit.
 uint16_t conv_float14(uint32_t fx) {
     if (!(fx & 0x20000)) return (0<<11) | ((fx >> 6) & 0x7FF);
@@ -221,6 +237,20 @@ uint16_t conv_float14(uint32_t fx) {
     if (!(fx & 0x01000)) return (5<<11) | ((fx >> 1) & 0x7FF);
     if (!(fx & 0x00800)) return (6<<11) | ((fx >> 0) & 0x7FF);
     if (true)            return (7<<11) | ((fx >> 0) & 0x7FF);
+}
+
+// Inverse of conv_float14: decode a 14-bit floating point depth value back into
+// the 18-bit fixed point 0.15.3 linear representation. The 14-bit value is split
+// into a 3-bit exponent (bits 11-13) selecting the mantissa shift and the leading
+// bits stripped by conv_float14, plus an 11-bit mantissa (bits 0-10).
+// As the encoding truncates the low mantissa bits, the round-trip reproduces the
+// precision loss (low bits decode back as zero).
+uint32_t conv_float14_decode(uint16_t f14) {
+    static const uint32_t base[8]  = {0, 0x20000, 0x30000, 0x38000, 0x3C000, 0x3E000, 0x3F000, 0x3F800};
+    static const int      shift[8] = {6, 5, 4, 3, 2, 1, 0, 0};
+    int e = (f14 >> 11) & 0x7;
+    uint32_t m = f14 & 0x7FF;
+    return base[e] + (m << shift[e]);
 }
 
 int calc_tmem_usage(tex_format_t fmt, int width, int height)
@@ -1670,6 +1700,148 @@ bool spritemaker_write(spritemaker_t *spr) {
     return true;
 }
 
+// Convert a palette color to the values it will actually have on the device,
+// by passing it through the RGB5551 round-trip (5-bit channels + 1-bit alpha).
+// This is used so that the -d debug PNG of a CI4/CI8 sprite shows the real
+// on-device colors instead of the full 8-bit input palette.
+static void debug_palette_color(const palette_t *pal, int idx, uint8_t *r, uint8_t *g, uint8_t *b, uint8_t *a) {
+    const uint8_t *c = pal->colors[idx];
+    uint16_t p = conv_rgb5551(c[0], c[1], c[2], c[3]);
+    uint8_t r5 = (p >> 11) & 0x1f, g5 = (p >> 6) & 0x1f, b5 = (p >> 1) & 0x1f, a1 = p & 1;
+    *r = (r5 << 3) | (r5 >> 2);
+    *g = (g5 << 3) | (g5 >> 2);
+    *b = (b5 << 3) | (b5 >> 2);
+    *a = a1 ? 0xFF : 0;
+}
+
+// Produce a PNG-ready pixel buffer that reflects the real precision of the
+// target texture format, mirroring the quantization performed in
+// spritemaker_write(). The working buffers held in image_t are always 8-bit per
+// channel (or palette indices), so without this step a `mksprite -d` dump would
+// not show the bit-depth reduction, 1-bit alpha, chroma subsampling, etc.
+// Returns a newly-allocated buffer (caller frees) and sets *out_bitdepth (8,
+// except 16 for ZBUF). Palette indices are returned untouched: the on-device
+// palette colors are applied separately via debug_palette_color().
+static uint8_t *debug_quantize_image(const image_t *img, const palette_t *pal, int *out_bitdepth) {
+    (void)pal;
+    int w = img->width, h = img->height;
+    int n = w * h;
+    *out_bitdepth = 8;
+
+    switch ((int)img->fmt) {
+    case FMT_RGBA16: {
+        uint8_t *out = malloc(n * 4);
+        const uint8_t *src = img->image; uint8_t *dst = out;
+        for (int i=0; i<n; i++) {
+            uint16_t p = conv_rgb5551(src[0], src[1], src[2], src[3]);
+            uint8_t r5 = (p >> 11) & 0x1f, g5 = (p >> 6) & 0x1f, b5 = (p >> 1) & 0x1f, a1 = p & 1;
+            dst[0] = (r5 << 3) | (r5 >> 2);
+            dst[1] = (g5 << 3) | (g5 >> 2);
+            dst[2] = (b5 << 3) | (b5 >> 2);
+            dst[3] = a1 ? 0xFF : 0;
+            src += 4; dst += 4;
+        }
+        return out;
+    }
+
+    case FMT_YUV16: {
+        // Replicate the BT.601 conversion + 4:2:2 chroma subsampling done in
+        // spritemaker_write(), then convert back to RGB for visualization.
+        uint8_t *out = malloc(n * 4);
+        for (int y=0; y<h; y++) {
+            const uint8_t *row = img->image + y * w * 4;
+            uint8_t *drow = out + y * w * 4;
+            for (int x=0; x<w; x+=2) {
+                int x1 = (x+1 < w) ? x+1 : x;
+                uint8_t y0, u0, v0, y1, u1, v1;
+                rgb_to_yuv_bt601full(row[x*4 + 0], row[x*4 + 1], row[x*4 + 2], &y0, &u0, &v0);
+                rgb_to_yuv_bt601full(row[x1*4 + 0], row[x1*4 + 1], row[x1*4 + 2], &y1, &u1, &v1);
+                uint8_t u = (uint8_t)(((int)u0 + (int)u1 + 1) / 2);
+                uint8_t v = (uint8_t)(((int)v0 + (int)v1 + 1) / 2);
+                uint8_t r, g, b;
+                yuv_to_rgb_bt601full(y0, u, v, &r, &g, &b);
+                drow[x*4 + 0] = r; drow[x*4 + 1] = g; drow[x*4 + 2] = b; drow[x*4 + 3] = 0xFF;
+                if (x+1 < w) {
+                    yuv_to_rgb_bt601full(y1, u, v, &r, &g, &b);
+                    drow[(x+1)*4 + 0] = r; drow[(x+1)*4 + 1] = g; drow[(x+1)*4 + 2] = b; drow[(x+1)*4 + 3] = 0xFF;
+                }
+            }
+        }
+        return out;
+    }
+
+    case FMT_I4: {
+        // 4-bit intensity: keep the top nibble and replicate it (as the runtime does).
+        uint8_t *out = malloc(n);
+        for (int i=0; i<n; i++) {
+            uint8_t v = img->image[i] >> 4;
+            out[i] = (v << 4) | v;
+        }
+        return out;
+    }
+
+    case FMT_IA8: {
+        // 4-bit intensity + 4-bit alpha.
+        uint8_t *out = malloc(n * 2);
+        for (int i=0; i<n; i++) {
+            uint8_t iv = img->image[i*2 + 0] >> 4;
+            uint8_t av = img->image[i*2 + 1] >> 4;
+            out[i*2 + 0] = (iv << 4) | iv;
+            out[i*2 + 1] = (av << 4) | av;
+        }
+        return out;
+    }
+
+    case FMT_IA4: {
+        // 3-bit intensity + 1-bit alpha.
+        uint8_t *out = malloc(n * 2);
+        for (int i=0; i<n; i++) {
+            uint8_t i3 = img->image[i*2 + 0] >> 5;
+            uint8_t av = img->image[i*2 + 1];
+            out[i*2 + 0] = (i3 << 5) | (i3 << 2) | (i3 >> 1);
+            out[i*2 + 1] = av >= 128 ? 0xFF : 0;
+        }
+        return out;
+    }
+
+    case FMT_ZBUF: {
+        // The working buffer is 16-bit greyscale (2 bytes/pixel, big-endian),
+        // so the PNG must be encoded at 16-bit depth. Reflect the float14
+        // round-trip done in spritemaker_write() so that the dump shows the
+        // precision loss of the depth encoding (coarser at low depth values,
+        // finer near the far plane).
+        *out_bitdepth = 16;
+        uint8_t *out = malloc(n * 2);
+        const uint8_t *src = img->image; uint8_t *dst = out;
+        for (int i=0; i<n; i++) {
+            uint32_t z = ((uint32_t)src[0] << 8) | src[1];
+            uint32_t z2 = conv_float14_decode(conv_float14(z << 2)) >> 2;
+            if (z2 > 0xFFFF) z2 = 0xFFFF;
+            dst[0] = z2 >> 8;
+            dst[1] = z2 & 0xFF;
+            src += 2; dst += 2;
+        }
+        return out;
+    }
+
+    case FMT_RGBA32: case FMT_I8: case FMT_IA16:
+    case FMT_CI8: case FMT_CI4:
+    default: {
+        // No precision loss versus the 8-bit working buffer (RGBA32, I8, IA16),
+        // or palette indices that are reproduced exactly (CI8/CI4).
+        int bpp;
+        switch (img->ct) {
+        case LCT_RGBA:       bpp = 4; break;
+        case LCT_GREY_ALPHA: bpp = 2; break;
+        default:             bpp = 1; break; // LCT_GREY, LCT_PALETTE
+        }
+        uint8_t *out = malloc(n * bpp);
+        memcpy(out, img->image, n * bpp);
+        return out;
+    }
+    }
+}
+
 void spritemaker_write_pngs(spritemaker_t *spr, const char *outfn) {
     for (int i=0; i<MAX_IMAGES; i++) {
         if (spr->images[i].image == NULL)
@@ -1683,25 +1855,34 @@ void spritemaker_write_pngs(spritemaker_t *spr, const char *outfn) {
         if (flag_verbose)
             fprintf(stderr, "writing debug file: %s\n", debugfn);
 
+        // Build a pixel buffer that reflects the on-device precision of the
+        // target format, so the debug PNG faithfully reproduces the converted
+        // and filtered sprite.
+        int bitdepth = 8;
+        uint8_t *pixels = debug_quantize_image(img, &spr->palette, &bitdepth);
+
         // Write the PNG file respecting the colortype. Notice that we can't use
         // the simple lodepng_encode_file as it doesn't support a palette, so we need
         // to use the lower level API.
         LodePNGState state;
         lodepng_state_init(&state);
         state.encoder.auto_convert = false; // avoid automatic remapping of palette colors
-        state.info_raw = lodepng_color_mode_make(img->ct, 8);
-        state.info_png.color = lodepng_color_mode_make(img->ct, 8);
+        state.info_raw = lodepng_color_mode_make(img->ct, bitdepth);
+        state.info_png.color = lodepng_color_mode_make(img->ct, bitdepth);
         if (img->ct == LCT_PALETTE) {
-            for (int i=0; i<spr->palette.num_colors; i++) {
-                lodepng_palette_add(&state.info_raw,       spr->palette.colors[i][0], spr->palette.colors[i][1], spr->palette.colors[i][2], spr->palette.colors[i][3]);
-                lodepng_palette_add(&state.info_png.color, spr->palette.colors[i][0], spr->palette.colors[i][1], spr->palette.colors[i][2], spr->palette.colors[i][3]);
+            for (int c=0; c<spr->palette.num_colors; c++) {
+                uint8_t r, g, b, a;
+                debug_palette_color(&spr->palette, c, &r, &g, &b, &a);
+                lodepng_palette_add(&state.info_raw,       r, g, b, a);
+                lodepng_palette_add(&state.info_png.color, r, g, b, a);
             }
         }
         uint8_t *out = NULL; size_t outsize;
-        unsigned error = lodepng_encode(&out, &outsize, img->image, img->width, img->height, &state);
+        unsigned error = lodepng_encode(&out, &outsize, pixels, img->width, img->height, &state);
         if (!error) error = lodepng_save_file(out, outsize, debugfn);
         lodepng_state_cleanup(&state);
         if (out) lodepng_free(out);
+        free(pixels);
         if (error) {
             fprintf(stderr, "ERROR: writing debug file %s: %s\n", debugfn, lodepng_error_text(error));
         }

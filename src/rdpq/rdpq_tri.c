@@ -344,7 +344,7 @@ static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t
     rspq_write_arg(w, (DwDy_fixed&0xffff0000));
     rspq_write_arg(w, (DsDe_fixed<<16) | (DtDe_fixed&0xffff));
     rspq_write_arg(w, (DwDe_fixed<<16));
-    rspq_write_arg(w, (DsDy_fixed<<16) | (DtDy_fixed&&0xffff));
+    rspq_write_arg(w, (DsDy_fixed<<16) | (DtDy_fixed&0xffff));
     rspq_write_arg(w, (DwDy_fixed<<16));
 
     tracef("invw1-mul: %f (%08lx)\n", invw1, (int32_t)(invw1*65536));

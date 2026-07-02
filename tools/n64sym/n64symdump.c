@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
+#include <ctype.h>
 #include <assert.h>
 #include "n64sym_huffman.h"
 #include "../common/polyfill.h"
@@ -25,6 +27,12 @@
 #include "../common/stb_ds.h"
 
 #define MAX_BUFFER_SIZE 512
+
+// Known/supported format versions. These must be kept in sync with the tools
+// that generate the data: SYMT_VERSION in n64sym.c, and the rompak TOC magic
+// ("TOC0", where the trailing digit is the format version) in n64tool.c.
+#define SYMT_KNOWN_VERSION   5
+#define TOC_KNOWN_MAGIC      "TOC0"
 
 typedef struct {
     char head[4];
@@ -70,9 +78,23 @@ static void read_exact(FILE *f, void *buf, size_t len, const char *what) {
     }
 }
 
+// Base offset of the SYMT file within the input file. This is 0 when parsing a
+// standalone .sym file, or the ROM offset of the .sym file when parsing a ROM.
+static long g_symt_base = 0;
+
+// Seek to an offset relative to the beginning of the SYMT file (all offsets in
+// the SYMT header are relative to the SYMT start, not to the input file start).
+static void seek_symt(FILE *f, long off, const char *what) {
+    if (fseek(f, g_symt_base + off, SEEK_SET) != 0) {
+        fprintf(stderr, "Error: cannot seek to %s (offset %ld)\n", what, g_symt_base + off);
+        exit(1);
+    }
+}
+
 static symt_header_t read_header(FILE *f) {
     enum { SYMT_HEADER_BYTES = 4 + 4 * 19 };
     uint8_t raw[SYMT_HEADER_BYTES];
+    seek_symt(f, 0, "SYMT header");
     read_exact(f, raw, sizeof(raw), "header");
     symt_header_t h = {0};
     memcpy(h.head, raw + 0, 4);
@@ -121,7 +143,7 @@ static void print_header(symt_header_t *h) {
 static chunk_index_entry_t *read_chunk_index(FILE *f, symt_header_t *h) {
     chunk_index_entry_t *idx = NULL;
     if (h->num_chunks == 0) return idx;
-    fseek(f, h->chunk_idx_off, SEEK_SET);
+    seek_symt(f, h->chunk_idx_off, "chunk index");
     for (uint32_t i = 0; i < h->num_chunks; i++) {
         uint8_t raw[8];
         read_exact(f, raw, 8, "chunk index");
@@ -137,7 +159,7 @@ static chunk_index_entry_t *read_chunk_index(FILE *f, symt_header_t *h) {
 static string_index_entry_t *read_string_index(FILE *f, uint32_t off, uint32_t count, const char *what) {
     string_index_entry_t *idx = NULL;
     if (count == 0) return idx;
-    fseek(f, off, SEEK_SET);
+    seek_symt(f, off, "string index");
     for (uint32_t i = 0; i < count; i++) {
         uint8_t raw[8];
         read_exact(f, raw, 8, what);
@@ -250,7 +272,7 @@ static char **decode_strings(FILE *f, int count, string_index_entry_t *idx, uint
         uint32_t end = (i + 1 < stbds_arrlen(idx)) ? idx[i + 1].blob_off : blob_size;
         uint32_t sz = end - start;
         uint8_t *buf = malloc(sz);
-        fseek(f, blob_off + start, SEEK_SET);
+        seek_symt(f, blob_off + start, "string block");
         read_exact(f, buf, sz, "string block");
 
         int num_strings;
@@ -317,7 +339,7 @@ static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks,
         uint8_t *cmp_buf = malloc(chunk_len);
         uint8_t *buf = malloc(MAX_BUFFER_SIZE);
 
-        fseek(f, h->stream_off + chunk_start, SEEK_SET);
+        seek_symt(f, h->stream_off + chunk_start, "symbol chunk");
         read_exact(f, cmp_buf, chunk_len, "symbol chunk");
         int dec_size = decompress_chunk(cmp_buf, chunk_len, buf, MAX_BUFFER_SIZE);
         if (dec_size <= 0) {
@@ -373,8 +395,134 @@ static void dump_symbols(FILE *f, symt_header_t *h, chunk_index_entry_t *chunks,
     printf("Total symbols decoded: %u (header says %u)\n\n", total, h->num_symbols);
 }
 
+// Scan a ROM file (.z64) for the rompak TOC, locate the symbol table file
+// (.sym) inside it, and return its offset within the ROM file. Aborts with an
+// error message if the TOC or the .sym file cannot be found, or if the TOC is
+// in an unknown format.
+//
+// The layout mirrors rompak.c (runtime) and n64tool.c (build tool):
+//  - The TOC is searched at 16-byte aligned addresses starting at ROM offset
+//    0x1000 (PI address 0x10001000), which is right after IPL3.
+//  - TOC entry offsets are relative to the start of ROM (PI 0x10000000), which
+//    corresponds to byte offset 0 in the ROM file. So the entry offset is
+//    directly the file offset of the .sym file.
+//
+// The rompak format has evolved over time while keeping the same "TOC0" magic,
+// so the format version is not encoded in the magic and must be detected from
+// the header/entry layout. Three variants are known and all are supported here
+// (we only need the entry offset and name to locate the .sym file):
+//
+//   Header (16 bytes, big-endian):
+//     Legacy:  magic[4], toc_size(u32),  entry_size(u32), num_entries(u32)
+//     Current: magic[4], cookie(u32), toc_size(u32), entry_size(u16), num_entries(u16)
+//
+//   Entry (entry_size bytes, big-endian):
+//     v1:      offset(u32), name[]
+//     v2/curr: offset(u32), size(u32), name[]
+static long rompak_find_sym(FILE *f) {
+    // Only big-endian ROMs (.z64 byte order) are supported. Byte-swapped
+    // variants (.v64 = halfword-swapped, .n64 = word-swapped) are rejected, as
+    // the whole ROM (including the rompak TOC and the SYMT file) would need to
+    // be unswapped first. A big-endian N64 ROM always starts with 0x80371240.
+    uint8_t magic0[4];
+    fseek(f, 0, SEEK_SET);
+    read_exact(f, magic0, sizeof(magic0), "ROM header");
+    if (be32(magic0) != 0x80371240) {
+        fprintf(stderr, "Error: unsupported ROM byte order (header 0x%08x, expected 0x80371240). "
+            "Only big-endian ROMs are supported; please convert byte-swapped (.v64/.n64) ROMs first.\n",
+            be32(magic0));
+        exit(1);
+    }
+
+    long toc_off = -1;
+    for (int i = 0; i < 1024; i++) {
+        long pos = 0x1000 + (long)i * 16;
+        uint8_t magic[4];
+        if (fseek(f, pos, SEEK_SET) != 0) break;
+        if (fread(magic, 1, 4, f) != 4) break;
+        // Match the 3-byte "TOC" prefix so that we can detect (and report)
+        // TOCs written with a different, unknown magic version.
+        if (magic[0] == 'T' && magic[1] == 'O' && magic[2] == 'C') {
+            if (memcmp(magic, TOC_KNOWN_MAGIC, 4) != 0) {
+                fprintf(stderr, "Error: unsupported rompak TOC format (magic '%.4s', expected '%s'). "
+                    "This ROM was built with an incompatible version of the libdragon tools.\n",
+                    (char*)magic, TOC_KNOWN_MAGIC);
+                exit(1);
+            }
+            toc_off = pos;
+            break;
+        }
+    }
+    if (toc_off < 0) {
+        fprintf(stderr, "Error: no rompak TOC found in ROM (is this a libdragon ROM?)\n");
+        exit(1);
+    }
+
+    uint8_t hdr[16];
+    fseek(f, toc_off, SEEK_SET);
+    read_exact(f, hdr, sizeof(hdr), "rompak TOC header");
+
+    // The header is 16 bytes in all known formats, and entries always start
+    // right after it. Detect whether a "cookie" field is present by trying the
+    // current layout first and falling back to the legacy layout. A field pair
+    // is considered valid when entry_size and num_entries are within sane
+    // bounds (same limits enforced at runtime by rompak.c).
+    #define TOC_FIELDS_VALID(es, ne) ((es) >= 8 && (es) < 1024 && (ne) > 0 && (ne) < 1024)
+
+    // Current layout: magic, cookie, toc_size, entry_size(u16), num_entries(u16)
+    uint32_t cur_entry_size = ((uint32_t)hdr[12] << 8) | hdr[13];
+    uint32_t cur_num_entries = ((uint32_t)hdr[14] << 8) | hdr[15];
+    // Legacy layout: magic, toc_size, entry_size(u32), num_entries(u32)
+    uint32_t leg_entry_size = be32(hdr + 8);
+    uint32_t leg_num_entries = be32(hdr + 12);
+
+    uint32_t entry_size, num_entries;
+    if (TOC_FIELDS_VALID(cur_entry_size, cur_num_entries)) {
+        entry_size = cur_entry_size;
+        num_entries = cur_num_entries;
+    } else if (TOC_FIELDS_VALID(leg_entry_size, leg_num_entries)) {
+        entry_size = leg_entry_size;
+        num_entries = leg_num_entries;
+    } else {
+        fprintf(stderr, "Error: unrecognized rompak TOC layout (this ROM was built with an "
+            "incompatible version of the libdragon tools)\n");
+        exit(1);
+    }
+
+    long sym_off = -1;
+    uint8_t *entry = malloc(entry_size + 1);
+    entry[entry_size] = 0; // ensure the name is always null-terminated
+    for (uint32_t i = 0; i < num_entries; i++) {
+        fseek(f, toc_off + sizeof(hdr) + (long)i * entry_size, SEEK_SET);
+        read_exact(f, entry, entry_size, "rompak TOC entry");
+        uint32_t offset = be32(entry + 0);
+
+        // The name follows the offset field, optionally preceded by a size
+        // field (added in later format versions). Detect the size field by
+        // checking whether the byte right after the offset looks like the
+        // start of a filename: a size field is a big-endian u32 whose most
+        // significant byte is (near) zero for any realistic file, hence not a
+        // printable filename character.
+        int name_col = isprint(entry[4]) ? 4 : 8;
+        const char *name = (const char *)(entry + name_col);
+        size_t name_len = strnlen(name, entry_size - name_col);
+        if (name_len >= 4 && strcasecmp(name + name_len - 4, ".sym") == 0) {
+            printf("Found symbol table '%s' in rompak at ROM offset 0x%x\n\n", name, offset);
+            sym_off = offset;
+            break;
+        }
+    }
+    free(entry);
+
+    if (sym_off < 0) {
+        fprintf(stderr, "Error: no symbol table (.sym) found in the ROM rompak\n");
+        exit(1);
+    }
+    return sym_off;
+}
+
 static void usage(const char *prog) {
-    fprintf(stderr, "Usage: %s <file.sym>\n", prog);
+    fprintf(stderr, "Usage: %s <file.sym | rom.z64/.n64/.v64>\n", prog);
 }
 
 int main(int argc, char **argv) {
@@ -390,13 +538,26 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    // If the input is a ROM file, locate the symbol table inside it by scanning
+    // the rompak TOC. Otherwise, treat the whole file as a .sym file. Common N64
+    // ROM extensions are accepted (.z64/.n64/.v64), but only big-endian ROMs are
+    // actually supported (see the byte-order check in rompak_find_sym).
+    const char *ext = strrchr(path, '.');
+    if (ext && (strcasecmp(ext, ".z64") == 0 ||
+                strcasecmp(ext, ".n64") == 0 ||
+                strcasecmp(ext, ".v64") == 0)) {
+        g_symt_base = rompak_find_sym(f);
+    }
+
     symt_header_t h = read_header(f);
     if (memcmp(h.head, "SYMT", 4) != 0) {
-        fprintf(stderr, "Error: invalid magic\n");
+        fprintf(stderr, "Error: invalid symbol table magic (expected 'SYMT', got '%.4s')\n", h.head);
         return 1;
     }
-    if (h.version != 5) {
-        fprintf(stderr, "Error: unsupported version %u\n", h.version);
+    if (h.version != SYMT_KNOWN_VERSION) {
+        fprintf(stderr, "Error: unsupported symbol table version %u (expected %u). "
+            "This symbol table was built with an incompatible version of n64sym.\n",
+            h.version, SYMT_KNOWN_VERSION);
         return 1;
     }
 
@@ -411,7 +572,7 @@ int main(int argc, char **argv) {
 
     // Huffman table
     uint8_t *huff_buf = malloc(h.huff_tab_size);
-    fseek(f, h.huff_tab_off, SEEK_SET);
+    seek_symt(f, h.huff_tab_off, "huffman table");
     read_exact(f, huff_buf, h.huff_tab_size, "huffman table");
     huff_decoder_t dec;
     huff_decoder_init(&dec, huff_buf, h.huff_tab_size);

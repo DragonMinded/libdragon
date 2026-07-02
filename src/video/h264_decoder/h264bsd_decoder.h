@@ -73,6 +73,19 @@ void h264bsdShutdown(storage_t *pStorage);
  */
 void h264bsdSetNumBufferedPics(storage_t *pStorage, u32 numPics);
 
+/**
+ * @brief Configure a callback for decoded SEI payloads
+ *
+ * The callback is called once for each SEI payload after emulation-prevention
+ * bytes have been removed. Pass NULL to disable SEI callbacks.
+ *
+ * @param pStorage   decoder storage
+ * @param callback   callback invoked for each SEI payload, or NULL
+ * @param ctx        user context passed back to the callback
+ */
+void h264bsdSetSeiCallback(storage_t *pStorage,
+    h264bsdSeiCallback callback, void *ctx);
+
 u8* h264bsdNextOutputPicture(storage_t *pStorage, u32 *picId, u32 *isIdrPic,
     u32 *numErrMbs);
 

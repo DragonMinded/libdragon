@@ -169,11 +169,13 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
                 // within the 4K TMEM size).
                 static const uint8_t block_max_lines_table[] = { 20, 42, 26, 14, 19, 32, 13, 28, 26, 8, 9, 4, 4, 5, 20, 13, 18, 3, 6, 3, 2, 16, 2, 2, 3, 14, 2, 13, 2, 1, 12, 4, 2, 2, 2, 2, 2, 2, 4, 10, 0, 1, 2, 9, 0, 1, 8, 0, 2, 0, 1, 0, 1, 8, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 0, 6, 0, 0, 4, 0, 0, 6, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
  
-                int words = tload->rect.tmem_pitch / 8;
-                if (words >= 11)
+                int words = (tload->rect.tmem_pitch << pitch_shift) / 8;
+                if (words < 11)
+                    tload->rect.block_max_lines = 4096;   // arbitrary high number, it will be limited by TMEM size anyway
+                else if (words - 11 < sizeof(block_max_lines_table))
                     tload->rect.block_max_lines = block_max_lines_table[words - 11];
                 else
-                    tload->rect.block_max_lines = 4096;  // arbitrary high number, it will be limited by TMEM size anyway
+                    tload->rect.block_max_lines = 0;
             } else {
                 tload->rect.block_max_lines = 0;
             }

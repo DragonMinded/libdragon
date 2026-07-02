@@ -53,7 +53,7 @@ struct Config {
 	int audio_rate = 32000;           // passed to audioconv64 --wav-resample
 	int audio_channels = 1;           // 1 => --wav-mono, 2 => no flag
 	std::string quant_matrix = "n64";
-	std::vector<std::string> ffmpeg_opts; // extra ffmpeg argv tokens, appended near output (repeatable --ffmpeg-opts)
+	std::vector<std::string> ffmpeg_opts; // extra ffmpeg argv tokens, appended near output (repeatable --ffmpeg-opts; each value may contain multiple space-separated args)
 
 	std::string ffmpeg_path = "ffmpeg";
 	std::string ffprobe_path = "ffprobe";
@@ -81,6 +81,7 @@ std::string join_path(const std::string& dir, const std::string& file);
 std::string base_name(const std::string& path);
 std::string strip_ext(const std::string& name);
 std::string format_cmdline_for_log(const std::vector<std::string>& argv);
+std::vector<std::string> split_shell_args(const std::string& s);
 void sleep_ms(int ms);
 
 // Build ffmpeg -force_key_frames argument from a list of frame indices.

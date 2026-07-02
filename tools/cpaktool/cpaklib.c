@@ -19,6 +19,7 @@
 #include "../../include/joypad.h"
 #include "../../include/system.h"
 #include "../../include/dir.h"
+#include "../common/polyfill.h"
 
 
 #define __randn(n)  (\

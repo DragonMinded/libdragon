@@ -77,6 +77,11 @@ extern void extern_emit_image(u8 *buffer, u32 width, u32 height, u32* sliceData)
     4. Local function prototypes
 ------------------------------------------------------------------------------*/
 
+static void h264bsdDecodeSeiMessages(storage_t *pStorage, strmData_t *strm);
+static const u8* h264bsdStreamCurrentBytePtr(strmData_t *strm);
+static u32 h264bsdStreamBytesRemaining(strmData_t *strm);
+static u32 h264bsdIsRbspTrailingBits(const u8 *data, u32 len);
+
 /*------------------------------------------------------------------------------
 
     Function name: h264bsdInit
@@ -146,6 +151,101 @@ void h264bsdSetNumBufferedPics(storage_t *pStorage, u32 numPics)
     /* Must be set before DPB allocation (DPB is allocated on SPS/PPS activation). */
     ASSERT(pStorage->dpb->buffer == NULL);
     pStorage->maxNumBufferedPics = numPics;
+}
+
+/*------------------------------------------------------------------------------
+
+    Function: h264bsdSetSeiCallback
+
+        Functional description:
+            Configure an optional callback for SEI payloads. The callback is
+            called once for each SEI payload in a NAL unit, after emulation
+            prevention bytes have been removed.
+
+------------------------------------------------------------------------------*/
+
+void h264bsdSetSeiCallback(storage_t *pStorage,
+    h264bsdSeiCallback callback, void *ctx)
+{
+    ASSERT(pStorage);
+    pStorage->seiCallback = callback;
+    pStorage->seiCallbackCtx = ctx;
+}
+
+static const u8* h264bsdStreamCurrentBytePtr(strmData_t *strm)
+{
+#ifdef H264BSD_N64
+    return (const u8*)(u32)(strm->pCurr >> 3);
+#else
+    return strm->pStrmCurrPos;
+#endif
+}
+
+static u32 h264bsdStreamBytesRemaining(strmData_t *strm)
+{
+#ifdef H264BSD_N64
+    return (u32)((strm->pEnd - strm->pCurr) >> 3);
+#else
+    return strm->strmBuffSize - (strm->strmBuffReadBits >> 3);
+#endif
+}
+
+static u32 h264bsdIsRbspTrailingBits(const u8 *data, u32 len)
+{
+    u32 i;
+    if (!len || data[0] != 0x80)
+        return HANTRO_FALSE;
+    for (i = 1; i < len; i++)
+        if (data[i] != 0)
+            return HANTRO_FALSE;
+    return HANTRO_TRUE;
+}
+
+static void h264bsdDecodeSeiMessages(storage_t *pStorage, strmData_t *strm)
+{
+    const u8 *data;
+    u32 len, off;
+
+    if (!pStorage->seiCallback)
+        return;
+
+    data = h264bsdStreamCurrentBytePtr(strm);
+    len = h264bsdStreamBytesRemaining(strm);
+    off = 0;
+
+    while (off < len)
+    {
+        u32 payloadType = 0;
+        u32 payloadSize = 0;
+
+        if (h264bsdIsRbspTrailingBits(data + off, len - off))
+            break;
+
+        while (off < len && data[off] == 0xFF)
+        {
+            payloadType += 255;
+            off++;
+        }
+        if (off >= len)
+            break;
+        payloadType += data[off++];
+
+        while (off < len && data[off] == 0xFF)
+        {
+            payloadSize += 255;
+            off++;
+        }
+        if (off >= len)
+            break;
+        payloadSize += data[off++];
+
+        if (payloadSize > len - off)
+            break;
+
+        pStorage->seiCallback(pStorage->seiCallbackCtx,
+            payloadType, data + off, payloadSize);
+        off += payloadSize;
+    }
 }
 
 /*------------------------------------------------------------------------------
@@ -516,7 +616,7 @@ u32 h264bsdDecode(storage_t *pStorage, u8 *byteStrm, u32 len, u32 picId,
                 break;
 
             case NAL_SEI:
-                DEBUG(("SEI MESSAGE, NOT DECODED\n"));
+                h264bsdDecodeSeiMessages(pStorage, &strm);
                 break;
 
             default:

@@ -91,13 +91,13 @@ std::vector<std::string> split_string(std::string str, char delimiter) {
     return tokens;
 }
 
-std::array<float, 4> parse_color(std::string value)
+Vec4 parse_color(std::string value)
 {
     std::vector<std::string> tokens = split_string(value, ',');
     if (tokens.size() != 3 && tokens.size() != 4) {
         throw std::runtime_error("invalid color value: " + value);
     }
-    std::array<float, 4> color{};
+    Vec4 color{};
     for (size_t i = 0; i < tokens.size(); i++) {
         color[i] = parse_float(tokens[i], 0, 1);
     }

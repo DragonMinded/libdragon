@@ -354,6 +354,7 @@ static uint32_t get_vector_load_offset_shift(uint32_t opcode)
         return 4;
     default:
         assertf(0, "Invalid vector loader opcode!");
+        return 0;
     }
 }
 
@@ -862,7 +863,7 @@ static bool vertex_cache_find(const vertex_cache *cache, uint16_t index, uint8_t
 
 static uint8_t vertex_cache_get(const vertex_cache *cache, uint16_t index)
 {
-    uint8_t cache_index;
+    uint8_t cache_index = 0;
     bool found = vertex_cache_find(cache, index, &cache_index);
     assertf(found, "Index %d not found in vertex batch! This is a bug within magma.", index);
     return cache_index;
@@ -1044,6 +1045,7 @@ static uint32_t get_advance_count(mg_primitive_topology_t topology)
         return 1;
     default:
         assertf(0, "Unknown topology");
+        return 3;
     }
 }
 
@@ -1057,6 +1059,7 @@ static uint32_t get_windup_count(mg_primitive_topology_t topology)
         return 2;
     default:
         assertf(0, "Unknown topology");
+        return 0;
     }
 }
 

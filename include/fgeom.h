@@ -235,14 +235,6 @@ inline void fm_quat_identity(fm_quat_t *out)
 }
 
 /**
- * @brief Create a quaternion from euler angles.
- * 
- * @param[out] out  Will contain the created quaternion.
- * @param[in]  euler  Array containing euler angles in radians, applied in ZYX order.
- */
-void fm_quat_from_euler(fm_quat_t *out, const float euler[3]);
-
-/**
  * @brief Create a quaternion from euler angles, applying the rotations in ZYX order.
  * 
  * @param[out] out  Will contain the created quaternion.

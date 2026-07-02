@@ -97,8 +97,10 @@ struct RenderModes {
     void parse_attr(std::string key, std::string value);
 };
 
+typedef std::array<float, 4> Vec4;
+
 struct CombinerRegister {
-    std::array<float, 4> value;
+    Vec4 value;
     bool is_set;
 
     void parse_float(std::string value);

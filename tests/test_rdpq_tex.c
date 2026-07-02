@@ -424,7 +424,7 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
         FMT_CI4, FMT_I4, FMT_IA4,
     };
 
-    const int FBWIDTH = 32;
+    const int FBWIDTH = 80;
     surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
     DEFER(surface_free(&fb));
     surface_clear(&fb, 0);
@@ -444,8 +444,11 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
         SRAND(i);
         tex_format_t fmt = fmts[i];
 
-        // Create the random surface
-        for (int tex_width = 72; tex_width < 75; tex_width++)  {
+        // The special value 48 exercises RGBA32 strip loads where
+        // LOAD_BLOCK must account for the split TMEM layout.
+        static const int tex_widths[] = { 48, 72, 73, 74 };
+        for (int tw=0; tw<sizeof(tex_widths) / sizeof(tex_widths[0]); tw++)  {
+            int tex_width = tex_widths[tw];
             LOG("  tex_width: %d\n", tex_width);
             surface_t surf_full = surface_create_random(tex_width, tex_width, fmt);
             DEFER(surface_free(&surf_full));
@@ -465,13 +468,17 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
             //  width=[-0..-2]  we need width-2 to have an effect on 4bpp textures (width-1 uses the same bytes of width in 4bpp)
             for (int s0=0; s0<3; s0++) for (int t0=0; t0<3; t0++) for (int width=tex_width-s0; width>tex_width-s0-3; width--) {
                 LOG("    s0/t0/w: %d %d %d\n", s0, t0, width);
+                surface_clear(&fb, 0);
                 rdpq_tex_blit(&surf_full, 0, 0, &(rdpq_blitparms_t){
                     .s0 = s0, .width = width, .t0 = t0, .height = tex_width-t0,
                 });
                 rspq_wait();
 
                 ASSERT_SURFACE(&fb, {
-                    return surface_debug_expected_color(&surf_full, x+s0, y+t0);
+                    if (x < width && y < tex_width-t0)
+                        return surface_debug_expected_color(&surf_full, x+s0, y+t0);
+                    else
+                        return color_from_packed32(0);
                 });
             }
         }

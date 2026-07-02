@@ -300,6 +300,7 @@ static void yuv_tex_blit_run(int width, int height, float x0, float y0,
 {
     rdpq_set_mode_yuv(true);
     if (cs) rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
+    rdpq_mode_filter(FILTER_BILINEAR);
 
     if (enable_dithering)
         rdpq_mode_dithering(DITHER_SQUARE_SQUARE);

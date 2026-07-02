@@ -41,7 +41,17 @@ extern "C" {
 #include "mksprite.h"
 #include "x264/x264.h"
 
-#define H264I_VERSION 4
+#define H264I_VERSION 5
+
+// Asset-layer compression applied to the whole H264I container when it carries
+// a 1-bit alpha bitmap. LZ4 (level 1) is the only always-linked decompressor in
+// the runtime, is very cheap to decode, and crushes the highly-coherent 1bpp
+// mask while barely touching the already entropy-coded H.264 payload. Opaque
+// files stay uncompressed (level 0) as before.
+#define H264I_ALPHA_ASSET_COMPRESSION 1
+
+// bit 0 of the header flags byte: a 1-bit alpha bitmap follows the H.264 payload.
+#define LSPR3_FLAG_ALPHA1 0x01
 
 static void verbose(const char *str, ...) {
     if (!flag_verbose) return;
@@ -89,15 +99,29 @@ static void apply_gamma_rgba(uint8_t *img, int width, int height) {
     }
 }
 
-static bool alpha_is_opaque(const image_t *img) {
-    if (!img || img->ct != LCT_RGBA) return false;
-    size_t count = (size_t)img->width * (size_t)img->height;
-    const uint8_t *p = img->image + 3;
-    for (size_t i = 0; i < count; i++) {
-        if (*p != 255) return false;
-        p += 4;
+// Build a 1-bit alpha bitmap from an RGBA image. Layout: row-major, ceil(w/8)
+// bytes per row, MSB-first within each byte. A set bit means the pixel is
+// transparent (alpha < 128), the same punch-through threshold used by BC1Q.
+// H.264 cannot carry alpha, so this lossless mask travels alongside the
+// bitstream and is re-applied to the decoded RGBA5551 sprite at load time.
+// Returns true if any pixel is transparent; `out` is always fully populated.
+static bool build_alpha1_bitmap(const image_t *img, std::vector<uint8_t> &out) {
+    int w = img->width, h = img->height;
+    int row_bytes = (w + 7) / 8;
+    out.assign((size_t)row_bytes * (size_t)h, 0);
+    bool any = false;
+    const uint8_t *p = img->image;
+    for (int yy = 0; yy < h; yy++) {
+        uint8_t *brow = out.data() + (size_t)yy * row_bytes;
+        for (int xx = 0; xx < w; xx++) {
+            uint8_t a = p[((size_t)yy * (size_t)w + xx) * 4 + 3];
+            if (a < 128) {
+                brow[xx >> 3] |= (uint8_t)(0x80 >> (xx & 7));
+                any = true;
+            }
+        }
     }
-    return true;
+    return any;
 }
 
 static void write_nal_rbsp(FILE *f, const uint8_t *payload, int size) {
@@ -317,10 +341,6 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
-    if (!alpha_is_opaque(&img)) {
-        fprintf(stderr, "WARNING: lossy does not support alpha, will be dropped\n");
-    }
-
     if (img.width > 0xFFFF || img.height > 0xFFFF) {
         fprintf(stderr, "mksprite: lossy image size too large for lossy header: %dx%d\n", img.width, img.height);
         free(img.image);
@@ -329,6 +349,16 @@ extern "C" int mksprite_convert_lossy(
 
     int orig_w = img.width;
     int orig_h = img.height;
+
+    // Extract the 1-bit alpha mask from the original (unpadded) image before it
+    // is converted to YUV. The mask is lossless and travels alongside the H.264
+    // payload; it is applied back to the decoded sprite at load time. Fully
+    // opaque images carry no mask (any_alpha == false).
+    std::vector<uint8_t> alpha_bitmap;
+    bool any_alpha = build_alpha1_bitmap(&img, alpha_bitmap);
+    if (any_alpha)
+        verbose("mksprite: lossy 1-bit alpha mask: %zu bytes (%dx%d)",
+                alpha_bitmap.size(), orig_w, orig_h);
 
     if (pm->gamma_correct) {
         apply_gamma_rgba(img.image, img.width, img.height);
@@ -455,9 +485,16 @@ extern "C" int mksprite_convert_lossy(
     }
 
     bool out_is_stdout = (strstr(outfn, "(stdout)") != NULL);
-    FILE *f = out_is_stdout ? stdout : fopen(outfn, "wb");
+
+    // Assemble the whole H264I container in a temporary file so it can be read
+    // back and handed to the shared asset-layer compressor (same pattern as the
+    // convert() path in mksprite.c; tmpfile() is portable to mingw/Windows,
+    // unlike open_memstream). This keeps the big-endian binout helpers and
+    // write_idr_nals unchanged; the final buffer is compressed/written by
+    // sprite_write_compressed below.
+    FILE *f = tmpfile();
     if (!f) {
-        fprintf(stderr, "mksprite: lossy cannot create output file: %s\n", outfn);
+        fprintf(stderr, "mksprite: lossy cannot create temporary file\n");
         x264_picture_clean(&pic);
         x264_encoder_close(enc);
         if (recon_yuv_path) { unlink(recon_yuv_path); free(recon_yuv_path); }
@@ -474,12 +511,15 @@ extern "C" int mksprite_convert_lossy(
     w16(f, orig_h);
     w8(f, (uint8_t)pic_init_qp);
     w8(f, (uint8_t)(int8_t)chroma_qp_offset);
+    w8(f, (uint8_t)(any_alpha ? LSPR3_FLAG_ALPHA1 : 0));     // flags
+    w8(f, 0); w8(f, 0); w8(f, 0);                            // reserved[3]
+    w32(f, (uint32_t)(any_alpha ? alpha_bitmap.size() : 0)); // alpha_size
 
     x264_nal_t *nals = NULL;
     int i_nals = 0;
     int frame_size = x264_encoder_encode(enc, &nals, &i_nals, &pic, &pic_out);
     if (frame_size < 0) {
-        if (!out_is_stdout) { fclose(f); remove(outfn); }
+        fclose(f);
         fprintf(stderr, "x264: encode failed\n");
         x264_picture_clean(&pic);
         x264_encoder_close(enc);
@@ -493,7 +533,7 @@ extern "C" int mksprite_convert_lossy(
         write_idr_nals(f, nals, i_nals, &idr_written);
     }
     if (idr_written == 0) {
-        if (!out_is_stdout) { fclose(f); remove(outfn); }
+        fclose(f);
         fprintf(stderr, "x264: no IDR slice generated\n");
         x264_picture_clean(&pic);
         x264_encoder_close(enc);
@@ -501,9 +541,37 @@ extern "C" int mksprite_convert_lossy(
         return 1;
     }
 
-    if (!out_is_stdout) fclose(f);
+    // Read the temporary file back into RAM: [header][H.264 payload]. Then
+    // append the 1-bit alpha bitmap (if any) and compress through the asset
+    // layer (LZ4) only when a mask is present; opaque files stay uncompressed
+    // (level 0), matching the previous raw output and avoiding a needless
+    // decode pass at load time.
+    long tmpsz = ftell(f);
+    rewind(f);
+    std::vector<uint8_t> container((size_t)tmpsz + (any_alpha ? alpha_bitmap.size() : 0));
+    if (tmpsz > 0 && fread(container.data(), 1, (size_t)tmpsz, f) != (size_t)tmpsz) {
+        fclose(f);
+        fprintf(stderr, "mksprite: lossy cannot read back temporary file\n");
+        x264_picture_clean(&pic);
+        x264_encoder_close(enc);
+        if (recon_yuv_path) { unlink(recon_yuv_path); free(recon_yuv_path); }
+        return 1;
+    }
+    fclose(f);
+    if (any_alpha)
+        memcpy(container.data() + tmpsz, alpha_bitmap.data(), alpha_bitmap.size());
+
+    int asset_level = any_alpha ? H264I_ALPHA_ASSET_COMPRESSION : 0;
+    int write_rv = sprite_write_compressed(outfn, container.data(),
+                                           (int)container.size(), asset_level);
+
     x264_picture_clean(&pic);
     x264_encoder_close(enc);
+
+    if (write_rv != 0) {
+        if (recon_yuv_path) { unlink(recon_yuv_path); free(recon_yuv_path); }
+        return 1;
+    }
 
     if (recon_yuv_path) {
         const size_t y_size = (size_t)img.width * (size_t)img.height;

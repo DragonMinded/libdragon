@@ -83,7 +83,7 @@ typedef struct video_codec_s video_codec_t;
 typedef struct video_s video_t;
 
 /** @brief Video playback parameters*/
-typedef struct {
+typedef struct video_parms_s {
     /**
      * @brief Number of fully decoded pictures the decoder is allowed to keep buffered
      *
@@ -104,7 +104,7 @@ typedef struct {
  * This structure contains information about a video stream. It is returned by
  * #video_get_info.
  */
-typedef struct {
+typedef struct video_info_s {
     /** @brief Width of the video in pixels */
     int width;
     /** @brief Height of the video in pixels */

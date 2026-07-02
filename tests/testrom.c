@@ -435,7 +435,6 @@ static const struct Testsuite
 	TEST_FUNC(test_mat3_mul_two_identities,				0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mat3_mul_scale_translation,			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_quat_from_euler_zero_identity,		0, TEST_FLAGS_NO_BENCHMARK),
-	TEST_FUNC(test_quat_from_euler_matches_zyx,			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_quat_slerp_same_quaternion,			0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_quat_slerp_near_identical_is_finite,	0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_fm_truncf,                  0, TEST_FLAGS_NO_BENCHMARK),

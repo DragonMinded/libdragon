@@ -20,6 +20,7 @@
 #include "utils.h"
 #include "rompak_internal.h"
 #include "accounting_internal.h"
+#include "interrupt_internal.h"
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
@@ -29,9 +30,6 @@ int __boot_address_page;   ///< Address in the ROM of the ELF
 
 /** @brief Records whether the user called a function to check for the presence of expanded memory */
 bool __expanded_memory_asserted = false;
-
-/** @brief Last tick at which the 64-bit counter was updated */
-static uint32_t ticks64_base_tick;
 
 /** @brief Last value of the 64-bit counter */
 static uint64_t ticks64_base;
@@ -234,11 +232,13 @@ pi_addr_t sys_elf_address(void)
 
 uint64_t get_ticks(void)
 {
-	uint32_t now = TICKS_READ();
-	uint32_t prev = ticks64_base_tick;
-	ticks64_base_tick = now;
-	ticks64_base += now - prev;
-	return ticks64_base;
+    uint32_t sr = __disable_interrupts();
+    uint32_t now = TICKS_READ();
+    uint32_t prev = (uint32_t)ticks64_base;
+    ticks64_base += (uint32_t)(now - prev);
+    uint64_t ret = ticks64_base;
+    __enable_interrupts(sr);
+    return ret;
 }
 
 uint64_t get_ticks_us(void)
