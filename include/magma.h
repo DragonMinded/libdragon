@@ -638,6 +638,7 @@ inline uint8_t mg_culling_parms_to_rsp_state(const mg_culling_parms_t *culling)
         break;
     default:
         assertf(0, "%d is not a valid cull mode!", culling->cull_mode);
+        cull_mode = 2;
     }
 
     switch (culling->front_face) {
@@ -649,6 +650,7 @@ inline uint8_t mg_culling_parms_to_rsp_state(const mg_culling_parms_t *culling)
         break;
     default:
         assertf(0, "%d is not a valid front face winding direction!", culling->front_face);
+        is_front_cw = 0;
     }
 
     // If the front face is clockwise, flip the cull mode. 
