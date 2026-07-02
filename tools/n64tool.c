@@ -105,7 +105,7 @@ static uint32_t elf_loadpoint = 0xFFFFFFFF;
 static uint32_t toc_cookie = 0xFFFFFFFF;
 
 struct toc_s {
-	char magic[4];
+	char magic_version[4];
 	uint32_t cookie;
 	uint32_t toc_size;
 	uint16_t entry_size;
@@ -116,7 +116,7 @@ struct toc_s {
 		char name[TOC_ENTRY_SIZE - 8];
 	} files[TOC_MAX_ENTRIES];
 } toc = {
-	.magic = "TOC0",
+	.magic_version = "TOC0",
 	.toc_size = TOC_SIZE,
 	.entry_size = TOC_ENTRY_SIZE,
 	.num_entries = 0,
