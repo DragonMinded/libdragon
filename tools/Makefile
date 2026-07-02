@@ -43,13 +43,15 @@ ifeq ($(OS),Windows_NT)
 	endif
 
 # Define a macro with an estimate of the MSYS2 environment's age so that we can check it for compatibility reasons.
-	MSYS2_AGE := $(shell date -d "$$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
-	ifeq ($(MSYS2_AGE),)
-		$(error "Failed to determine MSYS2 age. Please make sure that pacman, date, and sed are in PATH and that msys2-runtime is installed.")
-	else
-		CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
-		CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
-	endif
+    MSYS2_AGE := $(shell date -d "$$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
+    
+    ifeq ($(MSYS2_AGE),)
+        $(error Failed to determine MSYS2 age. Please make sure that pacman, date, and sed are in PATH and that msys2-runtime is installed.)
+    else
+        $(info MSYS2 age determined as: $(MSYS2_AGE))
+        CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
+        CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
+    endif
 else
 # When cross-building, set a default value for MSYS2_RUNTIME_PACMAN_AGE
 	CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=0
