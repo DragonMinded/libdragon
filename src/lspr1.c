@@ -67,13 +67,13 @@ _Static_assert(offsetof(lspr1_header_t, payload) % 8 == 0,
 static bool lspr1_is_encoded(const void *buf, int sz) {
     if (!buf || sz < (int)sizeof(lspr1_header_t)) return false;
     const lspr1_header_t *hdr = (const lspr1_header_t *)buf;
-    return memcmp(hdr->magic, BC1Q_FILE_MAGIC, BC1Q_FILE_MAGIC_SIZE) == 0
-           && hdr->version == BC1Q_VERSION;
+    return memcmp(hdr->magic, BC1Q_FILE_MAGIC, BC1Q_FILE_MAGIC_SIZE) == 0;
 }
 
 static size_t lspr1_decoded_size_buf(const void *encoded_buf, int encoded_sz) {
     if (!lspr1_is_encoded(encoded_buf, encoded_sz)) return 0;
     const lspr1_header_t *hdr = (const lspr1_header_t *)encoded_buf;
+    assertf(hdr->version == BC1Q_VERSION, "Invalid lossy sprite version (BC1Q version %d, expected %d)\nPlease regenerate your asset files", hdr->version, BC1Q_VERSION);
     size_t pixel_bytes = (size_t)hdr->width * hdr->height * 2;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
     return ROUND_UP(header_bytes, 64) + ROUND_UP(pixel_bytes, 16);

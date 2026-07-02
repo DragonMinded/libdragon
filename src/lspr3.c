@@ -34,9 +34,13 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <malloc.h>
+#include <stddef.h>
 
 /** @brief H264I version number. */
-#define H264I_VERSION 4
+#define H264I_VERSION 5
+
+/** @brief H264I header flag: file carries a 1-bit alpha bitmap after the H.264 payload. */
+#define LSPR3_FLAG_ALPHA1 0x01
 
 /** @brief H264I decode macroblock ring size */
 #define H264I_MB_RING 2
@@ -61,19 +65,30 @@ typedef struct lspr3_header_s {
     // because mksprite strips the SPS/PPS NALs (only the IDR slice ships).
     uint8_t  pic_init_qp;            // 0..51
     int8_t   chroma_qp_index_offset; // -12..12
-    uint8_t  payload[];
+    uint8_t  flags;                  // bit 0 (LSPR3_FLAG_ALPHA1): 1-bit alpha bitmap present
+    uint8_t  reserved[3];            // zero in v5; also pads alpha_size to 4-byte alignment
+    uint32_t alpha_size;             // byte size of the 1bpp alpha bitmap (0 if none)
+    uint8_t  payload[];              // H.264 RBSP, followed by the alpha bitmap if present
 } lspr3_header_t;
+
+// The runtime reads fields via a raw pointer cast over the file bytes, and uses
+// both `hdr->payload` and `sizeof(lspr3_header_t)` to locate/measure the H.264
+// payload. Keep the struct free of trailing padding so the two stay consistent
+// and match the byte layout emitted by tools/mksprite/mksprite_h264i.cpp.
+_Static_assert(sizeof(lspr3_header_t) == 28, "lspr3_header_t must be 28 bytes");
+_Static_assert(offsetof(lspr3_header_t, payload) == 28,
+    "lspr3_header_t payload must start at offset 28 (no trailing padding)");
 
 static bool lspr3_is_encoded(const void *buf, int sz) {
     if (!buf || sz < (int)sizeof(lspr3_header_t)) return false;
     const lspr3_header_t *hdr = (const lspr3_header_t *)buf;
-    return memcmp(hdr->magic, H264I_FILE_MAGIC, H264I_FILE_MAGIC_SIZE) == 0
-           && hdr->version == H264I_VERSION;
+    return memcmp(hdr->magic, H264I_FILE_MAGIC, H264I_FILE_MAGIC_SIZE) == 0;
 }
 
 static size_t lspr3_decoded_size_buf(const void *encoded_buf, int encoded_sz) {
     if (!lspr3_is_encoded(encoded_buf, encoded_sz)) return 0;
     const lspr3_header_t *hdr = (const lspr3_header_t *)encoded_buf;
+    assertf(hdr->version == H264I_VERSION, "Invalid lossy sprite version (H264I version %d, expected %d)\nPlease regenerate your asset files", hdr->version, H264I_VERSION);
     size_t pixel_bytes = hdr->orig_width * hdr->orig_height * 2;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
     return ROUND_UP(header_bytes, 64) + ROUND_UP(pixel_bytes, 16);
@@ -226,7 +241,7 @@ static void lspr3_build_rgba16_sprite(
 ) {
     uint8_t preserved_flags = sprite->flags & SPRITE_FLAGS_OWNEDBUFFER;
     size_t header_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
-    memset(sprite, 0, header_bytes);
+    sys_hw_memset(sprite, 0, header_bytes);
     sprite->width = orig_w;
     sprite->height = orig_h;
     sprite->flags = preserved_flags | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_RGBA16;
@@ -279,6 +294,30 @@ static void lspr3_build_rgba16_sprite(
     yuv_close();
 }
 
+// Apply the 1-bit alpha bitmap to the decoded RGBA5551 sprite. Each set bit
+// marks a transparent pixel (see build_alpha1_bitmap() in the encoder): the
+// whole pixel is cleared to 0x0000 (RGB and alpha both zero, like BC1Q's
+// pal[3]) so bilinear filtering at draw time cannot bleed color out of
+// transparent texels. The bitmap is row-major, ceil(w/8) bytes per row,
+// MSB-first, at the sprite's (cropped) width/height.
+static void lspr3_apply_alpha1(uint16_t *dst, uint16_t w, uint16_t h,
+                               const uint8_t *bitmap)
+{
+    int row_bytes = (w + 7) / 8;
+    for (int y = 0; y < h; y++) {
+        const uint8_t *brow = bitmap + (size_t)y * row_bytes;
+        uint16_t *drow = dst + (size_t)y * w;
+        for (int x = 0; x < w; x++) {
+            if (brow[x >> 3] & (0x80 >> (x & 7)))
+                drow[x] = 0x0000;
+        }
+    }
+    // The RGBA5551 buffer was written by the RDP straight to RDRAM (its cache
+    // lines were invalidated before), so our CPU edits sit in cache: flush them
+    // back so the sprite is coherent when the RDP samples it at draw time.
+    data_cache_hit_writeback(dst, ROUND_UP((size_t)w * h * 2, 16));
+}
+
 static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
     // Allocate the buffer for the decoded sprite.
     size_t decoded_sz = lspr3_decoded_size_buf(encoded_buf, encoded_sz);
@@ -287,9 +326,14 @@ static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
     assertf(sprite, "Out of memory");
     sprite->flags = SPRITE_FLAGS_OWNEDBUFFER;
 
-    // Decode the H264I bitstream into YUV planes
+    // Decode the H264I bitstream into YUV planes. When a 1-bit alpha bitmap is
+    // present it is appended after the H.264 payload, so the payload itself is
+    // shorter than the whole buffer by alpha_size bytes.
     const lspr3_header_t *hdr = (const lspr3_header_t *)encoded_buf;
-    size_t payload_size = (size_t)encoded_sz - sizeof(lspr3_header_t);
+    size_t alpha_size = (hdr->flags & LSPR3_FLAG_ALPHA1) ? hdr->alpha_size : 0;
+    assertf((size_t)encoded_sz >= sizeof(lspr3_header_t) + alpha_size,
+        "H264I buffer truncated (sz=%d, alpha_size=%zu)", encoded_sz, alpha_size);
+    size_t payload_size = (size_t)encoded_sz - sizeof(lspr3_header_t) - alpha_size;
     uint8_t *pic = NULL;
     size_t pic_size = 0;
     lspr3_decode_intra_slice(
@@ -310,6 +354,16 @@ static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
         stride, luma_h
     );
     free_uncached(pic);
+
+    // Re-apply the lossless 1-bit alpha mask (if any) on top of the RGBA5551
+    // pixels the RDP just produced (the YUV combiner writes alpha=1 everywhere).
+    if (alpha_size) {
+        size_t header_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
+        uint16_t *dst = (uint16_t *)((uint8_t *)sprite + header_bytes);
+        const uint8_t *bitmap = hdr->payload + payload_size;
+        lspr3_apply_alpha1(dst, hdr->orig_width, hdr->orig_height, bitmap);
+    }
+
     return sprite;
 }
 

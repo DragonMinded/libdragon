@@ -19,6 +19,10 @@
  * full range) plus a small header. At load-time the H.264 slice is decoded
  * and the YUV reconstruction is converted into a #FMT_RGBA16 sprite, so the
  * returned #sprite_t works like a normal sprite.
+ *
+ * H264I can encode either images with no alpha channel, or images with a
+ * 1-bit alpha channel. The alpha channel is stored lossless alongside the
+ * H.264 bitstream, and reconstructed at load-time.
  */
 #ifndef __LIBDRAGON_LSPR3_H
 #define __LIBDRAGON_LSPR3_H
