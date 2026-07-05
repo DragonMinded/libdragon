@@ -23,6 +23,48 @@
 /** @brief Internal buffer used to interleave U and V components */
 static surface_t internal_buffer;
 
+/** @brief Optional caller-provided allocator for the interleave buffer.
+ *
+ * By default the internal buffer is allocated with surface_alloc() (the system
+ * heap). On memory-constrained targets the system heap can fragment such that
+ * this allocation fails mid-session; a failed alloc would leave a NULL buffer
+ * that rsp_yuv would then DMA to physical 0, corrupting low RDRAM. Callers can
+ * install an allocator (e.g. backed by a scratch/transient heap) to source the
+ * buffer from contiguous memory instead. See yuv_set_internal_allocator(). */
+static yuv_allocator_t internal_allocator;
+/** @brief True when internal_buffer.buffer came from internal_allocator. */
+static bool internal_buffer_custom;
+
+static void internal_buffer_release(void)
+{
+    if (internal_buffer.buffer && internal_buffer_custom)
+        internal_allocator.free(internal_allocator.ctx, internal_buffer.buffer);
+    else
+        surface_free(&internal_buffer);
+    internal_buffer = (surface_t){0};
+    internal_buffer_custom = false;
+}
+
+void yuv_set_internal_allocator(const yuv_allocator_t *allocator)
+{
+    // Changing the allocator while it still owns the live interleave buffer
+    // would strand that buffer on the old allocator (its eventual release would
+    // route through whichever allocator is installed then). Install the
+    // allocator up front — before any blit allocates the buffer — and clear it
+    // only once the buffer has been released (e.g. after the final yuv_close()).
+    assertf(!internal_buffer_custom,
+        "yuv_set_internal_allocator: cannot change the allocator while its "
+        "interleave buffer is still live (change it before the first blit or "
+        "after yuv_close())");
+    // Drop any default-heap buffer so the next resize_internal_buffer()
+    // re-allocates it through the new allocator.
+    internal_buffer_release();
+    if (allocator && allocator->alloc && allocator->free)
+        internal_allocator = *allocator;
+    else
+        internal_allocator = (yuv_allocator_t){0};
+}
+
 // Calculated with: yuv_new_colorspace(0.299, 0.114, 16, 219, 224);
 const yuv_colorspace_t YUV_BT601_TV = {
     .c0=1.16895, .c1=1.60229, .c2=-0.393299, .c3=-0.816156, .c4=2.02514, .y0=16,
@@ -51,8 +93,19 @@ const yuv_colorspace_t YUV_BT709_FULL = {
 static void resize_internal_buffer(int w, int h)
 {
     if (internal_buffer.width != w || internal_buffer.height != h) {
-        surface_free(&internal_buffer);
-        internal_buffer = surface_alloc(FMT_IA16, w, h);
+        internal_buffer_release();
+        if (internal_allocator.alloc) {
+            // Custom allocator: build a non-owning surface around its buffer so
+            // surface_free() won't touch it; we release it via the allocator.
+            size_t stride = TEX_FORMAT_PIX2BYTES(FMT_IA16, w);
+            void *buf = internal_allocator.alloc(internal_allocator.ctx, stride * h, 16);
+            internal_buffer = surface_make_linear(buf, FMT_IA16, w, h);
+            internal_buffer_custom = (buf != NULL);
+        } else {
+            internal_buffer = surface_alloc(FMT_IA16, w, h);
+        }
+        assertf(internal_buffer.buffer,
+            "yuv: out of memory allocating %dx%d internal interleave buffer", w, h);
     }
 }
 
@@ -98,7 +151,7 @@ void yuv_close(void)
     assert(yuv_initialized > 0);
     yuv_initialized--;
     if (yuv_initialized == 0) {
-        surface_free(&internal_buffer);
+        internal_buffer_release();
         rspq_overlay_unregister(ovl_yuv);
     }
 }
@@ -248,6 +301,11 @@ void rsp_yuv_set_input_buffer(uint8_t *y, uint8_t *cb, uint8_t *cr, int y_pitch)
 
 void rsp_yuv_set_output_buffer(uint8_t *out, int out_pitch)
 {
+    // Never let the RSP DMA to physical 0: a NULL output buffer (e.g. a failed
+    // surface_alloc under low memory) would otherwise interleave chroma straight
+    // into low RDRAM, silently smashing .text. Fail loudly instead.
+    assertf(out != NULL && PhysicalAddr(out) != 0,
+        "rsp_yuv: output buffer is NULL (out of memory?)");
     rspq_write(ovl_yuv, CMD_YUV_SET_OUTPUT,
         PhysicalAddr(out), out_pitch);
 }
