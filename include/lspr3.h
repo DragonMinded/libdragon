@@ -27,9 +27,108 @@
 #ifndef __LIBDRAGON_LSPR3_H
 #define __LIBDRAGON_LSPR3_H
 
+#include <stddef.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct sprite_s sprite_t;
+
+/**
+ * @brief Optional parameters for advanced lspr3 decoding.
+ *
+ * Pass a pointer to one of these into #lspr3_load_buf_ex to override the
+ * default decode behaviour used by #sprite_load. Each field defaults to
+ * "use the standard behaviour" when zero, so a zero-initialised
+ * `(lspr3_load_parms_t){}` is equivalent to passing NULL.
+ */
+typedef struct lspr3_load_parms_s {
+    /**
+     * @brief Custom output-buffer allocator.
+     *
+     * When non-NULL, lspr3 invokes this instead of `memalign` for the
+     * decoded sprite buffer. The callback receives the size in bytes,
+     * the required alignment (in bytes — at least 16, typically 64 for
+     * RDP color-image use), and the @ref alloc_ctx opaque pointer.
+     *
+     * The caller owns the matching `free` — the returned sprite must NOT
+     * be passed to #sprite_free, because that path always calls libc
+     * `free()`. Pair `alloc` with your own destructor (e.g.
+     * `scratch_free` if you allocated from the scratch heap).
+     */
+    void *(*alloc)(void *ctx, size_t size, size_t alignment);
+
+    /** @brief Opaque pointer passed to @ref alloc. */
+    void *alloc_ctx;
+
+    /**
+     * @brief Output horizontal divisor.
+     *
+     * 0 or 1 = native source width (default).
+     * 2 = decode to a half-width sprite. The RDP YUV combiner performs
+     * the horizontal downsample during the YUV→RGB conversion using its
+     * bilinear filter, so no separate downsample pass runs. Useful when
+     * the destination framebuffer is narrower than the encoded source
+     * (or memory pressure rules out a full-width copy).
+     */
+    int output_x_divisor;
+
+    /**
+     * @brief Output vertical divisor.
+     *
+     * 0 or 1 = native source height (default).
+     * 2 = decode to a half-height sprite. As with @ref output_x_divisor
+     * the RDP bilinear filter handles the downsample during the YUV→RGB
+     * blit. The two divisors are independent — set both to 2 for a
+     * quarter-area sprite, or only one for an anisotropic downscale.
+     */
+    int output_y_divisor;
+
+    /**
+     * @brief Optional allocator for the transient mb-storage buffer.
+     *
+     * When non-NULL, lspr3 invokes this instead of `calloc` for the
+     * per-slice mbStorage_t array (sized `mb_count * sizeof(mbStorage_t)`,
+     * worst case ~110 KiB for a 640x240 source). The callback receives
+     * the total byte size and the @ref mb_alloc_ctx opaque pointer, and
+     * must return zero-initialised memory (the decoder relies on it).
+     *
+     * If set, @ref mb_free must also be set; lspr3 calls it on the
+     * returned pointer before #lspr3_load_buf_ex returns.
+     *
+     * Useful when the main heap is fragmented enough that a single
+     * 100+ KiB chunk can't be satisfied — callers can route this
+     * allocation to a dedicated reserve or to scratch.
+     */
+    void *(*mb_alloc)(void *ctx, size_t size);
+
+    /** @brief Matching deallocator for @ref mb_alloc. Required if @ref mb_alloc is set. */
+    void (*mb_free)(void *ctx, void *ptr);
+
+    /** @brief Opaque pointer passed to @ref mb_alloc and @ref mb_free. */
+    void *mb_alloc_ctx;
+} lspr3_load_parms_t;
+
+/**
+ * @brief Decode an H264I-encoded sprite from memory, with options.
+ *
+ * Lower-level decode entry point exposed for advanced callers. The
+ * #sprite_load path uses #lspr3_load_buf_ex with NULL @p parms, matching
+ * the historical behaviour (memalign-allocated output, native source
+ * dimensions).
+ *
+ * Callers passing custom @p parms.alloc are responsible for freeing the
+ * returned sprite via the matching deallocator — #sprite_free always
+ * calls libc `free()` and is not suitable for custom-allocated sprites.
+ *
+ * @param encoded_buf  Pointer to the H264I-encoded sprite payload.
+ * @param encoded_sz   Size of @p encoded_buf in bytes.
+ * @param parms        Optional decode parameters; pass NULL for defaults.
+ * @return The decoded sprite, or aborts via #assertf on failure.
+ */
+sprite_t *lspr3_load_buf_ex(const void *encoded_buf, int encoded_sz,
+                            const lspr3_load_parms_t *parms);
 
 /**
  * @brief Register the H264I (Lossy-sprite Level 3) decoder with the sprite loader.

@@ -26,6 +26,7 @@
 #include "sprite.h"
 #include "sprite_internal.h"
 #include "n64sys.h"
+#include "scratch.h"
 #include "surface.h"
 #include "utils.h"
 #include "yuv.h"
@@ -48,6 +49,16 @@
 
 /** @brief Required alignment of the decoded sprite buffer. */
 #define H264I_BUF_ALIGN 64
+
+/** @brief Set to 1 to enable per-allocation heap/scratch trace dumps for
+ *  diagnosing memory pressure during cam decodes. Off in production. */
+#define LSPR3_TRACE_MEM 0
+
+#if LSPR3_TRACE_MEM
+static void lspr3_memdump(const char *tag);
+#else
+#define lspr3_memdump(tag) ((void)0)
+#endif
 
 /**
  * @brief Header structure for H264I-encoded files.
@@ -86,11 +97,16 @@ static bool lspr3_is_encoded(const void *buf, int sz) {
     return memcmp(hdr->magic, H264I_FILE_MAGIC, H264I_FILE_MAGIC_SIZE) == 0;
 }
 
-static size_t lspr3_decoded_size_buf(const void *encoded_buf, int encoded_sz) {
+static size_t lspr3_decoded_size_buf(const void *encoded_buf, int encoded_sz,
+                                     int x_divisor, int y_divisor) {
     if (!lspr3_is_encoded(encoded_buf, encoded_sz)) return 0;
+    if (x_divisor < 1) x_divisor = 1;
+    if (y_divisor < 1) y_divisor = 1;
     const lspr3_header_t *hdr = (const lspr3_header_t *)encoded_buf;
     assertf(hdr->version == H264I_VERSION, "Invalid lossy sprite version (H264I version %d, expected %d)\nPlease regenerate your asset files", hdr->version, H264I_VERSION);
-    size_t pixel_bytes = hdr->orig_width * hdr->orig_height * 2;
+    size_t out_w = hdr->orig_width / x_divisor;
+    size_t out_h = hdr->orig_height / y_divisor;
+    size_t pixel_bytes = out_w * out_h * 2;
     size_t header_bytes = sizeof(sprite_t) + sizeof(sprite_ext_t);
     return ROUND_UP(header_bytes, 64) + ROUND_UP(pixel_bytes, 16);
 }
@@ -103,7 +119,8 @@ static void lspr3_decode_intra_slice(
     uint8_t pic_init_qp,
     int8_t chroma_qp_index_offset,
     uint8_t **out_yuv,
-    size_t *out_yuv_size
+    size_t *out_yuv_size,
+    const lspr3_load_parms_t *parms
 ) {
     assertf(payload_size >= 2, "H264I: payload too small");
 
@@ -119,8 +136,10 @@ static void lspr3_decode_intra_slice(
     int mb_h = (height + 15) / 16;
     u32 pic_size_in_mbs = (u32)(mb_w * mb_h);
     size_t yuv_size = (size_t)pic_size_in_mbs * 256 + (size_t)pic_size_in_mbs * 64 * 2;
-    uint8_t *yuv = (uint8_t*)malloc_uncached(yuv_size);
-    assertf(yuv, "H264I: out of memory");
+    lspr3_memdump("pre-yuv");
+    uint8_t *yuv = (uint8_t*)scratch_malloc_uncached(yuv_size);
+    assertf(yuv, "H264I: out of memory (yuv %u)", (unsigned)yuv_size);
+    lspr3_memdump("post-yuv");
     image_t image = { .data = yuv, .width = (u32)mb_w, .height = (u32)mb_h };
 
     seqParamSet_t sps = {
@@ -167,8 +186,26 @@ static void lspr3_decode_intra_slice(
     assertf(slice.firstMbInSlice == 0, "H264I: first_mb_in_slice != 0");
     assertf(slice.picParameterSetId == 0, "H264I: unexpected PPS id");
 
-    mbStorage_t *mb = (mbStorage_t*)calloc(pic_size_in_mbs, sizeof(mbStorage_t));
-    assertf(mb, "H264I: out of memory");
+    lspr3_memdump("pre-mb");
+    // mb storage is transient — allocated here, freed at the end of
+    // this function. Default routes to the main heap to avoid stacking
+    // on scratch's peak alongside the longer-lived yuv + output sprite
+    // buffers (the three together would otherwise need a contiguous
+    // scratch window large enough to hold all of them simultaneously).
+    // Callers facing main-heap fragmentation can override via
+    // parms->mb_alloc to route this elsewhere (e.g. a dedicated reserve
+    // sized for the worst-case mb count).
+    size_t mb_bytes = (size_t)pic_size_in_mbs * sizeof(mbStorage_t);
+    mbStorage_t *mb;
+    if (parms && parms->mb_alloc) {
+        mb = (mbStorage_t*)parms->mb_alloc(parms->mb_alloc_ctx, mb_bytes);
+    } else {
+        mb = (mbStorage_t*)calloc(pic_size_in_mbs, sizeof(mbStorage_t));
+    }
+    assertf(mb, "H264I: out of memory (mb %u = %u x %u)",
+        (unsigned)mb_bytes,
+        (unsigned)sizeof(mbStorage_t), (unsigned)pic_size_in_mbs);
+    lspr3_memdump("post-mb");
     h264bsdInitMbNeighbours(mb, (u32)mb_w, pic_size_in_mbs);
 
     i32 qpY = (i32)pps.picInitQp + slice.sliceQpDelta;
@@ -225,7 +262,11 @@ static void lspr3_decode_intra_slice(
     // before the memory is released.
     rsph264_sync();
     assertf(currMbAddr == pic_size_in_mbs, "H264I: incomplete slice");
-    free(mb);
+    if (parms && parms->mb_alloc) {
+        parms->mb_free(parms->mb_alloc_ctx, mb);
+    } else {
+        free(mb);  // matches the calloc above (main heap, not scratch)
+    }
 
     *out_yuv = yuv;
     *out_yuv_size = yuv_size;
@@ -234,17 +275,23 @@ static void lspr3_decode_intra_slice(
 // Build the FMT_RGBA16 sprite from the I420 reconstruction. The RDP YUV
 // combiner does the YUV→RGB conversion on the fly (BT.709 full range, hard
 // coded to match the encoder's rgba_to_i420), with bilinear chroma upsample
-// as a side benefit.
+// as a side benefit. If x_divisor and/or y_divisor are > 1 the source is
+// also downsampled in that axis by the RDP's bilinear filter during the blit.
 static void lspr3_build_rgba16_sprite(
     sprite_t *sprite, const uint8_t *pic,
     uint16_t orig_w, uint16_t orig_h,
-    int stride, int luma_h
+    int stride, int luma_h,
+    int x_divisor, int y_divisor
 ) {
+    if (x_divisor < 1) x_divisor = 1;
+    if (y_divisor < 1) y_divisor = 1;
+    uint16_t out_w = orig_w / x_divisor;
+    uint16_t out_h = orig_h / y_divisor;
     uint8_t preserved_flags = sprite->flags & SPRITE_FLAGS_OWNEDBUFFER;
     size_t header_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
     sys_hw_memset(sprite, 0, header_bytes);
-    sprite->width = orig_w;
-    sprite->height = orig_h;
+    sprite->width = out_w;
+    sprite->height = out_h;
     sprite->flags = preserved_flags | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_RGBA16;
     sprite->hslices = 1;
     sprite->vslices = 1;
@@ -271,10 +318,10 @@ static void lspr3_build_rgba16_sprite(
     // The RDP writes through to RAM bypassing the CPU cache. Discard
     // any (possibly speculative) cached lines for the destination so a
     // future read of `dst` doesn't return stale data.
-    size_t pixel_bytes = (size_t)orig_w * orig_h * 2;
+    size_t pixel_bytes = (size_t)out_w * out_h * 2;
     size_t pixel_bytes_aligned = ROUND_UP(pixel_bytes, 16);
     data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
-    surface_t target_surf = surface_make_linear(dst, FMT_RGBA16, orig_w, orig_h);
+    surface_t target_surf = surface_make_linear(dst, FMT_RGBA16, out_w, out_h);
 
     yuv_init();
     {
@@ -286,7 +333,20 @@ static void lspr3_build_rgba16_sprite(
             // pixels until the caller next sets a render mode.
             rdpq_mode_push();
             {
-                yuv_tex_blit(&frame, 0, 0, NULL, &YUV_BT709_FULL);
+                if (x_divisor > 1 || y_divisor > 1) {
+                    // Downsample during the blit. The RDP bilinear filter
+                    // handles sub-pixel sampling, so a 0.5x scale produces
+                    // a clean downsample (chroma is naturally 2x2 upsampled
+                    // before the combiner so the chroma plane's sample
+                    // density is preserved through the downscale).
+                    rdpq_blitparms_t bp = {
+                        .scale_x = 1.0f / (float)x_divisor,
+                        .scale_y = 1.0f / (float)y_divisor,
+                    };
+                    yuv_tex_blit(&frame, 0, 0, &bp, &YUV_BT709_FULL);
+                } else {
+                    yuv_tex_blit(&frame, 0, 0, NULL, &YUV_BT709_FULL);
+                }
             }
             rdpq_mode_pop();
         }
@@ -319,19 +379,55 @@ static void lspr3_apply_alpha1(uint16_t *dst, uint16_t w, uint16_t h,
     data_cache_hit_writeback(dst, ROUND_UP((size_t)w * h * 2, 16));
 }
 
-static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
-    // Allocate the buffer for the decoded sprite.
-    size_t decoded_sz = lspr3_decoded_size_buf(encoded_buf, encoded_sz);
-    assertf(decoded_sz > 0, "Invalid H264I buffer");
-    sprite_t *sprite = (sprite_t *)memalign(H264I_BUF_ALIGN, decoded_sz);
-    assertf(sprite, "Out of memory");
-    sprite->flags = SPRITE_FLAGS_OWNEDBUFFER;
+#if LSPR3_TRACE_MEM
+static void lspr3_memdump(const char *tag) {
+    struct mallinfo mi = mallinfo();
+    scratch_stats_t ss;
+    scratch_get_stats(&ss);
+    debugf("n64: MEMF [%s] heap.uord=%u ford=%u keep=%u | scratch.live=%u resv=%u\n",
+        tag,
+        (unsigned)mi.uordblks, (unsigned)mi.fordblks, (unsigned)mi.keepcost,
+        (unsigned)ss.live_bytes, (unsigned)ss.reserved_bytes);
+}
+#endif
 
-    // Decode the H264I bitstream into YUV planes. When a 1-bit alpha bitmap is
-    // present it is appended after the H.264 payload, so the payload itself is
-    // shorter than the whole buffer by alpha_size bytes.
+sprite_t *lspr3_load_buf_ex(const void *encoded_buf, int encoded_sz,
+                            const lspr3_load_parms_t *parms)
+{
+    lspr3_memdump("lspr3-entry");
+    int x_divisor = (parms && parms->output_x_divisor > 0) ? parms->output_x_divisor : 1;
+    int y_divisor = (parms && parms->output_y_divisor > 0) ? parms->output_y_divisor : 1;
+
+    // Allocate the buffer for the decoded sprite. Default path uses memalign
+    // with H264I_BUF_ALIGN so the post-header pixel area lands on a 64-byte
+    // boundary (required by rdpq_set_color_image when the pixel area is
+    // used as a YUV blit target). A caller-provided allocator is responsible
+    // for satisfying the same alignment — typically by passing the
+    // alignment through to its own aligned allocator.
+    size_t decoded_sz = lspr3_decoded_size_buf(encoded_buf, encoded_sz, x_divisor, y_divisor);
+    assertf(decoded_sz > 0, "Invalid H264I buffer");
+    sprite_t *sprite;
+    if (parms && parms->alloc) {
+        sprite = (sprite_t *)parms->alloc(parms->alloc_ctx, decoded_sz, H264I_BUF_ALIGN);
+    } else {
+        sprite = (sprite_t *)memalign(H264I_BUF_ALIGN, decoded_sz);
+    }
+    assertf(sprite, "H264I: out of memory (sprite %u)", (unsigned)decoded_sz);
+    sprite->flags = SPRITE_FLAGS_OWNEDBUFFER;
+    lspr3_memdump("post-sprite-alloc");
+
+    // Decode the H264I bitstream into YUV planes. The transient yuv +
+    // macroblock-storage buffers always go through scratch — they're
+    // short-lived and stack cleanly with no fragmentation impact on the
+    // caller's heap. When a 1-bit alpha bitmap is present it is appended
+    // after the H.264 payload, so the payload is shorter than the whole
+    // buffer by alpha_size bytes.
     const lspr3_header_t *hdr = (const lspr3_header_t *)encoded_buf;
     size_t alpha_size = (hdr->flags & LSPR3_FLAG_ALPHA1) ? hdr->alpha_size : 0;
+    // 1-bit alpha is authored at the source resolution; it can't be applied to
+    // a divisor-downsampled buffer. Fail loudly rather than corrupt memory.
+    assertf(!(alpha_size && (x_divisor > 1 || y_divisor > 1)),
+        "H264I: 1-bit alpha is not supported together with output divisors");
     assertf((size_t)encoded_sz >= sizeof(lspr3_header_t) + alpha_size,
         "H264I buffer truncated (sz=%d, alpha_size=%zu)", encoded_sz, alpha_size);
     size_t payload_size = (size_t)encoded_sz - sizeof(lspr3_header_t) - alpha_size;
@@ -341,7 +437,7 @@ static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
         hdr->payload, payload_size,
         hdr->width, hdr->height,
         hdr->pic_init_qp, hdr->chroma_qp_index_offset,
-        &pic, &pic_size
+        &pic, &pic_size, parms
     );
 
     // Convert the YUV planes into the final RGBA16 sprite
@@ -352,9 +448,10 @@ static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
     lspr3_build_rgba16_sprite(
         sprite, pic,
         hdr->orig_width, hdr->orig_height,
-        stride, luma_h
+        stride, luma_h,
+        x_divisor, y_divisor
     );
-    free_uncached(pic);
+    scratch_free(pic);
 
     // Re-apply the lossless 1-bit alpha mask (if any) on top of the RGBA5551
     // pixels the RDP just produced (the YUV combiner writes alpha=1 everywhere).
@@ -366,6 +463,13 @@ static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
     }
 
     return sprite;
+}
+
+// Default decoder callback registered with sprite_load_buf: uses memalign
+// for the output (callers that go through sprite_load / sprite_load_buf
+// can pass the result to sprite_free unchanged).
+static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
+    return lspr3_load_buf_ex(encoded_buf, encoded_sz, NULL);
 }
 
 static int lspr3_init_refcount = 0;
