@@ -305,7 +305,7 @@ void *asset_loadf(FILE *f, int *sz)
     return asset_loadfd(fd, sz);
 }
 
-void *asset_load(const char *fn, int *sz)
+void *asset_load_ex(const char *fn, int *sz, const asset_allocator_t *allocator)
 {
     void *buf = NULL; int buf_size = 0;
     int size;
@@ -315,12 +315,20 @@ void *asset_load(const char *fn, int *sz)
     size = stat.st_size;
     asset_parsed_header_t header;
     buf_size = asset_read_header(fd, &header, &size);
-    buf = memalign(ASSET_ALIGNMENT, buf_size);
+    if (allocator && allocator->alloc)
+        buf = allocator->alloc(allocator->ctx, buf_size, ASSET_ALIGNMENT);
+    else
+        buf = memalign(ASSET_ALIGNMENT, buf_size);
     assertf(buf, "Out of memory");
     asset_read(fd, &header, &size, buf, &buf_size);
     if (sz) *sz = size;
     close(fd);
     return buf;
+}
+
+void *asset_load(const char *fn, int *sz)
+{
+    return asset_load_ex(fn, sz, NULL);
 }
 
 #ifdef N64

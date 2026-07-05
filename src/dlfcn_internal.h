@@ -46,4 +46,38 @@ extern dl_module_t *__dl_list_tail;
 /** @brief Number of loaded modules */
 extern size_t __dl_num_loaded_modules;
 
+/**
+ * @brief Allocate the buffer holding a DSO module image (see #dl_set_module_allocator)
+ */
+typedef void *(*dl_module_alloc_t)(void *ctx, size_t size, size_t align);
+
+/**
+ * @brief Free a DSO module image buffer (see #dl_set_module_allocator)
+ */
+typedef void  (*dl_module_free_t)(void *ctx, void *ptr);
+
+/**
+ * @brief Install a custom allocator for DSO module images
+ *
+ * By default #dlopen allocates the (decompressed) module image on the heap
+ * and #dlclose frees it with @c free(). This installs a custom allocator
+ * used for every subsequent #dlopen, so the image can be placed in memory of
+ * the caller's choosing (e.g. a pre-reserved region to control heap layout).
+ *
+ * The installed allocator must remain in place for the whole lifetime of any
+ * module loaded while it was active, because #dlclose uses the installed
+ * @p free to release the image. Pass NULL callbacks to restore the default
+ * (@c malloc / @c free) behaviour.
+ *
+ * @note Internal/advanced API: deliberately not declared in the public
+ * <dlfcn.h>. The allocator-lifetime coupling above is a sharp edge not yet
+ * fit for general use; declared here for opt-in by code embedding libdragon
+ * that needs to control DSO image placement.
+ *
+ * @param alloc     Allocator callback, or NULL to restore the default
+ * @param free      Matching deallocator callback, or NULL for the default
+ * @param ctx       Opaque context passed through to both callbacks
+ */
+void dl_set_module_allocator(dl_module_alloc_t alloc, dl_module_free_t free, void *ctx);
+
 #endif

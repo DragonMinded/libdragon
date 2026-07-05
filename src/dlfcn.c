@@ -102,6 +102,12 @@ dl_module_t *__dl_list_head;
 dl_module_t *__dl_list_tail;
 /** @brief Number of loaded modules */
 size_t __dl_num_loaded_modules;
+/** @brief Custom module-image allocator (see dl_set_module_allocator) */
+static dl_module_alloc_t module_alloc_func;
+/** @brief Matching module-image deallocator */
+static dl_module_free_t module_free_func;
+/** @brief Context passed to the module allocator callbacks */
+static void *module_alloc_ctx;
 /** @brief String of last error */
 static char error_string[256];
 /** @brief Whether an error is present */
@@ -504,7 +510,16 @@ void *dlopen(const char *filename, int mode)
         //Increment use count
         handle->ref_count++;
     } else {
-        handle = asset_load(filename, NULL);
+        if(module_alloc_func) {
+            asset_allocator_t allocator = {
+                .alloc = module_alloc_func,
+                .free = module_free_func,
+                .ctx = module_alloc_ctx,
+            };
+            handle = asset_load_ex(filename, NULL, &allocator);
+        } else {
+            handle = asset_load(filename, NULL);
+        }
         assertf(handle->magic == DSO_MAGIC, "Invalid DSO file");
         link_module(handle, filename);
         handle->mode = mode;
@@ -636,7 +651,26 @@ static void close_module(dl_module_t *module)
     end_module(module);
     //Remove module from memory
     __dl_remove_module(module);
-    free(module);
+    //Release the module image via the same allocator that produced it.
+    if(module_free_func) {
+        module_free_func(module_alloc_ctx, module);
+    } else {
+        free(module);
+    }
+}
+
+void dl_set_module_allocator(dl_module_alloc_t alloc, dl_module_free_t dealloc, void *ctx)
+{
+    // dlclose() frees each module image through the currently-installed free
+    // callback — module origin is not tracked per-module — so the allocator may
+    // only be changed while no modules are loaded. Install it before the first
+    // dlopen() and clear it only after every module has been dlclose()d.
+    assertf(__dl_num_loaded_modules == 0,
+        "dl_set_module_allocator: cannot change the allocator while %u module(s) "
+        "are still loaded (dlclose them first)", (unsigned)__dl_num_loaded_modules);
+    module_alloc_func = alloc;
+    module_free_func = dealloc;
+    module_alloc_ctx = ctx;
 }
 
 static void close_unused_modules()

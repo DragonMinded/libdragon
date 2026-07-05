@@ -129,8 +129,42 @@ extern void __asset_init_compression_lvl3(void);
 void *asset_load(const char *fn, int *sz);
 
 /**
+ * @brief Custom allocator for the buffer returned by #asset_load_ex
+ *
+ * Lets a caller place the (decompressed) asset payload in memory of its
+ * choosing — e.g. a pre-reserved region — instead of the default heap.
+ * Only the returned payload buffer is governed by this allocator; on N64
+ * the full-file path decompresses in place into that same buffer, so it is
+ * the only allocation #asset_load_ex performs. The matching @c free must be
+ * used to release the buffer (do not call the C @c free() on it).
+ */
+typedef struct {
+    /** @brief Allocate @p size bytes aligned to at least @p align. */
+    void *(*alloc)(void *ctx, size_t size, size_t align);
+    /** @brief Free a buffer previously returned by @c alloc. */
+    void  (*free)(void *ctx, void *ptr);
+    /** @brief Opaque context passed through to both callbacks. */
+    void  *ctx;
+} asset_allocator_t;
+
+/**
+ * @brief Load an asset file with a caller-provided allocator
+ *
+ * Identical to #asset_load, but the returned payload buffer is allocated via
+ * @p allocator (when non-NULL) instead of the default heap. Pass NULL to get
+ * exactly #asset_load behaviour. Free the result with @c allocator->free
+ * (or @c free() when @p allocator was NULL).
+ *
+ * @param fn            Filename to load (including filesystem prefix)
+ * @param sz            If not NULL, filled with the uncompressed size
+ * @param allocator     Custom payload allocator, or NULL for the default heap
+ * @return void*        Pointer to the loaded file
+ */
+void *asset_load_ex(const char *fn, int *sz, const asset_allocator_t *allocator);
+
+/**
  * @brief Load an asset file (possibly uncompressing it)
- * 
+ *
  * This function loads an asset embedded within a larger file. It requires in
  * input an open file pointer, seeked to the beginning of the asset, and the
  * size of the asset itself. If the asset is compressed, it is transparently
