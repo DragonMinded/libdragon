@@ -200,6 +200,11 @@ u32 h264bsdNextMbAddress(u32 *pSliceGroupMap, u32 picSizeInMbs, u32 currMbAddr);
 
 void h264bsdSetCurrImageMbPointers(image_t *image, u32 mbNum);
 
+/* Set/reset the windowed-decode-target params used by
+ * h264bsdSetCurrImageMbPointers. heightMbs==0 restores full-frame addressing.
+ * Used by lspr3's banded intra decode; the full decoder never calls this. */
+void h264bsdSetImageWindow(u32 baseRow, u32 heightMbs);
+
 void h264bsdWriteSliceMbData(image_t *image, u32 firstMbNum, u32 lastMbNum, u32* pData);
 
 #endif /* #ifdef H264SWDEC_UTIL_H */

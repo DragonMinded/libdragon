@@ -108,6 +108,25 @@ typedef struct lspr3_load_parms_s {
 
     /** @brief Opaque pointer passed to @ref mb_alloc and @ref mb_free. */
     void *mb_alloc_ctx;
+
+    /**
+     * @brief Decode in horizontal bands to cap the transient YUV footprint.
+     *
+     * When > 0, the frame is reconstructed in bands of this many MB-rows into a
+     * small windowed scratch buffer (`band_rows`+2 MB-rows) and each band is
+     * converted into the output sprite as it completes, so the peak transient
+     * YUV is ~`(band_rows+2)/mb_height` of the full-frame YUV instead of the
+     * whole frame. Output is bit-identical to the full-frame path: intra
+     * prediction's cross-band top-neighbours are carried, and each band decodes
+     * one row ahead so its bottom-row chroma upsample has its real neighbour (no
+     * seam at band boundaries). Costs a few % more decode time (extra per-band
+     * RSP/RDP syncs), so it is intended for callers trading a little speed for a
+     * smaller transient working set.
+     *
+     * 0 (default) = decode the whole frame at once (fastest; needs the full
+     * frame's worth of transient YUV).
+     */
+    int band_rows;
 } lspr3_load_parms_t;
 
 /**

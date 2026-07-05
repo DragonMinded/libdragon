@@ -54,6 +54,12 @@
  *  diagnosing memory pressure during cam decodes. Off in production. */
 #define LSPR3_TRACE_MEM 0
 
+/** @brief Set to 1 to verify the banded intra decoder bit-for-bit against the
+ *  full-frame path on every decode (needs a 2nd full YUV, so run on 8 MiB).
+ *  Off in production. */
+#define LSPR3_VERIFY_BANDING 0
+#define LSPR3_VERIFY_BAND_ROWS 5
+
 #if LSPR3_TRACE_MEM
 static void lspr3_memdump(const char *tag);
 #else
@@ -272,6 +278,231 @@ static void lspr3_decode_intra_slice(
     *out_yuv_size = yuv_size;
 }
 
+static uint8_t *lspr3_setup_rgba16_sprite_header(sprite_t *sprite, uint16_t out_w, uint16_t out_h);
+
+// Banded variant: reconstruct the frame in horizontal bands of `band_rows`
+// MB-rows into a small windowed scratch buffer, so the peak transient YUV is a
+// fraction of the full-frame path. Each completed band is either assembled into
+// the full-frame `out_yuv` (verification: lets a harness diff against the
+// full-frame reconstruction) OR converted directly into `out_sprite` (shipping:
+// no full YUV ever resident). Exactly one of out_yuv / out_sprite is non-NULL.
+// For out_sprite, x_div/y_div carry the same output downsample as the full-frame
+// path.
+//
+// The window is `band_rows`+2 MB-rows: the band's content occupies window rows
+// 1..band_rows, with one extra "lookahead" row below it (row band_rows+1) and an
+// unused padding row above it (row 0, an artefact of the window addressing's +1
+// offset). The lookahead row matters for two reasons:
+//   1. Chroma seam: the YUV->RGB bilinear chroma upsample at the band's bottom
+//      row needs the next row's chroma. Decoding one row ahead and including it
+//      in the blit feeds that upsample its real neighbour, so band boundaries are
+//      seam-free. The lookahead row's OWN output (its bottom edge clamps) lands
+//      on the next band's first output rows and is overwritten by that band.
+//   2. Continuity: the lookahead row IS the next band's first content row, and it
+//      was decoded with its top intra-pred neighbour in-window, so it is carried
+//      forward (to window row 1) rather than re-decoded. Because that row is never
+//      re-decoded, the next band's first DECODED row sits at window row 2 and
+//      reads window row 1 as its top neighbour — window row 0 is never read.
+// Output is bit-identical to the full-frame path.
+static void lspr3_decode_intra_slice_banded(
+    const uint8_t *payload, size_t payload_size,
+    uint16_t width, uint16_t height,
+    uint16_t orig_w, uint16_t orig_h,
+    uint8_t pic_init_qp, int8_t chroma_qp_index_offset,
+    uint8_t *out_yuv, sprite_t *out_sprite, int band_rows,
+    int x_div, int y_div,
+    const lspr3_load_parms_t *parms
+) {
+    assertf(payload_size >= 2, "H264I-band: payload too small");
+    uint8_t nal_hdr = payload[0];
+    nalUnit_t nal = {
+        .nalUnitType = (nalUnitType_e)(nal_hdr & 0x1F),
+        .nalRefIdc = (nal_hdr >> 5) & 3,
+    };
+
+    int mb_w = (width + 15) / 16;
+    int mb_h = (height + 15) / 16;
+    u32 pic_size_in_mbs = (u32)(mb_w * mb_h);
+    if (band_rows <= 0 || band_rows > mb_h) band_rows = mb_h;
+    int win_rows = band_rows + 2;   // content (1..band_rows) + lookahead + pad row 0
+
+    size_t win_yuv_size = (size_t)(win_rows * mb_w) * 256 + (size_t)(win_rows * mb_w) * 64 * 2;
+    uint8_t *win = (uint8_t*)scratch_malloc_uncached(win_yuv_size);
+    assertf(win, "H264I-band: out of memory (yuv-window %u)", (unsigned)win_yuv_size);
+    image_t image = { .data = win, .width = (u32)mb_w, .height = (u32)mb_h };
+
+    seqParamSet_t sps = {
+        .profileIdc = 66, .levelIdc = 22, .seqParameterSetId = 0,
+        .maxFrameNum = 1 << 4, .picOrderCntType = 2, .numRefFrames = 1,
+        .picWidthInMbs = (u32)mb_w, .picHeightInMbs = (u32)mb_h,
+    };
+    picParamSet_t pps = {
+        .picParameterSetId = 0, .seqParameterSetId = 0, .picOrderPresentFlag = 0,
+        .numSliceGroups = 1, .sliceGroupMapType = 0, .picSizeInMapUnits = (u32)pic_size_in_mbs,
+        .numRefIdxL0Active = 1, .picInitQp = pic_init_qp, .chromaQpIndexOffset = chroma_qp_index_offset,
+        .deblockingFilterControlPresentFlag = 1, .constrainedIntraPredFlag = 0,
+        .redundantPicCntPresentFlag = 0,
+    };
+
+    uint8_t *rbsp = (uint8_t *)(payload + 1);
+    size_t rbsp_size = payload_size - 1;
+    strmData_t strm = {0};
+    strm.pStart = rbsp;
+    strm.pCurr = ((u64)(uintptr_t)rbsp) << 3;
+    strm.pEnd = ((u64)(uintptr_t)(rbsp + rbsp_size)) << 3;
+
+    rsph264_begin_frame();
+
+    sliceHeader_t slice = {0};
+    u32 slice_status = h264bsdDecodeSliceHeader(&strm, &slice, &sps, &pps, &nal);
+    assertf(slice_status == HANTRO_OK, "H264I-band: slice header decode failed");
+
+    size_t mb_bytes = (size_t)pic_size_in_mbs * sizeof(mbStorage_t);
+    mbStorage_t *mb;
+    if (parms && parms->mb_alloc) mb = (mbStorage_t*)parms->mb_alloc(parms->mb_alloc_ctx, mb_bytes);
+    else                          mb = (mbStorage_t*)calloc(pic_size_in_mbs, sizeof(mbStorage_t));
+    assertf(mb, "H264I-band: out of memory (mb %u)", (unsigned)mb_bytes);
+    h264bsdInitMbNeighbours(mb, (u32)mb_w, pic_size_in_mbs);
+
+    i32 qpY = (i32)pps.picInitQp + slice.sliceQpDelta;
+    macroblockLayer_t mbLayers[H264I_MB_RING] = {0};
+    rspq_syncpoint_t slot_sync[H264I_MB_RING] = {0};
+
+    // Plane offsets (window vs full-frame). One MB-row = mb_w*256 (luma) /
+    // mb_w*64 (each chroma) bytes.
+    const size_t win_luma_plane = (size_t)(win_rows * mb_w) * 256;
+    const size_t win_cb_plane   = (size_t)(win_rows * mb_w) * 64;
+    const size_t full_luma_plane = (size_t)pic_size_in_mbs * 256;
+    const size_t full_cb_plane   = (size_t)pic_size_in_mbs * 64;
+    const size_t row_luma = (size_t)mb_w * 256;
+    const size_t row_cb   = (size_t)mb_w * 64;
+    const int stride = mb_w * 16;          /* luma plane width (px) */
+    const int uv_stride = stride / 2;
+
+    // Convert-mode setup: build the sprite header and the RDP YUV→RGB session
+    // once; each band is blitted into its slice of the output sprite below.
+    surface_t target = {0};
+    if (out_sprite) {
+        uint16_t out_w = orig_w / x_div;
+        uint16_t out_h = orig_h / y_div;
+        uint8_t *dst = lspr3_setup_rgba16_sprite_header(out_sprite, out_w, out_h);
+        size_t pixel_bytes_aligned = ROUND_UP((size_t)out_w * out_h * 2, 16);
+        data_cache_hit_writeback_invalidate(dst, pixel_bytes_aligned);
+        target = surface_make_linear(dst, FMT_RGBA16, out_w, out_h);
+        yuv_init();
+    }
+
+    u32 currMbAddr = 0;
+    for (int bandStart = 0; bandStart < mb_h; bandStart += band_rows) {
+        int nrows = (bandStart + band_rows <= mb_h) ? band_rows : (mb_h - bandStart);
+        int contentEnd = bandStart + nrows;
+        int hasLA = (contentEnd < mb_h);   // a lookahead MB-row exists below this band
+        h264bsdSetImageWindow((u32)bandStart, (u32)win_rows);
+
+        // Decode this band's content rows plus one lookahead row (if any). For
+        // bands after the first the band's first content row was already decoded
+        // as the previous band's lookahead and carried into window row 1, so
+        // currMbAddr already sits past it (at window row 2's global address).
+        u32 bandEndMb = (u32)((hasLA ? contentEnd + 1 : contentEnd) * mb_w);
+        while (currMbAddr < bandEndMb) {
+            u32 slot = currMbAddr % H264I_MB_RING;
+            if (slot_sync[slot]) rspq_syncpoint_wait(slot_sync[slot]);
+            macroblockLayer_t *mbLayer = &mbLayers[slot];
+            mbStorage_t *pMb = mb + currMbAddr;
+            pMb->sliceId = 1;
+            pMb->disableDeblockingFilterIdc = slice.disableDeblockingFilterIdc;
+            pMb->filterOffsetA = slice.sliceAlphaC0Offset;
+            pMb->filterOffsetB = slice.sliceBetaOffset;
+            pMb->chromaQpIndexOffset = pps.chromaQpIndexOffset;
+            u32 s1 = h264bsdDecodeMacroblockLayer(&strm, mbLayer, mb + currMbAddr,
+                                                  slice.sliceType, slice.numRefIdxL0Active);
+            assertf(s1 == HANTRO_OK, "H264I-band: mb-layer fail at %lu", (unsigned long)currMbAddr);
+            u32 s2 = h264bsdDecodeMacroblock(mb + currMbAddr, mbLayer, &image, NULL,
+                                             &qpY, currMbAddr, pps.constrainedIntraPredFlag, &slice);
+            assertf(s2 == HANTRO_OK, "H264I-band: mb decode fail at %lu", (unsigned long)currMbAddr);
+            slot_sync[slot] = rspq_syncpoint_new();
+            currMbAddr++;
+        }
+        rsph264_sync();   // RSP has written this band's MBs into the window
+
+        if (out_yuv) {
+            // Verification: assemble window rows [1..nrows] -> full-frame rows.
+            memcpy(out_yuv + (size_t)bandStart * row_luma,
+                   win + 1 * row_luma, (size_t)nrows * row_luma);
+            memcpy(out_yuv + full_luma_plane + (size_t)bandStart * row_cb,
+                   win + win_luma_plane + 1 * row_cb, (size_t)nrows * row_cb);
+            memcpy(out_yuv + full_luma_plane + full_cb_plane + (size_t)bandStart * row_cb,
+                   win + win_luma_plane + win_cb_plane + 1 * row_cb, (size_t)nrows * row_cb);
+        } else {
+            // Shipping: convert window rows [1..nrows] — plus the lookahead row
+            // (row nrows+1) when present — straight into the output sprite. The
+            // lookahead row in the blit gives the band's bottom content row its
+            // real next chroma row, so the YUV->RGB upsample has no edge-clamp
+            // seam at the boundary. The lookahead row's own output lands on the
+            // next band's first rows and is overwritten by that band's blit, so
+            // only the seam-free content survives.
+            int blit_rows = nrows + (hasLA ? 1 : 0);
+            yuv_frame_t bf = {
+                .y = surface_make_linear(win + 1 * row_luma, FMT_I8, stride, blit_rows * 16),
+                .u = surface_make_linear(win + win_luma_plane + 1 * row_cb, FMT_I8, uv_stride, blit_rows * 8),
+                .v = surface_make_linear(win + win_luma_plane + win_cb_plane + 1 * row_cb, FMT_I8, uv_stride, blit_rows * 8),
+            };
+            rdpq_attach(&target, NULL);
+            rdpq_mode_push();
+            if (x_div > 1 || y_div > 1) {
+                rdpq_blitparms_t bp = { .scale_x = 1.0f / x_div, .scale_y = 1.0f / y_div };
+                yuv_tex_blit(&bf, 0, (bandStart * 16) / y_div, &bp, &YUV_BT709_FULL);
+            } else {
+                yuv_tex_blit(&bf, 0, bandStart * 16, NULL, &YUV_BT709_FULL);
+            }
+            rdpq_mode_pop();
+            rdpq_detach_wait();   // RDP done reading the window -> safe to reuse it
+        }
+
+        if (hasLA) {
+            // The lookahead row (window row nrows+1) IS the next band's first
+            // content row, already decoded. Carry it to window row 1 so the next
+            // band continues from it without re-decoding; the next band's first
+            // decoded row then sits at window row 2 and reads this as its top
+            // neighbour. Window is uncached -> the copy is visible to the RSP
+            // immediately. (Window row 0 is unused padding; nothing reads it.)
+            memcpy(win + 1 * row_luma, win + (size_t)(nrows + 1) * row_luma, row_luma);
+            memcpy(win + win_luma_plane + 1 * row_cb,
+                   win + win_luma_plane + (size_t)(nrows + 1) * row_cb, row_cb);
+            memcpy(win + win_luma_plane + win_cb_plane + 1 * row_cb,
+                   win + win_luma_plane + win_cb_plane + (size_t)(nrows + 1) * row_cb, row_cb);
+        }
+    }
+    h264bsdSetImageWindow(0, 0);   // restore full-frame addressing for FMV path
+    rsph264_sync();
+    if (out_sprite) yuv_close();
+    assertf(currMbAddr == pic_size_in_mbs, "H264I-band: incomplete slice");
+    if (parms && parms->mb_alloc) parms->mb_free(parms->mb_alloc_ctx, mb);
+    else                          free(mb);
+    scratch_free(win);
+}
+
+// Initialise the RGBA16 sprite header (no pixel data) and return a pointer to
+// the sprite's pixel area. Shared by the full-frame and banded converters so
+// both produce an identically-laid-out sprite.
+static uint8_t *lspr3_setup_rgba16_sprite_header(sprite_t *sprite, uint16_t out_w, uint16_t out_h)
+{
+    uint8_t preserved_flags = sprite->flags & SPRITE_FLAGS_OWNEDBUFFER;
+    size_t header_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
+    sys_hw_memset(sprite, 0, header_bytes);
+    sprite->width = out_w;
+    sprite->height = out_h;
+    sprite->flags = preserved_flags | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_RGBA16;
+    sprite->hslices = 1;
+    sprite->vslices = 1;
+
+    sprite_ext_t *sx = (sprite_ext_t*)sprite->data;
+    sx->size = sizeof(sprite_ext_t);
+    sx->version = SPRITE_EXT_VERSION;
+    sx->data_ptr = (uint32_t)header_bytes;
+    return (uint8_t*)sprite + header_bytes;
+}
+
 // Build the FMT_RGBA16 sprite from the I420 reconstruction. The RDP YUV
 // combiner does the YUV→RGB conversion on the fly (BT.709 full range, hard
 // coded to match the encoder's rgba_to_i420), with bilinear chroma upsample
@@ -287,19 +518,7 @@ static void lspr3_build_rgba16_sprite(
     if (y_divisor < 1) y_divisor = 1;
     uint16_t out_w = orig_w / x_divisor;
     uint16_t out_h = orig_h / y_divisor;
-    uint8_t preserved_flags = sprite->flags & SPRITE_FLAGS_OWNEDBUFFER;
-    size_t header_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
-    sys_hw_memset(sprite, 0, header_bytes);
-    sprite->width = out_w;
-    sprite->height = out_h;
-    sprite->flags = preserved_flags | SPRITE_FLAGS_NODATA | SPRITE_FLAGS_EXT | FMT_RGBA16;
-    sprite->hslices = 1;
-    sprite->vslices = 1;
-
-    sprite_ext_t *sx = (sprite_ext_t*)sprite->data;
-    sx->size = sizeof(sprite_ext_t);
-    sx->version = SPRITE_EXT_VERSION;
-    sx->data_ptr = (uint32_t)header_bytes;
+    uint8_t *dst = lspr3_setup_rgba16_sprite_header(sprite, out_w, out_h);
 
     int uv_stride = stride / 2;
     size_t y_bytes  = (size_t)stride * luma_h;
@@ -307,7 +526,6 @@ static void lspr3_build_rgba16_sprite(
     const uint8_t *y_plane = pic;
     const uint8_t *u_plane = pic + y_bytes;
     const uint8_t *v_plane = u_plane + uv_bytes;
-    uint8_t *dst = (uint8_t*)sprite + header_bytes;
 
     yuv_frame_t frame = {
         .y = surface_make_linear((void*)y_plane, FMT_I8, stride,    luma_h),
@@ -431,30 +649,84 @@ sprite_t *lspr3_load_buf_ex(const void *encoded_buf, int encoded_sz,
     assertf((size_t)encoded_sz >= sizeof(lspr3_header_t) + alpha_size,
         "H264I buffer truncated (sz=%d, alpha_size=%zu)", encoded_sz, alpha_size);
     size_t payload_size = (size_t)encoded_sz - sizeof(lspr3_header_t) - alpha_size;
-    uint8_t *pic = NULL;
-    size_t pic_size = 0;
-    lspr3_decode_intra_slice(
-        hdr->payload, payload_size,
-        hdr->width, hdr->height,
-        hdr->pic_init_qp, hdr->chroma_qp_index_offset,
-        &pic, &pic_size, parms
-    );
+    const int mb_w = (hdr->width + 15) / 16;
+    const int mb_h = (hdr->height + 15) / 16;
+    const int stride = mb_w * 16;
+    const int luma_h = mb_h * 16;
+    const int band_rows = (parms && parms->band_rows > 0) ? parms->band_rows : 0;
 
-    // Convert the YUV planes into the final RGBA16 sprite
-    int mb_w = (hdr->width + 15) / 16;
-    int mb_h = (hdr->height + 15) / 16;
-    int stride = mb_w * 16;
-    int luma_h = mb_h * 16;
-    lspr3_build_rgba16_sprite(
-        sprite, pic,
-        hdr->orig_width, hdr->orig_height,
-        stride, luma_h,
-        x_divisor, y_divisor
-    );
-    scratch_free(pic);
+    if (band_rows > 0) {
+        // Banded: reconstruct + convert band-by-band straight into the sprite;
+        // no full-frame YUV is ever resident (the memory win).
+        lspr3_decode_intra_slice_banded(
+            hdr->payload, payload_size, hdr->width, hdr->height,
+            hdr->orig_width, hdr->orig_height,
+            hdr->pic_init_qp, hdr->chroma_qp_index_offset,
+            NULL, sprite, band_rows, x_divisor, y_divisor, parms);
+    } else {
+        // Full-frame: decode the whole frame, then convert in one pass.
+        uint8_t *pic = NULL;
+        size_t pic_size = 0;
+        lspr3_decode_intra_slice(
+            hdr->payload, payload_size, hdr->width, hdr->height,
+            hdr->pic_init_qp, hdr->chroma_qp_index_offset, &pic, &pic_size, parms);
+        lspr3_build_rgba16_sprite(sprite, pic, hdr->orig_width, hdr->orig_height,
+                                  stride, luma_h, x_divisor, y_divisor);
+        scratch_free(pic);
+    }
+
+#if LSPR3_VERIFY_BANDING
+    // Produce the sprite the OTHER way and diff the pixel areas. Needs a 2nd
+    // sprite-sized scratch buffer -> run this on 8 MiB. The full-frame and
+    // banded converts should be identical except possibly the chroma-upsample
+    // rows at band seams, so the report includes the diff count + first row.
+    {
+        sprite_t *spr2 = (parms && parms->alloc)
+            ? (sprite_t*)parms->alloc(parms->alloc_ctx, decoded_sz, H264I_BUF_ALIGN)
+            : (sprite_t*)memalign(H264I_BUF_ALIGN, decoded_sz);
+        if (spr2) {
+            spr2->flags = SPRITE_FLAGS_OWNEDBUFFER;
+            const int vbr = (band_rows > 0) ? 0 : LSPR3_VERIFY_BAND_ROWS;
+            uint32_t tv0 = TICKS_READ();
+            if (vbr > 0) {
+                lspr3_decode_intra_slice_banded(
+                    hdr->payload, payload_size, hdr->width, hdr->height,
+                    hdr->orig_width, hdr->orig_height,
+                    hdr->pic_init_qp, hdr->chroma_qp_index_offset,
+                    NULL, spr2, vbr, x_divisor, y_divisor, parms);
+            } else {
+                uint8_t *p2 = NULL; size_t ps2 = 0;
+                lspr3_decode_intra_slice(hdr->payload, payload_size, hdr->width, hdr->height,
+                    hdr->pic_init_qp, hdr->chroma_qp_index_offset, &p2, &ps2, parms);
+                lspr3_build_rgba16_sprite(spr2, p2, hdr->orig_width, hdr->orig_height,
+                                          stride, luma_h, x_divisor, y_divisor);
+                scratch_free(p2);
+            }
+            unsigned us = (unsigned)TICKS_TO_US(TICKS_READ() - tv0);
+            const size_t hdr_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
+            const size_t px = (size_t)sprite->width * sprite->height * 2;
+            const uint8_t *a = (const uint8_t*)sprite + hdr_bytes;
+            const uint8_t *b = (const uint8_t*)spr2 + hdr_bytes;
+            size_t first = 0, ndiff = 0;
+            for (size_t k = 0; k < px; k++) { if (a[k] != b[k]) { if (!ndiff) first = k; ndiff++; } }
+            if (ndiff) {
+                debugf("n64: *** SPRITE DIFF brPrimary=%d vbr=%d first@%u row=%u ndiff=%u/%u (%.2f%%) ***\n",
+                    band_rows, vbr, (unsigned)first, (unsigned)(first / (sprite->width * 2)),
+                    (unsigned)ndiff, (unsigned)px, 100.0 * (double)ndiff / (double)px);
+            } else {
+                debugf("n64: SPRITE OK vbr=%d (%u px-bytes identical, %uus)\n", vbr, (unsigned)px, us);
+            }
+            if (parms && parms->alloc) scratch_free(spr2); else free(spr2);
+        } else {
+            debugf("n64: sprite-verify SKIP (no scratch for 2nd sprite; need 8 MiB)\n");
+        }
+    }
+#endif
 
     // Re-apply the lossless 1-bit alpha mask (if any) on top of the RGBA5551
     // pixels the RDP just produced (the YUV combiner writes alpha=1 everywhere).
+    // The mask is applied at source resolution to the final sprite, so it works
+    // for both the full-frame and banded paths (divisors are ruled out above).
     if (alpha_size) {
         size_t header_bytes = ROUND_UP(sizeof(sprite_t) + sizeof(sprite_ext_t), 64);
         uint16_t *dst = (uint16_t *)((uint8_t *)sprite + header_bytes);

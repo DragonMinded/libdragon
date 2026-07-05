@@ -272,24 +272,53 @@ u32 h264bsdNextMbAddress(u32 *pSliceGroupMap, u32 picSizeInMbs, u32 currMbAddr)
         Returns:
             none
 ------------------------------------------------------------------------------*/
+/* Optional windowed-decode-target params (default 0 = full-frame). When
+ * s_imgWinHeightMbs != 0, the image data buffer is treated as a sliding window
+ * of s_imgWinHeightMbs MB-rows whose row 0 corresponds to global MB-row
+ * s_imgWinBaseRow, so a decoder (lspr3) can reconstruct into a small scratch
+ * buffer instead of the full frame. Set/reset by h264bsdSetImageWindow around a
+ * banded decode; the full h264bsd/FMV path never touches these so its addressing
+ * is byte-identical to before. Single-threaded decode only. */
+static u32 s_imgWinBaseRow = 0;
+static u32 s_imgWinHeightMbs = 0;
+
+void h264bsdSetImageWindow(u32 baseRow, u32 heightMbs)
+{
+    s_imgWinBaseRow = baseRow;
+    s_imgWinHeightMbs = heightMbs;
+}
+
 void h264bsdSetCurrImageMbPointers(image_t *image, u32 mbNum)
 {
-    u32 width, height;
-    u32 picSize;
+    u32 width;
+    u32 winPicSize;
     u32 row, col;
     u32 tmp;
+    u32 winHeight;
 
     width = image->width;
-    height = image->height;
     row = mbNum / width;
     col = mbNum % width;
 
-    tmp = row * width;
-    picSize = width * height;
+    if (s_imgWinHeightMbs)
+    {
+        /* Windowed: window has s_imgWinHeightMbs MB-rows; row 0 is the carried
+         * top-boundary context, the band's content occupies rows 1..N. The
+         * band's first global row (s_imgWinBaseRow) maps to window row 1. */
+        winHeight = s_imgWinHeightMbs;
+        tmp = ((row - s_imgWinBaseRow) + 1) * width;
+    }
+    else
+    {
+        /* Full-frame: identical to the original addressing. */
+        winHeight = image->height;
+        tmp = row * width;
+    }
+    winPicSize = width * winHeight;
 
     image->luma = (u8*)(image->data + col * 16 + tmp * 256);
-    image->cb = (u8*)(image->data + picSize * 256 + tmp * 64 + col * 8);
-    image->cr = (u8*)(image->cb + picSize * 64);
+    image->cb = (u8*)(image->data + winPicSize * 256 + tmp * 64 + col * 8);
+    image->cr = (u8*)(image->cb + winPicSize * 64);
 }
 
 
