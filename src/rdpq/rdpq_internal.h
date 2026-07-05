@@ -164,7 +164,7 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
     if (__builtin_expect(rspq_in_block(), 0)) { \
         extern rdpq_block_state_t rdpq_block_state; \
         int nwords = 0; __rdpcmd_count_words(rdp_cmd); \
-        if (__builtin_expect(rdpq_block_state.wptr + nwords > rdpq_block_state.wend, 0)) \
+        while (__builtin_expect(rdpq_block_state.wptr + nwords > rdpq_block_state.wend, 0)) \
             __rdpq_block_next_buffer(); \
         volatile uint32_t *ptr = rdpq_block_state.wptr; \
         __rdpcmd_write(rdp_cmd); \
