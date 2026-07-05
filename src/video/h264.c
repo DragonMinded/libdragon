@@ -5,6 +5,7 @@
  */
 
 #include "h264.h"
+#include "h264_internal.h"
 #include "h264_decoder.h"
 #include "rsph264_internal.h"
 #include "asset_internal.h"
@@ -39,6 +40,7 @@ typedef struct h264_s {
     uint32_t max_slice_size;            ///< Maximum size of a slice seen so far
     bool has_slice_metadata;            ///< True if the stream advertised max_slice_size
     int max_buffered_pics;              ///< Runtime-configured buffered pictures
+    bool from_custom_alloc;             ///< Player block came from h264_set_allocator (free via it)
     storage_t s;                        ///< H264 decoder main structure
     uint8_t buf[];                      ///< Internal buffered data
 } h264_t;
@@ -195,10 +197,45 @@ static void h264_rewind(video_t *v) {
     }
 }
 
+// Custom allocator for the h264_t player block (see h264_set_allocator).
+// Default {NULL,NULL} => malloc/free.
+static h264_allocator_t s_h264_allocator = {0};
+
+// Number of live players allocated through the custom allocator. h264_close()
+// frees a custom player through the currently-installed allocator, so it must
+// not be swapped or cleared while any such player is still open.
+static int s_h264_custom_players = 0;
+
+void h264_set_allocator(const h264_allocator_t *allocator)
+{
+    // Changing the allocator while it still owns open players would free those
+    // players through the wrong path in h264_close(). Install it before the
+    // first h264_open() and clear it only after those players are closed.
+    assertf(s_h264_custom_players == 0,
+        "h264_set_allocator: cannot change the allocator while %d custom-allocated "
+        "player(s) are still open (h264_close them first)", s_h264_custom_players);
+    if (allocator && allocator->alloc && allocator->free)
+        s_h264_allocator = *allocator;
+    else
+        s_h264_allocator = (h264_allocator_t){0};
+}
+
 static video_t* h264_open(const char *fn, const video_parms_t *parms) {
-    h264_t *player = malloc(sizeof(h264_t) + H264_BUF_SIZE);
+    const size_t player_size = sizeof(h264_t) + H264_BUF_SIZE;
+    // The player instance is large (~268 KiB). A custom allocator lets the
+    // caller source it from a dedicated region instead of the heap; fall back
+    // to malloc if none is installed or it declines.
+    bool from_custom = false;
+    h264_t *player = NULL;
+    if (s_h264_allocator.alloc) {
+        player = s_h264_allocator.alloc(player_size, 16);
+        from_custom = (player != NULL);
+    }
+    if (!player) player = malloc(player_size);
     assertf(player, "Out of memory");
-    sys_hw_memset(player, 0, sizeof(h264_t) + H264_BUF_SIZE);
+    sys_hw_memset(player, 0, player_size);
+    player->from_custom_alloc = from_custom;   // set AFTER the memset
+    if (from_custom) s_h264_custom_players++;
     player->fd = -1;
     if (parms && parms->buffered_pics)
         player->max_buffered_pics = parms->buffered_pics;
@@ -228,7 +265,17 @@ static void h264_close(video_t *v) {
         player->fd = -1;
     }
     h264bsdShutdown(&player->s);
-    free(player);
+    // Capture origin before free: route custom-allocated players back through
+    // the custom allocator, the rest via free(). The set_allocator assert
+    // guarantees the installed allocator is still the one that produced them.
+    const bool from_custom = player->from_custom_alloc;
+    if (from_custom) {
+        assertf(s_h264_allocator.free,
+            "h264_close: custom-allocated player freed with no allocator installed");
+        s_h264_allocator.free(player);
+        s_h264_custom_players--;
+    } else
+        free(player);
 }
 
 static const char* h264_status_str(int status) {
