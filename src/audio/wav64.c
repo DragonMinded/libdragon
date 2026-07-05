@@ -102,6 +102,29 @@ static int wav64_none_get_bitrate(wav64_t *wav) {
 	return wav->wave.frequency * wav->wave.channels * wav->wave.bits;
 }
 
+// Custom allocator for wav64 heap blocks (see wav64_set_allocator). Default
+// {NULL,NULL} => memalign/free.
+static wav64_allocator_t s_wav64_allocator = {0};
+
+// Number of live handles allocated through the custom allocator. wav64_close()
+// frees an arena-owned block through the currently-installed allocator, so the
+// allocator must not be swapped or cleared while any such block is outstanding.
+static int s_wav64_arena_blocks = 0;
+
+void wav64_set_allocator(const wav64_allocator_t *allocator)
+{
+	// Changing the allocator while it still owns open handles would free those
+	// handles through the wrong path in wav64_close(). Install it before the
+	// first streaming load and clear it only after those handles are closed.
+	assertf(s_wav64_arena_blocks == 0,
+		"wav64_set_allocator: cannot change the allocator while %d arena-owned "
+		"handle(s) are still open (wav64_close them first)", s_wav64_arena_blocks);
+	if (allocator && allocator->alloc && allocator->free)
+		s_wav64_allocator = *allocator;
+	else
+		s_wav64_allocator = (wav64_allocator_t){0};
+}
+
 static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_name, wav64_loadparms_t *parms)
 {
 	wav64_loadparms_t default_parms = {0};
@@ -167,9 +190,20 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	int heap_off_ext = heap_size;
 	heap_size += ROUND_UP(ext_size, 16);							// Extended header data
 	
-	// Allocate heap memory
+	// Allocate heap memory. A custom allocator (wav64_set_allocator) lets the
+	// caller pool these blocks in a contiguous arena instead of scattering them
+	// across the main heap. The preload path below reallocs this block, which a
+	// bump-style arena can't satisfy — so the custom allocator is only honored
+	// for streaming loads (where the block is never realloc'd).
 	assert(heap_size % 16 == 0);
-	void *heap = memalign(16, heap_size);
+	bool heap_from_arena = false;
+	void *heap = NULL;
+	if (s_wav64_allocator.alloc && !preload) {
+		heap = s_wav64_allocator.alloc(heap_size, 16);
+		heap_from_arena = (heap != NULL);
+	}
+	if (!heap)
+		heap = memalign(16, heap_size);
 	assertf(heap, "Out of memory");
 	if (!wav) wav = heap + heap_off_waveform;
 	wav->st = heap;
@@ -195,7 +229,9 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->st->format = head.format;
 	wav->st->current_fd = file_handle;
 	wav->st->base_offset = head.start_offset + start_offset;
-	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
+	wav->st->flags = (owned_fd ? WAV64_FLAG_OWNED_FD : 0)
+	               | (heap_from_arena ? WAV64_FLAG_ARENA_OWNED : 0);
+	if (heap_from_arena) s_wav64_arena_blocks++;
 
 	// Initialize the compression algorithm
 	algos[wav->st->format].init(wav, head.state_size);
@@ -219,6 +255,9 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		if (algos[wav->st->format].close)
 			algos[wav->st->format].close(wav);
 
+		// realloc() can't act on a custom-arena block; the arena path is gated
+		// to !preload above, so this is only ever reached for memalign blocks.
+		assertf(!heap_from_arena, "wav64: preload reached on an arena-owned block");
 		wav->st = realloc(wav->st, heap_off_preload_end);
 		wav->st->ext = NULL;
 
@@ -295,6 +334,11 @@ void wav64_close(wav64_t *wav)
 	if (!heap)
 		return;
 
+	// Remember how the heap block was allocated before the memset below wipes
+	// wav->st (and thus the flags). Arena-owned blocks are released through the
+	// custom allocator; the rest via free().
+	const bool heap_from_arena = (wav->st->flags & WAV64_FLAG_ARENA_OWNED) != 0;
+
 	// Stop playing the waveform on all channels
 	for (int i=0; i<MIXER_MAX_CHANNELS; i++) {
 		if (mixer_ch_playing_waveform(i) == &wav->wave)
@@ -311,8 +355,16 @@ void wav64_close(wav64_t *wav)
 
 	memset(wav, 0, sizeof(wav64_t));
 
-	// Free the heap allocation (that might or might not include the wav64_t instance)
-	free(heap);
+	// Free the heap allocation (that might or might not include the wav64_t
+	// instance). Arena-owned blocks go back through the custom allocator; the
+	// set_allocator assert guarantees it is still the one that produced them.
+	if (heap_from_arena) {
+		assertf(s_wav64_allocator.free,
+			"wav64_close: arena-owned handle freed with no allocator installed");
+		s_wav64_allocator.free(heap);
+		s_wav64_arena_blocks--;
+	} else
+		free(heap);
 }
 
 /** @brief Initialize wav64 compression level 3 */

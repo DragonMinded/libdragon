@@ -5,6 +5,12 @@
 #ifndef __LIBDRAGON_WAV64_INTERNAL_H
 #define __LIBDRAGON_WAV64_INTERNAL_H
 
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define WAV64_ID            "WV64"    ///< WAV64 file identifier
 #define WAV64_FORMAT_RAW    0         ///< Raw audio format
 #define WAV64_FORMAT_VADPCM 1         ///< VADPCM compressed format
@@ -12,6 +18,7 @@
 #define WAV64_NUM_FORMATS   4         ///< Number of supported formats
 
 #define WAV64_FLAG_OWNED_FD (1 << 0)  ///< Flag indicating the file descriptor is owned by the wav64 structure
+#define WAV64_FLAG_ARENA_OWNED (1 << 1) ///< Heap block came from the custom allocator (wav64_set_allocator); free via it
 
 /// @cond
 typedef struct wav64_s wav64_t;
@@ -64,8 +71,39 @@ typedef struct {
 } wav64_compression_t;
 
 /**
+ * @brief Custom allocator for the wav64 heap block.
+ *
+ * By default each wav64_load() allocates its single heap block (the wav64_state_t
+ * plus, for streaming, just the small handle) via memalign(16, ...). Install a
+ * custom allocator to source those blocks from a caller-owned region (e.g. a
+ * contiguous per-bank arena) so many small streaming handles don't fragment the
+ * main heap. The matching free() is called from wav64_close() for blocks that
+ * were allocated while a custom allocator was installed.
+ *
+ * @param alloc  Returns @p sz bytes aligned to @p align (>= 16), or NULL on failure.
+ * @param free   Releases a block previously returned by @p alloc.
+ */
+typedef struct wav64_allocator_s {
+	void* (*alloc)(size_t sz, size_t align);
+	void  (*free)(void* p);
+} wav64_allocator_t;
+
+/**
+ * @brief Install (or clear) the custom allocator used for wav64 heap blocks.
+ *
+ * Pass NULL to restore the default memalign/free. The allocator only affects
+ * loads made while it is installed; each handle remembers how it was allocated
+ * (WAV64_FLAG_ARENA_OWNED) and is freed accordingly in wav64_close().
+ */
+void wav64_set_allocator(const wav64_allocator_t *allocator);
+
+/**
  * Similar to #wav64_load, but uses a file descriptor instead of a filename.
  */
 wav64_t *wav64_loadfd(int fd, const char *debug_file_name, wav64_loadparms_t *parms);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
