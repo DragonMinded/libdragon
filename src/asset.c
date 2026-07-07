@@ -9,6 +9,7 @@
 #include "compress/lz4_dec_internal.h"
 #include "compress/shrinkler_dec_internal.h"
 #include "utils.h"
+#include "open_flags.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -93,9 +94,9 @@ void __asset_init_compression_lvl3(void)
     };
 }
 
-int must_open(const char *fn)
+static int must_open_flags(const char *fn, int flags)
 {
-    int fd = open(fn, O_RDONLY|O_BINARY);
+    int fd = open(fn, O_RDONLY|O_BINARY|flags);
     if (fd < 0) {
         // File not found.
         int errnum = errno;
@@ -117,6 +118,16 @@ int must_open(const char *fn)
         assertf(fd >= 0, "error opening file %s: %s\n", fn, strerror(errnum));
     }
     return fd;
+}
+
+int must_open(const char *fn)
+{
+    return must_open_flags(fn, 0);
+}
+
+int must_open_shortlived(const char *fn)
+{
+    return must_open_flags(fn, O_SHORTLIVED);
 }
 
 FILE *must_fopen(const char *fn)
@@ -309,7 +320,7 @@ void *asset_load(const char *fn, int *sz)
 {
     void *buf = NULL; int buf_size = 0;
     int size;
-    int fd = must_open(fn);
+    int fd = must_open_shortlived(fn);
     struct stat stat;
     fstat(fd, &stat);
     size = stat.st_size;

@@ -120,6 +120,8 @@ typedef struct {
 FILE *must_fopen(const char *fn);
 /** @brief Open a file and assert on error */
 int must_open(const char *fn);
+/** @brief Open a short-lived file and assert on error */
+int must_open_shortlived(const char *fn);
 /** @brief Load an asset from file descriptor with automatic memory allocation */
 void *asset_loadfd(int fd, int *sz);
 /** @brief Load an asset from file descriptor into a provided buffer */

@@ -1,4 +1,7 @@
 
+#include <fcntl.h>
+#include <unistd.h>
+
 void test_dfs_read(TestContext *ctx) {
 	int fh = dfs_open("counter.dat");
 	ASSERT(fh >= 0, "counter.dat not found");
@@ -110,6 +113,33 @@ void test_dfs_ioctl(TestContext *ctx) {
     int ret = ioctl(fileno(file), IODFS_GET_ROM_BASE, &rom_addr);
     ASSERT(ret >= 0, "DFS ioctl failed");
     ASSERT(rom_addr == (dfs_rom_addr("counter.dat") & 0x1FFFFFFF), "IODFS_GET_ROM_BASE ioctl returns wrong address");
+}
+
+void test_dfs_shortlived_open(TestContext *ctx) {
+    scratch_stats_t before, opened, after;
+    scratch_get_stats(&before);
+
+    int fd = open("rom:/counter.dat", O_RDONLY | O_SHORTLIVED);
+    ASSERT(fd >= 0, "counter.dat not found");
+    DEFER(if (fd >= 0) close(fd));
+
+    scratch_get_stats(&opened);
+    ASSERT_EQUAL_UNSIGNED(opened.live_blocks, before.live_blocks + 1,
+        "O_SHORTLIVED open should allocate one scratch descriptor");
+
+    uint8_t buf[8];
+    ASSERT_EQUAL_SIGNED(read(fd, buf, sizeof(buf)), (int)sizeof(buf), "short-lived read failed");
+    ASSERT_EQUAL_MEM(buf, (uint8_t*)"\x00\x01\x02\x03\x04\x05\x06\x07", sizeof(buf),
+        "short-lived read returned wrong data");
+
+    ASSERT_EQUAL_SIGNED(close(fd), 0, "short-lived close failed");
+    fd = -1;
+
+    scratch_get_stats(&after);
+    ASSERT_EQUAL_UNSIGNED(after.live_blocks, before.live_blocks,
+        "O_SHORTLIVED close should release the scratch descriptor");
+    ASSERT_EQUAL_UNSIGNED(after.live_bytes, before.live_bytes,
+        "O_SHORTLIVED close should restore scratch live bytes");
 }
 
 typedef struct {

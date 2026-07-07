@@ -44,6 +44,7 @@
 #include <stdbool.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#include "open_flags.h"
 
 /** @brief Number of filesystems that can be attached to the system */
 #define MAX_FILESYSTEMS     10

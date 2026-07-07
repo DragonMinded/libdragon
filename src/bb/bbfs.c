@@ -10,6 +10,7 @@
 #include <errno.h>
 #include "debug.h"
 #include "system.h"
+#include "../system_internal.h"
 #include "nand.h"
 #include "bbfs.h"
 #include "utils.h"
@@ -412,7 +413,7 @@ static void *__bbfs_open(char *name, int flags)
     }
 
     int mode = flags & 7;
-    bbfs_openfile_t *file = malloc(sizeof(bbfs_openfile_t));
+    bbfs_openfile_t *file = fs_alloc_descriptor(sizeof(bbfs_openfile_t), flags);
     if (!file) {
         errno = ENOMEM;
         return NULL;
@@ -845,7 +846,7 @@ static int __bbfs_close(void *file)
         sb_flush();
     }
 
-    free(file);
+    fs_free_descriptor(file);
     return 0;
 }
 
