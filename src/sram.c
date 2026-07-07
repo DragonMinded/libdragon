@@ -70,6 +70,9 @@ int sram_read(void* dst, size_t offset, size_t len)
     }
 
     pi_addr_t sram_address = SRAM_ADDRESS + offset;
+    // Invalidate (writing back first) so the DMA's data is what the CPU reads
+    // afterwards, and no stale dirty line is flushed over it mid-transfer.
+    data_cache_hit_writeback_invalidate(dst, len);
     dma_read_raw_async(dst, sram_address, len);
     dma_wait();
 
@@ -88,6 +91,9 @@ int sram_write(const void* src, size_t offset, size_t len)
     }
 
     pi_addr_t sram_address = SRAM_ADDRESS + offset;
+    // Write back the source so the DMA reads the CPU's latest data from RDRAM
+    // rather than a stale copy still sitting in the cache.
+    data_cache_hit_writeback(src, len);
     dma_write_raw_async(src, sram_address, len);
     dma_wait();
 
