@@ -166,6 +166,39 @@ static void scratch_free_chunk(void *ptr) {
     if (b == sh_head) trim_head();
 }
 
+static bool block_matches_user_ptr(block_t *b, const void *ptr) {
+    return ptr_in_heap(b) && !block_is_free(b) &&
+        b->magic == MAGIC_USED && block_user_ptr(b) == ptr;
+}
+
+static void *scratch_resolve_ptr(const void *ptr) {
+    if (!ptr) return NULL;
+
+    void *cached = CachedAddr(ptr);
+    if (!ptr_in_heap(cached)) return NULL;
+
+    /* Fast path: normal scratch_malloc/calloc/realloc pointers point exactly
+     * at the user area that follows the block header. */
+    block_t *b = block_from_user_ptr(cached);
+    if (block_matches_user_ptr(b, cached))
+        return cached;
+
+    /* scratch_memalign returns an aligned alias inside a normal scratch block.
+     * The original user pointer is stored immediately before the alias. */
+    void *raw = *(void **)(cached - 4);
+    b = block_from_user_ptr(raw);
+    if (!block_matches_user_ptr(b, raw))
+        return NULL;
+
+    /* Accept the alias only if it still points inside the raw block payload. */
+    if ((uintptr_t)cached < (uintptr_t)raw)
+        return NULL;
+    if ((uintptr_t)cached >= (uintptr_t)raw + (block_size(b) - header_size()))
+        return NULL;
+
+    return raw;
+}
+
 void scratch_free(void *ptr) {
     if (!ptr) return;
 
@@ -179,35 +212,13 @@ void scratch_free(void *ptr) {
      *     is stored in a back-slot at (ptr - sizeof(void*))
      * Callers don't need to track which allocator produced the pointer or
      * which view (cached/uncached) they hold. */
-    void *cached = CachedAddr(ptr);
-
-    /* First try the direct interpretation: assume `cached` is the user
-     * pointer of a scratch chunk and check the header for the USED magic.
-     * If the magic matches, we're done — release this chunk. */
-    block_t *b_direct = block_from_user_ptr(cached);
-    if (ptr_in_heap(b_direct) && b_direct->magic == MAGIC_USED) {
-        scratch_free_chunk(cached);
-        return;
-    }
-
-    /* Otherwise this must be a memalign'd pointer: the back-slot before
-     * `cached` holds the raw chunk's user pointer. Validate and release. */
-    void **back_slot = (void **)((uintptr_t)cached - sizeof(void *));
-    void *raw = *back_slot;
-    block_t *b_raw = block_from_user_ptr(raw);
-    /* Validate with a real runtime check, not just an assert: under NDEBUG
-     * asserts are compiled out, and a bad pointer (e.g. a double-free, whose
-     * stale back-slot holds garbage) must fail safely rather than free an
-     * arbitrary address (there is no MMU to catch it). Require the raw block to
-     * be a live scratch chunk that actually contains this aligned alias. */
-    bool valid = ptr_in_heap(b_raw) && b_raw->magic == MAGIC_USED &&
-        (uintptr_t)cached >= (uintptr_t)raw &&
-        (uintptr_t)cached < (uintptr_t)raw + (block_size(b_raw) - header_size());
-    if (!valid) {
+    void *raw = scratch_resolve_ptr(ptr);
+    if (!raw) {
         assertf(false,
             "scratch_free: %p is neither a scratch chunk nor a memalign'd alias", ptr);
         return;
     }
+
     scratch_free_chunk(raw);
 }
 

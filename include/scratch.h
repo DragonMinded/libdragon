@@ -31,8 +31,8 @@
  /**
   * @brief Allocate memory from the scratch heap.
   *
- * Allocates @p size bytes from the scratch allocator.
- * The returned pointer is suitably aligned for normal C object access.
+  * Allocates @p size bytes from the scratch allocator.
+  * The returned pointer is suitably aligned for normal C object access.
   *
   * @param size         Number of bytes to allocate.
   * @return Pointer to the allocated memory, or NULL if there is not enough
@@ -94,7 +94,7 @@
  /**
   * @brief Free a scratch allocation.
   *
-  * Releases a block previously returned by any scratch allocator —
+  * Releases a block previously returned by any scratch allocator:
   * #scratch_malloc(), #scratch_calloc(), #scratch_realloc(),
   * #scratch_memalign(), or #scratch_malloc_uncached(). The single
   * entry point transparently handles cached vs uncached pointer views
@@ -120,7 +120,7 @@
   * a multiple of 16 bytes, so the buffer exclusively owns its cachelines and
   * cannot suffer false sharing with neighbouring allocations.
   *
-  * Free with the standard #scratch_free() — it handles cached/uncached views
+  * Free with the standard #scratch_free(); it handles cached/uncached views
   * transparently.
   *
   * @param size         Number of bytes to allocate.
@@ -188,18 +188,18 @@ void scratch_get_stats(scratch_stats_t *stats);
  bool scratch_empty(void);
 
  /**
-  * @brief Check whether a pointer was allocated by the scratch allocator.
+  * @brief Check whether an address belongs to the scratch heap.
   *
-  * Returns true if @p ptr was returned by #scratch_malloc / #scratch_calloc
-  * / #scratch_realloc, false otherwise. The cached and uncached views of
-  * the same scratch address are both recognised.
+  * Returns true if @p ptr falls inside the scratch heap reservation. The cached
+  * and uncached views of the same scratch address are both recognised.
   *
   * Intended for code paths that don't know up-front which allocator owns a
   * pointer (e.g. fallbacks between scratch and the main heap) and need to
   * dispatch to the correct deallocator.
   *
   * @param ptr Pointer to test.
-  * @return true if owned by scratch, false otherwise (including NULL).
+  * @return true if the address is inside the scratch heap, false otherwise
+  *         (including NULL).
   */
  bool scratch_owns(const void *ptr);
  
