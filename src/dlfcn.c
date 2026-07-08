@@ -9,9 +9,12 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <unistd.h>
 #include "dlfcn.h"
 #include "debug.h"
 #include "asset.h"
+#include "asset_internal.h"
+#include "scratch.h"
 #include "dragonfs.h"
 #include "dma.h"
 #include "n64sys.h"
@@ -437,18 +440,27 @@ static void relocate_module(dso_module_t *module)
     }
 }
 
-static void link_module(dso_module_t *module, const char *filename)
+static void link_module(dso_module_t *module, const char *filename, void *temp_base)
 {
+    uint32_t first_export_sym = module->num_import_syms+1;
     //Relocate module pointers
     module->syms = PTR_DECODE(module, module->syms);
-    module->relocs = PTR_DECODE(module, module->relocs);
+    module->relocs = PTR_DECODE(temp_base, module->relocs);
     module->prog_base = PTR_DECODE(module, module->prog_base);
     module->src_elf = PTR_DECODE(module, module->src_elf);
     module->filename = PTR_DECODE(module, module->filename);
-    fixup_sym_names(module->syms, (uint8_t *)module, module->num_syms);
+    for(uint32_t i=0; i<module->num_syms; i++) {
+        if(i >= 1 && i < first_export_sym) {
+            module->syms[i].name = PTR_DECODE(temp_base, module->syms[i].name);
+        } else {
+            module->syms[i].name = PTR_DECODE(module, module->syms[i].name);
+        }
+    }
     resolve_syms(module, filename);
     relocate_module(module);
     flush_module(module);
+    module->relocs = NULL;
+    module->num_relocs = 0;
 }
 
 static void start_module(dl_module_t *handle)
@@ -504,9 +516,25 @@ void *dlopen(const char *filename, int mode)
         //Increment use count
         handle->ref_count++;
     } else {
-        handle = asset_load(filename, NULL);
-        assertf(handle->magic == DSO_MAGIC, "Invalid DSO file");
-        link_module(handle, filename);
+        dso_file_header_t hdr;
+        int fd = must_open(filename);
+        int nread = read(fd, &hdr, sizeof(hdr));
+        assertf(nread == sizeof(hdr), "cannot read DSO file: %s", filename);
+        assertf(hdr.magic == DSO_FILE_MAGIC, "Invalid DSO file: %s", filename);
+        lseek(fd, hdr.resident_off, SEEK_SET);
+        int rsz = hdr.resident_size;
+        handle = asset_loadfd(fd, &rsz);
+        lseek(fd, hdr.loadtmp_off, SEEK_SET);
+        int tsz = hdr.loadtmp_size, tbuf_size = 0;
+        asset_loadfd_into(fd, &tsz, NULL, &tbuf_size);
+        lseek(fd, hdr.loadtmp_off, SEEK_SET);
+        tsz = hdr.loadtmp_size;
+        void *temp = scratch_memalign(ASSET_ALIGNMENT, tbuf_size);
+        assertf(temp, "Out of memory");
+        asset_loadfd_into(fd, &tsz, temp, &tbuf_size);
+        close(fd);
+        link_module(handle, filename, temp);
+        scratch_free(temp);
         handle->mode = mode;
 		if(strncmp(filename, "rom:/", 5) == 0) {
 			sprintf(handle->filename, "%s.sym", filename+5);
