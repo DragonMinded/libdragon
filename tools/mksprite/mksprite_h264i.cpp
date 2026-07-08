@@ -546,20 +546,23 @@ extern "C" int mksprite_convert_lossy(
     // layer (LZ4) only when a mask is present; opaque files stay uncompressed
     // (level 0), matching the previous raw output and avoiding a needless
     // decode pass at load time.
-    long tmpsz = ftell(f);
-    rewind(f);
-    std::vector<uint8_t> container((size_t)tmpsz + (any_alpha ? alpha_bitmap.size() : 0));
-    if (tmpsz > 0 && fread(container.data(), 1, (size_t)tmpsz, f) != (size_t)tmpsz) {
-        fclose(f);
+    int tmpsz;
+    uint8_t *raw = slurp_fp(f, &tmpsz);
+    fclose(f);
+    if (!raw) {
         fprintf(stderr, "mksprite: lossy cannot read back temporary file\n");
         x264_picture_clean(&pic);
         x264_encoder_close(enc);
         if (recon_yuv_path) { unlink(recon_yuv_path); free(recon_yuv_path); }
         return 1;
     }
-    fclose(f);
-    if (any_alpha)
-        memcpy(container.data() + tmpsz, alpha_bitmap.data(), alpha_bitmap.size());
+    std::vector<uint8_t> container(raw, raw + tmpsz);
+    free(raw);
+    if (any_alpha) {
+        size_t base = container.size();
+        container.resize(base + alpha_bitmap.size());
+        memcpy(container.data() + base, alpha_bitmap.data(), alpha_bitmap.size());
+    }
 
     int asset_level = any_alpha ? H264I_ALPHA_ASSET_COMPRESSION : 0;
     int write_rv = sprite_write_compressed(outfn, container.data(),

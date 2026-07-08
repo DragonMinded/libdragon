@@ -144,6 +144,25 @@ static uint8_t* slurp(const char *fn, int *size)
     return buf;
 }
 
+/** @brief Read entire contents of an open FILE (e.g. tmpfile). Caller must free(). */
+__attribute__((used))
+static uint8_t* slurp_fp(FILE *f, int *size)
+{
+    fflush(f);
+    if (fseek(f, 0, SEEK_END) != 0) return NULL;
+    long sz = ftell(f);
+    if (sz < 0) return NULL;
+    if (fseek(f, 0, SEEK_SET) != 0) return NULL;
+    uint8_t *buf = (uint8_t*)malloc(sz);
+    if (!buf) return NULL;
+    if (sz > 0 && fread(buf, 1, sz, f) != (size_t)sz) {
+        free(buf);
+        return NULL;
+    }
+    if (size) *size = (int)sz;
+    return buf;
+}
+
 #ifdef __cplusplus
 #include <vector>
 __attribute__((used))
@@ -157,6 +176,21 @@ static std::vector<uint8_t> slurp(const char *fn)
     fseek(f, 0, SEEK_SET);
     fread(&ret[0], 1, ret.size(), f);
     fclose(f);
+    return ret;
+}
+
+__attribute__((used))
+static std::vector<uint8_t> slurp(FILE *f)
+{
+    std::vector<uint8_t> ret;
+    fflush(f);
+    if (fseek(f, 0, SEEK_END) != 0) return ret;
+    long sz = ftell(f);
+    if (sz < 0) return ret;
+    if (fseek(f, 0, SEEK_SET) != 0) return ret;
+    ret.resize((size_t)sz);
+    if (sz > 0 && fread(&ret[0], 1, (size_t)sz, f) != (size_t)sz)
+        ret.clear();
     return ret;
 }
 #endif

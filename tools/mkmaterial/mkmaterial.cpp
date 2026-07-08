@@ -195,15 +195,14 @@ int main(int argc, char *argv[])
             }
             
             if (is_stdout) {
-                // Copy temporary file to stdout
-                rewind(f);
-                char buf[4096]; size_t n;
-                while ((n = fread(buf, 1, sizeof(buf), f)) > 0) {
-                    if (fwrite(buf, 1, n, stdout) != n) {
-                        fprintf(stderr, "error: cannot write to stdout\n");
-                        return 1;
-                    }
+                int sz;
+                uint8_t *buf = slurp_fp(f, &sz);
+                if (!buf || fwrite(buf, 1, sz, stdout) != (size_t)sz) {
+                    free(buf);
+                    fprintf(stderr, "error: cannot write to stdout\n");
+                    return 1;
                 }
+                free(buf);
             }
             fclose(f);
             if (out) {

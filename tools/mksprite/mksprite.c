@@ -20,6 +20,7 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/polyfill.h"
+#include "../common/utils.h"
 #include "exoquant.h"
 
 #define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
@@ -42,15 +43,6 @@
 #define FMT_ZBUF   (64 + 0)
 #define FMT_IHQ    (64 + 1)
 #define FMT_SHQ    (64 + 2)
-
-#define SWAP(a, b) ({ typeof(a) t = a; a = b; b = t; })
-#define ROUND_UP(n, d) ({ \
-	typeof(n) _n = n; typeof(d) _d = d; \
-	(((_n) + (_d) - 1) / (_d) * (_d)); \
-})
-#define MIN(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
-#define MAX(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
-#define CLAMP(x, min, max) MIN(MAX((x), (min)), (max))
 
 const char* tex_format_name(tex_format_t fmt) {
     switch ((int)fmt) {
@@ -2061,11 +2053,10 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     spritemaker_free(&spr);
 
     // Read back the temporary file contents into RAM
-    int sz = ftell(out);
-    rewind(out);
-    uint8_t *data = malloc(sz);
-    fread(data, 1, sz, out);
+    int sz;
+    uint8_t *data = slurp_fp(out, &sz);
     fclose(out);
+    assert(data);
 
     // Compress the data and store it into the output file (shared with the
     // lossy codec backends). This is a nop if compression is disabled, but at
