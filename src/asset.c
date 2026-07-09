@@ -4,6 +4,7 @@
  */
 #include "asset.h"
 #include "asset_internal.h"
+#include "sys_alloc.h"
 #include "debug.h"
 #include "compress/aplib_dec_internal.h"
 #include "compress/lz4_dec_internal.h"
@@ -35,6 +36,20 @@
 /// @cond
 #define memalign(a, b) malloc(b)
 /// @endcond
+
+// On the host (tools) build, sys_alloc.c is not compiled (it depends on N64-only
+// headers), so provide the seam's default behaviour here for the asset payload.
+void *__sys_alloc(sys_alloc_purpose_t purpose, size_t size, size_t align)
+{
+    (void)purpose; (void)align;
+    return malloc(size);
+}
+
+void __sys_free(sys_alloc_purpose_t purpose, void *ptr)
+{
+    (void)purpose;
+    free(ptr);
+}
 #endif
 
 /** 
@@ -286,15 +301,20 @@ bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size)
     return asset_loadfd_into(fd, sz, buf, buf_size);
 }
 
-void *asset_loadfd(int fd, int *sz)
+void *asset_loadfd_ex(int fd, int *sz, sys_alloc_purpose_t purpose)
 {
     void *buf = NULL; int buf_size = 0;
     asset_parsed_header_t header;
     buf_size = asset_read_header(fd, &header, sz);
-    buf = memalign(ASSET_ALIGNMENT, buf_size);
+    buf = __sys_alloc(purpose, buf_size, ASSET_ALIGNMENT);
     assertf(buf, "Out of memory");
     asset_read(fd, &header, sz, buf, &buf_size);
     return buf;
+}
+
+void *asset_loadfd(int fd, int *sz)
+{
+    return asset_loadfd_ex(fd, sz, SYS_ALLOC_ASSET);
 }
 
 void *asset_loadf(FILE *f, int *sz)
@@ -315,7 +335,7 @@ void *asset_load(const char *fn, int *sz)
     size = stat.st_size;
     asset_parsed_header_t header;
     buf_size = asset_read_header(fd, &header, &size);
-    buf = memalign(ASSET_ALIGNMENT, buf_size);
+    buf = __sys_alloc(SYS_ALLOC_ASSET, buf_size, ASSET_ALIGNMENT);
     assertf(buf, "Out of memory");
     asset_read(fd, &header, &size, buf, &buf_size);
     if (sz) *sz = size;

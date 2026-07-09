@@ -26,6 +26,7 @@
 #include "sprite.h"
 #include "sprite_internal.h"
 #include "n64sys.h"
+#include "sys_alloc.h"
 #include "surface.h"
 #include "utils.h"
 #include "yuv.h"
@@ -167,8 +168,15 @@ static void lspr3_decode_intra_slice(
     assertf(slice.firstMbInSlice == 0, "H264I: first_mb_in_slice != 0");
     assertf(slice.picParameterSetId == 0, "H264I: unexpected PPS id");
 
-    mbStorage_t *mb = (mbStorage_t*)calloc(pic_size_in_mbs, sizeof(mbStorage_t));
+    // Transient macroblock storage. Sourced through the tagged seam
+    // (SYS_ALLOC_LSPR3_MB); the weak default is memalign on the main heap, and
+    // an application can override __sys_alloc to route it elsewhere. The seam
+    // does not zero the buffer, so memset it here (the decoder relies on the mb
+    // array being zero-initialised).
+    size_t mb_bytes = (size_t)pic_size_in_mbs * sizeof(mbStorage_t);
+    mbStorage_t *mb = (mbStorage_t*)__sys_alloc(SYS_ALLOC_LSPR3_MB, mb_bytes, 16);
     assertf(mb, "H264I: out of memory");
+    memset(mb, 0, mb_bytes);
     h264bsdInitMbNeighbours(mb, (u32)mb_w, pic_size_in_mbs);
 
     i32 qpY = (i32)pps.picInitQp + slice.sliceQpDelta;
@@ -225,7 +233,7 @@ static void lspr3_decode_intra_slice(
     // before the memory is released.
     rsph264_sync();
     assertf(currMbAddr == pic_size_in_mbs, "H264I: incomplete slice");
-    free(mb);
+    __sys_free(SYS_ALLOC_LSPR3_MB, mb);
 
     *out_yuv = yuv;
     *out_yuv_size = yuv_size;
@@ -323,7 +331,13 @@ static sprite_t *lspr3_load_buf(const void *encoded_buf, int encoded_sz) {
     // Allocate the buffer for the decoded sprite.
     size_t decoded_sz = lspr3_decoded_size_buf(encoded_buf, encoded_sz);
     assertf(decoded_sz > 0, "Invalid H264I buffer");
-    sprite_t *sprite = (sprite_t *)memalign(H264I_BUF_ALIGN, decoded_sz);
+    // Decoded sprite buffer, sourced through the tagged seam
+    // (SYS_ALLOC_LSPR3_SPRITE), aligned to H264I_BUF_ALIGN so the post-header
+    // pixel area lands on a 64-byte boundary. The weak default is memalign, so
+    // a sprite from the standard path may still be released with sprite_free();
+    // an application overriding __sys_alloc owns the matching
+    // __sys_free(SYS_ALLOC_LSPR3_SPRITE) and must not call sprite_free() on it.
+    sprite_t *sprite = (sprite_t *)__sys_alloc(SYS_ALLOC_LSPR3_SPRITE, decoded_sz, H264I_BUF_ALIGN);
     assertf(sprite, "Out of memory");
     sprite->flags = SPRITE_FLAGS_OWNEDBUFFER;
 

@@ -5,6 +5,12 @@
 #ifndef __LIBDRAGON_WAV64_INTERNAL_H
 #define __LIBDRAGON_WAV64_INTERNAL_H
 
+#include <stddef.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define WAV64_ID            "WV64"    ///< WAV64 file identifier
 #define WAV64_FORMAT_RAW    0         ///< Raw audio format
 #define WAV64_FORMAT_VADPCM 1         ///< VADPCM compressed format
@@ -12,6 +18,7 @@
 #define WAV64_NUM_FORMATS   4         ///< Number of supported formats
 
 #define WAV64_FLAG_OWNED_FD (1 << 0)  ///< Flag indicating the file descriptor is owned by the wav64 structure
+#define WAV64_FLAG_SEAM_OWNED (1 << 1) ///< Streaming heap block came from __sys_alloc(SYS_ALLOC_WAV64); free via __sys_free
 
 /// @cond
 typedef struct wav64_s wav64_t;
@@ -67,5 +74,9 @@ typedef struct {
  * Similar to #wav64_load, but uses a file descriptor instead of a filename.
  */
 wav64_t *wav64_loadfd(int fd, const char *debug_file_name, wav64_loadparms_t *parms);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

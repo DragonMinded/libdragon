@@ -13,6 +13,7 @@
 #include "mixer_internal.h"
 #include "dragonfs.h"
 #include "n64sys.h"
+#include "sys_alloc.h"
 #include "dma.h"
 #include "samplebuffer.h"
 #include "debug.h"
@@ -167,9 +168,21 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	int heap_off_ext = heap_size;
 	heap_size += ROUND_UP(ext_size, 16);							// Extended header data
 	
-	// Allocate heap memory
+	// Allocate heap memory. Streaming handles are sourced through the tagged
+	// seam (SYS_ALLOC_WAV64) so an application can pool these small blocks in a
+	// contiguous arena instead of scattering them across the main heap. The
+	// preload path below reallocs this block, which a bump-style arena can't
+	// satisfy — so the seam is only used for streaming loads (where the block is
+	// never realloc'd); preload always uses memalign.
 	assert(heap_size % 16 == 0);
-	void *heap = memalign(16, heap_size);
+	bool heap_from_seam = false;
+	void *heap = NULL;
+	if (!preload) {
+		heap = __sys_alloc(SYS_ALLOC_WAV64, heap_size, 16);
+		heap_from_seam = (heap != NULL);
+	}
+	if (!heap)
+		heap = memalign(16, heap_size);
 	assertf(heap, "Out of memory");
 	if (!wav) wav = heap + heap_off_waveform;
 	wav->st = heap;
@@ -195,7 +208,8 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->st->format = head.format;
 	wav->st->current_fd = file_handle;
 	wav->st->base_offset = head.start_offset + start_offset;
-	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
+	wav->st->flags = (owned_fd ? WAV64_FLAG_OWNED_FD : 0)
+	               | (heap_from_seam ? WAV64_FLAG_SEAM_OWNED : 0);
 
 	// Initialize the compression algorithm
 	algos[wav->st->format].init(wav, head.state_size);
@@ -219,6 +233,9 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		if (algos[wav->st->format].close)
 			algos[wav->st->format].close(wav);
 
+		// realloc() can't act on a seam-sourced block; the seam path is gated to
+		// !preload above, so this is only ever reached for memalign blocks.
+		assertf(!heap_from_seam, "wav64: preload reached on a seam-owned block");
 		wav->st = realloc(wav->st, heap_off_preload_end);
 		wav->st->ext = NULL;
 
@@ -295,6 +312,11 @@ void wav64_close(wav64_t *wav)
 	if (!heap)
 		return;
 
+	// Remember how the heap block was allocated before the memset below wipes
+	// wav->st (and thus the flags). Seam-owned (streaming) blocks are released
+	// through __sys_free(SYS_ALLOC_WAV64); the rest via free().
+	const bool heap_from_seam = (wav->st->flags & WAV64_FLAG_SEAM_OWNED) != 0;
+
 	// Stop playing the waveform on all channels
 	for (int i=0; i<MIXER_MAX_CHANNELS; i++) {
 		if (mixer_ch_playing_waveform(i) == &wav->wave)
@@ -311,8 +333,13 @@ void wav64_close(wav64_t *wav)
 
 	memset(wav, 0, sizeof(wav64_t));
 
-	// Free the heap allocation (that might or might not include the wav64_t instance)
-	free(heap);
+	// Free the heap allocation (that might or might not include the wav64_t
+	// instance). Streaming blocks go back through the seam with the same purpose
+	// they were allocated under; the rest via free().
+	if (heap_from_seam)
+		__sys_free(SYS_ALLOC_WAV64, heap);
+	else
+		free(heap);
 }
 
 /** @brief Initialize wav64 compression level 3 */

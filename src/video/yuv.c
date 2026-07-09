@@ -16,12 +16,26 @@
 #include "rdpq_debug.h"
 #include "rspq.h"
 #include "n64sys.h"
+#include "sys_alloc.h"
 #include "debug.h"
 #include "utils.h"
 #include <math.h>
 
 /** @brief Internal buffer used to interleave U and V components */
 static surface_t internal_buffer;
+
+// The interleave buffer is sourced through the tagged allocation seam
+// (SYS_ALLOC_YUV, see sys_alloc.h). The weak default returns uncached memory; an
+// application can override __sys_alloc to place it in a contiguous
+// scratch/transient heap so a fragmented system heap can't fail this allocation
+// mid-session — a failed alloc would leave a NULL buffer that rsp_yuv would DMA
+// to physical 0, corrupting low RDRAM.
+static void internal_buffer_release(void)
+{
+    if (internal_buffer.buffer)
+        __sys_free(SYS_ALLOC_YUV, internal_buffer.buffer);
+    internal_buffer = (surface_t){0};
+}
 
 // Calculated with: yuv_new_colorspace(0.299, 0.114, 16, 219, 224);
 const yuv_colorspace_t YUV_BT601_TV = {
@@ -51,8 +65,15 @@ const yuv_colorspace_t YUV_BT709_FULL = {
 static void resize_internal_buffer(int w, int h)
 {
     if (internal_buffer.width != w || internal_buffer.height != h) {
-        surface_free(&internal_buffer);
-        internal_buffer = surface_alloc(FMT_IA16, w, h);
+        internal_buffer_release();
+        // Build a non-owning surface around the seam-allocated buffer so
+        // surface_free() won't touch it; internal_buffer_release() returns it
+        // through __sys_free(SYS_ALLOC_YUV).
+        size_t stride = TEX_FORMAT_PIX2BYTES(FMT_IA16, w);
+        void *buf = __sys_alloc(SYS_ALLOC_YUV, stride * h, 16);
+        internal_buffer = surface_make_linear(buf, FMT_IA16, w, h);
+        assertf(internal_buffer.buffer,
+            "yuv: out of memory allocating %dx%d internal interleave buffer", w, h);
     }
 }
 
@@ -98,7 +119,7 @@ void yuv_close(void)
     assert(yuv_initialized > 0);
     yuv_initialized--;
     if (yuv_initialized == 0) {
-        surface_free(&internal_buffer);
+        internal_buffer_release();
         rspq_overlay_unregister(ovl_yuv);
     }
 }
@@ -248,6 +269,11 @@ void rsp_yuv_set_input_buffer(uint8_t *y, uint8_t *cb, uint8_t *cr, int y_pitch)
 
 void rsp_yuv_set_output_buffer(uint8_t *out, int out_pitch)
 {
+    // Never let the RSP DMA to physical 0: a NULL output buffer (e.g. a failed
+    // surface_alloc under low memory) would otherwise interleave chroma straight
+    // into low RDRAM, silently smashing .text. Fail loudly instead.
+    assertf(out != NULL && PhysicalAddr(out) != 0,
+        "rsp_yuv: output buffer is NULL (out of memory?)");
     rspq_write(ovl_yuv, CMD_YUV_SET_OUTPUT,
         PhysicalAddr(out), out_pitch);
 }

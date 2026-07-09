@@ -31,15 +31,20 @@
  *
  * DFS files have a maximum size of 256 MiB.  Directories can have an unlimited
  * number of files in them.  Each token (separated by a / in the path) can be 243 characters
- * maximum.  Directories can be 100 levels deep at maximum.  There can be 4 files open
- * simultaneously.
+ * maximum.  Directories can be 100 levels deep at maximum.
+ *
+ * There is no hard limit on how many files can be open at once.  The handles for
+ * the first `DFS_FILE_POOL_SIZE` (128 by default) simultaneously-open files are
+ * served from a small static pool so they never fragment the heap; opening more
+ * than that transparently falls back to the heap.  Define `DFS_FILE_POOL_SIZE`
+ * when building libdragon to tune the pool (each slot costs 12 bytes of BSS).
  *
  * When DFS is initialized, it will register itself with newlib using 'rom:/' as a prefix.
  * Files can be accessed either with standard POSIX functions (open, fopen) using the 'rom:/'
  * prefix or the lower-level DFS API calls without prefix. In most cases, it is not necessary
  * to use the DFS API directly, given that the standard C functions are more comprehensive.
- * Files can be opened using both sets of API calls simultaneously as long as no more than
- * four files are open at any one time.
+ * Files can be opened using both sets of API calls simultaneously; open handles
+ * from both share the same pool described above.
  * 
  * DragonFS does not support file compression; if you want to compress your assets,
  * use the asset API (#asset_load / #asset_fopen).
@@ -156,6 +161,28 @@ extern "C" {
  * @return DFS_ESUCCESS on success or a negative error otherwise.
  */
 int dfs_init(pi_addr_t base_fs_loc);
+
+/**
+ * @brief Size of the DragonFS open-file handle pool (weak hook; default 0).
+ *
+ * DragonFS can serve open-file handles from a pool allocated once at #dfs_init,
+ * instead of malloc'ing one per open, so that many concurrently-open files do
+ * not churn or fragment the system heap with small, long-lived allocations.
+ *
+ * This is a weak function whose default returns 0 (no pool: every handle is
+ * malloc'd/freed, as in plain newlib). Override it to enable the pool and size
+ * it to how many files your application keeps open at once — an application-side
+ * decision that needs no libdragon rebuild:
+ *
+ * @code
+ * int __dfs_file_pool_size(void) { return 64; }
+ * @endcode
+ *
+ * Opens beyond the pool size fall back to malloc() transparently.
+ *
+ * @return Number of handles to keep in the pool, or 0 for none.
+ */
+int __dfs_file_pool_size(void);
 
 
 /**

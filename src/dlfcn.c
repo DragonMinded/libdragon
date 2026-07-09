@@ -523,7 +523,13 @@ void *dlopen(const char *filename, int mode)
         assertf(hdr.magic == DSO_FILE_MAGIC, "Invalid DSO file: %s", filename);
         lseek(fd, hdr.resident_off, SEEK_SET);
         int rsz = hdr.resident_size;
-        handle = asset_loadfd(fd, &rsz);
+        //Load the resident module image through the tagged seam
+        //(SYS_ALLOC_DSO_MODULE) so close_module() frees it symmetrically via
+        //__sys_free with the same purpose. The weak default is memalign/free;
+        //an application can override __sys_alloc to place the image elsewhere.
+        handle = asset_loadfd_ex(fd, &rsz, SYS_ALLOC_DSO_MODULE);
+        //Load the transient loadtmp section into scratch memory; it is only
+        //needed during linking and is released immediately afterwards.
         lseek(fd, hdr.loadtmp_off, SEEK_SET);
         int tsz = hdr.loadtmp_size, tbuf_size = 0;
         asset_loadfd_into(fd, &tsz, NULL, &tbuf_size);
@@ -664,7 +670,8 @@ static void close_module(dl_module_t *module)
     end_module(module);
     //Remove module from memory
     __dl_remove_module(module);
-    free(module);
+    //Release the module image via the same seam purpose that produced it.
+    __sys_free(SYS_ALLOC_DSO_MODULE, module);
 }
 
 static void close_unused_modules()

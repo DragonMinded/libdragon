@@ -11,6 +11,8 @@
 
 #include <stdio.h>
 
+#include "sys_alloc.h"
+
 #define ASSET_MAGIC                 "DCA"   ///< Magic compressed asset header
 #define ASSET_FLAG_WINSIZE_MASK     0x07    ///< Mask to isolate the window size in the flags
 #define ASSET_FLAG_WINSIZE_16K      0x00    ///< 16 KiB window size
@@ -122,6 +124,8 @@ FILE *must_fopen(const char *fn);
 int must_open(const char *fn);
 /** @brief Load an asset from file descriptor with automatic memory allocation */
 void *asset_loadfd(int fd, int *sz);
+/** @brief Load an asset from file descriptor, allocating the payload via __sys_alloc(@p purpose) */
+void *asset_loadfd_ex(int fd, int *sz, sys_alloc_purpose_t purpose);
 /** @brief Load an asset from file descriptor into a provided buffer */
 bool asset_loadfd_into(int fd, int *sz, void *buf, int *buf_size);
 /** @brief Open a file descriptor as a FILE* with asset support */

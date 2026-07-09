@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include "dragonfs.h"
 #include "n64sys.h"
+#include "interrupt.h"
 #include "dma.h"
 #include "debug.h"
 #include "system.h"
@@ -64,6 +65,93 @@ static pi_addr_t next_entry = 0;
 #define OPENFILE_TO_HANDLE(file)        ((int)PhysicalAddr(file))
 /** @brief Convert a handle to an open file pointer */
 #define HANDLE_TO_OPENFILE(handle)      ((dfs_open_file_t*)((uint32_t)(handle) | 0x80000000))
+
+/**
+ * @brief Weak hook: number of open-file handles to serve from a pool.
+ *
+ * The default returns 0, so every open-file handle is malloc'd/freed as usual.
+ * An application that keeps many files open at once can override this to enable
+ * a handle pool sized to its workload — keeping those small, long-lived handles
+ * from churning and fragmenting the system heap — WITHOUT recompiling libdragon:
+ *
+ *     int __dfs_file_pool_size(void) { return 64; }
+ *
+ * See #__dfs_file_pool_size in dragonfs.h. The pool is allocated once at
+ * #dfs_init; opens beyond its size fall back to malloc() transparently.
+ */
+__attribute__((weak)) int __dfs_file_pool_size(void) { return 0; }
+
+/** @brief DFS file handle freelist entry slot */
+typedef union dfs_file_slot_s {
+    dfs_open_file_t file;
+    union dfs_file_slot_s *next;
+} dfs_file_slot_t;
+
+_Static_assert(sizeof(dfs_file_slot_t) == sizeof(dfs_open_file_t),
+    "dfs_file_slot_t must be the same size as dfs_open_file_t");
+
+/** @brief Open-file handle pool (sized by __dfs_file_pool_size). NULL if none. */
+static dfs_file_slot_t *dfs_file_pool;
+static int dfs_file_pool_count;
+static dfs_file_slot_t *dfs_file_freelist;
+
+/**
+ * @brief Allocate and link the open-file handle pool.
+ *
+ * Called once from dfs_init() — at boot, single-threaded — so the one-off pool
+ * buffer allocation happens outside any interrupt-critical section. If the hook
+ * returns 0 (or the allocation fails) there is no pool and every handle is
+ * malloc'd.
+ */
+static void dfs_file_pool_setup(void)
+{
+    if (dfs_file_freelist || dfs_file_pool) return;   // already set up
+    int n = __dfs_file_pool_size();
+    if (n <= 0) return;
+    dfs_file_slot_t *buf = malloc((size_t)n * sizeof(dfs_file_slot_t));
+    if (!buf) return;   // no pool: fall back to per-handle malloc
+    for (int i = 0; i < n - 1; i++)
+        buf[i].next = &buf[i + 1];
+    buf[n - 1].next = NULL;
+    dfs_file_pool = buf;
+    dfs_file_pool_count = n;
+    dfs_file_freelist = buf;
+}
+
+/** @brief Take an open-file handle from the pool, or malloc() if it is empty. */
+static dfs_open_file_t *dfs_file_pool_alloc(void)
+{
+    // The freelist is shared mutable state: dfs_open() can be called from
+    // multiple kthreads. Pop under a disabled-interrupt critical section, but
+    // fall back to malloc() outside it (malloc takes the newlib lock, which must
+    // not be entered with interrupts disabled). The pool buffer is allocated up
+    // front in dfs_init(), never here.
+    disable_interrupts();
+    dfs_file_slot_t *slot = dfs_file_freelist;
+    if (slot)
+        dfs_file_freelist = slot->next;
+    enable_interrupts();
+    if (!slot)
+        return malloc(sizeof(dfs_open_file_t));
+    return &slot->file;
+}
+
+/** @brief Return a handle to the pool (or free() it if it was malloc()'d). */
+static void dfs_file_pool_free(dfs_open_file_t *f)
+{
+    dfs_file_slot_t *slot = (dfs_file_slot_t *)f;
+    if (dfs_file_pool && slot >= dfs_file_pool && slot < dfs_file_pool + dfs_file_pool_count)
+    {
+        disable_interrupts();
+        slot->next = dfs_file_freelist;
+        dfs_file_freelist = slot;
+        enable_interrupts();
+    }
+    else
+    {
+        free(f);
+    }
+}
 
 /**
  * @brief Read a sector from cartspace
@@ -761,7 +849,7 @@ int dfs_open(const char *path)
             return DFS_ENOFILE;
         }
         /* Try to find a free slot */
-        file = malloc(sizeof(dfs_open_file_t));
+        file = dfs_file_pool_alloc();
         if(!file)
         {
             return DFS_ENOMEM;
@@ -782,7 +870,7 @@ int dfs_open(const char *path)
         }
 
         /* Try to find a free slot */
-        file = malloc(sizeof(dfs_open_file_t));
+        file = dfs_file_pool_alloc();
 
         if(!file)
         {
@@ -811,7 +899,7 @@ int dfs_close(uint32_t handle)
     }
 
     /* Free the open file */
-    free(file);
+    dfs_file_pool_free(file);
 
     return DFS_ESUCCESS;
 }
@@ -1401,6 +1489,11 @@ int dfs_init(uint32_t base_fs_loc)
         /* Failed, return so */
         return ret;
     }
+
+    /* Set up the open-file handle pool (no-op unless __dfs_file_pool_size() is
+       overridden). Done here, at boot in thread context, so the one-off buffer
+       allocation stays out of the interrupt-critical handle alloc path. */
+    dfs_file_pool_setup();
 
     /* Succeeded, push our filesystem into newlib */
     attach_filesystem( "rom:/", &dragon_fs );

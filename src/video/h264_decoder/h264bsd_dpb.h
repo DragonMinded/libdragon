@@ -94,6 +94,10 @@ typedef struct {
     u32 lastContainsMmco5;
     u32 noReordering;
     u32 flushed;
+#if H264BSD_N64
+    u8 *pAllocData;    /* bulk scratch allocation for all frame buffers */
+    u8 pAllocViaMemalign; /* 1 if pAllocData came from memalign fallback, 0 if from scratch_malloc */
+#endif
 } dpbStorage_t;
 
 /*------------------------------------------------------------------------------

@@ -130,7 +130,7 @@ void *asset_load(const char *fn, int *sz);
 
 /**
  * @brief Load an asset file (possibly uncompressing it)
- * 
+ *
  * This function loads an asset embedded within a larger file. It requires in
  * input an open file pointer, seeked to the beginning of the asset, and the
  * size of the asset itself. If the asset is compressed, it is transparently

@@ -59,6 +59,22 @@
 #include "h264bsd_image.h"
 #include "h264bsd_util.h"
 #include "basetype.h"
+#if H264BSD_N64
+#include "n64sys.h"
+#include "scratch.h"
+#include <malloc.h>
+
+/* Set to 1 to debugf DPB allocation request size, heap/scratch state, and
+ * which allocator served each frame in the per-frame fallback. Off in
+ * production; the MEMORY_ALLOCATION_ERROR return is enough signal for
+ * normal use. */
+#define H264BSD_TRACE_DPB 0
+#if H264BSD_TRACE_DPB
+#define dpb_tracef(fmt, ...) debugf(fmt, ##__VA_ARGS__)
+#else
+#define dpb_tracef(fmt, ...) ((void)0)
+#endif
+#endif
 
 /*------------------------------------------------------------------------------
     2. External compiler flags
@@ -1044,6 +1060,107 @@ u32 h264bsdInitDpb(
         return(MEMORY_ALLOCATION_ERROR);
     H264SwDecMemset(dpb->buffer, 0,
             (dpb->dpbSize + 1)*sizeof(dpbPicture_t));
+#if H264BSD_N64
+    {
+        /* N64: Allocate all frame buffers as one contiguous block. Prefer
+         * the scratch heap (backed by sbrk_top, growing downward from the
+         * top of RDRAM) because that keeps the DPB out of the regular
+         * malloc heap and avoids fragmenting the wilderness. If the
+         * scratch heap doesn't have enough contiguous headroom (small
+         * persistent allocations near the top can shrink the sbrk_top
+         * window below the DPB size even when a large free hole exists
+         * lower in the malloc heap), fall back to memalign so we can
+         * use that hole instead of giving up.
+         */
+        u32 frameSize = picSizeInMbs * 384 + 32 + 15;
+        /* Align each frame to 16 bytes within the bulk block */
+        u32 frameSizeAligned = (frameSize + 15) & ~15u;
+        u32 numFrames = dpb->dpbSize + 1;
+        u32 allocSize = frameSizeAligned * numFrames;
+#if H264BSD_TRACE_DPB
+        {
+            struct mallinfo mi = mallinfo();
+            scratch_stats_t ss; scratch_get_stats(&ss);
+            dpb_tracef("h264bsd DPB: req=%u (mbs=%u frames=%u) | heap.uord=%u ford=%u keep=%u | scratch.live=%u resv=%u\n",
+                (unsigned)allocSize, (unsigned)picSizeInMbs, (unsigned)numFrames,
+                (unsigned)mi.uordblks, (unsigned)mi.fordblks, (unsigned)mi.keepcost,
+                (unsigned)ss.live_bytes, (unsigned)ss.reserved_bytes);
+        }
+#endif
+        dpb->pAllocData = (u8*)scratch_malloc(allocSize);
+        dpb->pAllocViaMemalign = 0;
+        if (dpb->pAllocData == NULL) {
+            dpb_tracef("h264bsd DPB: scratch_malloc FAILED, trying memalign(%u)\n", (unsigned)allocSize);
+            dpb->pAllocData = (u8*)memalign(16, allocSize);
+            if (dpb->pAllocData != NULL) {
+                dpb_tracef("h264bsd DPB: memalign fallback OK\n");
+                dpb->pAllocViaMemalign = 1;
+            }
+        } else {
+            dpb_tracef("h264bsd DPB: scratch OK (%u bytes)\n", (unsigned)allocSize);
+        }
+        if (dpb->pAllocData != NULL) {
+            /* Bulk allocation succeeded. Lay out frames contiguously. */
+            data_cache_hit_invalidate(dpb->pAllocData, allocSize);
+            u8 *uncached = (u8*)UncachedAddr(dpb->pAllocData);
+            for (i = 0; i < numFrames; i++)
+            {
+                dpb->buffer[i].pAllocatedData = uncached + i * frameSizeAligned;
+                dpb->buffer[i].data = ALIGN(dpb->buffer[i].pAllocatedData, 16);
+            }
+        } else {
+            /* Per-frame fallback: when neither the scratch nor the malloc
+             * bulk allocation fits, allocate each frame independently. This
+             * succeeds when the available free space is fragmented into
+             * chunks each large enough for one frame but smaller than the
+             * full DPB size. Decoder access uses dpb->buffer[i] pointers,
+             * so contiguity isn't required for correctness — the bulk
+             * layout is only a memory-management convenience. Mark
+             * pAllocData NULL to signal the per-frame teardown path;
+             * h264bsdFreeDpb walks buffer[i] in that case. */
+            dpb_tracef("h264bsd DPB: bulk failed, trying per-frame allocation\n");
+            int allocated = 0;
+            for (i = 0; i < numFrames; i++) {
+                /* memalign first: dlmalloc tries to fit each frame into an
+                 * existing free chunk in fordblks. When fordblks runs out
+                 * of suitable holes, fall through to scratch which grows
+                 * top-of-RAM. Trying scratch first tends to leave the
+                 * malloc path with chunks too small to satisfy subsequent
+                 * frame requests, since scratch's downward growth would
+                 * otherwise eat the contiguous headroom that memalign
+                 * needs for its own splits. */
+                u8 *frame = (u8*)memalign(16, frameSizeAligned);
+                if (!frame) {
+                    frame = (u8*)scratch_malloc(frameSizeAligned);
+                }
+                if (!frame) {
+                    dpb_tracef("h264bsd DPB: per-frame failed at frame %u/%u (size %u)\n",
+                        (unsigned)i, (unsigned)numFrames, (unsigned)frameSizeAligned);
+                    /* Roll back any frames we already allocated. scratch_owns()
+                     * dispatches to the right deallocator per-frame since the
+                     * fallback mixes scratch and memalign sources. */
+                    for (u32 j = 0; j < i; j++) {
+                        void *cached = CachedAddr(dpb->buffer[j].pAllocatedData);
+                        if (scratch_owns(cached))
+                            scratch_free(cached);
+                        else
+                            free(cached);
+                        dpb->buffer[j].pAllocatedData = NULL;
+                        dpb->buffer[j].data = NULL;
+                    }
+                    return(MEMORY_ALLOCATION_ERROR);
+                }
+                data_cache_hit_invalidate(frame, frameSizeAligned);
+                dpb->buffer[i].pAllocatedData = (u8*)UncachedAddr(frame);
+                dpb->buffer[i].data = ALIGN(dpb->buffer[i].pAllocatedData, 16);
+                allocated++;
+            }
+            dpb_tracef("h264bsd DPB: per-frame OK (%u frames x %u bytes)\n",
+                (unsigned)allocated, (unsigned)frameSizeAligned);
+            /* pAllocData stays NULL — signals per-frame teardown path. */
+        }
+    }
+#else
     for (i = 0; i < dpb->dpbSize + 1; i++)
     {
         /* Allocate needed amount of memory, which is:
@@ -1057,6 +1174,7 @@ u32 h264bsdInitDpb(
 
         dpb->buffer[i].data = ALIGN(dpb->buffer[i].pAllocatedData, 16);
     }
+#endif
 
     ALLOCATE(dpb->list, MAX_NUM_REF_IDX_L0_ACTIVE + 1, dpbPicture_t*);
     ALLOCATE(dpb->outBuf, dpb->dpbSize+1, dpbOutPicture_t);
@@ -1705,10 +1823,44 @@ void h264bsdFreeDpb(dpbStorage_t *dpb)
 
     if (dpb->buffer)
     {
+#if H264BSD_N64
+        /* N64: Free either the bulk allocation or per-frame allocations.
+         * pAllocData != NULL means bulk; NULL means per-frame fallback was
+         * used (each buffer[i].pAllocatedData owns its own chunk, mixed
+         * between scratch and memalign sources). */
+        if (dpb->pAllocData)
+        {
+            if (dpb->pAllocViaMemalign)
+                free(dpb->pAllocData);
+            else
+                scratch_free(dpb->pAllocData);
+            dpb->pAllocData = NULL;
+            dpb->pAllocViaMemalign = 0;
+            for (i = 0; i < dpb->dpbSize+1; i++)
+            {
+                dpb->buffer[i].pAllocatedData = NULL;
+                dpb->buffer[i].data = NULL;
+            }
+        } else {
+            for (i = 0; i < dpb->dpbSize+1; i++)
+            {
+                if (dpb->buffer[i].pAllocatedData) {
+                    void *cached = CachedAddr(dpb->buffer[i].pAllocatedData);
+                    if (scratch_owns(cached))
+                        scratch_free(cached);
+                    else
+                        free(cached);
+                    dpb->buffer[i].pAllocatedData = NULL;
+                    dpb->buffer[i].data = NULL;
+                }
+            }
+        }
+#else
         for (i = 0; i < dpb->dpbSize+1; i++)
         {
             FREE_PIXELS(dpb->buffer[i].pAllocatedData);
         }
+#endif
     }
     FREE(dpb->buffer);
     FREE(dpb->list);

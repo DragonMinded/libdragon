@@ -5,6 +5,7 @@
  */
 
 #include "h264.h"
+#include "sys_alloc.h"
 #include "h264_decoder.h"
 #include "rsph264_internal.h"
 #include "asset_internal.h"
@@ -196,9 +197,13 @@ static void h264_rewind(video_t *v) {
 }
 
 static video_t* h264_open(const char *fn, const video_parms_t *parms) {
-    h264_t *player = malloc(sizeof(h264_t) + H264_BUF_SIZE);
+    const size_t player_size = sizeof(h264_t) + H264_BUF_SIZE;
+    // The player instance is large. It is sourced through the tagged allocation
+    // seam (SYS_ALLOC_H264); the weak default is malloc, and an application can
+    // override __sys_alloc to place it in a dedicated region.
+    h264_t *player = __sys_alloc(SYS_ALLOC_H264, player_size, 16);
     assertf(player, "Out of memory");
-    sys_hw_memset(player, 0, sizeof(h264_t) + H264_BUF_SIZE);
+    sys_hw_memset(player, 0, player_size);
     player->fd = -1;
     if (parms && parms->buffered_pics)
         player->max_buffered_pics = parms->buffered_pics;
@@ -228,7 +233,7 @@ static void h264_close(video_t *v) {
         player->fd = -1;
     }
     h264bsdShutdown(&player->s);
-    free(player);
+    __sys_free(SYS_ALLOC_H264, player);
 }
 
 static const char* h264_status_str(int status) {
