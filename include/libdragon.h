@@ -112,5 +112,6 @@
 #include "magma.h"
 #include "magma_math.h"
 #include "mgfx.h"
+#include "sram.h"
 
 #endif
