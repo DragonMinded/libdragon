@@ -177,10 +177,6 @@ void Combiner::parse_attr(std::string key, std::string value)
         registers[combexpr::internal::UNIFORM_K4].parse_float(value);
     } else if (key == "reg.k5") {
         registers[combexpr::internal::UNIFORM_K5].parse_float(value);
-    } else if (key == "reg.keyscale") {
-        registers[combexpr::internal::UNIFORM_KEYSCALE].parse_float(value);
-    } else if (key == "reg.keycenter") {
-        registers[combexpr::internal::UNIFORM_KEYCENTER].parse_float(value);
     } else if (key == "reg.prim_lod_frac") {
         registers[combexpr::internal::UNIFORM_PRIM_LOD_FRAC].parse_float(value);
     } else if (key == "reg.env") {
