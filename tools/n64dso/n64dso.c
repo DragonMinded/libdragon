@@ -16,10 +16,10 @@
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
-#include <sys/stat.h>
 #include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/polyfill.h"
+#include "../common/utils.h"
 
 // Compression library
 #include "../common/assetcomp.h"
@@ -61,6 +61,11 @@ typedef struct elf_info_s {
     elf_load_seg_t load_seg;
     char *strtab;
 } elf_info_t;
+
+typedef struct dso_stats_s {
+    int raw;
+    int compressed;
+} dso_stats_t;
 
 //DSO Format Internals
 #include "../../src/dso_format.h"
@@ -562,42 +567,31 @@ bool dso_module_build(dso_module_t *module, elf_info_t *elf_info)
     return dso_build_relocations(module, elf_info);
 }
 
-void dso_write_relocs(dso_reloc_t *relocs, uint32_t num_relocs,  FILE *out_file)
-{
-    walign(out_file, 4);
-    placeholder_set(out_file, "relocs");
-    //Write relocation pairs
-    for(uint32_t i=0; i<num_relocs; i++) {
-        w32(out_file, relocs[i].offset);
-        w32(out_file, relocs[i].info);
-    }
-}
-
-void dso_write_symbols(dso_sym_t *syms, uint32_t num_syms, FILE *out_file)
+void dso_write_resident_symbols(dso_module_t *module, FILE *out_file)
 {
     walign(out_file, 4);
     placeholder_set(out_file, "symbols");
-    for(uint32_t i=0; i<num_syms; i++) {
-        w32_placeholderf(out_file, "symbol%"PRIu32, i);
-        w32(out_file, syms[i].value);
-        w32(out_file, syms[i].info);
+    uint32_t import_name_off = 0;
+    for(uint32_t i=0; i<module->num_syms; i++) {
+        if(i >= 1 && i < module->num_import_syms+1) {
+            w32(out_file, import_name_off);
+            import_name_off += strlen(module->syms[i].name)+1;
+        } else {
+            w32_placeholderf(out_file, "symbol%"PRIu32, i);
+        }
+        w32(out_file, module->syms[i].value);
+        w32(out_file, module->syms[i].info);
     }
-    for(uint32_t i=0; i<num_syms; i++) {
-        placeholder_set(out_file, "symbol%"PRIu32, i);
-        fwrite(syms[i].name, 1, strlen(syms[i].name)+1, out_file);
+    for(uint32_t i=0; i<module->num_syms; i++) {
+        if(i < 1 || i >= module->num_import_syms+1) {
+            placeholder_set(out_file, "symbol%"PRIu32, i);
+            fwrite(module->syms[i].name, 1, strlen(module->syms[i].name)+1, out_file);
+        }
     }
 }
 
-void dso_write_program(elf_info_t *elf_info, FILE *out_file)
+void dso_write_resident_header(dso_module_t *module, uint32_t reloc_tmp_off, FILE *out_file)
 {
-    walign(out_file, elf_info->load_seg.align);
-    placeholder_set(out_file, "program");
-    fwrite(elf_info->load_seg.data, elf_info->load_seg.mem_size, 1, out_file);
-}
-
-void dso_write_header(dso_module_t *module, FILE *out_file)
-{
-    w32(out_file, DSO_MAGIC);
     w32(out_file, 0);
     w32(out_file, 0);
     w32(out_file, 0);
@@ -606,7 +600,7 @@ void dso_write_header(dso_module_t *module, FILE *out_file)
     w32_placeholderf(out_file, "symbols");
     w32(out_file, module->num_syms);
     w32(out_file, module->num_import_syms);
-    w32_placeholderf(out_file, "relocs");
+    w32(out_file, reloc_tmp_off);
     w32(out_file, module->num_relocs);
     w32_placeholderf(out_file, "program");
     w32(out_file, module->prog_size);
@@ -617,11 +611,31 @@ void dso_write_header(dso_module_t *module, FILE *out_file)
     w32(out_file, 0);
 }
 
+void dso_write_loadtmp(dso_module_t *module, FILE *out_file)
+{
+    for(uint32_t i=1; i<module->num_import_syms+1; i++) {
+        fwrite(module->syms[i].name, 1, strlen(module->syms[i].name)+1, out_file);
+    }
+    walign(out_file, 4);
+    for(uint32_t i=0; i<module->num_relocs; i++) {
+        w32(out_file, module->relocs[i].offset);
+        w32(out_file, module->relocs[i].info);
+    }
+}
+
+static uint32_t dso_loadtmp_reloc_offset(dso_module_t *module)
+{
+    uint32_t off = 0;
+    for(uint32_t i=1; i<module->num_import_syms+1; i++) {
+        off += strlen(module->syms[i].name)+1;
+    }
+    return ROUND_UP(off, 4);
+}
+
 void dso_write_elf_path(dso_module_t *module, FILE *out_file)
 {
     placeholder_set(out_file, "src_elf_path");
     fwrite(module->src_elf, 1, strlen(module->src_elf)+1, out_file);
-    
 }
 
 void dso_write_filename(FILE *out_file)
@@ -632,18 +646,64 @@ void dso_write_filename(FILE *out_file)
     }
 }
 
-void dso_write_module(dso_module_t *module, elf_info_t *elf_info, FILE *out_file)
+void dso_write_program(elf_info_t *elf_info, FILE *out_file)
 {
-    dso_write_header(module, out_file);
+    walign(out_file, elf_info->load_seg.align);
+    placeholder_set(out_file, "program");
+    fwrite(elf_info->load_seg.data, elf_info->load_seg.mem_size, 1, out_file);
+}
+
+void dso_write_resident(dso_module_t *module, elf_info_t *elf_info, FILE *out_file)
+{
+    dso_write_resident_header(module, dso_loadtmp_reloc_offset(module), out_file);
     dso_write_elf_path(module, out_file);
-    dso_write_symbols(module->syms, module->num_syms, out_file);
-    dso_write_relocs(module->relocs, module->num_relocs, out_file);
+    dso_write_resident_symbols(module, out_file);
     dso_write_filename(out_file);
     dso_write_program(elf_info, out_file);
     placeholder_clear();
 }
 
-bool convert(char *infn, char *outfn)
+void dso_write_file(dso_module_t *module, elf_info_t *elf_info, FILE *out_file, int compression, dso_stats_t *stats)
+{
+    FILE *rf = tmpfile();
+    FILE *tf = tmpfile();
+    assert(rf && tf);
+    dso_write_resident(module, elf_info, rf);
+    dso_write_loadtmp(module, tf);
+    int resident_len = 0, loadtmp_len = 0;
+    uint8_t *resident_buf = slurp_fp(rf, &resident_len);
+    uint8_t *loadtmp_buf = slurp_fp(tf, &loadtmp_len);
+    fclose(rf);
+    fclose(tf);
+    assert(resident_buf && loadtmp_buf);
+
+    w32(out_file, DSO_FILE_MAGIC);
+    w32(out_file, DSO_FILE_HEADER_SIZE);
+    w32_placeholderf(out_file, "resident_size");
+    w32_placeholderf(out_file, "loadtmp_off");
+    w32_placeholderf(out_file, "loadtmp_size");
+
+    int resident_blob_size = asset_compress_mem(resident_buf, resident_len, out_file, compression, 0, NULL);
+    assert(resident_blob_size >= 0);
+    placeholder_set_offset(out_file, resident_blob_size, "resident_size");
+    free(resident_buf);
+
+    walign(out_file, 2);
+    placeholder_set(out_file, "loadtmp_off");
+    int loadtmp_blob_size = asset_compress_mem(loadtmp_buf, loadtmp_len, out_file, compression, 0, NULL);
+    assert(loadtmp_blob_size >= 0);
+    placeholder_set_offset(out_file, loadtmp_blob_size, "loadtmp_size");
+    free(loadtmp_buf);
+
+    if (stats) {
+        stats->raw = resident_len + loadtmp_len;
+        stats->compressed = resident_blob_size + loadtmp_blob_size;
+    }
+
+    placeholder_clear();
+}
+
+bool convert(char *infn, char *outfn, int compression, dso_stats_t *stats)
 {
     bool ret = false;
     FILE *out_file;
@@ -685,7 +745,7 @@ bool convert(char *infn, char *outfn)
         fprintf(stderr, "cannot open output file: %s\n", outfn);
         goto end2;
     }
-    dso_write_module(module, elf_info, out_file);
+    dso_write_file(module, elf_info, out_file, compression, stats);
     verbose("Successfully converted input to DSO\n");
     ret = true; //Mark as having succeeded
     //Cleanup code
@@ -757,18 +817,17 @@ int main(int argc, char *argv[])
         asprintf(&outfn, "%s/%s.dso", outdir, basename_noext);
         //Convert input to output
         verbose("Converting: %s -> %s\n", infn, outfn);
-        if(!convert(infn, outfn)) {
+        dso_stats_t stats = {0};
+        if(!convert(infn, outfn, compression, &stats)) {
             return 1;
         }
-        if(compression != 0) {
-            //Compress this file
-            struct stat st_decomp = {0}, st_comp = {0};
-            stat(outfn, &st_decomp);
-            asset_compress(outfn, outfn, compression, 0);
-            stat(outfn, &st_comp);
-            if (verbose_flag)
+        if(verbose_flag) {
+            if(compression > 0) {
                 printf("compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
-                (int)st_decomp.st_size, (int)st_comp.st_size, 100.0 * (float)st_comp.st_size / (float)(st_decomp.st_size == 0 ? 1 :st_decomp.st_size));
+                    stats.raw, stats.compressed, 100.0f * (float)stats.compressed / (float)(stats.raw ? stats.raw : 1));
+            } else {
+                printf("written: %s (%d bytes)\n", outfn, stats.raw);
+            }
         }
         free(outfn);
     }

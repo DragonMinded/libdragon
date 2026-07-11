@@ -1,6 +1,7 @@
 /**
  * @file dso_format.h
  * @author gamemasterplc <gamemasterplc@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
 #ifndef __DSO_FORMAT_H
 #define __DSO_FORMAT_H
@@ -8,15 +9,27 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-/** @brief DSO magic number */
-#define DSO_MAGIC 0x44534F30 //'DSO0'
+/** @brief DSO file container magic number */
+#define DSO_FILE_MAGIC 0x44534F31 //'DSO1'
 /** @brief Main executable symbol table magic */
 #define DSO_MAINEXE_SYM_DATA_MAGIC 0x4D53594D //'MSYM'
 
+/** @brief On-disk DSO1 file header size */
+#define DSO_FILE_HEADER_SIZE 20
+
+/** @brief DSO1 on-disk file header */
+typedef struct dso_file_header_s {
+    uint32_t magic;             ///< #DSO_FILE_MAGIC
+    uint32_t resident_off;      ///< Offset of resident asset blob
+    uint32_t resident_size;     ///< Size of resident asset blob
+    uint32_t loadtmp_off;       ///< Offset of load-time asset blob
+    uint32_t loadtmp_size;      ///< Size of load-time asset blob
+} dso_file_header_t;
+
 /** @brief Offset of syms member of dso_module_t on N64 */
-#define DSO_SYMS_OFS 0x18
+#define DSO_SYMS_OFS 0x14
 /** @brief Offset of num_import_syms member of dso_module_t on N64 */
-#define DSO_NUM_IMPORT_SYMS_OFS 0x20
+#define DSO_NUM_IMPORT_SYMS_OFS 0x1C
 /** @brief Size of dso_sym_t on N64 */
 #define DSO_SYM_SIZE 0xC
 
@@ -35,7 +48,6 @@ typedef struct dso_reloc_s {
 
 /** @brief DSO module data */
 typedef struct dso_module_s {
-    uint32_t magic;             ///< Magic number
     struct dso_module_s *prev;  ///< Previous loaded dynamic library
     struct dso_module_s *next;  ///< Next loaded dynamic library
     uint32_t ref_count;         ///< Dynamic library reference count

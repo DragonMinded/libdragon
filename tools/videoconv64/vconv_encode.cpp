@@ -72,8 +72,11 @@ std::string build_filterchain(const AnalysisResult &ar, const char *out_matrix, 
 
 	{
 		// Always set fps: either user forced it, or we picked a sane value in analysis.
+		// eof_action=pass (instead of the default "round") guarantees the last source
+		// frame is never silently dropped when its residual duration rounds down against
+		// the output frame grid (e.g. a precisely-trimmed final frame at scene boundaries).
 		char buf[64];
-		snprintf(buf, sizeof(buf), "fps=%.3f", ar.out_fps);
+		snprintf(buf, sizeof(buf), "fps=%.3f:eof_action=pass", ar.out_fps);
 		filters.push_back(buf);
 	}
 

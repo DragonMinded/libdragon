@@ -1,4 +1,5 @@
 #include "../src/dlfcn_internal.h"
+#include "scratch.h"
 
 static uint32_t hilo_get_value(uint32_t *hi_inst, uint32_t *lo_inst)
 {
@@ -91,9 +92,15 @@ void test_dl_imports(TestContext *ctx) {
 }
 
 void test_dl_relocs(TestContext *ctx) {
+	scratch_stats_t before, after;
+	scratch_get_stats(&before);
 	//Open module to test relocations
 	void *handle = dlopen("rom:/dl_test_relocs.dso", RTLD_LOCAL);
 	DEFER(dlclose(handle));
+	ASSERT(handle, "dlopen failed");
+	ASSERT(((dl_module_t *)handle)->relocs == NULL && ((dl_module_t *)handle)->num_relocs == 0, "load-time relocations still resident");
+	scratch_get_stats(&after);
+	ASSERT(after.live_blocks == before.live_blocks, "scratch blocks leaked after DSO load");
 	//Find required symbols to test relocations
 	uint32_t *hilo = dlsym(handle, "dl_test_hilo_reloc");
 	uint32_t *jump = dlsym(handle, "dl_test_jump_reloc");

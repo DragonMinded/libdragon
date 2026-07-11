@@ -299,6 +299,9 @@ void sys_get_heap_stats(heap_stats_t *stats)
 
     stats->total = __heap_total_size;
     stats->used = m.uordblks + __heap_top_allocated_size;
+    stats->free = stats->total - stats->used;
+    stats->fragmented = m.fordblks > m.keepcost ? m.fordblks - m.keepcost : 0;
+    stats->fragmentation = m.fordblks ? (float)stats->fragmented / (float)m.fordblks : 0.0f;
 }
 
 static void version_callback(void *ctx, char *key, char *value)

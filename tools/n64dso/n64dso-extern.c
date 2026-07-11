@@ -14,6 +14,8 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdarg.h>
+#include <assert.h>
+#include <unistd.h>
 #include "../common/polyfill.h"
 
 //Asset decompression
@@ -98,22 +100,27 @@ const char *mybasename(const char *path)
 
 void process(const char *infn)
 {
-	int sz;
     verbose("Processing DSO %s\n", infn);
-	//Load DSO file
-	uint8_t *data = asset_load(infn, &sz);
-	uint8_t *orig_data = data;
-	//Do basic sanity checks on DSO file
-	if(sz < 84 || read_buf_u32(data) != DSO_MAGIC) {
-		fprintf(stderr, "File is not a valid DSO file\n");
-		exit(1);
-	}
-	//Write data externs
-	verbose("Writing external symbols in DSO to output file");
+    int fd = must_open(infn);
+    uint8_t hdr_buf[DSO_FILE_HEADER_SIZE];
+    int nread = read(fd, hdr_buf, sizeof(hdr_buf));
+    assert(nread == sizeof(hdr_buf));
+    assert(read_buf_u32(hdr_buf) == DSO_FILE_MAGIC);
+    uint32_t resident_off = read_buf_u32(hdr_buf + 4);
+    uint32_t resident_size = read_buf_u32(hdr_buf + 8);
+    uint32_t loadtmp_off = read_buf_u32(hdr_buf + 12);
+    uint32_t loadtmp_size = read_buf_u32(hdr_buf + 16);
+    lseek(fd, resident_off, SEEK_SET);
+    int rsz = resident_size;
+    uint8_t *resident = asset_loadfd(fd, &rsz);
+    lseek(fd, loadtmp_off, SEEK_SET);
+    int tsz = loadtmp_size;
+    uint8_t *loadtmp = asset_loadfd(fd, &tsz);
+    close(fd);
     char *filename = strdup(mybasename(infn));
-	add_externs(filename, data+read_buf_u32(data+DSO_SYMS_OFS), data, read_buf_u32(data+DSO_NUM_IMPORT_SYMS_OFS));
-	//Free DSO file data
-	free(orig_data);
+    add_externs(filename, resident+read_buf_u32(resident+DSO_SYMS_OFS), loadtmp, read_buf_u32(resident+DSO_NUM_IMPORT_SYMS_OFS));
+    free(resident);
+    free(loadtmp);
 }
 
 int main(int argc, char **argv)

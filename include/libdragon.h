@@ -114,6 +114,6 @@
 #include "mgfx.h"
 #include "mgfx_mesh.h"
 #include "mgfx_meshdb.h"
-
+#include "sram.h"
 
 #endif

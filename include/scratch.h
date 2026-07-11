@@ -31,8 +31,8 @@
  /**
   * @brief Allocate memory from the scratch heap.
   *
- * Allocates @p size bytes from the scratch allocator.
- * The returned pointer is suitably aligned for normal C object access.
+  * Allocates @p size bytes from the scratch allocator.
+  * The returned pointer is suitably aligned for normal C object access.
   *
   * @param size         Number of bytes to allocate.
   * @return Pointer to the allocated memory, or NULL if there is not enough
@@ -94,15 +94,62 @@
  /**
   * @brief Free a scratch allocation.
   *
-  * Releases a block previously returned by #scratch_malloc(), #scratch_calloc(), or
-  * #scratch_realloc().
+  * Releases a block previously returned by any scratch allocator:
+  * #scratch_malloc(), #scratch_calloc(), #scratch_realloc(),
+  * #scratch_memalign(), or #scratch_malloc_uncached(). The single
+  * entry point transparently handles cached vs uncached pointer views
+  * and direct vs aligned allocations; callers don't need to track
+  * which allocator produced the pointer.
   *
   * Passing NULL is allowed and has no effect.
   *
   * @param ptr          Pointer to the scratch allocation to free, or NULL.
   */
  void scratch_free(void *ptr);
+
+ /**
+  * @brief Allocate uncached memory from the scratch heap.
+  *
+  * Allocates @p size bytes from the scratch allocator and returns an uncached
+  * (KSEG1) mapping of the buffer. This mirrors #malloc_uncached() and is
+  * intended for short-lived buffers shared between CPU and RSP/RDP DMA paths
+  * (decoder workspaces, staging surfaces, etc.) where the coherency cost of
+  * cached access would otherwise force manual flushes around every transfer.
+  *
+  * The underlying allocation is 16-byte aligned and the size is rounded up to
+  * a multiple of 16 bytes, so the buffer exclusively owns its cachelines and
+  * cannot suffer false sharing with neighbouring allocations.
+  *
+  * Free with the standard #scratch_free(); it handles cached/uncached views
+  * transparently.
+  *
+  * @param size         Number of bytes to allocate.
+  * @return Uncached pointer to the allocated memory, or NULL if there is not
+  *         enough memory.
+  *
+  * @note Memory returned by this function is uninitialized.
+  *
+  * @see scratch_free
+  * @see malloc_uncached
+  */
+ void *scratch_malloc_uncached(size_t size);
  
+ /**
+  * @brief Allocate aligned memory from the scratch heap.
+  *
+  * Allocates @p size bytes from the scratch allocator and returns a pointer
+  * aligned to @p alignment bytes. @p alignment must be a power of two and
+  * at least the natural scratch alignment (16 bytes); requests smaller than
+  * 16 are clamped up.
+  *
+  * Free with #scratch_free().
+  *
+  * @param alignment    Required alignment in bytes (power of two, >= 16).
+  * @param size         Number of bytes to allocate.
+  * @return Pointer to the aligned allocation, or NULL on failure.
+  */
+ void *scratch_memalign(size_t alignment, size_t size);
+
  /**
   * @brief Check internal consistency of the scratch heap.
   *
@@ -139,6 +186,22 @@ void scratch_get_stats(scratch_stats_t *stats);
   * @return true if there are no live scratch allocations, false otherwise.
   */
  bool scratch_empty(void);
+
+ /**
+  * @brief Check whether an address belongs to the scratch heap.
+  *
+  * Returns true if @p ptr falls inside the scratch heap reservation. The cached
+  * and uncached views of the same scratch address are both recognised.
+  *
+  * Intended for code paths that don't know up-front which allocator owns a
+  * pointer (e.g. fallbacks between scratch and the main heap) and need to
+  * dispatch to the correct deallocator.
+  *
+  * @param ptr Pointer to test.
+  * @return true if the address is inside the scratch heap, false otherwise
+  *         (including NULL).
+  */
+ bool scratch_owns(const void *ptr);
  
  #ifdef __cplusplus
  }

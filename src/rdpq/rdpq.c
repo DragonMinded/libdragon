@@ -911,8 +911,11 @@ void __rdpq_block_reserve(int num_rdp_commands)
             rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, 0, 0, 0);
         }
     } else if (num_rdp_commands > 0) {
-        if (__builtin_expect(st->wptr + num_rdp_commands*2 > st->wend, 0))
+        // Loop: a first call can restore a pending (possibly full) buffer, 
+        // So re-check until there is enough room. a potential second call then allocates a fresh buffer.
+        while (__builtin_expect(st->wptr + num_rdp_commands*2 > st->wend, 0)) {
             __rdpq_block_next_buffer();
+        }
 
         for (int i=0; i<num_rdp_commands; i++) {
             *st->wptr++ = 0xC0000000;

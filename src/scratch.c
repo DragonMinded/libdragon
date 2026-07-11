@@ -46,6 +46,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "debug.h"
+#include "n64sys.h"
 #include "scratch.h"
 #include "system_internal.h"
 #include "utils.h"
@@ -149,9 +150,9 @@ void *scratch_malloc(size_t size) {
     return block_user_ptr(b);
 }
 
-void scratch_free(void *ptr) {
-    if (!ptr) return;
-
+/* Release the chunk that ptr is the user-data of. Caller guarantees ptr is
+ * a valid direct-allocated scratch chunk's user pointer. */
+static void scratch_free_chunk(void *ptr) {
     block_t *b = block_from_user_ptr(ptr);
     assert(ptr_in_heap(b));
     assert(!block_is_free(b));
@@ -164,6 +165,77 @@ void scratch_free(void *ptr) {
     block_mark_free(b);
     if (b == sh_head) trim_head();
 }
+
+static bool block_matches_user_ptr(block_t *b, const void *ptr) {
+    return ptr_in_heap(b) && !block_is_free(b) &&
+        b->magic == MAGIC_USED && block_user_ptr(b) == ptr;
+}
+
+static void *scratch_resolve_ptr(const void *ptr) {
+    if (!ptr) return NULL;
+
+    void *cached = CachedAddr(ptr);
+    if (!ptr_in_heap(cached)) return NULL;
+
+    /* Fast path: normal scratch_malloc/calloc/realloc pointers point exactly
+     * at the user area that follows the block header. */
+    block_t *b = block_from_user_ptr(cached);
+    if (block_matches_user_ptr(b, cached))
+        return cached;
+
+    /* scratch_memalign returns an aligned alias inside a normal scratch block.
+     * The original user pointer is stored immediately before the alias. */
+    void *raw = *(void **)(cached - 4);
+    b = block_from_user_ptr(raw);
+    if (!block_matches_user_ptr(b, raw))
+        return NULL;
+
+    /* Accept the alias only if it still points inside the raw block payload. */
+    if ((uintptr_t)cached < (uintptr_t)raw)
+        return NULL;
+    if ((uintptr_t)cached >= (uintptr_t)raw + (block_size(b) - header_size()))
+        return NULL;
+
+    return raw;
+}
+
+void scratch_free(void *ptr) {
+    if (!ptr) return;
+
+    /* scratch_free is the single-entry deallocator for any pointer
+     * returned by any scratch_* allocation. It transparently handles:
+     *   - cached vs uncached views (both refer to the same physical chunk)
+     *   - direct allocations (scratch_malloc / scratch_calloc) where the
+     *     pointer is at user_ptr_offset within the chunk
+     *   - aligned allocations (scratch_memalign) where the pointer is
+     *     offset further into the chunk and the chunk's raw user pointer
+     *     is stored in a back-slot at (ptr - sizeof(void*))
+     * Callers don't need to track which allocator produced the pointer or
+     * which view (cached/uncached) they hold. */
+    void *raw = scratch_resolve_ptr(ptr);
+    if (!raw) {
+        assertf(false,
+            "scratch_free: %p is neither a scratch chunk nor a memalign'd alias", ptr);
+        return;
+    }
+
+    scratch_free_chunk(raw);
+}
+
+void *scratch_malloc_uncached(size_t size) {
+    // Round the size up to a full cacheline so the uncached buffer can never
+    // false-share with a neighbouring allocation (mirrors malloc_uncached).
+    size = ROUND_UP(size, 16);
+    void *p = scratch_malloc(size);
+    if (!p) return NULL;
+
+    // The memory may have been in the data cache from a prior cached use of
+    // the same block; invalidate so a future writeback can't clobber RSP/RDP
+    // writes.
+    data_cache_hit_invalidate(p, size);
+    return UncachedAddr(p);
+}
+
 
 void *scratch_calloc(size_t count, size_t size) {
     if (count && size > ((size_t)-1) / count) return NULL;
@@ -199,6 +271,27 @@ void *scratch_realloc(void *ptr, size_t size) {
     memcpy(q, ptr, old_requested < size ? old_requested : size);
     scratch_free(ptr);
     return q;
+}
+
+void *scratch_memalign(size_t alignment, size_t size) {
+    if (alignment < SCRATCH_ALIGN) alignment = SCRATCH_ALIGN;
+    /* Power-of-two check matches POSIX memalign semantics. */
+    assertf((alignment & (alignment - 1)) == 0,
+        "scratch_memalign: alignment must be a power of two");
+
+    /* Over-allocate by (alignment + sizeof(void*)) so we can both align the
+     * returned pointer and stash a back-pointer to the raw block in the
+     * gap before it. Guard the addition against wrap (mirrors scratch_calloc):
+     * a wrapped size would under-allocate and let the caller overrun the heap. */
+    if (size > (size_t)-1 - alignment - sizeof(void *)) return NULL;
+    size_t padded = size + alignment + sizeof(void *);
+    void *raw = scratch_malloc(padded);
+    if (!raw) return NULL;
+
+    uintptr_t aligned_addr = ((uintptr_t)raw + sizeof(void *) + (alignment - 1)) & ~(alignment - 1);
+    void **back_slot = (void **)(aligned_addr - sizeof(void *));
+    *back_slot = raw;
+    return (void *)aligned_addr;
 }
 
 void scratch_check(void) {
@@ -254,4 +347,11 @@ void scratch_get_stats(scratch_stats_t *stats) {
 
 bool scratch_empty(void) {
     return sh_live_blocks == 0;
+}
+
+bool scratch_owns(const void *ptr) {
+    if (!ptr) return false;
+    /* Accept either the cached or uncached view of a scratch address. */
+    const void *cached = CachedAddr(ptr);
+    return ptr_in_heap(cached);
 }

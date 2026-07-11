@@ -40,6 +40,7 @@
 #include "../common/binout.h"
 #include "../common/nanotime.h"
 #include "../common/polyfill.h"
+#include "../common/utils.h"
 #include "../common/assetcomp.h"
 #include "conv_common.h"
 
@@ -364,18 +365,13 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 
 	// Now we have completed the file. Read back the metadata and compress them
 	// to the xm64 output file.
-	int metadata_size = ftell(meta);
+	std::vector<uint8_t> metadata = slurp(meta);
+	fclose(meta);
 	walign(xm64, 2);
 	placeholder_set(xm64, "metadata_offset");
-	placeholder_set_offset(xm64, metadata_size, "metadata_size");
+	placeholder_set_offset(xm64, metadata.size(), "metadata_size");
 
-	rewind(meta);
-	uint8_t *metadata = (uint8_t*)malloc(metadata_size);
-	fread(metadata, 1, metadata_size, meta);
-	fclose(meta);
-
-	asset_compress_mem(metadata, metadata_size, xm64, flag_xm_compress_meta, 0, NULL);
-	free(metadata);
+	asset_compress_mem(metadata.data(), metadata.size(), xm64, flag_xm_compress_meta, 0, NULL);
 }
 
 static void xm_remove_empty_samples(xm_context_t *ctx)
