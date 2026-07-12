@@ -47,9 +47,11 @@
  * @param[in] x
  *            Frequency the AI is running at
  *
- * @return The size of the buffer in bytes rounded to an 8 byte boundary
+ * @return The number of stereo samples per buffer, rounded up to a
+ *         multiple of 16 (~64 bytes) to simplify code producing batches
+ *         of samples.
  */
-#define CALC_BUFFER(x)  ( ( ( ( x ) / BUFFERS_PER_SECOND ) >> 3 ) << 3 )
+#define CALC_BUFFER(x)  ( ( ( ( x ) / BUFFERS_PER_SECOND ) + 15 ) & ~15 )
 
 /** @brief The actual frequency the AI will run at */
 static int _frequency = 0;
