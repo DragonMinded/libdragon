@@ -31,12 +31,11 @@
  * audio subsystem based on settings left by the bootloader.
  *
  * Code attempting to output audio on the N64 should initialize the
- * audio subsystem at the desired frequency and with the desired number
- * of buffers using #audio_init.  More audio buffers allows for smaller
- * chances of audio glitches but means that there will be more latency
- * in sound output.  When new data is available to be output, code should
- * check to see if there is room in the output buffers using
- * #audio_can_write.  Code can probe the current frequency and buffer
+ * audio subsystem at the desired frequency and with the desired audio
+ * headroom using #audio_init.  More headroom reduces the chance of audio
+ * glitches but increases output latency.  When new data is available to be
+ * output, code should check to see if there is room in the output buffers
+ * using #audio_can_write.  Code can probe the current frequency and buffer
  * size using #audio_get_frequency and #audio_get_buffer_length respectively.
  * When there is additional room, code can add new data to the output
  * buffers using #audio_write.  Be careful as this is a blocking operation,
@@ -62,21 +61,31 @@ extern "C" {
  */
 typedef void(*audio_fill_buffer_callback)(short *buffer, size_t numsamples);
 
+/** @brief Convert a headroom in milliseconds to a #audio_init latency argument */
+#define AUDIO_INIT_LATENCY_MS(ms)   ((ms) * 25 / 1000.0f)
+
+/** @brief Default #audio_init latency argument (~160 ms) */
+#define AUDIO_DEFAULT_LATENCY       AUDIO_INIT_LATENCY_MS(160)
+
 /**
  * @brief Initialize the audio subsystem
  *
  * This function will set up the AI to play at a given frequency and
- * allocate a number of back buffers to write data to.
+ * allocate enough internal buffers to hold the requested amount of audio
+ * headroom. The latency argument uses a weird scale for backward compatibility.
+ * Please use #AUDIO_INIT_LATENCY_MS to specify a latency in milliseconds.
  *
  * @note Before re-initializing the audio subsystem to a new playback
  *       frequency, remember to call #audio_close.
  *
  * @param[in] frequency
  *            The frequency in Hz to play back samples at
- * @param[in] numbuffers
- *            The number of buffers to allocate internally
+ * @param[in] latency
+ *            Desired audio headroom. Use #AUDIO_INIT_LATENCY_MS to specify a
+ *            latency in milliseconds. Use #AUDIO_DEFAULT_LATENCY for a good
+ *            default.
  */
-void audio_init(const int frequency, int numbuffers);
+void audio_init(const int frequency, float latency);
 
 /**
  * @brief Install a audio callback to fill the audio buffer when required.

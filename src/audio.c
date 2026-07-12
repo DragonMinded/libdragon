@@ -15,6 +15,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <stdint.h>
+#include <math.h>
 
 /**
  * @name DAC rates for different regions
@@ -38,10 +39,8 @@
 #define AI_STATUS_FULL  ( 1 << 31 )
 /** @} */
 
-/** @brief Number of buffers the audio subsytem allocates and manages */
-#define NUM_BUFFERS     4
 /** @brief How many different audio buffers we want to schedule in one second. */
-#define BUFFERS_PER_SECOND    25
+#define BUFFERS_PER_SECOND    50
 /**
  * @brief Macro that calculates the size of a buffer based on frequency
  *
@@ -55,7 +54,7 @@
 /** @brief The actual frequency the AI will run at */
 static int _frequency = 0;
 /** @brief The number of buffers currently allocated */
-static int _num_buf = NUM_BUFFERS;
+static int _num_buf = 0;
 /** @brief The buffer size in bytes for each buffer allocated */
 static int _buf_size = 0;
 /** @brief Array of pointers to the allocated buffers */
@@ -175,7 +174,7 @@ static void audio_callback()
     enable_interrupts();
 }
 
-void audio_init(const int frequency, int numbuffers)
+void audio_init(const int frequency, float latency)
 {
     int clockrate;
 
@@ -194,14 +193,6 @@ void audio_init(const int frequency, int numbuffers)
             /* NTSC */
             clockrate = AI_NTSC_DACRATE;
             break;
-    }
-
-    /* Make sure we don't choose too many buffers */
-    if( numbuffers > (sizeof(buf_full) * 8) )
-    {
-        /* This is a bit mask, so we can only have as many
-         * buffers as we have bits. */
-        numbuffers = sizeof(buf_full) * 8;
     }
 
     /* Calculate DAC dacrate. This is based on the VI clock rate (as the VI clock
@@ -232,7 +223,15 @@ void audio_init(const int frequency, int numbuffers)
 
     /* Set up buffers */
     _buf_size = CALC_BUFFER(_frequency);
-    _num_buf = (numbuffers > 1) ? numbuffers : NUM_BUFFERS;
+
+    if (latency <= 1.0f)
+        latency = AUDIO_DEFAULT_LATENCY;
+
+    _num_buf = (int)ceilf(latency * _frequency / (25.0f * (float)_buf_size));
+    if (_num_buf < 2)
+        _num_buf = 2;
+    if (_num_buf > (int)(sizeof(buf_full) * 8))
+        _num_buf = sizeof(buf_full) * 8;
     buffers = malloc(_num_buf * sizeof(short *));
     buffers_orig = malloc(_num_buf * sizeof(short *));
     assertf(buffers && buffers_orig, "Out of memory");
