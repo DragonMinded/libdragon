@@ -488,3 +488,22 @@ int audio_get_buffer_length()
 {
     return _buf_size;
 }
+
+int audio_get_num_buffers()
+{
+    return buffers ? _num_buf : 0;
+}
+
+int audio_get_queued_buffers()
+{
+    if (!buffers)
+        return 0;
+
+    uint32_t mask = buf_full;
+    int count = 0;
+    while (mask) {
+        count += mask & 1;
+        mask >>= 1;
+    }
+    return count;
+}

@@ -145,6 +145,27 @@ int audio_get_frequency();
  */
 int audio_get_buffer_length();
 
+/**
+ * @brief Return the number of internal audio buffers
+ *
+ * @return Number of buffers configured by #audio_init, or zero if the
+ *         audio subsystem is not initialized
+ */
+int audio_get_num_buffers(void);
+
+/**
+ * @brief Return the number of audio buffers currently containing data
+ *
+ * The count includes buffers already submitted to AI and buffers waiting
+ * to be submitted. The value is a snapshot and may change asynchronously
+ * as the AI consumes buffers; any actual write must still be guarded by
+ * #audio_can_write.
+ *
+ * @return Number of currently full buffers, or zero if the audio subsystem
+ *         is not initialized
+ */
+int audio_get_queued_buffers(void);
+
 
 /**
  * @brief Start writing to the first free internal buffer.
