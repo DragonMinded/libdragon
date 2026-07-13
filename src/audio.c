@@ -201,6 +201,7 @@ void audio_init(const int frequency, float latency)
        is also used for the AI output), divided by the requested frequency,
        rounding up. */
     int dacrate = ((2 * clockrate / frequency) + 1) / 2;
+    assertf(dacrate <= (1 << 14), "Requested frequency %d is too low", frequency);
     /* Bitrate is the half period for each bit of the sample. We need to send
        32 bits, so 64 periods, but the datasheet of the DAC suggests to allow
        for 66 periods instead. So calculate the bitrate as dacrate / 66. We can
