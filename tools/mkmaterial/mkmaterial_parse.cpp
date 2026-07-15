@@ -131,6 +131,16 @@ void CombinerRegister::parse_color(std::string value)
     is_set = true;
 }
 
+Combiner::Combiner()
+{
+    sync_expr_full();
+}
+
+void Combiner::sync_expr_full()
+{
+    full = combexpr::CombinerExprFull(rgb, alpha);
+}
+
 void Combiner::parse_attr(std::string key, std::string value)
 {
     static const std::regex expr(R"(\s*\(\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*\)(?:\s*,\s*\(\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*\))?)");
@@ -141,14 +151,14 @@ void Combiner::parse_attr(std::string key, std::string value)
         combexpr::Matcher matcher(root);
     
         rgb = matcher.matchCombiner(combexpr::RGB);
-        full = combexpr::CombinerExprFull(rgb, alpha);
+        sync_expr_full();
     } else if (key == "alpha") {
         combexpr::Parser parser(value);
         auto root = parser.parseExpression();
         combexpr::Matcher matcher(root);
     
         alpha = matcher.matchCombiner(combexpr::ALPHA);
-        full = combexpr::CombinerExprFull(rgb, alpha);
+        sync_expr_full();
     } else if (key == "rgb.raw") {
         // Match regex for raw combiner expression: (a,b,c,d), optionally repeated for the second step
         std::smatch match;
@@ -157,7 +167,7 @@ void Combiner::parse_attr(std::string key, std::string value)
             if (match[5].matched) {
                 rgb.set(1, 'a', match[5]); rgb.set(1, 'b', match[6]); rgb.set(1, 'c', match[7]); rgb.set(1, 'd', match[8]);
             }
-            full = combexpr::CombinerExprFull(rgb, alpha);
+            sync_expr_full();
         } else {
             throw std::runtime_error("invalid rgb.raw combiner expression: must be in format \"(a,b,c,d)\"");
         }
@@ -169,7 +179,7 @@ void Combiner::parse_attr(std::string key, std::string value)
             if (match[5].matched) {
                 alpha.set(1, 'a', match[5]); alpha.set(1, 'b', match[6]); alpha.set(1, 'c', match[7]); alpha.set(1, 'd', match[8]);
             }
-            full = combexpr::CombinerExprFull(rgb, alpha);
+            sync_expr_full();
         } else {
             throw std::runtime_error("invalid alpha.raw combiner expression: must be in format \"(a,b,c,d)\"");
         }
