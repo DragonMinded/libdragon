@@ -61,6 +61,66 @@ void test_rdpq_mat_basic(TestContext *ctx)
     ASSERT_MAT_SOM("<none>", SOM_ALPHACOMPARE_MASK | SOM_AA_ENABLE, SOM_AA_ENABLE);
 }
 
+void test_rdpq_mat_empty(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_set_mode_standard();
+
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *empty = rdpq_matdb_load(mdb, "empty");
+    ASSERT(empty != NULL, "Failed to load material 'empty'");
+
+    rdpq_mat_draw_begin(empty);
+    ASSERT_MAT_CC("empty", RDPQ_COMBINER1((0, 0, 0, TEX0), (0, 0, 0, TEX0)));
+    rdpq_mat_draw_end(empty);
+}
+
+inline rdpq_blender_t get_expected_blender(rdpq_blender_t bl)
+{
+    rdpq_set_mode_standard();
+    rdpq_mode_blender(bl);
+    return rdpq_get_other_modes_raw() & SOM_BLEND_MASK;
+}
+
+void test_rdpq_mat_blender(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_blender_t exp_multiply = get_expected_blender(RDPQ_BLENDER_MULTIPLY);
+    rdpq_blender_t exp_multiply_const = get_expected_blender(RDPQ_BLENDER_MULTIPLY_CONST);
+    rdpq_blender_t exp_additive = get_expected_blender(RDPQ_BLENDER_ADDITIVE);
+    rdpq_set_mode_standard();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *blender_multiply = rdpq_matdb_load(mdb, "blender_multiply");
+    ASSERT(blender_multiply != NULL, "Failed to load material 'blender_multiply'");
+
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+    rdpq_mat_draw_begin(blender_multiply);
+    ASSERT_MAT_SOM("blender_multiply", SOM_BLEND_MASK, exp_multiply);
+    rdpq_mat_draw_end(blender_multiply);
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+
+    rdpq_mat_t *blender_multiply_const = rdpq_matdb_load(mdb, "blender_multiply_const");
+    ASSERT(blender_multiply_const != NULL, "Failed to load material 'blender_multiply_const'");
+
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+    rdpq_mat_draw_begin(blender_multiply_const);
+    ASSERT_MAT_SOM("blender_multiply_const", SOM_BLEND_MASK, exp_multiply_const);
+    rdpq_mat_draw_end(blender_multiply_const);
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+
+    rdpq_mat_t *blender_additive = rdpq_matdb_load(mdb, "blender_additive");
+    ASSERT(blender_additive != NULL, "Failed to load material 'blender_additive'");
+
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+    rdpq_mat_draw_begin(blender_additive);
+    ASSERT_MAT_SOM("blender_additive", SOM_BLEND_MASK, exp_additive);
+    rdpq_mat_draw_end(blender_additive);
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+}
 
 void test_rdpq_mat_ext(TestContext *ctx)
 {

@@ -15,6 +15,18 @@ rm.alpha_compare = 1
 #blender.mode = multiply_const
 #blender.fog.a = 0.3
 
+[empty]
+
+[blender_multiply]
+blender.mode = multiply
+
+[blender_multiply_const]
+blender.mode = multiply_const
+blender.const = 0.6
+
+[blender_additive]
+blender.mode = additive
+
 [ext_test]
 combiner.rgb = prim
 
