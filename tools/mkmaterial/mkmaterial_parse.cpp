@@ -17,6 +17,7 @@
 #include <float.h>
 #include "../common/json.hpp"
 #include "../common/utils.h"
+#include "../include/rdpq_macros.h"
 
 #define INI_HANDLER_LINENO 1
 #define INI_INLINE_COMMENT_PREFIXES ";#"
@@ -220,6 +221,18 @@ void Blender::validate(void)
         throw std::runtime_error("blender.const must be specified for mode multiply_const");
     if (mode.to_str() != "multiply_const" && constant >= 0)
         throw std::runtime_error("blender.const is only valid for mode multiply_const");
+}
+
+uint32_t Blender::to_rdpq_mode_arg(void)
+{
+    static const uint32_t builtin_modes[] = {
+        0,
+        RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),
+        RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),
+        RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE)),
+    };
+
+    return builtin_modes[mode];
 }
 
 void Texture::validate_name(void)
