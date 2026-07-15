@@ -17,6 +17,7 @@
 #include <float.h>
 #include "../common/json.hpp"
 #include "../common/utils.h"
+#include "../include/rdpq_macros.h"
 
 #define CGLTF_IMPLEMENTATION
 #include "../common/cgltf.h"
@@ -134,6 +135,16 @@ void CombinerRegister::parse_color(std::string value)
     is_set = true;
 }
 
+Combiner::Combiner()
+{
+    sync_expr_full();
+}
+
+void Combiner::sync_expr_full()
+{
+    full = combexpr::CombinerExprFull(rgb, alpha);
+}
+
 void Combiner::parse_attr(std::string key, std::string value)
 {
     static const std::regex expr(R"(\s*\(\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*\)(?:\s*,\s*\(\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*,\s*([\w.]+)\s*\))?)");
@@ -144,14 +155,14 @@ void Combiner::parse_attr(std::string key, std::string value)
         combexpr::Matcher matcher(root);
     
         rgb = matcher.matchCombiner(combexpr::RGB);
-        full = combexpr::CombinerExprFull(rgb, alpha);
+        sync_expr_full();
     } else if (key == "alpha") {
         combexpr::Parser parser(value);
         auto root = parser.parseExpression();
         combexpr::Matcher matcher(root);
     
         alpha = matcher.matchCombiner(combexpr::ALPHA);
-        full = combexpr::CombinerExprFull(rgb, alpha);
+        sync_expr_full();
     } else if (key == "rgb.raw") {
         // Match regex for raw combiner expression: (a,b,c,d), optionally repeated for the second step
         std::smatch match;
@@ -160,7 +171,7 @@ void Combiner::parse_attr(std::string key, std::string value)
             if (match[5].matched) {
                 rgb.set(1, 'a', match[5]); rgb.set(1, 'b', match[6]); rgb.set(1, 'c', match[7]); rgb.set(1, 'd', match[8]);
             }
-            full = combexpr::CombinerExprFull(rgb, alpha);
+            sync_expr_full();
         } else {
             throw std::runtime_error("invalid rgb.raw combiner expression: must be in format \"(a,b,c,d)\"");
         }
@@ -172,7 +183,7 @@ void Combiner::parse_attr(std::string key, std::string value)
             if (match[5].matched) {
                 alpha.set(1, 'a', match[5]); alpha.set(1, 'b', match[6]); alpha.set(1, 'c', match[7]); alpha.set(1, 'd', match[8]);
             }
-            full = combexpr::CombinerExprFull(rgb, alpha);
+            sync_expr_full();
         } else {
             throw std::runtime_error("invalid alpha.raw combiner expression: must be in format \"(a,b,c,d)\"");
         }
@@ -180,10 +191,6 @@ void Combiner::parse_attr(std::string key, std::string value)
         registers[combexpr::internal::UNIFORM_K4].parse_float(value);
     } else if (key == "reg.k5") {
         registers[combexpr::internal::UNIFORM_K5].parse_float(value);
-    } else if (key == "reg.keyscale") {
-        registers[combexpr::internal::UNIFORM_KEYSCALE].parse_float(value);
-    } else if (key == "reg.keycenter") {
-        registers[combexpr::internal::UNIFORM_KEYCENTER].parse_float(value);
     } else if (key == "reg.prim_lod_frac") {
         registers[combexpr::internal::UNIFORM_PRIM_LOD_FRAC].parse_float(value);
     } else if (key == "reg.env") {
@@ -217,6 +224,18 @@ void Blender::validate(void)
         throw std::runtime_error("blender.const must be specified for mode multiply_const");
     if (mode.to_str() != "multiply_const" && constant >= 0)
         throw std::runtime_error("blender.const is only valid for mode multiply_const");
+}
+
+uint32_t Blender::to_rdpq_mode_arg(void)
+{
+    static const uint32_t builtin_modes[] = {
+        0,
+        RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),
+        RDPQ_BLENDER((IN_RGB, FOG_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),
+        RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE)),
+    };
+
+    return builtin_modes[mode];
 }
 
 void Texture::validate_name(void)

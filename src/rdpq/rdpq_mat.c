@@ -276,7 +276,7 @@ void rdpq_mat_draw_begin(rdpq_mat_t *mat_ptr)
     mat += namelen;
 
     uint16_t flags = FETCH(mat, uint16_t);
-    bool has_overrides = flags & MATFLAG_RMO_MASK;
+    bool has_overrides = flags & MATFLAG_SOM_MASK;
     if (has_overrides) {
         rdpq_mode_push();
     }
@@ -370,7 +370,7 @@ void rdpq_mat_draw_end(rdpq_mat_t *mat_ptr)
     void *mat = mat_ptr;
     mat += FETCH(mat, uint8_t); // skip the name
     uint16_t flags = FETCH(mat, uint16_t);
-    bool has_overrides = flags & MATFLAG_RMO_MASK;
+    bool has_overrides = flags & MATFLAG_SOM_MASK;
 
     if (has_overrides)
         rdpq_mode_pop();

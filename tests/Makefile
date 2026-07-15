@@ -16,7 +16,7 @@ ASSETS = filesystem/grass1.ci8.sprite \
 		 filesystem/grass1.rgba32.sprite \
 		 filesystem/grass1sq.rgba32.sprite \
 		 filesystem/grass2.rgba32.sprite \
-		 filesystem/materials.mdb
+		 filesystem/basic.mdb
 
 OBJS = $(BUILD_DIR)/test_constructors_cpp.o \
 	   $(BUILD_DIR)/rsp_test.o \
@@ -31,10 +31,10 @@ filesystem/%.sprite: assets/%.png
 	@echo "    [SPRITE] $@"
 	$(N64_MKSPRITE) $(MKSPRITE_FLAGS) -o filesystem "$<"
 
-filesystem/materials.mdb: $(wildcard assets/*.mat)
+filesystem/%.mdb: assets/%.mat
 	@mkdir -p $(dir $@)
 	@echo "    [MDB] $@"
-	$(N64_MKMATERIAL) -o filesystem "$^"
+	$(N64_MKMATERIAL) -o filesystem "$<"
 
 filesystem/test_dir:
 	@mkdir -p $(dir $@)

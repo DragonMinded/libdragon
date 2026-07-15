@@ -113,6 +113,9 @@ struct Combiner {
     combexpr::CombinerExprFull full;
     CombinerRegister registers[combexpr::internal::UNIFORM_COUNT];
 
+    Combiner();
+
+    void sync_expr_full();
     void parse_attr(std::string key, std::string value);
     uint64_t to_rdpq_mode_arg(void);
 };
@@ -123,6 +126,7 @@ struct Blender {
 
     void parse_attr(std::string key, std::string value);
     void validate(void);
+    uint32_t to_rdpq_mode_arg(void);
 };
 
 struct Extension {

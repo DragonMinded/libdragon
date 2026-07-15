@@ -872,10 +872,17 @@ void mixer_poll(int16_t *out16, int num_samples) {
 
 void mixer_try_play()
 {
-    while (audio_can_write())
-    {
-        short *buf = audio_write_begin();
-        mixer_poll(buf, audio_get_buffer_length());
-        audio_write_end();
-    }
+	// To smooth out the pacing for mixer and wav64 decodes, we fill buffers
+	// to at least audio_get_num_buffers()-1, but fill completely, if there is
+	// only one free one left.
+	int free_buffers = audio_get_num_buffers() - audio_get_queued_buffers();
+	if (free_buffers <= 0)
+		return;
+
+	int buffers_to_fill = MAX(free_buffers - 1, 1);
+	while (buffers_to_fill-- > 0) {
+		short *buf = audio_write_begin();
+		mixer_poll(buf, audio_get_buffer_length());
+		audio_write_end();
+	}
 }
