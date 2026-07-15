@@ -28,6 +28,8 @@
 #define MATFLAG_UNIFORM_ENV             (1 << 14)   ///< Combiner uniforms: env color
 #define MATFLAG_UNIFORM_PRIM            (1 << 15)   ///< Combiner uniforms: prim color
 
+#define MATFLAG_SOM_MASK                (MATFLAG_RMO_MASK|MATFLAG_BLENDER)  ///< Mask for all flags that set other modes
+
 /** Material database structure */
 typedef struct rdpq_matdb_s {
     uint8_t id[3];                ///< ID: "MDB"
