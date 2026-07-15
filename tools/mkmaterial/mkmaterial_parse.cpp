@@ -217,6 +217,8 @@ void Blender::parse_attr(std::string key, std::string value)
 
 void Blender::validate(void)
 {
+    if (mode < 0)
+        return;
     if (mode.to_str() == "multiply_const" && constant < 0)
         throw std::runtime_error("blender.const must be specified for mode multiply_const");
     if (mode.to_str() != "multiply_const" && constant >= 0)
