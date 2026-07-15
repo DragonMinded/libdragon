@@ -125,6 +125,7 @@ struct Blender {
 
     void parse_attr(std::string key, std::string value);
     void validate(void);
+    uint32_t to_rdpq_mode_arg(void);
 };
 
 struct Extension {
