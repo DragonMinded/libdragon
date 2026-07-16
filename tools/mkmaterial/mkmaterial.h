@@ -104,7 +104,7 @@ typedef std::array<float, 4> Vec4;
 
 struct CombinerRegister {
     Vec4 value;
-    bool is_set;
+    bool is_set {false};
 
     void parse_float(std::string value);
     void parse_color(std::string value);
