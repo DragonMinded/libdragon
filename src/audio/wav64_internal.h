@@ -8,6 +8,7 @@
 #define WAV64_ID            "WV64"    ///< WAV64 file identifier
 #define WAV64_FORMAT_RAW    0         ///< Raw audio format
 #define WAV64_FORMAT_VADPCM 1         ///< VADPCM compressed format
+#define WAV64_FORMAT_ULC    2         ///< ULC compressed format
 #define WAV64_FORMAT_OPUS   3         ///< Opus compressed format
 #define WAV64_NUM_FORMATS   4         ///< Number of supported formats
 

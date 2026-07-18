@@ -22,4 +22,8 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/audio/rsp_opus_fft_bfly5.o \
 	$(BUILD_DIR)/audio/rsp_opus_fft_postrot.o
 
+LIBDRAGON_OBJS += \
+	$(BUILD_DIR)/audio/wav64_ulc.o \
+	$(BUILD_DIR)/audio/rsp_ulc.o
+
 $(BUILD_DIR)/audio/libopus.o: CFLAGS+=-Wno-all
