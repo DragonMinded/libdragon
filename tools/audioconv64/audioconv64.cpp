@@ -80,7 +80,7 @@ void usage(void) {
 	printf("WAV/MP3 options:\n");
 	printf("   --wav-mono                	Force mono output\n");
 	printf("   --wav-resample <N>        	Resample to a different sample rate\n");
-	printf("   --wav-compress <0|1|3>    	Enable compression: 0=none, 1=vadpcm (default), 3=opus\n");
+	printf("   --wav-compress <0|1|2|3>  	Enable compression: 0=none, 1=vadpcm (default), 2=ulc, 3=opus\n");
 	printf("   --wav-loop <true|false>   	Activate playback loop by default\n");
 	printf("   --wav-loop-offset <N>     	Set looping offset (in samples; default: 0)\n");
 	printf("   --wav-seek <SEC|FILE>     	Enable seeking support:\n");
@@ -108,6 +108,8 @@ void usage_compress(void)
 	printf("\n");
 	printf("     none (or 0)            No compression, store raw samples\n");
 	printf("     vadpcm (or 1)          Use RSP-optimized VADPCM codec. This is the default\n");
+	printf("     ulc (or 2)             Use RSP-optimized ULC codec. A simple and fast transform codec.\n");
+	printf("                            Worse compression than Opus, but better runtime performance.\n");
 	printf("     opus (or 3)            Use RSP-optimized Opus codec. Slower at runtime, smaller disk size\n");
 	printf("                            (unsupported for xm64)\n");
 	printf("\n");
@@ -117,6 +119,9 @@ void usage_compress(void)
 	printf("                            (default: true for wav64, false for xm64))\n");
 	printf("     vadpcm,bits=<2|3|4>    Specify how many bits per sample use in VADPCM coding (default: 4)\n");
 	printf("                            For values less than 4, huffman compression should be enabled.\n");
+	printf("     ulc,mode=<vbr|abr|cbr> Select ULC rate-control mode (default: vbr)\n");
+	printf("     ulc,quality=<1..100>   Set ULC VBR quality (default: 50)\n");
+	printf("     ulc,bitrate=<kbps>     Set ULC ABR/CBR bitrate (default: 64)\n");
 	printf("\n");
 }
 
@@ -281,6 +286,12 @@ int main(int argc, char *argv[]) {
 					*flag_compress = 0;
 				else if (!strcmp(argv[i], "1") || !strcmp(argv[i], "vadpcm"))
 					*flag_compress = 1;
+				else if (!strcmp(argv[i], "2") || !strcmp(argv[i], "ulc"))
+					if (flag_compress == &flag_xm_compress_samples) {
+						fprintf(stderr, "ulc compression not supported for XM64\n");
+						return 1;
+					} else
+						*flag_compress = 2;
 				else if (!strcmp(argv[i], "3") || !strcmp(argv[i], "opus"))
 					if (flag_compress == &flag_xm_compress_samples) {
 						fprintf(stderr, "opus compression not supported for XM64\n");
@@ -326,6 +337,32 @@ int main(int argc, char *argv[]) {
 						flag_wav_compress_vadpcm_bits = atoi(value);
 						if (flag_wav_compress_vadpcm_bits < 2 || flag_wav_compress_vadpcm_bits > 4) {
 							fprintf(stderr, "invalid value for compression option 'bits': %s\n", value);
+							return 1;
+						}
+					} else if (!strcmp(key, "mode")) {
+						if (*flag_compress != 2) {
+							fprintf(stderr, "compression option 'mode' only allowed for ULC (%s ulc)\n", argv[i-1]);
+							return 1;
+						}
+						if (!strcmp(value, "vbr")) flag_wav_compress_ulc_mode = ULC_MODE_VBR;
+						else if (!strcmp(value, "abr")) flag_wav_compress_ulc_mode = ULC_MODE_ABR;
+						else if (!strcmp(value, "cbr")) flag_wav_compress_ulc_mode = ULC_MODE_CBR;
+						else {
+							fprintf(stderr, "invalid value for ULC compression option 'mode': %s\n", value);
+							return 1;
+						}
+					} else if (!strcmp(key, "quality")) {
+						char extra;
+						if (*flag_compress != 2 || sscanf(value, "%f%c", &flag_wav_compress_ulc_quality, &extra) != 1 ||
+							flag_wav_compress_ulc_quality < 1.0f || flag_wav_compress_ulc_quality > 100.0f) {
+							fprintf(stderr, "invalid ULC quality (expected 1..100): %s\n", value);
+							return 1;
+						}
+					} else if (!strcmp(key, "bitrate")) {
+						char extra;
+						if (*flag_compress != 2 || sscanf(value, "%f%c", &flag_wav_compress_ulc_bitrate, &extra) != 1 ||
+							flag_wav_compress_ulc_bitrate <= 0.0f) {
+							fprintf(stderr, "invalid ULC bitrate: %s\n", value);
 							return 1;
 						}
 					} else {

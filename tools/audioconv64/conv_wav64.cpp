@@ -30,6 +30,7 @@
 #include "libvadpcm.h"
 #include "libsamplerate.h"
 #include "libopus.h"
+#include "libulc.h"
 
 #include "huff_vadpcm.c"
 #include "conv_common.h"
@@ -39,6 +40,10 @@ int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
 int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
+enum ulc_mode_t { ULC_MODE_VBR, ULC_MODE_ABR, ULC_MODE_CBR };
+ulc_mode_t flag_wav_compress_ulc_mode = ULC_MODE_VBR;
+float flag_wav_compress_ulc_bitrate = 64.0f;
+float flag_wav_compress_ulc_quality = 50.0f;
 int flag_wav_resample = 0;
 double flag_wav_seek_interval_sec = 0.0;
 const char *flag_wav_seek_file = NULL;
@@ -238,8 +243,37 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		wav->bitsPerSample = 16; // VADPCM always uses 16-bit samples
 	} 	break;
 
+	case 2: { // ulc
+		wav->bitsPerSample = 16; // ULC always uses 16-bit source samples
+
+		// Keep the logical waveform length on an 8-byte boundary so that full-file
+		// loops always append decoded blocks at an aligned RDRAM address. ULC pads
+		// the encoded stream to whole 1024-frame blocks independently.
+		const int frame_bytes = wav->channels * sizeof(int16_t);
+		int frame_align = 1;
+		while ((frame_align * frame_bytes) & 7) {
+			frame_align++;
+		}
+
+		// Move an embedded loop start to the next aligned frame. Preserve the
+		// complete loop by appending the skipped prefix to its end, effectively
+		// rotating it just like the VADPCM alignment adjustment above.
+		if (wav->looping && (wav->loopOffset % frame_align) != 0) {
+			const int ncopy = frame_align - (wav->loopOffset % frame_align);
+			wav->samples = (int16_t*)realloc(wav->samples, (wav->cnt + ncopy) * wav->channels * sizeof(int16_t));
+			for (int i = 0; i < ncopy * wav->channels; i++) {
+				wav->samples[wav->cnt * wav->channels + i] = wav->samples[wav->loopOffset * wav->channels + i];
+			}
+			wav->cnt += ncopy;
+			wav->loopOffset += ncopy;
+		}
+
+		wav->cnt -= wav->cnt % frame_align;
+		loop_len = wav->looping ? wav->cnt - wav->loopOffset : 0;
+	} break;
+
 	case 3: // opus:
-		wav->bitsPerSample = 16; // Opus always uses 16-bit samples
+		wav->bitsPerSample = 16; // Opus always uses 16-bit source samples
 		break;
 	}
 
@@ -493,6 +527,181 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		free(ctxbuf);
 	} break;
 
+	case 2: { // ulc
+		const int block_size = 1024;
+		const int blocks_len = (wav->cnt + block_size - 1) / block_size + 2;
+		struct ULC_EncoderState_t enc = {};
+		enc.RateHz = wav->sampleRate;
+		enc.nChan = wav->channels;
+		enc.BlockSize = block_size;
+		if (ULC_EncoderState_Init(&enc) <= 0) {
+			fprintf(stderr, "ERROR: %s: cannot initialize ULC encoder\n", infn);
+			failed = true;
+			break;
+		}
+
+		std::vector<float> block(block_size * wav->channels, 0.0f);
+		auto load_block = [&](int block_idx) {
+			std::fill(block.begin(), block.end(), 0.0f);
+			const int first = block_idx * block_size;
+			for (int ch = 0; ch < wav->channels; ch++)
+				for (int i = 0; i < block_size && first + i < wav->cnt; i++)
+					block[i * wav->channels + ch] = wav->samples[(first + i) * wav->channels + ch] / 32768.0f;
+		};
+
+		float avg_complexity = 0.0f;
+		if (flag_wav_compress_ulc_mode == ULC_MODE_ABR) {
+			double complexity_sum = 0.0;
+			for (int i = 0; i < blocks_len; i++) {
+				load_block(i);
+				ULC_EncodeBlock_VBR(&enc, block.data(), NULL, flag_wav_compress_ulc_quality);
+				complexity_sum += enc.BlockComplexity;
+			}
+			avg_complexity = (float)(complexity_sum / blocks_len);
+			if (avg_complexity <= 0.0f) avg_complexity = ULC_COEF_EPS;
+			ULC_EncoderState_Destroy(&enc);
+			enc = {};
+			enc.RateHz = wav->sampleRate;
+			enc.nChan = wav->channels;
+			enc.BlockSize = block_size;
+			if (ULC_EncoderState_Init(&enc) <= 0) {
+				fprintf(stderr, "ERROR: %s: cannot initialize ULC ABR encoder\n", infn);
+				failed = true;
+				break;
+			}
+		}
+
+		w16(out, block_size);
+		w16_placeholderf(out, "%s/ulc_max_block_size", outfn);
+		w32(out, blocks_len);
+		w32_placeholderf(out, "%s/ulc_bitrate", outfn);
+		w32_placeholderf(out, "%s/ulc_seek_table", outfn); // reserved: seek table offset
+
+		// Collect the first-block-relative offset of every eighth block. The table
+		// itself is written after the compressed stream.
+		const int seek_interval_blocks = 8;
+		const int seek_table_len = (blocks_len + seek_interval_blocks - 1) / seek_interval_blocks;
+		const int samples_start = ftell(out);
+		placeholder_set_offset(out, samples_start-basepos, "%s/samples", outfn);
+		std::vector<uint32_t> seek_offsets;
+		seek_offsets.reserve(seek_table_len);
+
+		// Fixed 32-bit target state, alignment slack, two temporary blocks per
+		// channel, and the persistent per-channel lap state. The two banks retain
+		// coefficients for both queued preroll blocks. Normal mono transforms
+		// overwrite coefficients directly in the output samplebuffer; normal
+		// stereo reuses the first bank as planar mid/side staging.
+		const int decoder_state_size = 24 /*sizeof(ulc_state_t)*/ + 63 +
+			sizeof(int16_t) * 2 * wav->channels * block_size +
+			sizeof(int16_t) * wav->channels * (block_size / 2);
+		placeholder_set_offset(out, decoder_state_size, "%s/state_size", outfn);
+
+		uint64_t total_bytes = 0;
+		int max_block_size = 0;
+		std::vector<std::vector<uint8_t>> debug_blocks;
+		if (flag_debug)
+			debug_blocks.reserve(blocks_len);
+		for (int i = 0; i < blocks_len; i++) {
+			if (i % seek_interval_blocks == 0)
+				seek_offsets.push_back(ftell(out)-samples_start);
+
+			load_block(i);
+			int size_bits = 0;
+			const void *encoded;
+			switch (flag_wav_compress_ulc_mode) {
+			case ULC_MODE_VBR:
+				encoded = ULC_EncodeBlock_VBR(&enc, block.data(), &size_bits, flag_wav_compress_ulc_quality);
+				break;
+			case ULC_MODE_ABR:
+				encoded = ULC_EncodeBlock_ABR(&enc, block.data(), &size_bits, flag_wav_compress_ulc_bitrate, avg_complexity);
+				break;
+			default:
+				encoded = ULC_EncodeBlock_CBR(&enc, block.data(), &size_bits, flag_wav_compress_ulc_bitrate);
+				break;
+			}
+			const int size_bytes = (size_bits + 7) / 8;
+			fwrite(encoded, 1, size_bytes, out);
+			if (flag_debug)
+				debug_blocks.emplace_back((const uint8_t *)encoded, (const uint8_t *)encoded + size_bytes);
+			total_bytes += size_bytes;
+			max_block_size = std::max(max_block_size, size_bytes);
+		}
+		assert((int)seek_offsets.size() == seek_table_len);
+		placeholder_set_offset(out, ftell(out)-samples_start, "%s/ulc_seek_table", outfn);
+		for (uint32_t offset : seek_offsets)
+			w32(out, offset);
+
+		const int actual_bitrate = (int)llround(total_bytes * 8.0 * wav->sampleRate / ((double)blocks_len * block_size));
+		placeholder_set_offset(out, max_block_size, "%s/ulc_max_block_size", outfn);
+		placeholder_set_offset(out, actual_bitrate, "%s/ulc_bitrate", outfn);
+		if (flag_verbose)
+			fprintf(stderr, "  ULC: %d blocks, %.2f kbps (%s)\n", blocks_len, actual_bitrate / 1000.0,
+				flag_wav_compress_ulc_mode == ULC_MODE_ABR ? "ABR" :
+				flag_wav_compress_ulc_mode == ULC_MODE_CBR ? "CBR" : "VBR");
+
+		if (flag_debug) {
+			char* wav2fn = changeext(outfn, ".ulc.wav");
+			if (flag_verbose)
+				fprintf(stderr, "  writing uncompressed file %s\n", wav2fn);
+
+			struct ULC_DecoderState_t dec = {};
+			dec.nChan = wav->channels;
+			dec.BlockSize = block_size;
+			if (ULC_DecoderState_Init(&dec) <= 0) {
+				fprintf(stderr, "ERROR: %s: cannot initialize ULC decoder\n", infn);
+				free(wav2fn);
+				failed = true;
+			} else {
+				int out_len = block_size * blocks_len;
+				int out_pos = 0;
+				std::vector<int16_t> out_samples(out_len * wav->channels);
+				std::vector<float> decode_buffer(block_size * wav->channels);
+
+				for (int i = 0; i < blocks_len; i++) {
+					int bits = ULC_DecodeBlock(&dec, decode_buffer.data(), debug_blocks[i].data());
+					if (bits <= 0) {
+						fprintf(stderr, "ERROR: %s: ULC decoding failed at block %d\n", infn, i);
+						failed = true;
+						break;
+					}
+
+					for (int j = 0; j < block_size * wav->channels; j++) {
+						float v = decode_buffer[j] * 32768.0f;
+						if (v > 32767.0f) {
+							v = 32767.0f;
+						}
+						if (v < -32768.0f) {
+							v = -32768.0f;
+						}
+						out_samples[out_pos++] = v;
+					}
+				}
+
+				if (!failed) {
+					drwav_data_format fmt = {
+						.container = drwav_container_riff,
+						.format = DR_WAVE_FORMAT_PCM,
+						.channels = wav->channels,
+						.sampleRate = wav->sampleRate,
+						.bitsPerSample = 16,
+					};
+					drwav wav2;
+					if (!drwav_init_file_write(&wav2, wav2fn, &fmt, NULL)) {
+						fprintf(stderr, "ERROR: %s: cannot create WAV file\n", outfn);
+						failed = true;
+					} else {
+						drwav_write_pcm_frames(&wav2, out_len, out_samples.data());
+						drwav_uninit(&wav2);
+					}
+				}
+
+				ULC_DecoderState_Destroy(&dec);
+				free(wav2fn);
+			}
+		}
+		ULC_EncoderState_Destroy(&enc);
+	} break;
+
 	case 3: { // opus
 		// Number of preroll frames to decode/discard after seeking, to allow
 		// the decoder to warm up and start producing valid output.
@@ -705,7 +914,7 @@ end:
 
 int wav_convert(const char *infn, const char *outfn) {
 	if (flag_verbose) {
-		const char *compr[4] = { "raw", "vadpcm", "raw", "opus" };
+		const char *compr[5] = { "raw", "vadpcm", "raw", "opus", "ulc" };
 		fprintf(stderr, "Converting: %s => %s (%s)\n", infn, outfn, compr[flag_wav_compress]);
 	}
 
