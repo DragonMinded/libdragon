@@ -9,6 +9,7 @@
 #include "wav64_internal.h"
 #include "wav64_vadpcm_internal.h"
 #include "wav64_opus_internal.h"
+#include "wav64_ulc_internal.h"
 #include "mixer.h"
 #include "mixer_internal.h"
 #include "dragonfs.h"
@@ -42,7 +43,7 @@ static void wav64_none_init(wav64_t *wav, int state_size);
 /** @brief None compression get_bitrate function */
 static int wav64_none_get_bitrate(wav64_t *wav);
 
-static wav64_compression_t algos[4] = {
+static wav64_compression_t algos[WAV64_NUM_FORMATS] = {
 	// None compression
     [WAV64_FORMAT_RAW] = {
 		.init = wav64_none_init,
@@ -313,6 +314,16 @@ void wav64_close(wav64_t *wav)
 
 	// Free the heap allocation (that might or might not include the wav64_t instance)
 	free(heap);
+}
+
+/** @brief Initialize wav64 compression level 2 */
+void __wav64_init_compression_lvl2(void)
+{
+	algos[WAV64_FORMAT_ULC] = (wav64_compression_t){
+		.init = wav64_ulc_init,
+		.get_bitrate = wav64_ulc_get_bitrate,
+		.adjust_seek = wav64_ulc_adjust_seek,
+	};
 }
 
 /** @brief Initialize wav64 compression level 3 */
