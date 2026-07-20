@@ -422,6 +422,7 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
 
     // Init huffman
     wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
+    assertf(vhead->huff_tbl == NULL, "huff_tbl must be NULL before initialization");
     if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
         wav64_vadpcm_init_huffman(wav);
     }
