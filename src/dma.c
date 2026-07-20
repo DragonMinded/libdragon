@@ -112,37 +112,29 @@ static void pi_start_write_raw(const void *ram_address, pi_addr_t pi_address, un
     *PI_RD_LEN = len - 1;
 }
 
-/** @brief Low-level 16-bit aligned PI ROM read.
- * 
- * 16-bit PI ROM reads are undocumented. Testing on real hardware shows
- * that they only work for 32-bit aligned addresses, so this function
- * falls back to a full 32bit read for misaligned addresses.
- * 
+/**
+ * @brief Read arbitrary bytes from the PI bus using aligned 32-bit CPU reads.
+ *
+ * Sub-word CPU accesses to the PI bus are not reliable. Read aligned words
+ * through the 64-bit uncached address space and copy out the requested bytes.
+ *
  * @note This function must be called with interrupts disabled and PI idle.
  */
-static uint16_t __io_read16(void *pi_pointer) {
-    uint32_t pi_address = (uint32_t)pi_pointer;
-    if (pi_address & 2) {
-        return (uint16_t)*(volatile uint32_t*)(pi_address^2);
-    } else {
-        return *(volatile uint16_t*)pi_pointer;
-    }
-}
+static void pi_cpu_read(void *ram_address, pi_addr_t pi_address, unsigned long len)
+{
+    uint8_t *ram = ram_address;
 
-/** @brief Low-level 8-bit PI ROM read.
- * 
- * 8-bit PI ROM reads are undocumented. Testing on real hardware shows
- * that they do not consistently work, so this function falls back to using
- * 16-bit reads and extracting the requested byte.
- * 
- * @note This function must be called with interrupts disabled and PI idle.
- */
-static uint8_t __io_read8(void *pi_pointer) {
-    uint32_t pi_address = (uint32_t)pi_pointer;
-    if (pi_address&1)
-        return (uint8_t)__io_read16((void*)(pi_address^1));
-    else
-        return __io_read16(pi_pointer)>>8;
+    while (len) {
+        unsigned int offset = pi_address & 3;
+        unsigned int count = MIN(len, 4 - offset);
+        uint32_t word = sys_vaddr_read32(VirtualUncachedAddr64(pi_address ^ offset));
+        const uint8_t *bytes = (const uint8_t*)&word;
+        memcpy(ram, bytes + offset, count);
+
+        pi_address += count;
+        len -= count;
+        ram += count;
+    }
 }
 
 /**
@@ -159,31 +151,20 @@ static uint8_t __io_read8(void *pi_pointer) {
  */
 static unsigned long pi_exec_read_misaligned(const pi_msg_t *msg)
 {
-    void *ram = UncachedAddr(msg->ram);
-    void *rom = (void*)(msg->pi_addr | 0xA0000000);
+    uint8_t *ram = UncachedAddr(msg->ram);
+    pi_addr_t pi_address = msg->pi_addr;
     unsigned long len = msg->len;
 
-    assert(io_accessible(msg->pi_addr));
+    assert(io_accessible(pi_address));
 
     // Transfer the first bytes manually up until the next 8-byte aligned
     // address. Make sure to not transfer more than requested.
-    if ((uint32_t)ram & 7) {
-        if ((uint32_t)ram & 1) {
-            *(uint8_t*)ram = __io_read16(rom - 1);
-            ram++; rom++; len--;
-        }
-        if ((uint32_t)ram & 2 && len >= 2) {
-            *(uint16_t*)ram = __io_read16(rom);
-            ram += 2; rom += 2; len -= 2;
-        }
-        if ((uint32_t)ram & 4 && len >= 4) {
-            *(uint32_t*)ram = (__io_read16(rom) << 16) | __io_read16(rom+2);
-            ram += 4; rom += 4; len -= 4;
-        }
-        while ((uint32_t)ram & 7 && len > 0) {
-            *(uint8_t*)ram = __io_read8(rom);
-            ram++; rom++; len--;
-        }
+    unsigned long head = MIN(len, (-(uintptr_t)ram) & 7);
+    if (head > 0) {
+        pi_cpu_read(ram, pi_address, head);
+        ram += head;
+        pi_address += head;
+        len -= head;
     }
 
     // If there's an odd number of bytes left to transfer, check if the DMA
@@ -194,13 +175,13 @@ static unsigned long pi_exec_read_misaligned(const pi_msg_t *msg)
     if ((len & 1) && len >= first_block_len) {
         // Odd transfers would not work correctly. Transfer the last byte
         // manually.
-        *(uint8_t*)(ram+len-1) = __io_read16(rom+len-1) >> 8;
+        pi_cpu_read(ram+len-1, pi_address+len-1, 1);
         len -= 1;
     }
 
     // Start the actual DMA transfer, if still needed.
     if (len)
-        pi_start_read_raw(ram, PhysicalAddr(rom), len);
+        pi_start_read_raw(ram, pi_address, len);
     return len;
 }
 
