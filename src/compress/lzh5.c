@@ -44,6 +44,7 @@ typedef struct {
 	uint8_t *buf_ptr, *buf_end;
 	int buf_size;
 	int cur_buf;
+	uint64_t ticket[2];
 
 	// Bits from the input stream that are waiting to be read.
 	uint64_t bit_buffer;
@@ -61,8 +62,9 @@ static void bit_stream_reader_init(BitStreamReader *reader, FILE *fp, uint32_t r
 
 	#ifdef N64
 	if (reader->rom_addr) {
-		data_cache_hit_invalidate(reader->buf[reader->cur_buf^1], sizeof(reader->buf[0]));
-		dma_read_raw_async(reader->buf[reader->cur_buf^1], reader->rom_addr, sizeof(reader->buf[0]));
+		int next = reader->cur_buf ^ 1;
+		data_cache_hit_invalidate(reader->buf[next], sizeof(reader->buf[0]));
+		reader->ticket[next] = dma_read_raw_async(reader->buf[next], reader->rom_addr, sizeof(reader->buf[0]));
 		reader->rom_addr += sizeof(reader->buf[0]);
 	}
 	#endif
@@ -74,8 +76,10 @@ static void refill_bits_fetch(BitStreamReader *reader)
 
 	#ifdef N64
 	if (reader->rom_addr) {
-		data_cache_hit_invalidate(reader->buf[reader->cur_buf^1], sizeof(reader->buf[0]));
-		dma_read_raw_async(reader->buf[reader->cur_buf^1], reader->rom_addr, sizeof(reader->buf[0]));
+		dma_wait_finished(reader->ticket[reader->cur_buf]);
+		int next = reader->cur_buf ^ 1;
+		data_cache_hit_invalidate(reader->buf[next], sizeof(reader->buf[0]));
+		reader->ticket[next] = dma_read_raw_async(reader->buf[next], reader->rom_addr, sizeof(reader->buf[0]));
 		reader->rom_addr += sizeof(reader->buf[0]);
 		reader->buf_size = sizeof(reader->buf[0]);
 	#else

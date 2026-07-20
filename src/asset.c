@@ -180,7 +180,8 @@ static bool decompress_full(asset_compression_full_t *algo, int fd, size_t cmp_s
         // data flows in.
         uint32_t addr = rom_addr+lseek(fd, 0, SEEK_CUR);
         assertf(addr % 2 == 0, "asset_load requires ROM data to be 2-byte aligned");
-        dma_read_async(s+cmp_offset, addr, cmp_size);
+        uint64_t ticket = dma_read_async(s+cmp_offset, addr, cmp_size);
+        dma_wait_started(ticket);
 
         // Run the decompression racing with the DMA.
         n = algo->decompress_full(s+cmp_offset, cmp_size, s, size); (void)n;

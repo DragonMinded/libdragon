@@ -30,6 +30,12 @@
  * manipulating registers on a cartridge such as a gameshark.  Code should never
  * make raw 32-bit reads or writes in the cartridge domain as it could collide with
  * an in-progress DMA transfer or run into caching issues.
+ *
+ * Async DMA requests are queued and executed one at a time, dequeued via the
+ * PI interrupt.  Each async function returns a ticket that can be used with
+ * #dma_get_progress and #dma_finished to query the transfer,
+ * #dma_wait_started or #dma_wait_finished to wait for that transfer, or
+ * #dma_wait to wait for all queued transfers to finish.
  * @{
  */
 
@@ -60,17 +66,20 @@ extern "C" {
  * well-defined only for RAM addresses which are multiple of 8, ROM addresses
  * which are  multiple of 2, and lengths which are multiple of 2.
  *
- * Use #dma_wait to wait for the end of the transfer.
- *
+ * Use #dma_wait_finished to wait for the end of the transfer, or #dma_finished
+ * to check it without blocking.
  *
  * @param[out] ram_address
  *             Pointer to a buffer to read data from (must be 8-byte aligned)
  * @param[in]  pi_address
  *             Memory address of the peripheral to write to (must be 2-byte aligned)
  * @param[in]  len
- *             Length in bytes to write into pi_address (must be multiple of 2)
+ *             Length in bytes to write into pi_address (must be a multiple of
+ *             2 and no greater than 16 MiB)
+ *
+ * @return Ticket identifying the transfer (always not 0)
  */
-void dma_write_raw_async(const void *ram_address, pi_addr_t pi_address, unsigned long len);
+uint64_t dma_write_raw_async(const void *ram_address, pi_addr_t pi_address, unsigned long len);
 
 /**
  * @brief Write to a peripheral
@@ -101,7 +110,8 @@ void dma_write(const void * ram_address, pi_addr_t pi_address, unsigned long len
  * well-defined only for RAM addresses which are multiple of 8, ROM addresses
  * which are  multiple of 2, and lengths which are multiple of 2.
  * 
- * Use #dma_wait to wait for the end of the transfer.
+ * Use #dma_wait_finished to wait for the end of the transfer, or #dma_finished
+ * to check it without blocking.
  * 
  * See #dma_read_async for a higher level primitive which can perform almost
  * arbitrary transfers.
@@ -111,9 +121,12 @@ void dma_write(const void * ram_address, pi_addr_t pi_address, unsigned long len
  * @param[in]  pi_address
  *             Memory address of the peripheral to read from (must be 2-byte aligned)
  * @param[in]  len
- *             Length in bytes to read into ram_address (must be multiple of 2)
+ *             Length in bytes to read into ram_address (must be a multiple of
+ *             2 and no greater than 16 MiB)
+ *
+ * @return Ticket identifying the transfer (always not 0)
  */
-void dma_read_raw_async(void *ram_address, pi_addr_t pi_address, unsigned long len);
+uint64_t dma_read_raw_async(void *ram_address, pi_addr_t pi_address, unsigned long len);
 
 /**
  * @brief Start reading data from a peripheral through PI DMA
@@ -129,7 +142,9 @@ void dma_read_raw_async(void *ram_address, pi_addr_t pi_address, unsigned long l
  * odd addresses. Notice that this function will assert if this constraint is
  * not respected.
  * 
- * Use #dma_wait to wait for the end of the transfer.
+ * Use #dma_wait_finished to wait for the end of the transfer, or #dma_finished
+ * to check it without blocking.
+ * The buffer is fully valid only after completion has been confirmed.
  *
  * For non performance sensitive tasks such as reading and parsing data from
  * ROM at loading time, a better option is to use DragonFS, where #dfs_read
@@ -140,9 +155,11 @@ void dma_read_raw_async(void *ram_address, pi_addr_t pi_address, unsigned long l
  * @param[in]  pi_address
  *             Memory address of the peripheral to read from
  * @param[in]  len
- *             Length in bytes to read into ram_pointer
+ *             Length in bytes to read into ram_pointer (no greater than 16 MiB)
+ *
+ * @return Ticket identifying the transfer (always not 0)
  */
-void dma_read_async(void *ram_pointer, pi_addr_t pi_address, unsigned long len);
+uint64_t dma_read_async(void *ram_pointer, pi_addr_t pi_address, unsigned long len);
 
 /** 
  * @brief Read data from a peripheral through PI DMA, waiting for completion.
@@ -166,9 +183,53 @@ void dma_read(void * ram_address, pi_addr_t pi_address, unsigned long len);
 
 
 /** 
- * @brief Wait until an async DMA or I/O transfer is finished.
+ * @brief Wait until all queued async DMA transfers are finished.
  */
 void dma_wait(void);
+
+/**
+ * @brief Wait until an async DMA transfer has started.
+ *
+ * If the kernel is running, the calling thread yields while the transfer is
+ * still queued. A transfer which has already completed is considered started.
+ *
+ * @param ticket    Ticket returned by an async DMA function
+ */
+void dma_wait_started(uint64_t ticket);
+
+/**
+ * @brief Wait until an async DMA transfer is finished.
+ *
+ * If the kernel is running, the calling thread yields while waiting.
+ *
+ * @param ticket    Ticket returned by an async DMA function
+ */
+void dma_wait_finished(uint64_t ticket);
+
+/**
+ * @brief Return the progress of an async DMA transfer.
+ *
+ * If the transfer has not started yet, this function returns zero.
+ *
+ * If it is currently running, the returned value identifies the offset of
+ * the next byte that will be transferred by the DMA, so all preceding bytes
+ * are safe to consume (when doing a DMA-racing approach).
+ *
+ * If the transfer has completed, it returns the total requested length. Notice
+ * that at this point, another transfer might already have started.
+ *
+ * @param ticket    Ticket returned by an async DMA function
+ * @return          Number of bytes already transferred
+ */
+unsigned long dma_get_progress(uint64_t ticket);
+
+/**
+ * @brief Check whether an async DMA transfer is finished.
+ *
+ * @param ticket    Ticket returned by an async DMA function
+ * @return          True if the transfer is fully complete
+ */
+bool dma_finished(uint64_t ticket);
 
 
 /**
