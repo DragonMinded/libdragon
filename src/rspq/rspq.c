@@ -1238,10 +1238,20 @@ void rspq_highpri_begin(void)
     // add a command in case the previous epilog was skipped. Otherwise,
     // a dummy SIG_HIGHPRI_REQUESTED could stay on and eventually highpri
     // mode would enter once again.
-    rspq_append1(rspq_cur_pointer, RSPQ_CMD_WRITE_STATUS,
-        SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING);
+    // Set SIG_HIGHPRI_REQUESTED *before* writing the WRITE_STATUS command that
+    // clears it. If the RSP is already in highpri mode and caught up with the
+    // write cursor, it can execute the appended WRITE_STATUS within a few
+    // cycles of the append; with the old order (append first, then set), the
+    // clear could be consumed before the set landed, leaving a dangling
+    // REQUESTED that made the RSP re-enter highpri after the final epilog and
+    // park forever on the empty queue with SIG_HIGHPRI_RUNNING set (deadlocking
+    // rspq_highpri_sync). Setting the signal first closes the race: the RSP
+    // cannot execute the clear before it is written, which is after the set.
     MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI_REQUESTED;
+    MEMORY_BARRIER();
+    rspq_append1(rspq_cur_pointer, RSPQ_CMD_WRITE_STATUS,
+        SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING);
     rspq_flush_internal();
 }
 
