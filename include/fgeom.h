@@ -640,8 +640,8 @@ inline void fm_mat4_mul_vec4(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec4_t
     return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
   }
 
-  constexpr bool operator!=(fm_quat_t const &lhs, fm_quat_t const &rhs) {
-      return lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z || lhs.w != rhs.w;
+  constexpr bool operator!=(fm_quat_t const& lhs, fm_quat_t const& rhs) {
+    return lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z || lhs.w != rhs.w;
   }
 
   inline fm_quat_t operator*(fm_quat_t const& lhs, fm_quat_t const& rhs) {
