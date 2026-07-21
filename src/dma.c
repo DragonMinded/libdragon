@@ -48,6 +48,15 @@ bool io_accessible(pi_addr_t pi_address)
     if (pi_address >= 0x1FC00000 && pi_address <= 0x1FCFFFFF)
         return false;
 
+    // The CPU-copy path maps the PI address through KSEG1 (pi_address | 0xA0000000),
+    // which only reaches physical addresses below 0x20000000. A cart address at or
+    // above that (e.g. a large disc image streamed from a high cart offset on a
+    // >256 MiB ROM) is reachable only via DMA; report it as not CPU-accessible so the
+    // aligned raw-DMA path is taken with the full 32-bit address (PhysicalAddr would
+    // otherwise mask it to 29 bits and read the wrong location).
+    if (pi_address >= 0x20000000)
+        return false;
+
     // Upper half of the PI range is not memory mapped
     if (pi_address >= 0x80000000)
         return false;
