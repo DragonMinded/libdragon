@@ -1,6 +1,6 @@
 /*
     n64elfcompress: compress ELF files for the N64
-    Written by Liam Coleman <gamemaster@gamemaster.com>
+    Written by Giovanni Bajo <giovannibajo@gmail.com>
 
     This tool is part of the Libdragon SDK.
 
@@ -14,6 +14,9 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <limits.h>
+#include <inttypes.h>
 
 #include "../common/binout.c"
 #include "../common/assetcomp.h"
@@ -47,27 +50,81 @@ struct decomp_s {
 int flag_verbose = 0;
 
 typedef struct {
-    Elf32_Ehdr header;
-    Elf32_Phdr *phdrs;
+    unsigned char e_ident[EI_NIDENT];
+    uint16_t e_type;
+    uint16_t e_machine;
+    uint32_t e_version;
+    uint64_t e_entry;
+    uint64_t e_phoff;
+    uint64_t e_shoff;
+    uint32_t e_flags;
+    uint16_t e_ehsize;
+    uint16_t e_phentsize;
+    uint16_t e_phnum;
+    uint16_t e_shentsize;
+    uint16_t e_shnum;
+    uint16_t e_shstrndx;
+} elf_header_t;
+
+typedef struct {
+    uint32_t p_type;
+    uint32_t p_flags;
+    uint64_t p_offset;
+    uint64_t p_vaddr;
+    uint64_t p_paddr;
+    uint64_t p_filesz;
+    uint64_t p_memsz;
+    uint64_t p_align;
+} elf_phdr_t;
+
+typedef struct {
+    bool elf64;
+    elf_header_t header;
+    elf_phdr_t *phdrs;
     uint8_t **phdr_body;
 } elf_t;
 
-static uint32_t bswap32(uint32_t ptr)
+#define ELF32_EHDR_SIZE  52
+#define ELF64_EHDR_SIZE  64
+#define ELF32_PHDR_SIZE  32
+#define ELF64_PHDR_SIZE  56
+
+static uint16_t read_be16(const uint8_t *ptr)
 {
-    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    return __builtin_bswap32(ptr);
-    #else
-    return ptr 
-    #endif
+    return (uint16_t)ptr[0] << 8 | ptr[1];
 }
 
-static uint16_t bswap16(uint16_t ptr)
+static uint32_t read_be32(const uint8_t *ptr)
 {
-    #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    return __builtin_bswap16(ptr);
-    #else
-    return ptr;
-    #endif
+    return (uint32_t)ptr[0] << 24 |
+           (uint32_t)ptr[1] << 16 |
+           (uint32_t)ptr[2] << 8 |
+           ptr[3];
+}
+
+static uint64_t read_be64(const uint8_t *ptr)
+{
+    return (uint64_t)read_be32(ptr) << 32 | read_be32(ptr + 4);
+}
+
+static void write_be16(uint8_t *ptr, uint16_t value)
+{
+    ptr[0] = value >> 8;
+    ptr[1] = value;
+}
+
+static void write_be32(uint8_t *ptr, uint32_t value)
+{
+    ptr[0] = value >> 24;
+    ptr[1] = value >> 16;
+    ptr[2] = value >> 8;
+    ptr[3] = value;
+}
+
+static void write_be64(uint8_t *ptr, uint64_t value)
+{
+    write_be32(ptr, value >> 32);
+    write_be32(ptr + 4, value);
 }
 
 // Printf if verbose
@@ -91,33 +148,101 @@ void print_args(char *name)
     fprintf(stderr, "\n");
 }
 
-static void hdr_bswap(Elf32_Ehdr *hdr)
+static void header_decode(elf_t *elf, const uint8_t *raw)
 {
-    hdr->e_type      = bswap16(hdr->e_type);
-    hdr->e_machine   = bswap16(hdr->e_machine);
-    hdr->e_version   = bswap32(hdr->e_version);
-    hdr->e_entry     = bswap32(hdr->e_entry);
-    hdr->e_phoff     = bswap32(hdr->e_phoff);
-    hdr->e_shoff     = bswap32(hdr->e_shoff);
-    hdr->e_flags     = bswap32(hdr->e_flags);
-    hdr->e_ehsize    = bswap16(hdr->e_ehsize);
-    hdr->e_phentsize = bswap16(hdr->e_phentsize);
-    hdr->e_phnum     = bswap16(hdr->e_phnum);
-    hdr->e_shentsize = bswap16(hdr->e_shentsize);
-    hdr->e_shnum     = bswap16(hdr->e_shnum);
-    hdr->e_shstrndx  = bswap16(hdr->e_shstrndx);
+    elf_header_t *hdr = &elf->header;
+    memcpy(hdr->e_ident, raw, EI_NIDENT);
+    hdr->e_type      = read_be16(raw + 16);
+    hdr->e_machine   = read_be16(raw + 18);
+    hdr->e_version   = read_be32(raw + 20);
+    hdr->e_entry     = elf->elf64 ? read_be64(raw + 24) : read_be32(raw + 24);
+    hdr->e_phoff     = elf->elf64 ? read_be64(raw + 32) : read_be32(raw + 28);
+    hdr->e_shoff     = elf->elf64 ? read_be64(raw + 40) : read_be32(raw + 32);
+    hdr->e_flags     = read_be32(raw + (elf->elf64 ? 48 : 36));
+    hdr->e_ehsize    = read_be16(raw + (elf->elf64 ? 52 : 40));
+    hdr->e_phentsize = read_be16(raw + (elf->elf64 ? 54 : 42));
+    hdr->e_phnum     = read_be16(raw + (elf->elf64 ? 56 : 44));
+    hdr->e_shentsize = read_be16(raw + (elf->elf64 ? 58 : 46));
+    hdr->e_shnum     = read_be16(raw + (elf->elf64 ? 60 : 48));
+    hdr->e_shstrndx  = read_be16(raw + (elf->elf64 ? 62 : 50));
 }
 
-static void phdr_bswap(Elf32_Phdr *phdr)
+static void header_encode(const elf_t *elf, uint8_t *raw)
 {
-    phdr->p_type   = bswap32(phdr->p_type);
-    phdr->p_offset = bswap32(phdr->p_offset);
-    phdr->p_vaddr  = bswap32(phdr->p_vaddr);
-    phdr->p_paddr  = bswap32(phdr->p_paddr);
-    phdr->p_filesz = bswap32(phdr->p_filesz);
-    phdr->p_memsz  = bswap32(phdr->p_memsz);
-    phdr->p_flags  = bswap32(phdr->p_flags);
-    phdr->p_align  = bswap32(phdr->p_align);
+    const elf_header_t *hdr = &elf->header;
+    memset(raw, 0, elf->elf64 ? ELF64_EHDR_SIZE : ELF32_EHDR_SIZE);
+    memcpy(raw, hdr->e_ident, EI_NIDENT);
+    write_be16(raw + 16, hdr->e_type);
+    write_be16(raw + 18, hdr->e_machine);
+    write_be32(raw + 20, hdr->e_version);
+    if (elf->elf64) {
+        write_be64(raw + 24, hdr->e_entry);
+        write_be64(raw + 32, hdr->e_phoff);
+        write_be64(raw + 40, hdr->e_shoff);
+        write_be32(raw + 48, hdr->e_flags);
+        write_be16(raw + 52, hdr->e_ehsize);
+        write_be16(raw + 54, hdr->e_phentsize);
+        write_be16(raw + 56, hdr->e_phnum);
+        write_be16(raw + 58, hdr->e_shentsize);
+        write_be16(raw + 60, hdr->e_shnum);
+        write_be16(raw + 62, hdr->e_shstrndx);
+    } else {
+        write_be32(raw + 24, hdr->e_entry);
+        write_be32(raw + 28, hdr->e_phoff);
+        write_be32(raw + 32, hdr->e_shoff);
+        write_be32(raw + 36, hdr->e_flags);
+        write_be16(raw + 40, hdr->e_ehsize);
+        write_be16(raw + 42, hdr->e_phentsize);
+        write_be16(raw + 44, hdr->e_phnum);
+        write_be16(raw + 46, hdr->e_shentsize);
+        write_be16(raw + 48, hdr->e_shnum);
+        write_be16(raw + 50, hdr->e_shstrndx);
+    }
+}
+
+static void phdr_decode(const elf_t *elf, elf_phdr_t *phdr, const uint8_t *raw)
+{
+    phdr->p_type = read_be32(raw);
+    if (elf->elf64) {
+        phdr->p_flags  = read_be32(raw + 4);
+        phdr->p_offset = read_be64(raw + 8);
+        phdr->p_vaddr  = read_be64(raw + 16);
+        phdr->p_paddr  = read_be64(raw + 24);
+        phdr->p_filesz = read_be64(raw + 32);
+        phdr->p_memsz  = read_be64(raw + 40);
+        phdr->p_align  = read_be64(raw + 48);
+    } else {
+        phdr->p_offset = read_be32(raw + 4);
+        phdr->p_vaddr  = read_be32(raw + 8);
+        phdr->p_paddr  = read_be32(raw + 12);
+        phdr->p_filesz = read_be32(raw + 16);
+        phdr->p_memsz  = read_be32(raw + 20);
+        phdr->p_flags  = read_be32(raw + 24);
+        phdr->p_align  = read_be32(raw + 28);
+    }
+}
+
+static void phdr_encode(const elf_t *elf, const elf_phdr_t *phdr, uint8_t *raw)
+{
+    memset(raw, 0, elf->elf64 ? ELF64_PHDR_SIZE : ELF32_PHDR_SIZE);
+    write_be32(raw, phdr->p_type);
+    if (elf->elf64) {
+        write_be32(raw + 4, phdr->p_flags);
+        write_be64(raw + 8, phdr->p_offset);
+        write_be64(raw + 16, phdr->p_vaddr);
+        write_be64(raw + 24, phdr->p_paddr);
+        write_be64(raw + 32, phdr->p_filesz);
+        write_be64(raw + 40, phdr->p_memsz);
+        write_be64(raw + 48, phdr->p_align);
+    } else {
+        write_be32(raw + 4, phdr->p_offset);
+        write_be32(raw + 8, phdr->p_vaddr);
+        write_be32(raw + 12, phdr->p_paddr);
+        write_be32(raw + 16, phdr->p_filesz);
+        write_be32(raw + 20, phdr->p_memsz);
+        write_be32(raw + 24, phdr->p_flags);
+        write_be32(raw + 28, phdr->p_align);
+    }
 }
 
 const char *elf_phtype_to_str(uint32_t type)
@@ -156,6 +281,7 @@ void elf_free(elf_t *elf)
 elf_t* elf_load(const char *infn)
 {
     elf_t *elf = NULL;
+    uint8_t raw_header[ELF64_EHDR_SIZE];
     FILE *in = fopen(infn, "rb");
     if (!in) {
         fprintf(stderr, "error opening input file: %s\n", infn);
@@ -164,55 +290,65 @@ elf_t* elf_load(const char *infn)
 
     elf = calloc(1, sizeof(elf_t));
 
-    // Read ELF header
-    if (fread(&elf->header, sizeof(elf->header), 1, in) != 1) {
-        fprintf(stderr, "error reading ELF header\n");
-        goto error;
-    }
+    // Read enough of the ELF header to determine its class.
+    fread(raw_header, 1, EI_NIDENT, in);
 
     // Check ELF magic
-    if (memcmp(elf->header.e_ident, ELFMAG, SELFMAG)) {
+    if (memcmp(raw_header, ELFMAG, SELFMAG)) {
         fprintf(stderr, "invalid ELF magic\n");
         goto error;
     }
 
     // Check ELF class
-    if (elf->header.e_ident[EI_CLASS] != ELFCLASS32) {
-        if (elf->header.e_ident[EI_CLASS] == ELFCLASS64)
-            fprintf(stderr, "64-bit ELF not supported\n");
-        else
-            fprintf(stderr, "invalid ELF class\n");
+    if (raw_header[EI_CLASS] != ELFCLASS32 && raw_header[EI_CLASS] != ELFCLASS64) {
+        fprintf(stderr, "invalid ELF class\n");
         goto error;
     }
+    elf->elf64 = raw_header[EI_CLASS] == ELFCLASS64;
 
     // Check ELF data encoding
-    if (elf->header.e_ident[EI_DATA] != ELFDATA2MSB) {
+    if (raw_header[EI_DATA] != ELFDATA2MSB) {
         fprintf(stderr, "invalid ELF data encoding\n");
         goto error;
     }
 
-    // Byteswap ELF header
-    hdr_bswap(&elf->header);
+    size_t ehdr_size = elf->elf64 ? ELF64_EHDR_SIZE : ELF32_EHDR_SIZE;
+    fread(raw_header + EI_NIDENT, 1, ehdr_size - EI_NIDENT, in);
+    header_decode(elf, raw_header);
+
+    size_t phdr_size = elf->elf64 ? ELF64_PHDR_SIZE : ELF32_PHDR_SIZE;
+    if (elf->header.e_ehsize != ehdr_size) {
+        fprintf(stderr, "invalid ELF header size\n");
+        goto error;
+    }
+    if (elf->header.e_phnum && elf->header.e_phentsize != phdr_size) {
+        fprintf(stderr, "invalid ELF program header size\n");
+        goto error;
+    }
 
     // Read program headers
     if (elf->header.e_phnum) {
-        elf->phdrs = calloc(elf->header.e_phnum, sizeof(Elf32_Phdr));
-        fseek(in, elf->header.e_phoff, SEEK_SET);
-        if (fread(elf->phdrs, sizeof(Elf32_Phdr), elf->header.e_phnum, in) != elf->header.e_phnum) {
-            fprintf(stderr, "error reading program headers\n");
-            goto error;
-        }
-        for (int i = 0; i < elf->header.e_phnum; i++)
-            phdr_bswap(&elf->phdrs[i]);
-        // Read program header body
+        elf->phdrs = calloc(elf->header.e_phnum, sizeof(elf_phdr_t));
         elf->phdr_body = calloc(elf->header.e_phnum, sizeof(uint8_t*));
+
+        assert(elf->header.e_phoff <= LONG_MAX);
+        fseek(in, (long)elf->header.e_phoff, SEEK_SET);
         for (int i = 0; i < elf->header.e_phnum; i++) {
-            elf->phdr_body[i] = calloc(elf->phdrs[i].p_filesz, sizeof(uint8_t));
-            fseek(in, elf->phdrs[i].p_offset, SEEK_SET);
-            if (fread(elf->phdr_body[i], sizeof(uint8_t), elf->phdrs[i].p_filesz, in) != elf->phdrs[i].p_filesz) {
-                fprintf(stderr, "error reading program header body\n");
-                goto error;
-            }
+            uint8_t raw_phdr[ELF64_PHDR_SIZE];
+            fread(raw_phdr, 1, phdr_size, in);
+            phdr_decode(elf, &elf->phdrs[i], raw_phdr);
+        }
+
+        // Read program header body
+        for (int i = 0; i < elf->header.e_phnum; i++) {
+            assert(elf->phdrs[i].p_filesz <= SIZE_MAX);
+            size_t body_size = elf->phdrs[i].p_filesz;
+            if (!body_size) continue;
+
+            elf->phdr_body[i] = malloc(body_size);
+            assert(elf->phdrs[i].p_offset <= LONG_MAX);
+            fseek(in, (long)elf->phdrs[i].p_offset, SEEK_SET);
+            fread(elf->phdr_body[i], 1, body_size, in);
         }
     }
 
@@ -227,6 +363,9 @@ error:
 
 bool elf_write(elf_t *elf, const char *outfn)
 {
+    uint8_t raw_header[ELF64_EHDR_SIZE];
+    size_t ehdr_size = elf->elf64 ? ELF64_EHDR_SIZE : ELF32_EHDR_SIZE;
+    size_t phdr_size = elf->elf64 ? ELF64_PHDR_SIZE : ELF32_PHDR_SIZE;
     FILE *out = fopen(outfn, "wb");
     if (!out) {
         fprintf(stderr, "error opening output file: %s\n", outfn);
@@ -239,36 +378,39 @@ bool elf_write(elf_t *elf, const char *outfn)
     elf->header.e_shstrndx = 0;
 
     // Update file offsets
-    int body_off = sizeof(elf->header);
+    elf->header.e_ehsize = ehdr_size;
+    elf->header.e_phentsize = phdr_size;
+    uint64_t body_off = ehdr_size;
     if (elf->header.e_phnum) {
         elf->header.e_phoff = body_off;
-        body_off += elf->header.e_phnum * sizeof(Elf32_Phdr);
+        body_off += elf->header.e_phnum * phdr_size;
+    } else {
+        elf->header.e_phoff = 0;
     }
     for (int i = 0; i < elf->header.e_phnum; i++) {
         elf->phdrs[i].p_offset = body_off;
+        assert(body_off <= UINT32_MAX);
+        assert(elf->phdrs[i].p_filesz <= UINT32_MAX - body_off);
         body_off += elf->phdrs[i].p_filesz;
-        body_off = (body_off + 7) & ~7;
+        body_off = (body_off + 7) & ~UINT64_C(7);
     }
     
     // Write ELF header
-    hdr_bswap(&elf->header);
-    fwrite(&elf->header, sizeof(elf->header), 1, out);
-    hdr_bswap(&elf->header);
+    header_encode(elf, raw_header);
+    fwrite(raw_header, 1, ehdr_size, out);
 
     // Write program headers
-    if (elf->header.e_phnum) {
-        for (int i = 0; i < elf->header.e_phnum; i++)
-            phdr_bswap(&elf->phdrs[i]);
-        fwrite(elf->phdrs, sizeof(Elf32_Phdr), elf->header.e_phnum, out);
-        for (int i = 0; i < elf->header.e_phnum; i++)
-            phdr_bswap(&elf->phdrs[i]);
+    for (int i = 0; i < elf->header.e_phnum; i++) {
+        uint8_t raw_phdr[ELF64_PHDR_SIZE];
+        phdr_encode(elf, &elf->phdrs[i], raw_phdr);
+        fwrite(raw_phdr, 1, phdr_size, out);
     }
 
     // Write program header body
     for (int i = 0; i < elf->header.e_phnum; i++) {
-        fwrite(elf->phdr_body[i], sizeof(uint8_t), elf->phdrs[i].p_filesz, out);
-        // roundup position to 8
-        int pos = ftell(out);
+        size_t body_size = elf->phdrs[i].p_filesz;
+        fwrite(elf->phdr_body[i], 1, body_size, out);
+        uint64_t pos = elf->phdrs[i].p_offset + body_size;
         while (pos & 7) {
             fputc(0, out);
             pos++;
@@ -309,8 +451,10 @@ bool process(char *infn, char *outfn, int compression)
             if (elf->phdrs[i].p_filesz == 0) continue;
             if (elf->phdrs[i].p_flags & PF_N64_COMPRESSED) {
                 fprintf(stderr, "error: already compressed program header %d\n", i);
+                elf_free(elf);
                 return false;
             }
+            assert(elf->phdrs[i].p_filesz <= INT_MAX);
 
             verbose("Compressing program header %d\n", i);
 
@@ -325,7 +469,7 @@ bool process(char *infn, char *outfn, int compression)
             // write pointer, so add 8 bytes of safety.
             margin += 8;
 
-            verbose("  %d => %d [margin=%d]\n", elf->phdrs[i].p_filesz, cmp_size, margin);
+            verbose("  %" PRIu64 " => %d [margin=%d]\n", elf->phdrs[i].p_filesz, cmp_size, margin);
             
             // If the compressed size is larger than the original, don't compress
             if (cmp_size >= dec_size) {
@@ -339,8 +483,8 @@ bool process(char *infn, char *outfn, int compression)
             elf->phdrs[i].p_paddr = elf->phdrs[i].p_vaddr;
 
             // Make sure the compressed data is aligned to 8 bytes
-            int cmp_offset = dec_size - cmp_size + margin;
-            if (cmp_offset & 7) cmp_offset = (cmp_offset + 7) & ~7;
+            uint64_t cmp_offset = dec_size - cmp_size + margin;
+            cmp_offset = (cmp_offset + 7) & ~UINT64_C(7);
             elf->phdrs[i].p_vaddr = elf->phdrs[i].p_paddr + cmp_offset;
 
             // Update the body pointer
@@ -350,14 +494,16 @@ bool process(char *infn, char *outfn, int compression)
 
         // Add a new program header for the decompressor
         struct decomp_s *dec = &decompressors[compression];
-        elf->header.e_phnum++;
-        elf->phdrs = realloc(elf->phdrs, elf->header.e_phnum * sizeof(Elf32_Phdr));
-        elf->phdr_body = realloc(elf->phdr_body, elf->header.e_phnum * sizeof(uint8_t*));
+        assert(elf->header.e_phnum < UINT16_MAX);
+        int new_phnum = elf->header.e_phnum + 1;
+        elf->phdrs = realloc(elf->phdrs, new_phnum * sizeof(elf_phdr_t));
+        elf->phdr_body = realloc(elf->phdr_body, new_phnum * sizeof(uint8_t*));
+        elf->header.e_phnum = new_phnum;
         for (int i = elf->header.e_phnum - 1; i > 0; i--) {
             elf->phdrs[i] = elf->phdrs[i-1];
             elf->phdr_body[i] = elf->phdr_body[i-1];
         }
-        memset(&elf->phdrs[0], 0, sizeof(Elf32_Phdr));
+        memset(&elf->phdrs[0], 0, sizeof(elf_phdr_t));
         elf->phdrs[0].p_type   = PT_N64_DECOMP;
         elf->phdrs[0].p_filesz = dec->size;
         elf->phdrs[0].p_flags  = PF_R | PF_X;
@@ -366,9 +512,9 @@ bool process(char *infn, char *outfn, int compression)
         memcpy(elf->phdr_body[0], dec->data, dec->size);
     }
 
-    elf_write(elf, outfn);
+    bool success = elf_write(elf, outfn);
     elf_free(elf);
-    return true;
+    return success;
 }
 
 int main(int argc, char *argv[])

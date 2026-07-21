@@ -297,9 +297,6 @@ ELF file. If your application require sections to be available at runtime,
 then you will need to handle compression in some other means (or modify
 `n64elfcompress`).
 
-NOTE: at the moment of writing, `n64elfcompress` does not support ELFs with
-headers in 64-bit format.
-
 #### Format details
 
 A compressed ELF contains one or more segments which are made of compressed data.
