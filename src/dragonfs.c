@@ -1367,7 +1367,7 @@ static void __dfs_check_emulation(void)
     assertf(0, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support accurate PI DMA");
 }
 
-int dfs_init(uint32_t base_fs_loc)
+int dfs_init(pi_addr_t base_fs_loc)
 {
     /* Detect if we are running on emulator accurate enough to emulate DragonFS. */
     __dfs_check_emulation();
