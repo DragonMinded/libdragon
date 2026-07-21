@@ -65,14 +65,16 @@ typedef uint32_t phys_addr_t;
  * 
  * The peripheral bus (PI) is a 32-bit address space used to address
  * devices on the cartridge slot or the bottom slot (N64DD).
+ *
+ * Peripherals connected to the PI bus can answer to any address in this address
+ * space. Cartridge ROMs are usually mapped at 0x10000000.
  * 
- * Accessing PI addresses is only possible via DMA or I/O operations, as performed
+ * Accessing PI addresses is only possible via DMA or CPU I/O operations, as performed
  * by #dma_read, #dma_write, #io_read, and #io_write.
  * 
- * A large portion of the PI address space is also memory mapped to the CPU's
- * address space, meaning that some PI addresses are also valid physical addresses.
- * Check the N64 memory map to see the full mapping of PI addresses, or use
- * #io_accessible if you need to check that at runtime.
+ * I/O operations (with CPU) are only possible with 32-bit access width, and only
+ * for a subset of PI addresses that are memory mapped to the CPU's address space.
+ * Check #io_accessible for a list.
  */
 typedef uint32_t pi_addr_t;
 
