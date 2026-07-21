@@ -410,6 +410,14 @@ constexpr fm_vec2_t& operator/=(fm_vec2_t &lhs, float rhs) {
   return lhs;
 }
 
+constexpr bool operator==(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return lhs.x == rhs.x && lhs.y == rhs.y;
+}
+
+constexpr bool operator!=(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return lhs.x != rhs.x || lhs.y != rhs.y;
+}
+
 #endif
 
 #endif

@@ -628,6 +628,22 @@ inline void fm_mat4_mul_vec4(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec4_t
     return lhs;
   }
 
+  constexpr bool operator==(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z;
+  }
+
+  constexpr bool operator!=(fm_vec3_t const& lhs, fm_vec3_t const& rhs) {
+    return lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z;
+  }
+
+  constexpr bool operator==(fm_quat_t const& lhs, fm_quat_t const& rhs) {
+    return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.w == rhs.w;
+  }
+
+  constexpr bool operator!=(fm_quat_t const &lhs, fm_quat_t const &rhs) {
+      return lhs.x != rhs.x || lhs.y != rhs.y || lhs.z != rhs.z || lhs.w != rhs.w;
+  }
+
   inline fm_quat_t operator*(fm_quat_t const& lhs, fm_quat_t const& rhs) {
     fm_quat_t res{};
     fm_quat_mul(&res, &lhs, &rhs);
