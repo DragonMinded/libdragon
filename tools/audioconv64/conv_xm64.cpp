@@ -205,7 +205,8 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	//  9: metadata compressed with asset library
 	// 10: added sample position memory to xm_channel_context_t
 	// 11: change sample_position to double
-	const uint8_t version = 11;
+	// 12: extra sample-buffer headroom for syncless mixer in-flight rounds
+	const uint8_t version = 12;
 	wa(xm64, "XM64", 4);
 	w8(xm64, version);
 	w32_placeholderf(xm64, "metadata_offset");
@@ -645,6 +646,11 @@ int xm_convert(const char *infn, const char *outfn) {
 		// Add a 5% of margin, just in case there is a bug somewhere. We're still
 		// pretty tight on RAM so let's not exaggerate.
 		ch_buf[i] = ch_buf[i] * 1.05;
+
+		// Syncless mixer: samplebuffer compaction is deferred to frame start, so
+		// during multi-buffer catch-up an append may need one extra window of
+		// samples while a previous round is still in flight. Size for that.
+		ch_buf[i] *= 2;
 
 		// Round up to 8 bytes, which is the required alignment for a sample buffer.
 		ch_buf[i] = ((ch_buf[i] + 7) / 8) * 8;
