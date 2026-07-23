@@ -243,8 +243,26 @@ void __mixer_round_wait(uint32_t round_id) {
 	__mixer_profile_rsp += TICKS_READ() - t0;
 }
 
-uint32_t __mixer_round_current(void) {
-	return Mixer.round_next;
+uint32_t __mixer_round_producer(void) {
+	// ID of the mix round that will publish completion of highpri commands
+	// enqueued right now: the round being prepared (if inside mixer_exec),
+	// or the next one that will be issued. Note that the latter may never be
+	// issued: __mixer_dirty_wait handles that case by draining the queue.
+	if ((int32_t)(Mixer.round_next - Mixer.round_enqueued) > 0)
+		return Mixer.round_next;
+	return Mixer.round_next + 1;
+}
+
+bool __mixer_memmove_async(void *dst, void *src, int len) {
+	if (!mixer_initialized())
+		return false;
+	assert(((uint32_t)dst & 7) == 0 && ((uint32_t)src & 7) == 0 && (len & 7) == 0);
+	bool highpri = rspq_in_highpri();
+	if (!highpri) rspq_highpri_begin();
+	rspq_write(__mixer_overlay_id, 0x3,
+		PhysicalAddr(dst), PhysicalAddr(src), len);
+	if (!highpri) rspq_highpri_end();
+	return true;
 }
 
 void __mixer_dirty_wait(uint32_t round_id) {
@@ -270,8 +288,14 @@ void __mixer_dirty_wait(uint32_t round_id) {
 }
 
 void __mixer_wait_idle(void) {
+	if (!mixer_initialized())
+		return;
 	if (Mixer.round_enqueued)
 		__mixer_round_wait(Mixer.round_enqueued);
+	// Compaction memmoves can be enqueued after the last mix round (e.g. by
+	// mixer_reclaim at frame start): the round counter does not cover them,
+	// so drain the highpri queue before the caller frees/reuses memory.
+	rspq_highpri_sync();
 }
 
 static void mixer_settings_reclaim(void) {

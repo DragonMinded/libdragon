@@ -70,6 +70,9 @@ bool samplebuffer_is_inited(samplebuffer_t *buf)
 }
 
 void samplebuffer_close(samplebuffer_t *buf) {
+	// A pending RSP compaction still references the memory we're about to free.
+	if (buf->wmove_end > 0)
+		__mixer_dirty_wait(buf->move_round);
 	void *ptr = SAMPLES_PTR(buf);
 	if (ptr)
 		free_uncached(ptr);
@@ -194,6 +197,18 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 		buf->wdirty = 0;
 	}
 
+	// If an RSP-side compaction is pending, the CPU must not overwrite the
+	// stale source region [wmove_start, wmove_end) before the RSP has read
+	// it. Only gate when this append actually reaches into that region.
+	if (buf->wmove_end > 0 && buf->widx + wlen > buf->wmove_start) {
+		__mixer_dirty_wait(buf->move_round);
+		buf->wmove_end = 0;
+	}
+
+	// Track the round that covers whatever producer will write the returned
+	// area (e.g. an RSP VADPCM decode enqueued right after this call).
+	buf->prod_round = __mixer_round_producer();
+
 	void *data = SAMPLES_PTR(buf) + (buf->widx << SAMPLES_BPS_SHIFT(buf));
 	buf->widx += wlen;
 	return data;
@@ -206,7 +221,7 @@ void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
 	// Bytes above the new widx may still be written by an in-flight RSP
 	// producer (e.g. VADPCM decode). Tag them so append waits if needed.
 	buf->wdirty = MAX(buf->wdirty, buf->widx + wlen);
-	buf->dirty_round = __mixer_round_current();
+	buf->dirty_round = __mixer_round_producer();
 }
 
 void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
@@ -218,46 +233,70 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 	if (idx > buf->widx)
 		idx = buf->widx;
 
-	// Make sure moving this sample at the beginning of the buffer doesn't change
-	// the 2-byte phase of the waveform address. This is not strictly required,
-	// but it helps waveform implementations that want to use dma_read().
-	if ((idx << SAMPLES_BPS_SHIFT(buf)) & 1) {
-		idx--;
-		if (idx == 0)
-			return;
-	}
+	int bps = SAMPLES_BPS_SHIFT(buf);
+
+	// Align the discard position down to 8 bytes. This preserves the 2-byte
+	// phase of the waveform address (which helps waveform implementations
+	// that want to use dma_read()), and additionally keeps the source of the
+	// compaction move 8-byte aligned, as required by the RSP fast path below.
+	idx &= ~((8 >> bps) - 1);
+	if (idx == 0)
+		return;
 
 	tracef("samplebuffer_discard: wpos=%x idx:%x buf->wpos=%x buf->widx=%x\n", wpos, idx, buf->wpos, buf->widx);
-	int kept_bytes = (buf->widx - idx) << SAMPLES_BPS_SHIFT(buf);
+	int kept_bytes = (buf->widx - idx) << bps;
 	if (kept_bytes > 0) {		
 		tracef("samplebuffer_discard: compacting buffer, moving 0x%x bytes\n", kept_bytes);
 
-		// Bytes being moved may still be read by in-flight mix rounds (and
-		// written by in-flight decode commands). Wait until those rounds are
-		// done. Callers arrange for this to be virtually always a no-op
-		// (proactive compaction at frame start via mixer_reclaim).
-		__mixer_round_wait(buf->last_round);
-
-		// FIXME: this violates the zero-copy principle as we do a memmove here.
-		// The problem is that the RSP ucode doesn't fully support a circular
-		// buffer of samples (and also our samplebuffer_t isn't structured for
-		// this). Luckily, this is a rare chance and in most cases just a few
-		// samples are moved (in the normal playback case, it should be just 1,
-		// as in general a sample could be used more than once for resampling).
-		uint8_t *src = SAMPLES_PTR(buf) + (idx << SAMPLES_BPS_SHIFT(buf));
+		uint8_t *src = SAMPLES_PTR(buf) + (idx << bps);
 		uint8_t *dst = SAMPLES_PTR(buf);
 		assert(((uint32_t)dst & 7) == 0);
 
-		// Optimized copy of samples. We work on uncached memory directly
-		// so that we don't need to flush, and use only 64-bits ops. We round up
-		// to a multiple of 8 the amount of bytes, as it doesn't matter if we
-		// copy more, as long as we're fast.
-		// This has been benchmarked to be faster than memmove() + cache flush.
-		kept_bytes = ROUND_UP(kept_bytes, 8);
-		u_uint64_t *src64 = (u_uint64_t*)src;
-		uint64_t *dst64 = (uint64_t*)dst;
-		for (int i=0;i<kept_bytes/8;i++)
-			*dst64++ = *src64++;
+		// Fast path: enqueue an RSP-side memmove in the highpri queue. Being
+		// a regular queue command, it executes in-order after the in-flight
+		// decode/mix commands that still reference the old buffer layout, so
+		// no CPU wait is needed. It requires the kept size to be a multiple
+		// of 8 bytes (RSP DMA granularity): we cannot round it up like the
+		// CPU copy below does, because the bytes just after the kept region
+		// belong to the append area that the CPU may write in the meantime.
+		if ((kept_bytes & 7) == 0 && __mixer_memmove_async(dst, src, kept_bytes)) {
+			// Record the stale source region (in physical buffer slots):
+			// CPU appends must not overwrite it until the RSP executes the
+			// move (see samplebuffer_append).
+			int start = idx, end = buf->widx;
+			if (buf->wmove_end > 0) {
+				start = MIN(start, buf->wmove_start);
+				end = MAX(end, buf->wmove_end);
+			}
+			buf->wmove_start = start;
+			buf->wmove_end = end;
+			buf->move_round = __mixer_round_producer();
+		} else {
+			// Slow path (kept size not a multiple of 8 bytes, which can
+			// happen after samplebuffer_undo truncates the buffer): copy
+			// with the CPU. Wait until nothing in-flight references the
+			// buffer anymore: a pending compaction move, producers that may
+			// still be writing the kept region, and mix rounds that read
+			// the old layout.
+			if (buf->wmove_end > 0) {
+				__mixer_dirty_wait(buf->move_round);
+				buf->wmove_end = 0;
+			}
+			__mixer_dirty_wait(buf->prod_round);
+			__mixer_round_wait(buf->last_round);
+
+			// Optimized copy of samples. We work on uncached memory directly
+			// so that we don't need to flush, and use only 64-bits ops. We
+			// round up to a multiple of 8 the amount of bytes: it doesn't
+			// matter if we copy a bit more, because this copy is synchronous
+			// (nothing else can be writing the buffer while it runs).
+			// This has been benchmarked to be faster than memmove() + cache flush.
+			int copy_bytes = ROUND_UP(kept_bytes, 8);
+			u_uint64_t *src64 = (u_uint64_t*)src;
+			uint64_t *dst64 = (uint64_t*)dst;
+			for (int i=0;i<copy_bytes/8;i++)
+				*dst64++ = *src64++;
+		}
 	}
 
 	buf->wpos += idx;
@@ -276,4 +315,9 @@ void samplebuffer_flush(samplebuffer_t *buf) {
 	buf->wpos = buf->widx = buf->ridx = 0;
 	buf->wnext = -1;
 	buf->wdirty = 0;
+	// A pending RSP compaction still reads/writes the whole [0, wmove_end)
+	// area: extend the protected region down to 0 so that the first append
+	// after the flush waits for the move to complete.
+	if (buf->wmove_end > 0)
+		buf->wmove_start = 0;
 }

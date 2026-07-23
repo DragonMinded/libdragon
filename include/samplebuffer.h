@@ -170,6 +170,22 @@ typedef struct samplebuffer_s {
      * Mix round that owns the dirty tail (see wdirty).
      */
     uint32_t dirty_round;
+
+    /**
+     * Pending RSP-side compaction: region of the buffer (in sample-sized
+     * slots, that is byte offset >> bps) that an enqueued RSP memmove still
+     * has to read. CPU appends must not overwrite it before the RSP executes
+     * the move. wmove_end == 0 means no pending move.
+     */
+    int wmove_start;
+    /** End of the pending compaction source region (see wmove_start). */
+    int wmove_end;
+
+    /** Mix round that covers the pending compaction memmove (see wmove_start). */
+    uint32_t move_round;
+
+    /** Mix round that covers the most recent producer writes (appends). */
+    uint32_t prod_round;
 } samplebuffer_t;
 
 /**
