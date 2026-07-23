@@ -179,6 +179,7 @@
 		RSPQ_DefineCommand command_exec, 20				# 0x0
 		RSPQ_DefineCommand VADPCM_Decompress, 16		# 0x1
 		RSPQ_DefineCommand VADPCM_SetState, 8			# 0x2
+		RSPQ_DefineCommand command_memmove, 12			# 0x3
 	RSPQ_EndOverlayHeader
 
 ############################################################################
@@ -397,6 +398,70 @@ End:
 
 	#undef samples_left
 	#undef outptr
+
+
+###############################################################
+# command_memmove
+#
+# Backward move of bytes in RDRAM (dst < src), enqueued by
+# samplebuffer_discard to compact a sample buffer. Being a regular
+# queue command, it executes in-order with the decode/mix commands
+# that reference the buffer, so the CPU does not need to wait for
+# them before compacting.
+#
+# dst/src must be 8-byte aligned and len must be a multiple of 8
+# (the CPU falls back to a synchronous copy otherwise): unlike
+# OPUS_memmove, we cannot copy a few extra bytes, because the bytes
+# just after the moved region belong to the append area that the
+# CPU may be writing concurrently.
+#
+# Chunks are staged through CHANNEL_BUFFER, which is scratch space
+# only used within a single command_exec.
+#
+# Input:
+#   a0: 0..23: RDRAM destination pointer
+#   a1: 0..23: RDRAM source pointer
+#   a2:        number of bytes to move
+###############################################################
+
+	#define MEMMOVE_CHUNK  (MAX_SAMPLES_PER_LOOP * MAX_CHANNELS * 2)
+
+	.func command_memmove
+command_memmove:
+	#if RSPQ_DEBUG
+	andi t0, a0, 7
+	assert_eq t0, 0, 0x8601
+	andi t0, a1, 7
+	assert_eq t0, 0, 0x8601
+	andi t0, a2, 7
+	assert_eq t0, 0, 0x8601
+	#endif
+
+MemmoveLoop:
+	move t4, a2
+	ble t4, MEMMOVE_CHUNK, 1f
+	nop
+	li t4, MEMMOVE_CHUNK
+1:
+	move s0, a1
+	li s4, %lo(CHANNEL_BUFFER)
+	jal DMAIn
+	addiu t0, t4, -1
+
+	move s0, a0
+	li s4, %lo(CHANNEL_BUFFER)
+	jal DMAOut
+	addiu t0, t4, -1
+
+	add a0, t4
+	add a1, t4
+	sub a2, t4
+	bgtz a2, MemmoveLoop
+	nop
+
+	j RSPQ_Loop
+	nop
+	.endfunc
 
 
 ###############################################################
