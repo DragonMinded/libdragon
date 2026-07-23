@@ -39,6 +39,15 @@ static int tick(void *arg) {
 		xm_channel_context_t *ch = &ctx->channels[i];
 		if (mixer_ch_playing(first_ch+i))
 			ch->sample_position = mixer_ch_get_pos(first_ch+i);
+		else
+			// The mixer auto-stopped the channel: a non-looping sample
+			// reached its end. Mark it as finished like libxm's own mixer
+			// would (see xm_next_of_sample), otherwise the playback loop
+			// below would keep restarting the waveform at the last synced
+			// (stale) position, which is also an invalid seek point for
+			// compressed streams. Any new note will reset this via
+			// xm_trigger_note; seeks reset it explicitly below.
+			ch->sample_position = -1;
 	}
 
 	// If we're requested to stop playback, do it.
@@ -134,7 +143,8 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 		}
 		assertf(0, "cannot load XM64 file: %s\nFile corrupted", fn);
 	}
-	assertf(header.version == 11, "cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
+	assertf(header.version == 11 || header.version == 12,
+		"cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
 
 	// Seek to the beginning of the metadata, that are asset-compressed. We need
 	// to read the metadata in small chunks, so we use asset_fopen() for this.

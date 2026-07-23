@@ -16,6 +16,8 @@
 #include "audio.h"
 #include "n64sys.h"
 #include "interrupt.h"
+#include "accounting_internal.h"
+#include "../rspq/rspq_internal.h"
 #include <memory.h>
 #include <stdlib.h>
 #include <math.h>
@@ -58,8 +60,14 @@
  */
 DEFINE_RSP_UCODE(rsp_mixer);
 
-/** @brief Size of the ucode state that is automatically persisted by rspq */
-#define MIXER_STATE_SIZE 128
+/** @brief Size of the ucode state that is automatically persisted by rspq.
+ * Layout must match RSPQ_BeginSavedState in rsp_mixer.S:
+ *   XVOL_L[32] + XVOL_R[32] (128 bytes) + COUNTER_RDRAM + pad (16 bytes).
+ */
+#define MIXER_STATE_SIZE 144
+
+/** @brief Number of in-flight settings slots for async mix rounds */
+#define MIXER_SETTINGS_SLOTS  16
 
 // NOTE: keep these in sync with rsp_mixer.S
 #define CH_FLAGS_BPS_SHIFT  	(3<<0)   ///< BPS shift value
@@ -124,7 +132,7 @@ typedef struct rsp_mixer_channel_s {
 _Static_assert(sizeof(rsp_mixer_channel_t) == 6*4);
 /// @endcond
 
-/** @brief Mixer ucode settings. 
+/** @brief Mixer ucode settings.
  *
  * This struct reflects the settings defined in rsp_mixer.S.
  */
@@ -134,7 +142,30 @@ typedef struct rsp_mixer_settings_s {
 	rsp_mixer_channel_t channels[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
 } rsp_mixer_settings_t;
 
-/** @brief Configured limits of a mixer channel. 
+/** @brief One settings ring slot tagged with the round that consumes it */
+typedef struct {
+	rsp_mixer_settings_t settings;
+	uint32_t round_id;
+	uint32_t pad[3];
+} __attribute__((aligned(16))) mixer_settings_slot_t;
+
+/** @brief RDRAM completion counter published by the mixer ucode */
+typedef struct {
+	uint32_t rounds_done;
+	uint32_t pad[3];
+} mixer_rdram_state_t;
+
+/** @brief Overlay saved-state layout (must match rsp_mixer.S) */
+typedef struct {
+	uint16_t xvol_l[MIXER_MAX_CHANNELS];
+	uint16_t xvol_r[MIXER_MAX_CHANNELS];
+	uint32_t counter_rdram;
+	uint32_t pad[3];
+} mixer_overlay_state_t;
+
+_Static_assert(sizeof(mixer_overlay_state_t) == MIXER_STATE_SIZE, "mixer overlay state size mismatch");
+
+/** @brief Configured limits of a mixer channel.
  *
  * This structure describes the playback limits for a mixer channel. The limits
  * are used to avoid over-allocating memory via sample buffers.
@@ -171,20 +202,127 @@ static struct {
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS];
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
 
-	rsp_mixer_settings_t ucode_settings __attribute__((aligned(16)));
+	volatile mixer_rdram_state_t *rstate;
+	uint32_t round_next;
+	uint32_t round_enqueued;
+
+	mixer_settings_slot_t *slot_ring;
+	int slot_head;
+	int slot_tail;
 
 } Mixer;
 
-/** @brief Count of ticks spent in mixer RSP, used for debugging purposes. */
+/** @brief Count of ticks spent waiting on mixer rounds (rare fallback path). */
 int64_t __mixer_profile_rsp = 0;
 
 uint32_t __mixer_overlay_id;
 
 static inline int mixer_initialized(void) { return Mixer.num_channels != 0; }
 
+bool __mixer_round_done(uint32_t round_id) {
+	// Before mixer_init (e.g. wav64 preload), nothing is in flight.
+	if (!Mixer.rstate)
+		return true;
+	return (int32_t)(Mixer.rstate->rounds_done - round_id) >= 0;
+}
+
+void __mixer_round_wait(uint32_t round_id) {
+	if (__mixer_round_done(round_id))
+		return;
+	// Waiting on a round whose mix command is not in the queue yet would
+	// deadlock: the counter is published by the mix command itself.
+	assertf((int32_t)(round_id - Mixer.round_enqueued) <= 0,
+		"mixer: wait on round %lx not yet enqueued (last enqueued: %lx)",
+		round_id, Mixer.round_enqueued);
+	rspq_flush();
+	uint32_t t0 = TICKS_READ();
+	ACCT_SCOPE(ACCT_CAT_RSP) RSP_WAIT_LOOP(500) {
+		if (__mixer_round_done(round_id))
+			break;
+	}
+	__mixer_profile_rsp += TICKS_READ() - t0;
+}
+
+uint32_t __mixer_round_current(void) {
+	return Mixer.round_next;
+}
+
+void __mixer_dirty_wait(uint32_t round_id) {
+	if (__mixer_round_done(round_id))
+		return;
+	if ((int32_t)(round_id - Mixer.round_enqueued) > 0) {
+		// The round that owns the dirty tail is the one currently being
+		// prepared: its mix command (which publishes the counter) is not in
+		// the queue yet, so waiting on the counter would deadlock. The
+		// producer commands (eg: VADPCM decodes) are already enqueued
+		// though, so drain the highpri queue instead. This happens only at
+		// a streamed-loop wrap, when waveform_read chains a second decode
+		// right after the undo, within the same mix round.
+		uint32_t t0 = TICKS_READ();
+		bool highpri = rspq_in_highpri();
+		if (highpri) rspq_highpri_end();
+		rspq_highpri_sync();
+		if (highpri) rspq_highpri_begin();
+		__mixer_profile_rsp += TICKS_READ() - t0;
+	} else {
+		__mixer_round_wait(round_id);
+	}
+}
+
+void __mixer_wait_idle(void) {
+	if (Mixer.round_enqueued)
+		__mixer_round_wait(Mixer.round_enqueued);
+}
+
+static void mixer_settings_reclaim(void) {
+	while (Mixer.slot_tail != Mixer.slot_head &&
+	       __mixer_round_done(Mixer.slot_ring[Mixer.slot_tail].round_id))
+		Mixer.slot_tail = (Mixer.slot_tail + 1) % MIXER_SETTINGS_SLOTS;
+}
+
+static rsp_mixer_settings_t *mixer_settings_acquire(uint32_t round_id) {
+	int next = (Mixer.slot_head + 1) % MIXER_SETTINGS_SLOTS;
+	if (next == Mixer.slot_tail) {
+		// Ring full: rare fallback. Wait for the oldest in-flight round.
+		__mixer_round_wait(Mixer.slot_ring[Mixer.slot_tail].round_id);
+		mixer_settings_reclaim();
+		next = (Mixer.slot_head + 1) % MIXER_SETTINGS_SLOTS;
+		assertf(next != Mixer.slot_tail, "mixer settings ring still full after wait");
+	}
+	Mixer.slot_ring[Mixer.slot_head].round_id = round_id;
+	rsp_mixer_settings_t *s = &Mixer.slot_ring[Mixer.slot_head].settings;
+	Mixer.slot_head = next;
+	return s;
+}
+
+static void mixer_reclaim(void) {
+	mixer_settings_reclaim();
+	for (int i = 0; i < Mixer.num_channels; i++) {
+		samplebuffer_t *sbuf = &Mixer.ch_buf[i];
+		mixer_channel_t *ch = &Mixer.channels[i];
+		if (!samplebuffer_is_inited(sbuf) || !ch->ptr)
+			continue;
+		// Fully-cachable loop: the loop must stay resident in the buffer
+		// forever (the RSP plays it straight from the cache, and wrapped
+		// positions jump backwards to the loop start). There is nothing to
+		// reclaim: compaction (if any) is handled by the loop-align discard
+		// in mixer_exec, which runs at most once per waveform.
+		int bps_fx64 = (ch->flags & CH_FLAGS_BPS_SHIFT) + MIXER_FX64_FRAC;
+		int loop_len = ch->loop_len >> bps_fx64;
+		if (loop_len && loop_len < sbuf->size)
+			continue;
+		if (!__mixer_round_done(sbuf->last_round))
+			continue;
+		if (sbuf->wdirty && __mixer_round_done(sbuf->dirty_round))
+			sbuf->wdirty = 0;
+		// Free consumed samples now so mid-frame appends rarely need to
+		// compact while rounds are still in flight.
+		samplebuffer_discard(sbuf, sbuf->wpos + sbuf->ridx);
+	}
+}
+
 void mixer_init(int num_channels) {
 	memset(&Mixer, 0, sizeof(Mixer));
-	data_cache_hit_writeback_invalidate(&Mixer.ucode_settings, sizeof(Mixer.ucode_settings));
 
 	Mixer.num_channels = num_channels;
 	Mixer.sample_rate = audio_get_frequency();  // actual sample rate obtained via DAC clock
@@ -196,12 +334,21 @@ void mixer_init(int num_channels) {
 		mixer_ch_set_limits(ch, 16, Mixer.sample_rate, 0);
 	}
 
-	void *mixer_state = rspq_overlay_get_state(&rsp_mixer);
-	memset(mixer_state, 0, MIXER_STATE_SIZE);
-	data_cache_hit_writeback(mixer_state, MIXER_STATE_SIZE);
+	Mixer.rstate = malloc_uncached(sizeof(*Mixer.rstate));
+	assertf(Mixer.rstate, "Out of memory");
+	memset((void*)Mixer.rstate, 0, sizeof(*Mixer.rstate));
+
+	Mixer.slot_ring = malloc_uncached(sizeof(mixer_settings_slot_t) * MIXER_SETTINGS_SLOTS);
+	assertf(Mixer.slot_ring, "Out of memory");
+	memset(Mixer.slot_ring, 0, sizeof(mixer_settings_slot_t) * MIXER_SETTINGS_SLOTS);
 
 	rspq_init();
-    __mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
+	__mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
+
+	mixer_overlay_state_t *mixer_state = rspq_overlay_get_state(&rsp_mixer);
+	memset(mixer_state, 0, sizeof(*mixer_state));
+	mixer_state->counter_rdram = PhysicalAddr((void*)Mixer.rstate);
+	data_cache_hit_writeback(mixer_state, sizeof(*mixer_state));
 }
 
 static int mixer_calc_buffer_size(int ch, int nchannels)
@@ -235,6 +382,8 @@ void mixer_set_vol(float vol) {
 void mixer_close(void) {
 	assert(mixer_initialized());
 
+	__mixer_wait_idle();
+
 	rspq_overlay_unregister(__mixer_overlay_id);
 	__mixer_overlay_id = 0;
 
@@ -242,6 +391,15 @@ void mixer_close(void) {
 	{
 		if (samplebuffer_is_inited(&Mixer.ch_buf[i]))
 			samplebuffer_close(&Mixer.ch_buf[i]);
+	}
+
+	if (Mixer.slot_ring) {
+		free_uncached(Mixer.slot_ring);
+		Mixer.slot_ring = NULL;
+	}
+	if (Mixer.rstate) {
+		free_uncached((void*)Mixer.rstate);
+		Mixer.rstate = NULL;
 	}
 
 	Mixer.num_channels = 0;
@@ -407,11 +565,15 @@ void mixer_ch_play(int ch, waveform_t *wave)
 
 	// If we're going to play a stereo waveform on a channel that was allocated
 	// for mono, we need to reallocate the buffer.
-	if (wave->channels == 2 && !(c->flags & CH_FLAGS_STEREO_ALLOC))
+	if (wave->channels == 2 && !(c->flags & CH_FLAGS_STEREO_ALLOC)) {
+		__mixer_wait_idle();
 		samplebuffer_close(sbuf);
+	}
 	// Check if the state buffer is big enough, otherwise we need to reallocate
-	if (sbuf->state_size < wave->state_size)
+	if (sbuf->state_size < wave->state_size) {
+		__mixer_wait_idle();
 		samplebuffer_close(sbuf);
+	}
 
 	if (!samplebuffer_is_inited(sbuf)) {
 		// If we have not yet allocated the memory for the sample buffers,
@@ -565,6 +727,7 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	// Free the memory immediately, as it doesn't match the new limits anymore.
 	// We will reallocate it later lazily if needed.
 	if (samplebuffer_is_inited(&Mixer.ch_buf[ch])) {
+		__mixer_wait_idle();
 		samplebuffer_close(&Mixer.ch_buf[ch]);
 		Mixer.channels[ch].flags &= ~CH_FLAGS_STEREO_ALLOC;
 	}
@@ -573,6 +736,9 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 static void mixer_exec(int32_t *out, int num_samples) {
 	tracef("mixer_exec: 0x%x samples\n", num_samples);
 
+	uint32_t round_id = ++Mixer.round_next;
+	rsp_mixer_settings_t *settings = mixer_settings_acquire(round_id);
+	rsp_mixer_channel_t *rsp_wv = settings->channels;
 	uint32_t fake_loop = 0;
 
 	for (int i=0; i<Mixer.num_channels; i++) {
@@ -670,11 +836,9 @@ static void mixer_exec(int32_t *out, int num_samples) {
 			void* ptr = samplebuffer_get(sbuf, wpos, &wlen);
 			assert(ptr);
 			ch->ptr = (uint8_t*)ptr - (wpos<<bps);
+			sbuf->last_round = round_id;
 		}
 	}
-
-	volatile rsp_mixer_settings_t *settings = UncachedAddr(&Mixer.ucode_settings);
-	volatile rsp_mixer_channel_t *rsp_wv = settings->channels;
 
 	for (int ch=0;ch<Mixer.num_channels;ch++) {
 		mixer_channel_t *c = &Mixer.channels[ch];
@@ -771,23 +935,33 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		gvol *= (FADE_OUT_TIME - MIN(elapsed, FADE_OUT_TIME)) / FADE_OUT_TIME;
 	}
 
-	uint32_t t0 = TICKS_READ();
 	rspq_highpri_begin();
 	rspq_write(__mixer_overlay_id, 0,
 		(((uint32_t)MIXER_FX16(gvol)) & 0xFFFF),
 		(num_samples << 16) | Mixer.num_channels,
 		PhysicalAddr(out),
-		PhysicalAddr(&Mixer.ucode_settings));
+		PhysicalAddr(settings),
+		round_id);
 	rspq_highpri_end();
+	Mixer.round_enqueued = round_id;
 
-	rspq_highpri_sync();
-
-	__mixer_profile_rsp += TICKS_READ() - t0;
-
+	// CPU-authoritative position update. The RSP advances pos by step per
+	// output sample and wraps by loop_len when past len; we compute the same
+	// value in 64-bit fixed point. For RSP-visible loops, both sides are
+	// congruent mod loop_len (the exact wrap count may differ depending on
+	// fetch boundaries); the next round's wpos normalization handles that.
+	// Fake/unrolled loops keep growing pos; existing wrap logic above rebases.
 	for (int i=0;i<Mixer.num_channels;i++) {
 		mixer_channel_t *ch = &Mixer.channels[i];
-		if (ch->ptr)
-			ch->pos += (uint64_t)rsp_wv[i].pos - (uint64_t)(ch->pos & 0x7FFFFFFF);
+		if (!ch->ptr || (ch->flags & CH_FLAGS_STEREO_SUB))
+			continue;
+
+		ch->pos += ch->step * (uint64_t)num_samples;
+
+		if (ch->loop_len && !(fake_loop & (1<<i))) {
+			while (ch->pos >= ch->len)
+				ch->pos -= ch->loop_len;
+		}
 	}
 
 	Mixer.ticks += num_samples;
@@ -831,8 +1005,10 @@ void mixer_unthrottle(void) {
 	Mixer.throttled = false;
 }
 
-void mixer_poll(int16_t *out16, int num_samples) {
+static void mixer_poll_async(int16_t *out16, int num_samples) {
 	int32_t *out = (int32_t*)out16;
+
+	mixer_reclaim();
 
 	// Since the AI can only play an even number of samples,
 	// it's not possible to call this function with an odd number,
@@ -870,19 +1046,30 @@ void mixer_poll(int16_t *out16, int num_samples) {
 	}
 }
 
-void mixer_try_play()
+void mixer_poll(int16_t *out16, int num_samples) {
+	mixer_poll_async(out16, num_samples);
+	// Preserve the synchronous contract for direct callers (user-owned
+	// buffer / legacy audio_set_buffer_callback). One sync per poll instead
+	// of one per mixer_exec.
+	rspq_highpri_sync();
+}
+
+void mixer_try_play(void)
 {
 	// To smooth out the pacing for mixer and wav64 decodes, we fill buffers
 	// to at least audio_get_num_buffers()-1, but fill completely, if there is
 	// only one free one left.
 	int free_buffers = audio_get_num_buffers() - audio_get_queued_buffers();
-	if (free_buffers <= 0)
+	if (free_buffers <= 0) {
+		mixer_reclaim();
 		return;
+	}
 
 	int buffers_to_fill = MAX(free_buffers - 1, 1);
 	while (buffers_to_fill-- > 0) {
 		short *buf = audio_write_begin();
-		mixer_poll(buf, audio_get_buffer_length());
+		mixer_poll_async(buf, audio_get_buffer_length());
 		audio_write_end();
 	}
+	rspq_flush();
 }

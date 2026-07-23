@@ -6,12 +6,11 @@
  */
 
 #include "mixer.h"
+#include "mixer_internal.h"
 #include "samplebuffer.h"
 #include "n64sys.h"
 #include "n64types.h"
 #include "utils.h"
-#include "rspq.h"
-#include "../rspq/rspq_internal.h"
 #include "debug.h"
 #include <string.h>
 
@@ -188,6 +187,13 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 		"samplebuffer_append: buffer too small\n"
 		"ridx:%x widx:%x wlen:%x size:%x", buf->ridx, buf->widx, wlen, buf->size);
 
+	// If an undo left a dirty tail that an in-flight RSP producer will still
+	// write, wait for those producers before CPU-writing into the same region.
+	if (buf->wdirty > buf->widx) {
+		__mixer_dirty_wait(buf->dirty_round);
+		buf->wdirty = 0;
+	}
+
 	void *data = SAMPLES_PTR(buf) + (buf->widx << SAMPLES_BPS_SHIFT(buf));
 	buf->widx += wlen;
 	return data;
@@ -197,6 +203,10 @@ void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
 	tracef("samplebuffer_truncate: wlen=%x\n", wlen);
 	assertf(buf->widx >= wlen, "samplebuffer_append_undo: invalid wlen:%x widx:%x", wlen, buf->widx);
 	buf->widx -= wlen;
+	// Bytes above the new widx may still be written by an in-flight RSP
+	// producer (e.g. VADPCM decode). Tag them so append waits if needed.
+	buf->wdirty = MAX(buf->wdirty, buf->widx + wlen);
+	buf->dirty_round = __mixer_round_current();
 }
 
 void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
@@ -222,14 +232,11 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 	if (kept_bytes > 0) {		
 		tracef("samplebuffer_discard: compacting buffer, moving 0x%x bytes\n", kept_bytes);
 
-		// Samples are normally generated via RSP. Before moving them with the CPU,
-		// we must be sure the RSP is done with.
-		// FIXME: this could be avoided with a RSP memmove command, but it remains
-		// to be seen what is more efficient.
-		bool highpri = rspq_in_highpri();
-		if (highpri) rspq_highpri_end();
-		rspq_highpri_sync();
-		if (highpri) rspq_highpri_begin();
+		// Bytes being moved may still be read by in-flight mix rounds (and
+		// written by in-flight decode commands). Wait until those rounds are
+		// done. Callers arrange for this to be virtually always a no-op
+		// (proactive compaction at frame start via mixer_reclaim).
+		__mixer_round_wait(buf->last_round);
 
 		// FIXME: this violates the zero-copy principle as we do a memmove here.
 		// The problem is that the RSP ucode doesn't fully support a circular
@@ -258,9 +265,15 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 	buf->ridx -= idx;
 	if (buf->ridx < 0)
 		buf->ridx = 0;
+	if (buf->wdirty > 0) {
+		buf->wdirty -= idx;
+		if (buf->wdirty < 0)
+			buf->wdirty = 0;
+	}
 }
 
 void samplebuffer_flush(samplebuffer_t *buf) {
 	buf->wpos = buf->widx = buf->ridx = 0;
 	buf->wnext = -1;
+	buf->wdirty = 0;
 }

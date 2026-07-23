@@ -176,7 +176,7 @@
 	.data
 
 	RSPQ_BeginOverlayHeader
-		RSPQ_DefineCommand command_exec, 16				# 0x0
+		RSPQ_DefineCommand command_exec, 20				# 0x0
 		RSPQ_DefineCommand VADPCM_Decompress, 16		# 0x1
 		RSPQ_DefineCommand VADPCM_SetState, 8			# 0x2
 	RSPQ_EndOverlayHeader
@@ -206,6 +206,13 @@ BANNER1:    .ascii " Coded by Rasky "
 	.align 4
 XVOL_L:                   .dcb.w MAX_CHANNELS
 XVOL_R:                   .dcb.w MAX_CHANNELS
+	# RDRAM address of the round completion counter (written by CPU at init).
+	# Must stay in saved state so it survives overlay swaps.
+	.align 4
+COUNTER_RDRAM:            .long  0
+	                      .long  0
+	                      .long  0
+	                      .long  0
 	RSPQ_EndSavedState
 
 	.align 4
@@ -267,6 +274,12 @@ CHANNEL_BUFFER:  .dcb.w (MAX_SAMPLES_PER_LOOP * MAX_CHANNELS)
 	.align 4  # for human visual debugging, 3 would be sufficient (for DMA)
 OUTPUT_AREA:     .dcb.w MAX_SAMPLES_PER_LOOP*2
 
+	# Scratch used to DMA the round id out to COUNTER_RDRAM. 8-byte aligned
+	# for RSP DMA; only the first word is meaningful.
+	.align 3
+ROUND_SCRATCH:            .long  0
+	                      .long  0
+
 	.text 1
 
 	# Number of samples that will be processed in the current loop.
@@ -291,10 +304,10 @@ command_exec:
 	andi a1, 0xFFFF
 	sh a1, %lo(NUM_CHANNELS)
 
-	lw a2, CMD_ADDR(0x8, 0x10)
+	lw a2, CMD_ADDR(0x8, 0x14)
 	sw a2, %lo(OUTPUT_RDRAM)
 
-	# Load settings
+	# Load settings (input-only; positions are CPU-authoritative, no writeback)
 	jal DMASettings
 	li t2, DMA_IN
 
@@ -371,27 +384,31 @@ End:
 	jal EndMixer
 	nop
 
-	jal DMASettings
-	li t2, DMA_OUT_ASYNC
-
-	# Wait for the last out transfer to be finished
-	jal_and_j DMAWaitIdle, RSPQ_Loop
+	# Publish the round id to RDRAM. Settings are no longer written back:
+	# the CPU advances channel positions itself. Completing this DMA is the
+	# signal that every command enqueued before this mix (VADPCM/Opus
+	# decodes included) has finished, because the highpri queue is FIFO.
+	lw t0, CMD_ADDR(0x10, 0x14)
+	sw t0, %lo(ROUND_SCRATCH)
+	li s4, %lo(ROUND_SCRATCH)
+	lw s0, %lo(COUNTER_RDRAM)
+	li t0, DMA_SIZE(8, 1)
+	jal_and_j DMAOutAsync, RSPQ_Loop
 
 	#undef samples_left
 	#undef outptr
 
 
 ###############################################################
-# DMASettings - Load/save the settings via DMA.
+# DMASettings - Load the settings via DMA.
 #
 # Arguments:
-#   t2:  DMA_* flag for DMAExec
+#   t2:  DMA_* flag for DMAExec (always DMA_IN for command_exec)
 ###############################################################
 
 	.func DMASettings
 DMASettings:
-	# Save settings
-	lw s0, CMD_ADDR(0xC, 0x10)
+	lw s0, CMD_ADDR(0xC, 0x14)
 	li s4, %lo(SETTINGS_START)
 	j DMAExec
 	li t0, DMA_SIZE((SETTINGS_END - SETTINGS_START), 1)

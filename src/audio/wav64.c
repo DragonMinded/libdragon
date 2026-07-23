@@ -302,6 +302,10 @@ void wav64_close(wav64_t *wav)
 			mixer_ch_stop(i);
 	}
 
+	// Wait for in-flight mix/decode rounds that may still reference
+	// codebook/state/ext before freeing the heap.
+	__mixer_wait_idle();
+
 	if (algos[wav->st->format].close)
 		algos[wav->st->format].close(wav);
 

@@ -152,6 +152,24 @@ typedef struct samplebuffer_s {
      * @brief UUID of the waveform being played back on this sample buffer.
      */
     uint32_t wave_uuid;
+
+    /**
+     * Highest mix round id whose RSP mix command still references bytes
+     * in this buffer. Compaction must wait until that round is done.
+     */
+    uint32_t last_round;
+
+    /**
+     * High-watermark (in samples from wpos) of bytes that an in-flight RSP
+     * producer command will still write past widx. Set by samplebuffer_undo;
+     * cleared once the owning round completes.
+     */
+    int wdirty;
+
+    /**
+     * Mix round that owns the dirty tail (see wdirty).
+     */
+    uint32_t dirty_round;
 } samplebuffer_t;
 
 /**
