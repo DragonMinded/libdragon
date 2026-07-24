@@ -278,7 +278,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	}
 
 	fwrite("WV64", 1, 4, out);
-	w8(out, 6); 				 			// version
+	w8(out, 7); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
 	w8(out, wav->bitsPerSample);			// bits
@@ -395,9 +395,22 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				}
 			}
 
-			// Copy encoded samples to output buffer
-			for (int j=0; j<nframes; j++)
-				memcpy(dest + (i + wav->channels * j) * kVADPCMFrameByteSize, destchan + j * kVADPCMFrameByteSize, kVADPCMFrameByteSize);
+			// Block-planar layout: for each block of B frames, all L then all R
+			// (mono unchanged). One ring fill maps to one file block.
+			const int B = 128;
+			for (int j=0; j<nframes; j++) {
+				int dstj;
+				if (wav->channels == 1) {
+					dstj = j;
+				} else {
+					int block = j / B;
+					int off = j % B;
+					int nblocks = (nframes + B - 1) / B;
+					int bs = (block == nblocks - 1) ? (nframes - block * B) : B;
+					dstj = block * B * wav->channels + i * bs + off;
+				}
+				memcpy(dest + dstj * kVADPCMFrameByteSize, destchan + j * kVADPCMFrameByteSize, kVADPCMFrameByteSize);
+			}
 			free(destchan);
 		}
 		free(schan);
@@ -435,12 +448,23 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			assert((bitpos+7)/8 == compbuflen);
 			assert(memcmp(&scratch[0], dest, dest_size) == 0);
 
-			// Compute bit offset for each skip point (O(1) lookup from full decode stats)
-			for (int i=0; i<skip_points.size(); i++) {
-				int blocks = (skip_points[i] / kVADPCMFrameSampleCount) * wav->channels;
-				assert(blocks >= 0);
-				assert(blocks < (int)bitpos_stats.size());
-				skip_bitpos[i] = bitpos_stats[blocks];
+			// Compute bit offset for each skip point (O(1) lookup from full decode stats).
+			// Bitpos is the start of channel-0's frame F in the block-planar stream,
+			// so seeking can resume Huffman decoding from that point.
+			const int B = 128;
+			for (int i=0; i<(int)skip_points.size(); i++) {
+				int F = skip_points[i] / kVADPCMFrameSampleCount;
+				int idx;
+				if (wav->channels == 1) {
+					idx = F;
+				} else {
+					int block = F / B;
+					int off = F % B;
+					idx = block * B * wav->channels + off; // channel 0 within block
+				}
+				assert(idx >= 0);
+				assert(idx < (int)bitpos_stats.size());
+				skip_bitpos[i] = bitpos_stats[idx];
 			}
 		}
 
@@ -488,10 +512,22 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			
 			int16_t *out_samples = (int16_t *)malloc(wav->cnt * wav->channels * sizeof(int16_t));
 			int16_t *out_channel = (int16_t *)malloc(wav->cnt * sizeof(int16_t));
+			const int B = 128;
 			for (int i=0;i<wav->channels;i++) {		
 				uint8_t *in_channel = (uint8_t*)malloc(nframes * kVADPCMFrameByteSize);
-				for (int j=0;j<nframes;j++)
-					memcpy(in_channel + j * kVADPCMFrameByteSize, dest + (i + wav->channels * j) * kVADPCMFrameByteSize, kVADPCMFrameByteSize);
+				for (int j=0;j<nframes;j++) {
+					int srcj;
+					if (wav->channels == 1) {
+						srcj = j;
+					} else {
+						int block = j / B;
+						int off = j % B;
+						int nblocks = (nframes + B - 1) / B;
+						int bs = (block == nblocks - 1) ? (nframes - block * B) : B;
+						srcj = block * B * wav->channels + i * bs + off;
+					}
+					memcpy(in_channel + j * kVADPCMFrameByteSize, dest + srcj * kVADPCMFrameByteSize, kVADPCMFrameByteSize);
+				}
 
 				memset(&state, 0, sizeof(state));
 				vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
