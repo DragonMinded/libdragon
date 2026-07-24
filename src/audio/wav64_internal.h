@@ -5,6 +5,8 @@
 #ifndef __LIBDRAGON_WAV64_INTERNAL_H
 #define __LIBDRAGON_WAV64_INTERNAL_H
 
+#include "mixer.h"
+
 #define WAV64_ID            "WV64"    ///< WAV64 file identifier
 #define WAV64_FORMAT_RAW    0         ///< Raw audio format
 #define WAV64_FORMAT_VADPCM 1         ///< VADPCM compressed format
@@ -45,6 +47,8 @@ typedef struct wav64_state_s {
 	int base_offset;		 ///< Start of Wav64 data (as offset from start of the file)
 	int nsimul;				 ///< Number of maximum simultaneous playbacks
 	uint8_t flags;           ///< Misc flags
+	/** Codec side-data for in-mixer VADPCM mono (#waveform_t::codec). */
+	waveform_vadpcm_t vadpcm;
 } wav64_state_t;
 
 /** @brief WAV64 pluggable compression algorithm */

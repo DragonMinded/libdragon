@@ -50,11 +50,25 @@ void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
 	assertf(buf->widx == 0 && buf->ridx == 0 && buf->wpos == 0,
 		"samplebuffer_set_bps can only be called on an empty samplebuffer");
 
-	int nbytes = buf->size << SAMPLES_BPS_SHIFT(buf);
+	int nbytes = buf->size * samplebuffer_unit_bytes(buf);
 
 	int bps = bits_per_sample == 8 ? 0 : (bits_per_sample == 16 ? 1 : 2);
+	buf->unit_bytes = 0;
 	buf->ptr_and_flags = SAMPLES_PTR_MAKE(SAMPLES_PTR(buf), bps);
 	buf->size = nbytes >> bps;
+}
+
+void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes) {
+	assert(unit_bytes > 0);
+	assertf(buf->widx == 0 && buf->ridx == 0 && buf->wpos == 0,
+		"samplebuffer_set_unit_bytes can only be called on an empty samplebuffer");
+
+	int nbytes = buf->size * samplebuffer_unit_bytes(buf);
+	buf->unit_bytes = (uint8_t)unit_bytes;
+	// Keep a dummy bps of 0 (1 byte) in the tagged pointer; real sizing
+	// comes from unit_bytes.
+	buf->ptr_and_flags = SAMPLES_PTR_MAKE(SAMPLES_PTR(buf), 0);
+	buf->size = nbytes / unit_bytes;
 }
 
 void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read) {
@@ -80,64 +94,47 @@ void samplebuffer_close(samplebuffer_t *buf) {
 }
 
 void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
-	// ROUNDUP8_BPS rounds up the specified number of samples
-	// (given the bps shift) so that they span an exact multiple
-	// of 8 bytes. This will be applied to the number of samples
-	// requested to wv_read(), to make sure that we always
-	// keep the sample buffer filled with a multiple of 8 bytes.
-	// This is not strictly required because dma_read() can do wonders,
-	// but it results in slightly faster DMA transfers and its almost free
-	// to do here.
-	/// @cond
-	#define ROUNDUP8_BPS(nsamples, bps) \
-		(((nsamples)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps)))
-	/// @endcond
-
-	int bps = SAMPLES_BPS_SHIFT(buf);
+	// Round up the requested length so the resulting byte span is a
+	// multiple of 8 (faster PI/RSP DMA). For power-of-two unit sizes this
+	// is the classic ROUNDUP8_BPS; for arbitrary unit_bytes (VADPCM frames)
+	// we round the unit count up to a multiple of 8.
+	int ub = samplebuffer_unit_bytes(buf);
+	int round_len = *wlen;
+	if (buf->unit_bytes) {
+		round_len = ROUND_UP(round_len, 8);
+	} else {
+		int bps = SAMPLES_BPS_SHIFT(buf);
+		round_len = ((round_len)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps));
+	}
 
 	tracef("samplebuffer_get: wpos=%x wlen=%x\n", wpos, *wlen);
 
 	if (buf->widx == 0 || wpos < buf->wpos || wpos > buf->wpos+buf->widx) {
-		// If the requested position is totally outside
-		// the existing range (and not even consecutive),
-		// Flush the buffer and decode from scratch.
-		// Normally this is because of seeking, but might
-		// also be just because we discarded all the contents
-		// of the buffer, so be sure to set seeking only if
-		// the position is different from what we expected.
 		tracef("samplebuffer_get: flushing buffer: buf->widx=%x buf->wpos=%x buf->wnext=%x\n", buf->widx, buf->wpos, buf->wnext);
 		bool seeking = wpos != buf->wnext;	
 		samplebuffer_flush(buf);
 		buf->wpos = wpos;
-		// Avoid setting a position that is odd, because it would case a
-		// 2-byte phase change in the sample buffer, which would make 
-		// impossible to call dma_read.
-		int len = *wlen;
-		if ((buf->wpos << bps) & 1) {
+		int len = round_len;
+		// For PCM, keep 2-byte phase so dma_read stays happy.
+		if (!buf->unit_bytes && (buf->wpos * ub) & 1) {
 			buf->wpos--; len++;
 		}
-		buf->wv_read(buf->wave->ctx, buf, buf->wpos, ROUNDUP8_BPS(len, bps), seeking);
+		buf->wv_read(buf->wave->ctx, buf, buf->wpos, len, seeking);
 		buf->wnext = buf->wpos + buf->widx;
 	} else {
-		// Record first sample that we still need to keep in the sample
-		// buffer. This is important to do now because decoder_read might
-		// push more samples than required into the buffer and force
-		// to compact the buffer. We thus need to know which samples
-		// are still required.
 		buf->ridx = wpos - buf->wpos;
-
-		// Part of the requested samples are already in the sample buffer.
-		// Check how many we can reuse. For instance, if there's a waveform
-		// loop, the whole loop might already be in the sample buffer, so
-		// no further decoding is necessary.
 		int reuse = buf->wpos + buf->widx - wpos;
-
-		// If the existing samples are not enough, read the missing
-		// through the callback.
 		if (reuse < *wlen) {
 			tracef("samplebuffer_get: read missing: reuse=%x wpos=%x wlen=%x\n", reuse, wpos, *wlen);
 			assertf(wpos+reuse == buf->wnext, "wpos:%x reuse:%x buf->wnext:%x", wpos, reuse, buf->wnext);
-			buf->wv_read(buf->wave->ctx, buf, wpos+reuse, ROUNDUP8_BPS(*wlen-reuse, bps), false);
+			int missing = *wlen - reuse;
+			if (buf->unit_bytes)
+				missing = ROUND_UP(missing, 8);
+			else {
+				int bps = SAMPLES_BPS_SHIFT(buf);
+				missing = ((missing)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps));
+			}
+			buf->wv_read(buf->wave->ctx, buf, wpos+reuse, missing, false);
 			buf->wnext = buf->wpos + buf->widx;
 		}
 	}
@@ -147,15 +144,11 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		"wpos:%x buf->wpos:%x buf->widx:%x", wpos, buf->wpos, buf->widx);
 
 	int idx = wpos - buf->wpos;
-
-	// If the sample buffer contains less samples than requested,
-	// report that by updating *wlen. This will cause cracks in the
-	// audio as silence will be inserted by the mixer.
 	int len = buf->widx - idx;
 	if (len < *wlen)
 		*wlen = len;
 
-	return SAMPLES_PTR(buf) + (idx << SAMPLES_BPS_SHIFT(buf));
+	return (uint8_t*)SAMPLES_PTR(buf) + idx * ub;
 }
 
 void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
@@ -168,17 +161,21 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 			"samplebuffer_append: invalid consistency check\n"
 			"widx:%x ridx:%x\n", buf->widx, buf->ridx);
 
-		// Rollback ridx until it hit a 8-byte aligned position.
-		// This preserves the guarantee that samplebuffer_append
-		// will always return a 8-byte aligned pointer, which is
-		// good for DMA purposes.
+		// Rollback ridx until it hits an 8-byte aligned position.
+		int ub = samplebuffer_unit_bytes(buf);
 		int ridx = buf->ridx;
-		while ((ridx << SAMPLES_BPS_SHIFT(buf)) & 7)
+		while ((ridx * ub) & 7)
 			ridx--;
 		samplebuffer_discard(buf, buf->wpos+ridx);
 	}
 
-	assertf(((buf->wpos<< SAMPLES_BPS_SHIFT(buf)) % 2) == 0, "buf->wpos:%x", buf->wpos);
+	int ub = samplebuffer_unit_bytes(buf);
+	// PCM buffers must keep a 2-byte phase between wpos and the buffer start
+	// so that dfs read() can DMA directly into it. Frame-based buffers
+	// (unit_bytes != 0, e.g. VADPCM) can legitimately reach any byte phase
+	// (a loop whose length is an odd number of frames does), and their read
+	// callbacks handle unaligned destinations.
+	assertf(buf->unit_bytes || ((buf->wpos * ub) % 2) == 0, "buf->wpos:%x", buf->wpos);
 
 	// If there is still not space in the buffer, it means that the
 	// buffer is too small for this append call. This is a logic error,
@@ -209,7 +206,7 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 	// area (e.g. an RSP VADPCM decode enqueued right after this call).
 	buf->prod_round = __mixer_round_producer();
 
-	void *data = SAMPLES_PTR(buf) + (buf->widx << SAMPLES_BPS_SHIFT(buf));
+	void *data = (uint8_t*)SAMPLES_PTR(buf) + buf->widx * ub;
 	buf->widx += wlen;
 	return data;
 }
@@ -233,22 +230,27 @@ void samplebuffer_discard(samplebuffer_t *buf, int wpos) {
 	if (idx > buf->widx)
 		idx = buf->widx;
 
-	int bps = SAMPLES_BPS_SHIFT(buf);
+	int ub = samplebuffer_unit_bytes(buf);
 
-	// Align the discard position down to 8 bytes. This preserves the 2-byte
-	// phase of the waveform address (which helps waveform implementations
-	// that want to use dma_read()), and additionally keeps the source of the
-	// compaction move 8-byte aligned, as required by the RSP fast path below.
-	idx &= ~((8 >> bps) - 1);
+	// Align the discard position down so the byte offset is a multiple of 8.
+	// For power-of-two unit sizes this matches the legacy (8>>bps) mask; for
+	// arbitrary unit_bytes, step back one unit at a time.
+	if (buf->unit_bytes) {
+		while (idx > 0 && ((idx * ub) & 7))
+			idx--;
+	} else {
+		int bps = SAMPLES_BPS_SHIFT(buf);
+		idx &= ~((8 >> bps) - 1);
+	}
 	if (idx == 0)
 		return;
 
 	tracef("samplebuffer_discard: wpos=%x idx:%x buf->wpos=%x buf->widx=%x\n", wpos, idx, buf->wpos, buf->widx);
-	int kept_bytes = (buf->widx - idx) << bps;
+	int kept_bytes = (buf->widx - idx) * ub;
 	if (kept_bytes > 0) {		
 		tracef("samplebuffer_discard: compacting buffer, moving 0x%x bytes\n", kept_bytes);
 
-		uint8_t *src = SAMPLES_PTR(buf) + (idx << bps);
+		uint8_t *src = (uint8_t*)SAMPLES_PTR(buf) + idx * ub;
 		uint8_t *dst = SAMPLES_PTR(buf);
 		assert(((uint32_t)dst & 7) == 0);
 

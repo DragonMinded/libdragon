@@ -90,8 +90,16 @@ typedef struct samplebuffer_s {
      */
     sample_ptr_t ptr_and_flags;
 
+    /**
+     * Bytes per logical unit when not a power-of-two sample width.
+     * 0 means "use 1 << SAMPLES_BPS_SHIFT(buf)" (PCM path). Non-zero is used
+     * for compressed frame stores (e.g. 9 for mono VADPCM frames). In that
+     * mode wpos/widx/size are counted in units (frames), not PCM samples.
+     */
+    uint8_t unit_bytes;
+
     /** 
-     * Size of the buffer (in samples).
+     * Size of the buffer (in samples, or units if unit_bytes != 0).
      **/
     int size;
 
@@ -223,10 +231,30 @@ bool samplebuffer_is_inited(samplebuffer_t *buf);
  * 2 for either 8-bit interleaved stereo or 16-bit mono, and 4 for 16-bit
  * interleaved stereo.
  * 
+ * Clears any previous #samplebuffer_set_unit_bytes setting.
+ * 
  * @param[in]   buf     Sample buffer
  * @param[in]   bps     Bytes per sample.
  */
 void samplebuffer_set_bps(samplebuffer_t *buf, int bps);
+
+/**
+ * @brief Configure a non-power-of-two unit size (compressed frames).
+ *
+ * After this call, wpos/widx/size are expressed in units of `unit_bytes`
+ * each (e.g. VADPCM frames of 9 bytes). The buffer must be empty.
+ *
+ * @param[in]   buf          Sample buffer
+ * @param[in]   unit_bytes   Bytes per unit (must be > 0)
+ */
+void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes);
+
+/**
+ * @brief Bytes per logical unit in the sample buffer.
+ */
+static inline int samplebuffer_unit_bytes(const samplebuffer_t *buf) {
+	return buf->unit_bytes ? (int)buf->unit_bytes : (1 << SAMPLES_BPS_SHIFT(buf));
+}
 
 /**
  * Connect a waveform reader callback to this sample buffer. The waveform

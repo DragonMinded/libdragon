@@ -224,6 +224,120 @@ static bool test_vadpcm(int nframes, bool stereo, int seed, int out_misalign) {
     return ok;
 }
 
+// ---------------------------------------------------------------------------
+// In-mixer VADPCM path (MIX_CHANNEL + CH_FLAGS_VADPCM)
+// ---------------------------------------------------------------------------
+
+#define CH_FLAGS_16BIT       (1<<2)
+#define CH_FLAGS_VADPCM      (1<<5)
+#define CH_FLAGS_CLEAR_ACCUM (1<<7)
+#define MIXER_FX64_FRAC      12
+
+static bool test_vadpcm_inmixer(int nframes, int seed) {
+    my_srand(seed);
+
+    wav64_vadpcm_vector_t *codebook = malloc_uncached(16 * sizeof(wav64_vadpcm_vector_t));
+    gen_codebook(codebook);
+
+    wav64_vadpcm_vector_t *state_rsp = malloc_uncached(sizeof(wav64_vadpcm_vector_t));
+    memset(state_rsp, 0, sizeof(*state_rsp));
+    wav64_vadpcm_vector_t state_ref;
+    memset(&state_ref, 0, sizeof(state_ref));
+
+    int in_bytes = 9 * nframes;
+    uint8_t *frames = malloc_uncached(in_bytes + 16);
+    gen_frames(frames, nframes);
+
+    int nsamples = nframes * 16;
+    int16_t *ref_out = malloc(nsamples * 2);
+    vadpcm_error err = vadpcm_decode(NPREDICTORS, ORDER, codebook, &state_ref,
+        nframes, ref_out, frames);
+    assertf(err == 0, "reference decode error: %d", err);
+
+    int32_t *out = malloc_uncached(nsamples * 4);
+    memset(out, 0, nsamples * 4);
+
+    uint32_t step = 1u << MIXER_FX64_FRAC;
+    int16_t vol = 0x7FFF;
+    uint32_t flags = CH_FLAGS_VADPCM | CH_FLAGS_16BIT | CH_FLAGS_CLEAR_ACCUM;
+
+    // Warm up the per-channel volume filter: XVOL starts at 0 in the overlay
+    // saved state and converges to the channel volume via the one-tap filter
+    // (one step every 8 samples), so run a few full discarded rounds first.
+    // The warm-up loops over the same frames with a throwaway decoder state.
+    wav64_vadpcm_vector_t *state_warm = malloc_uncached(sizeof(wav64_vadpcm_vector_t));
+    memset(state_warm, 0, sizeof(*state_warm));
+    int32_t *warm_out = malloc_uncached(256 * 4);
+    for (int i = 0; i < 4; i++) {
+        rspq_highpri_begin();
+        rspq_write_t w = rspq_write_begin(__mixer_overlay_id, 0x0, 12);
+        rspq_write_arg(&w, (0u << 16) | ((flags & 0xFF) << 8));
+        rspq_write_arg(&w, ((uint32_t)(uint16_t)vol << 16) | (uint16_t)vol);
+        rspq_write_arg(&w, 0);
+        rspq_write_arg(&w, step);
+        rspq_write_arg(&w, (uint32_t)nsamples << MIXER_FX64_FRAC);
+        rspq_write_arg(&w, (uint32_t)nsamples << MIXER_FX64_FRAC);
+        rspq_write_arg(&w, PhysicalAddr(frames));
+        rspq_write_arg(&w, 256);
+        rspq_write_arg(&w, PhysicalAddr(codebook));
+        rspq_write_arg(&w, PhysicalAddr(state_warm));
+        rspq_write_arg(&w, 0);
+        rspq_write_arg(&w, 0);
+        rspq_write_end(&w);
+        rspq_write(__mixer_overlay_id, 0x4, 256, PhysicalAddr(warm_out), 1);
+        rspq_highpri_end();
+    }
+    rspq_wait();
+    free_uncached(state_warm);
+    free_uncached(warm_out);
+
+    rspq_highpri_begin();
+    rspq_write_t w = rspq_write_begin(__mixer_overlay_id, 0x0, 12);
+    rspq_write_arg(&w, (0u << 16) | ((flags & 0xFF) << 8));
+    rspq_write_arg(&w, ((uint32_t)(uint16_t)vol << 16) | (uint16_t)vol);
+    rspq_write_arg(&w, 0);
+    rspq_write_arg(&w, step);
+    rspq_write_arg(&w, 0xFFFFFFFFu);
+    rspq_write_arg(&w, 0);
+    rspq_write_arg(&w, PhysicalAddr(frames));
+    rspq_write_arg(&w, (uint32_t)nsamples);
+    rspq_write_arg(&w, PhysicalAddr(codebook));
+    rspq_write_arg(&w, PhysicalAddr(state_rsp));
+    rspq_write_arg(&w, 0);
+    rspq_write_arg(&w, 0);
+    rspq_write_end(&w);
+    rspq_write(__mixer_overlay_id, 0x4, (uint32_t)nsamples, PhysicalAddr(out), 1);
+    rspq_highpri_end();
+    rspq_wait();
+
+    // The in-mixer path multiplies by the filtered volume with vmulf, so it
+    // cannot be bit-exact: XVOL settles at 0x7FFE/0x7FFF, which can shift
+    // full-scale samples by up to 2 LSB.
+    bool ok = true;
+    int16_t *stereo = (int16_t*)out;
+    for (int i = 0; i < nsamples; i++) {
+        int16_t l = stereo[i*2], r = stereo[i*2+1];
+        int d0 = l - ref_out[i], d1 = r - ref_out[i];
+        if (d0 < -2 || d0 > 2 || d1 < -2 || d1 > 2) {
+            printf("FAILED in-mixer: nframes=%d seed=%d sample %d: L=%d R=%d ref=%d\n",
+                nframes, seed, i, l, r, ref_out[i]);
+            ok = false;
+            break;
+        }
+    }
+    if (ok && memcmp(state_rsp, &state_ref, sizeof(state_ref)) != 0) {
+        printf("FAILED in-mixer: nframes=%d seed=%d: state mismatch\n", nframes, seed);
+        ok = false;
+    }
+
+    free_uncached(codebook);
+    free_uncached(state_rsp);
+    free_uncached(frames);
+    free_uncached(out);
+    free(ref_out);
+    return ok;
+}
+
 int main(void)
 {
     debug_init_emulog();
@@ -269,6 +383,16 @@ int main(void)
                         failed++;
                 }
             }
+        }
+    }
+
+    // In-mixer mono VADPCM (MIX_CHANNEL path). Cap at 16 frames (256 samples).
+    int inmix_frames[] = { 1, 2, 8, 16 };
+    for (int s = 0; s < 4; s++) {
+        for (int fc = 0; fc < 4; fc++) {
+            total++;
+            if (!test_vadpcm_inmixer(inmix_frames[fc], s + 1))
+                failed++;
         }
     }
 #endif
