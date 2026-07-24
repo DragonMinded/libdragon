@@ -582,28 +582,22 @@ int xm_convert(const char *infn, const char *outfn) {
 						n = ch->sample->length;
 					}
 
-					// Convert samples to bytes (compressed samples are always 16-bit)
-					if (ch->sample->bits == 16 || flag_xm_compress_samples > 0)
-						n *= 2;
-
-					// Take overread buffer into account
-					n += MIXER_LOOP_OVERREAD;
-
 					if (flag_xm_compress_samples > 0) {
-						// Runtime VADPCM decoding rounds up each decode request to
-						// 32 *samples* (wav64_vadpcm_read), not 32 bytes.
-						// For mono decoded as 16-bit this means 64-byte granularity.
-						// Keep one full decode quantum of extra room to absorb
-						// round-up when part of the requested region is already
-						// cached in the samplebuffer.
-						const int vadpcm_decode_quantum = 64;
-						n = (n + vadpcm_decode_quantum - 1) / vadpcm_decode_quantum * vadpcm_decode_quantum;
-						n += vadpcm_decode_quantum;
-
-						// During loop wrapping, a single tick read may be split into
-						// two decode calls, each with its own round-up behavior.
+						// In-mixer VADPCM: the samplebuffer stores compressed
+						// 9-byte frames (16 samples each), not decoded PCM.
+						// Size the buffer in the compressed domain (~3.5x smaller).
+						int nframes = (n + 15) / 16;
+						// Overread a few frames so resampling can run past the
+						// requested window without forcing an immediate refill.
+						nframes += (MIXER_LOOP_OVERREAD + 8) / 9;
+						nframes += 2;
 						if (ch->sample->loop_type)
-							n += vadpcm_decode_quantum;
+							nframes += 2;
+						n = nframes * 9;
+					} else {
+						if (ch->sample->bits == 16)
+							n *= 2;
+						n += MIXER_LOOP_OVERREAD;
 					}
 
 					// Keep the maximum

@@ -145,8 +145,14 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	int ext_size = head.start_offset - sizeof(wav64_header_t);
 	bool preload = parms->streaming_mode == WAV64_STREAMING_NONE;
-	int preload_size = ROUND_UP(head.len * head.channels * (head.nbits >> 3), 16);
-	int preload_extra_alloc = ROUND_UP(head.format == WAV64_FORMAT_RAW ? 0 : 4096, 16);
+	// Mono VADPCM preloads stay compressed (9 bytes/frame); stereo still
+	// decompresses to PCM and is reinitialized as RAW.
+	bool preload_vadpcm_mono = preload && head.format == WAV64_FORMAT_VADPCM && head.channels == 1;
+	int preload_size = preload_vadpcm_mono
+		? ROUND_UP((head.len / 16) * 9, 16)
+		: ROUND_UP(head.len * head.channels * (head.nbits >> 3), 16);
+	int preload_extra_alloc = ROUND_UP(
+		(head.format == WAV64_FORMAT_RAW || preload_vadpcm_mono) ? 0 : 4096, 16);
 	int state_size = ROUND_UP(head.state_size, 16);
 
 	// Calculate required allocation
@@ -206,26 +212,43 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		data_cache_hit_invalidate(heap + heap_off_samples, preload_size + preload_extra_alloc + state_size);
 		wav->st->samples = UncachedAddr(heap + heap_off_samples);
 
-		int wlen = wav->wave.len;
 		samplebuffer_t sbuf;
 		samplebuffer_init(&sbuf, wav->st->samples, preload_size + preload_extra_alloc, state_size);
-		samplebuffer_set_bps(&sbuf, wav->wave.bits);
-		samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read);
-		if (wav->wave.start) wav->wave.start(wav->wave.ctx, &sbuf);
-		samplebuffer_get(&sbuf, 0, &wlen);
-		rspq_highpri_sync();
-		assertf(wlen == wav->wave.len, "wav64: preload failed for %s: wlen=%x/%x", wav->wave.name, wlen, wav->wave.len);
+		if (wav->wave.format == WAVEFORM_FORMAT_VADPCM) {
+			int nframes = wav->wave.len / 16;
+			int wlen = nframes;
+			// st->samples is the destination buffer; clear it while reading so the
+			// read callback streams from the file instead of memcpy'ing itself.
+			void *dst = wav->st->samples;
+			wav->st->samples = NULL;
+			samplebuffer_set_unit_bytes(&sbuf, 9);
+			samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read);
+			if (wav->wave.start) wav->wave.start(wav->wave.ctx, &sbuf);
+			samplebuffer_get(&sbuf, 0, &wlen);
+			assertf(wlen == nframes, "wav64: preload failed for %s: wlen=%x/%x", wav->wave.name, wlen, nframes);
+			wav->st->samples = dst;
+			// Drop Huffman tables (frames are plain now); keep ext for codebook.
+			if (algos[wav->st->format].close)
+				algos[wav->st->format].close(wav);
+		} else {
+			int wlen = wav->wave.len;
+			samplebuffer_set_bps(&sbuf, wav->wave.bits * wav->wave.channels);
+			samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read);
+			if (wav->wave.start) wav->wave.start(wav->wave.ctx, &sbuf);
+			samplebuffer_get(&sbuf, 0, &wlen);
+			rspq_highpri_sync();
+			assertf(wlen == wav->wave.len, "wav64: preload failed for %s: wlen=%x/%x", wav->wave.name, wlen, wav->wave.len);
 
-		// Now remove the extra allocation
-		if (algos[wav->st->format].close)
-			algos[wav->st->format].close(wav);
+			if (algos[wav->st->format].close)
+				algos[wav->st->format].close(wav);
 
-		wav->st = realloc(wav->st, heap_off_preload_end);
-		wav->st->ext = NULL;
+			wav->st = realloc(wav->st, heap_off_preload_end);
+			wav->st->ext = NULL;
 
-		// Reinitialize as RAW format after preloading
-		wav->st->format = WAV64_FORMAT_RAW;
-		algos[wav->st->format].init(wav, head.state_size);
+			// Reinitialize as RAW format after preloading
+			wav->st->format = WAV64_FORMAT_RAW;
+			algos[wav->st->format].init(wav, head.state_size);
+		}
 	}
 
 	return wav;
