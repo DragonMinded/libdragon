@@ -7,6 +7,13 @@
 
 #define VADPCM_FLAG_HUFFMAN      (1 << 0)	///< Huffman-encoded VADPCM
 
+/**
+ * Stereo VADPCM file layout: blocks of this many frames per channel, alternating
+ * L then R (mono is a single linear plane). Matches #SAMPLEBUFFER_MARGIN_UNITS
+ * so one ring fill is one file block.
+ */
+#define WAV64_VADPCM_BLOCK_FRAMES  128
+
 /** @brief A vector of audio samples */
 typedef struct __attribute__((aligned(8))) {
 	int16_t v[8];						///< Samples
@@ -72,5 +79,8 @@ int wav64_vadpcm_get_bitrate(wav64_t *wav);
 
 /** @brief Adjust a requested seek position (samples) to a valid VADPCM skip point (samples). */
 int wav64_vadpcm_adjust_seek(wav64_t *wav, int wpos);
+
+/** @brief Preload VADPCM body into a fully-planar plain-frame buffer at `dst`. */
+void wav64_vadpcm_preload(wav64_t *wav, void *dst);
 
 #endif

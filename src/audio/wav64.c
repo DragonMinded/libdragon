@@ -35,9 +35,6 @@
 /** ID of a WAVX file (big-endian WAV) */
 #define WAV_RIFX_ID   "RIFX"
 
-/** @brief Profile of DMA usage by WAV64, used for debugging purposes. */
-int64_t __wav64_profile_dma = 0;
-
 /** @brief None compression init function */
 static void wav64_none_init(wav64_t *wav, int state_size);
 /** @brief None compression get_bitrate function */
@@ -60,13 +57,16 @@ static wav64_compression_t algos[WAV64_NUM_FORMATS] = {
 };
 
 static void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, int wlen, int bps) {
-	uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
-	int bytes = wlen << bps;
+	while (wlen > 0) {
+		int n = MIN(wlen, SAMPLEBUFFER_MARGIN_UNITS);
+		uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, n);
+		int bytes = n << bps;
 
-	// FIXME: remove CachedAddr() when read() supports uncached addresses
-	uint32_t t0 = TICKS_READ();
-	read(current_fd, CachedAddr(ram_addr), bytes);
-	__wav64_profile_dma += TICKS_READ() - t0;
+		// FIXME: remove CachedAddr() when read() supports uncached addresses
+		read(current_fd, CachedAddr(ram_addr), bytes);
+		wlen -= n;
+		wpos += n;
+	}
 }
 
 static void wav64_none_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
@@ -79,21 +79,14 @@ static void wav64_none_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen,
 	raw_waveform_read(sbuf, wav->st->current_fd, wpos, wlen, bps);
 }
 
-static void wav64_none_read_memcopy(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
-	wav64_t *wav = (wav64_t*)sbuf->wave;
-	int bps = (wav->wave.bits == 8 ? 0 : 1) + (wav->wave.channels == 2 ? 1 : 0);
-	
-	uint8_t* src_addr = wav->st->samples + (wpos << bps);
-	uint8_t* dst_addr = (uint8_t*)samplebuffer_append(sbuf, wlen);
-	memcpy(dst_addr, src_addr, wlen << bps);
-}
-
 static void wav64_none_init(wav64_t *wav, int state_size) {
-	// Initialize none compression. Setup read callback
+	// Initialize none compression. Setup read callback for streaming;
+	// preloaded waveforms set wave->mem and need no read callback.
 	if (!wav->st->samples) {
 		wav->wave.read = wav64_none_read;
 	} else {
-		wav->wave.read = wav64_none_read_memcopy;
+		wav->wave.read = NULL;
+		wav->wave.mem = wav->st->samples;
 	}
 	// Also clear start callback (needed in the preloading codepath)
 	wav->wave.start = NULL;
@@ -137,7 +130,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		assertf(0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
 			file_name, head.id[0], head.id[1], head.id[2], head.id[3]);
 	}
-	assertf(head.version == 6, "wav64 %s: invalid version: %02x\n",
+	assertf(head.version == 7, "wav64 %s: invalid version: %02x\n",
 		file_name, head.version);
 	assertf(head.format < WAV64_NUM_FORMATS, "Unknown wav64 compression format %d; corrupted file?", head.format);
 	assertf(head.format < WAV64_NUM_FORMATS && algos[head.format].init != NULL,
@@ -145,14 +138,20 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	int ext_size = head.start_offset - sizeof(wav64_header_t);
 	bool preload = parms->streaming_mode == WAV64_STREAMING_NONE;
-	// Mono VADPCM preloads stay compressed (9 bytes/frame); stereo still
-	// decompresses to PCM and is reinitialized as RAW.
-	bool preload_vadpcm_mono = preload && head.format == WAV64_FORMAT_VADPCM && head.channels == 1;
-	int preload_size = preload_vadpcm_mono
-		? ROUND_UP((head.len / 16) * 9, 16)
+	// VADPCM preloads stay compressed (9 bytes/frame/channel), laid out fully
+	// planar in RDRAM for direct MIX_CHANNEL addressing.
+	bool preload_vadpcm = preload && head.format == WAV64_FORMAT_VADPCM;
+	int nframes = head.len / 16;
+	int preload_size = preload_vadpcm
+		? ROUND_UP(nframes * 9 * head.channels, 16)
 		: ROUND_UP(head.len * head.channels * (head.nbits >> 3), 16);
+	if (preload && !preload_vadpcm) {
+		int ub = head.channels * (head.nbits >> 3);
+		preload_size += SAMPLEBUFFER_MARGIN_UNITS * ub;
+		preload_size = ROUND_UP(preload_size, 16);
+	}
 	int preload_extra_alloc = ROUND_UP(
-		(head.format == WAV64_FORMAT_RAW || preload_vadpcm_mono) ? 0 : 4096, 16);
+		(head.format == WAV64_FORMAT_RAW || preload_vadpcm) ? 0 : 4096, 16);
 	int state_size = ROUND_UP(head.state_size, 16);
 
 	// Calculate required allocation
@@ -160,7 +159,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	heap_size += ROUND_UP(sizeof(wav64_state_t), 16);				// wav64_state_t
 
 	int heap_off_waveform = heap_size;
-	if (!wav) heap_size += ROUND_UP(sizeof(waveform_t), 16);		// Waveform
+	if (!wav) heap_size += ROUND_UP(sizeof(wav64_t), 16);		// wav64_t (wave + st)
 
 	int heap_off_name = heap_size;
 	heap_size += ROUND_UP(strlen(file_name) + 1, 16);				// Filename
@@ -212,25 +211,14 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		data_cache_hit_invalidate(heap + heap_off_samples, preload_size + preload_extra_alloc + state_size);
 		wav->st->samples = UncachedAddr(heap + heap_off_samples);
 
-		samplebuffer_t sbuf;
-		samplebuffer_init(&sbuf, wav->st->samples, preload_size + preload_extra_alloc, state_size);
 		if (wav->wave.format == WAVEFORM_FORMAT_VADPCM) {
-			int nframes = wav->wave.len / 16;
-			int wlen = nframes;
-			// st->samples is the destination buffer; clear it while reading so the
-			// read callback streams from the file instead of memcpy'ing itself.
-			void *dst = wav->st->samples;
-			wav->st->samples = NULL;
-			samplebuffer_set_unit_bytes(&sbuf, 9);
-			samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read);
-			if (wav->wave.start) wav->wave.start(wav->wave.ctx, &sbuf);
-			samplebuffer_get(&sbuf, 0, &wlen);
-			assertf(wlen == nframes, "wav64: preload failed for %s: wlen=%x/%x", wav->wave.name, wlen, nframes);
-			wav->st->samples = dst;
-			// Drop Huffman tables (frames are plain now); keep ext for codebook.
+			wav64_vadpcm_preload(wav, wav->st->samples);
+			wav->wave.mem = wav->st->samples;
 			if (algos[wav->st->format].close)
 				algos[wav->st->format].close(wav);
 		} else {
+			samplebuffer_t sbuf;
+			samplebuffer_init(&sbuf, wav->st->samples, preload_size + preload_extra_alloc, state_size);
 			int wlen = wav->wave.len;
 			samplebuffer_set_bps(&sbuf, wav->wave.bits * wav->wave.channels);
 			samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read);

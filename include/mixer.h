@@ -378,8 +378,8 @@ void mixer_unthrottle(void);
  * A common pattern would be to call #audio_write_begin to obtain an audio
  * buffer's pointer, and pass it to mixer_poll.
  *
- * mixer_poll performs mixing using RSP. If RSP is busy, mixer_poll will
- * spin-wait until the RSP is free, to perform audio processing.
+ * mixer_poll performs mixing using RSP: it enqueues the mix commands in the
+ * high priority queue and waits for the RSP to execute them before returning.
  *
  * Since the N64 AI can only be fed with an even number of samples, mixer_poll
  * does not accept odd numbers.
@@ -557,9 +557,10 @@ typedef enum {
 	/** Interleaved PCM samples (8/16-bit). Default. */
 	WAVEFORM_FORMAT_PCM = 0,
 	/**
-	 * Mono VADPCM: the samplebuffer holds compressed 9-byte frames; the mixer
-	 * ucode decodes them in DMEM during mixing. Stereo VADPCM is not supported
-	 * in this mode (use PCM / legacy decompress-to-samplebuffer instead).
+	 * Mono or stereo VADPCM: the samplebuffer holds compressed 9-byte frames
+	 * (one plane per mixer channel); the mixer ucode decodes them in DMEM
+	 * during mixing. Stereo files are block-planar on disk and use two
+	 * consecutive mixer channels as independent mono VADPCM streams.
 	 */
 	WAVEFORM_FORMAT_VADPCM = 1,
 } waveform_format_t;
@@ -593,7 +594,6 @@ typedef struct waveform_s {
      * 
      * Supported values are 1 and 2 (mono and stereo waveforms). Notice that
      * a stereo waveform will use two consecutive mixer channels to be played back.
-     * #WAVEFORM_FORMAT_VADPCM requires channels == 1.
      */
 	uint8_t channels;
 
@@ -665,6 +665,16 @@ typedef struct waveform_s {
 	 * must outlive playback. NULL for PCM.
 	 */
 	void *codec;
+
+	/**
+	 * @brief Resident sample data in RDRAM, or NULL if streamed.
+	 *
+	 * When non-NULL, the mixer addresses these bytes directly (PCM samples
+	 * or compressed VADPCM frames) and does not allocate a samplebuffer for
+	 * this waveform. #read is still invoked for seeking side-effects when
+	 * #state_size is non-zero (e.g. VADPCM predictor state).
+	 */
+	const void *mem;
 
      ///@cond
      ///  Mixer private state. Do not touch, initialize to zero

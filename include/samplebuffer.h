@@ -1,7 +1,7 @@
 /**
  * @file samplebuffer.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @brief Sample buffer 
+ * @brief Sample buffer (ring FIFO)
  * @ingroup mixer
  */
 
@@ -19,7 +19,7 @@ extern "C" {
 typedef struct waveform_s waveform_t;
 /// @endcond
 
-/** 
+/**
  * Tagged pointer to an array of samples. It contains both the void*
  * sample pointer, and byte-per-sample information (encoded as shift value).
  */
@@ -47,37 +47,27 @@ typedef uint32_t sample_ptr_t;
 #define SAMPLES_PTR_MAKE(ptr, bps)  ((sample_ptr_t)(ptr) | (bps))
 
 /**
- * samplebuffer_t is a circular buffer of samples. It is used by the mixer
- * to store and cache the samples required for playback on each channel.
- * The mixer creates a sample buffer for each initialized channel. The size
- * of the buffers is calculated for optimal playback, and might grow depending
- * on channel usage (what waveforms are played on each channel).
+ * Maximum window (in units) that #samplebuffer_get / #samplebuffer_append may
+ * request. Matches the ring tail margin: one MIX_CHANNEL input span plus
+ * RSP sample-cache overread.
+ */
+#define SAMPLEBUFFER_MARGIN_UNITS  128
+
+/**
+ * samplebuffer_t is a ring FIFO of samples used by the mixer to feed the RSP.
  *
  * The mixer follows a "pull" architecture. During mixer_poll, it will call
  * samplebuffer_get() to extract samples from the buffer. If the required
  * samples are not available, the sample buffer will callback the waveform
  * decoder to produce more samples, through the WaveformRead API. The
  * waveform read function will push samples into the buffer via samplebuffer_append,
- * so that they become available for the mixer. The decoder can be configured
- * with samplebuffer_set_decoder.
+ * so that they become available for the mixer.
  *
- * The current implementation of samplebuffer does not achieve full zero copy,
- * because when the buffer is full, it is flushed and samples that need to 
- * be preserved (that is, already in the buffer but not yet played back) are
- * copied back at the beginning of the buffer with the CPU. This limitation
- * exists because the RSP ucode (rsp_audio.S) isn't currently able to "wrap around"
- * in the sample buffer. In future, this limitation could be lifted to achieve
- * full zero copy.
- *
- * The sample buffer tries to always stay 8-byte aligned to simplify operations
- * of decoders that might need to use DMA transfers (either PI DMA or RSP DMA).
- * To guarantee this property, #WaveformRead must collaborate by decoding
- * the requested number of samples. If WaveformRead decodes a different
- * number of samples, the alignment might be lost. Moreover, it always guarantees
- * that the buffer has the same 2-byte phase of the waveforms (that is, odd
- * samples of the waveforms are stored at odd addresses in memory); this is
- * the minimal property required by #dma_read (libdragon's optimized PI DMA
- * transfer for unaligned addresses).
+ * Data is stored in a circular ring with a small tail margin so that any
+ * window up to the margin size is always contiguous in physical memory
+ * (required by RSP DMA). RING_SIZE * unit_bytes is kept a multiple of 8 so
+ * that absolute waveform positions preserve their 2-byte phase in the ring
+ * (dma_read / dfs compatibility).
  *
  * In general, the sample buffer assumes that the contained data is committed
  * to physical memory, not just CPU cache. It is responsibility of the client
@@ -98,45 +88,34 @@ typedef struct samplebuffer_s {
      */
     uint8_t unit_bytes;
 
-    /** 
-     * Size of the buffer (in samples, or units if unit_bytes != 0).
+    /**
+     * Ring size in units (excludes the tail margin).
      **/
     int size;
 
     /**
      * Absolute position in the waveform of the first sample
-     * in the sample buffer (the sample at index 0). It keeps track of
-     * which part of the waveform this sample buffer contains.
+     * currently valid in the ring.
      */
     int wpos;
 
     /**
-     * Write pointer in the sample buffer (expressed as index of samples).
-     * Since sample buffers are always filled from index 0, it is also
-     * the number of samples stored in the buffer.
+     * Number of valid units currently stored in the ring.
      */
     int widx;
 
     /**
-     * Read pointer in the sample buffer (expressed as index of samples).
-     * It remembers which sample was last read. Assuming a forward
-     * streaming, it is used by the sample buffer to discard unused samples
-     * when not needed anymore.
+     * Read cursor relative to wpos (first unit still needed for playback).
      */
     int ridx;
 
     /**
-     * Value of the "next" sample to be loaded into the sample buffer,
-     * to continue a linear reading. This is used to notify the wv_read
-     * function whether a seeking was performed or not.
+     * Next absolute position expected for a linear read (for seeking detection).
      */
     int wnext;
 
     /**
      * @brief Pointer to the state of the waveform decoder.
-     * 
-     * The waveform decoder can use this pointer to store its internal
-     * state.
      */
     void *state;
 
@@ -157,43 +136,20 @@ typedef struct samplebuffer_s {
     WaveformRead wv_read;
 
     /**
-     * @brief UUID of the waveform being played back on this sample buffer.
-     */
-    uint32_t wave_uuid;
-
-    /**
      * Highest mix round id whose RSP mix command still references bytes
-     * in this buffer. Compaction must wait until that round is done.
+     * in this buffer.
      */
     uint32_t last_round;
 
-    /**
-     * High-watermark (in samples from wpos) of bytes that an in-flight RSP
-     * producer command will still write past widx. Set by samplebuffer_undo;
-     * cleared once the owning round completes.
-     */
-    int wdirty;
+    /** Total bytes allocated for the sample area (ring + margin). */
+    int capacity_bytes;
 
-    /**
-     * Mix round that owns the dirty tail (see wdirty).
-     */
-    uint32_t dirty_round;
+    /** Physical slot of wpos within the ring. */
+    int head;
 
-    /**
-     * Pending RSP-side compaction: region of the buffer (in sample-sized
-     * slots, that is byte offset >> bps) that an enqueued RSP memmove still
-     * has to read. CPU appends must not overwrite it before the RSP executes
-     * the move. wmove_end == 0 means no pending move.
-     */
-    int wmove_start;
-    /** End of the pending compaction source region (see wmove_start). */
-    int wmove_end;
-
-    /** Mix round that covers the pending compaction memmove (see wmove_start). */
-    uint32_t move_round;
-
-    /** Mix round that covers the most recent producer writes (appends). */
-    uint32_t prod_round;
+    /** Pending append into the margin that needs a mirror copy-back. */
+    int pending_slot;
+    int pending_len;
 } samplebuffer_t;
 
 /**
@@ -204,9 +160,11 @@ typedef struct samplebuffer_s {
  * in the uncached segment and not loaded in any CPU cacheline. It is
  * strongly advised to allocate the buffer via #malloc_uncached, that takes
  * care of these constraints.
- * 
+ *
  * The memory buffer will be used for storing samples and for the state.
- * 
+ * Part of the sample area is reserved as a tail margin for contiguous
+ * RSP DMA across the ring wrap.
+ *
  * @param[in]   buf              Sample buffer
  * @param[in]   uncached_mem     Memory buffer to use. Must be 8-byte aligned,
  *                               and in the uncached segment.
@@ -217,24 +175,17 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t *uncached_mem, int size, int
 
 /**
  * @brief Return true if the samplebuffer is initialized.
- * 
- * @param buf               Sample buffer
- * @return true             If the sample buffer is initialized.
- * @return false            If the sample buffer is not initialized.
  */
 bool samplebuffer_is_inited(samplebuffer_t *buf);
 
 /**
  * @brief Configure the bit width of the samples stored in the buffer.
- * 
+ *
  * Valid values for "bps" are 1, 2, or 4: 1 can be used for 8-bit mono samples,
  * 2 for either 8-bit interleaved stereo or 16-bit mono, and 4 for 16-bit
  * interleaved stereo.
- * 
+ *
  * Clears any previous #samplebuffer_set_unit_bytes setting.
- * 
- * @param[in]   buf     Sample buffer
- * @param[in]   bps     Bytes per sample.
  */
 void samplebuffer_set_bps(samplebuffer_t *buf, int bps);
 
@@ -243,9 +194,6 @@ void samplebuffer_set_bps(samplebuffer_t *buf, int bps);
  *
  * After this call, wpos/widx/size are expressed in units of `unit_bytes`
  * each (e.g. VADPCM frames of 9 bytes). The buffer must be empty.
- *
- * @param[in]   buf          Sample buffer
- * @param[in]   unit_bytes   Bytes per unit (must be > 0)
  */
 void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes);
 
@@ -257,132 +205,39 @@ static inline int samplebuffer_unit_bytes(const samplebuffer_t *buf) {
 }
 
 /**
- * Connect a waveform reader callback to this sample buffer. The waveform
- * will be use to produce samples whenever they are required by the mixer
- * as playback progresses.
- *
- * "read" is the main decoding function, that is invoked to produce a specified
- * number of samples. Normally, the function is invoked by #samplebuffer_get,
- * whenever the mixer requests more samples. See #WaveformRead for more
- * information.
- * 
- * @param[in]       buf     Sample buffer
- * @param[in]       wave    Waveform to connect to the sample buffer
- * @param[in]       read    Waveform read function
+ * Connect a waveform reader callback to this sample buffer.
  */
 void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read);
 
 /**
  * @brief Get a pointer to specific set of samples in the buffer (zero-copy).
- * 
+ *
  * "wpos" is the absolute waveform position of the first sample that the
  * caller needs access to. "wlen" is the number of requested samples.
- *
- * The function returns a pointer within the sample buffer where the samples
- * should be read, and optionally changes "wlen" with the maximum number of
- * samples that can be read. "wlen" is always less or equal to the requested value.
- *
- * If the samples are available in the buffer, they will be returned immediately.
- * Otherwise, if the samplebuffer has a sample decoder registered via
- * samplebuffer_set_decoder, the decoder "read" function is called once to
- * produce the samples.
- *
- * If "wlen" is changed with a value less than "wlen", it means that
- * not all samples were available in the buffer and it was not possible to
- * generate more, so the caller should not loop calling this function, but
- * rather use what was obtained and possibly pad with silence.
- *
- * @param[in]       buf     Sample buffer
- * @param[in]       wpos    Absolute waveform position of the first samples to
- *                          return.
- * @param[in,out]   wlen    Number of samples to return. After return, it is
- *                          modified with the actual number of samples that
- *                          have been returned.
- * @return                  Pointer to samples.
+ * wpos must be monotonic between seeks.
  */
 void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen);
 
 /**
- * @brief Append samples into the buffer (zero-copy). 
+ * @brief Append samples into the buffer (zero-copy).
  *
- * "wlen" is the number of samples that the caller will append.
- *
- * The function returns a pointer within the sample buffer where the samples
- * should be written. The samples to be written to physical memory, not just
- * CPU cache, and to enforce this, the function returns a pointer in the
- * uncached segment. Most of the times, we expect samples to be generated
- * or manipulated via RSP/DMA anyway.
- *
- * The function is meant only to "append" samples, as in add samples that are
- * consecutive within the waveform to the ones already stored in the sample
- * buffer. This is necessary because #samplebuffer_t can only store a single
- * range of samples of the waveform; there is no way to hold two disjoint
- * ranges.
- *
- * For instance, if the sample buffer currently contains 50 samples
- * starting from position 100 in the waverform, the next call to
- * samplebuffer_append will append samples starting at 150.
- *
- * If required, samplebuffer_append will discard older samples to make space
- * for the new ones, through #samplebuffer_discard. It will only discard samples
- * that come before the "wpos" specified in the last #samplebuffer_get call, so
- * to make sure that nothing required for playback is discarded. If there is
- * not enough space in the buffer, it will assert.
- * 
- * @param[in]   buf     Sample buffer
- * @param[in]   wlen    Number of samples to append.
- * @return              Pointer to the area where new samples can be written.
+ * Returns a contiguous uncached pointer where the caller must write `wlen`
+ * units. The window size must not exceed the ring margin.
  */
 void* samplebuffer_append(samplebuffer_t *buf, int wlen);
 
 /**
  * @brief Remove the a specified number of samples from the tail of the buffer.
- * 
- * This function removes the last \a wlen samples from the buffer. It can be
- * used to revert the behavior of a #samplebuffer_append call, if the data
- * written to the buffer was too much.
- * 
- * A common situation is an implementation of a waveform codec with fixed
- * audio frames. The last frame at the end of the waveform will likely need
- * to be truncated, but the compressor would have likely padded it with zeros
- * to make it the same size as the others. In this case, at playing time,
- * it is possible to call #samplebuffer_append to append the whole frame,
- * but then remove the unneeded padding with a call to #samplebuffer_undo.
- * 
- * @param buf       Sample buffer
- * @param wlen      Number of samples to remove
  */
 void samplebuffer_undo(samplebuffer_t *buf, int wlen);
 
 /**
- * Discard all samples from the buffer that come before a specified
- * absolute waveform position.
- * 
- * This function can be used to discard samples that are not needed anymore
- * in the sample buffer. "wpos" specifies the absolute position of the first
- * sample that should be kept: all samples that come before will be discarded.
- * This function will silently do nothing if there are no samples to discard.
- * 
- * @param[in]   buf     Sample buffer
- * @param[in]   wpos    Absolute waveform position of the first sample that
- *                      must be kept.
- */
-void samplebuffer_discard(samplebuffer_t *buf, int wpos);
-
-/**
  * Flush (reset) the sample buffer to empty status, discarding all samples.
- * 
- * @param[in]   buf     Sample buffer.
  */
 void samplebuffer_flush(samplebuffer_t *buf);
 
 /**
  * Close the sample buffer.
- * 
- * After calling close, the sample buffer must be initialized again before
- * using it.
- * 
- * @param[in]   buf     Sample buffer.
  */
 void samplebuffer_close(samplebuffer_t *buf);
 
