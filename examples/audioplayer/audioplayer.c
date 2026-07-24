@@ -315,14 +315,14 @@ enum Page page_song(void) {
 		{
 			uint32_t t1t = get_ticks_us();
 			uint32_t t1u = get_user_ticks();
-			uint64_t t1rsp = acct_get_ticks(ACCT_CAT_RSP);
+			uint64_t t1rsp = acct_get_ticks(ACCT_CAT_RSP) + acct_get_ticks(ACCT_CAT_RSPQ);
 			uint64_t t1dma = acct_get_ticks(ACCT_CAT_PI);
 
 			mixer_try_play();
 
 			uint32_t t2t = get_ticks_us();
 			uint32_t t2u = get_user_ticks();
-			uint64_t t2rsp = acct_get_ticks(ACCT_CAT_RSP);
+			uint64_t t2rsp = acct_get_ticks(ACCT_CAT_RSP) + acct_get_ticks(ACCT_CAT_RSPQ);
 			uint64_t t2dma = acct_get_ticks(ACCT_CAT_PI);
 
 			tot_dma += TICKS_TO_US(t2dma-t1dma);
