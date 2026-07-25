@@ -250,11 +250,12 @@ inline void __profile_record(int slot, int32_t len) {
 	 * @see PROFILE_STOP
 	 */
 	#define PROFILE_SCOPE(slot) \
-		for (int64_t __prof_start_##slot = emux_prof_start(slot), TICKS_READ() - get_system_ticks() ; ) \
-			for (int __prof_once_##slot = ({ MEMORY_BARRIER(); 1; }); __prof_once_##slot; __prof_once_##slot = 0, \
-				({ MEMORY_BARRIER(); }), \
-				emux_prof_stop(slot), \
-				__profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot))
+		for (int64_t __prof_start_##slot = TICKS_READ() - get_system_ticks(), \
+			__prof_once_##slot = ({ emux_prof_start(slot); MEMORY_BARRIER(); (int64_t)1; }); \
+			__prof_once_##slot; \
+			__prof_once_##slot = 0, \
+			({ MEMORY_BARRIER(); emux_prof_stop(slot); \
+			   __profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot); }))
 #else
 	///@cond
 	#define PROFILE_START(slot, ...)  ((void)(false), false)
