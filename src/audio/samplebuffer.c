@@ -10,6 +10,7 @@
 #include "samplebuffer.h"
 #include "n64sys.h"
 #include "n64types.h"
+#include "dma.h"
 #include "utils.h"
 #include "debug.h"
 #include <stdlib.h>
@@ -28,6 +29,13 @@ static inline uint8_t *samplebuffer_base(const samplebuffer_t *buf) {
 	return SAMPLES_PTR(buf);
 }
 
+void samplebuffer_dma_wait(samplebuffer_t *buf) {
+	if (buf->dma_ticket) {
+		dma_wait_finished(buf->dma_ticket);
+		buf->dma_ticket = 0;
+	}
+}
+
 /** Commit a pending append that may have spilled into the tail margin. */
 static void samplebuffer_commit(samplebuffer_t *buf) {
 	if (buf->pending_len <= 0)
@@ -36,13 +44,16 @@ static void samplebuffer_commit(samplebuffer_t *buf) {
 	int ring = buf->size;
 	int slot = buf->pending_slot;
 	int len = buf->pending_len;
-	// Mirror bytes written into physical [0, MARGIN) out to the tail margin.
+	// Mirror needs the DMA to have finished; otherwise leave the ticket for
+	// the mixer to wait on before the RSP consumes the window.
 	if (slot < SAMPLEBUFFER_MARGIN_UNITS) {
+		samplebuffer_dma_wait(buf);
 		int n = MIN(len, SAMPLEBUFFER_MARGIN_UNITS - slot);
 		memcpy(samplebuffer_base(buf) + (ring + slot) * ub,
 		       samplebuffer_base(buf) + slot * ub,
 		       n * ub);
 	} else if (slot + len > ring) {
+		samplebuffer_dma_wait(buf);
 		// Write crossed the ring end into the margin: mirror the overflow
 		// back to the start (producer wrote into the margin area).
 		int overflow = slot + len - ring;
@@ -117,6 +128,7 @@ bool samplebuffer_is_inited(samplebuffer_t *buf)
 }
 
 void samplebuffer_close(samplebuffer_t *buf) {
+	samplebuffer_dma_wait(buf);
 	void *ptr = SAMPLES_PTR(buf);
 	if (ptr)
 		free_uncached(ptr);
@@ -136,6 +148,7 @@ static void samplebuffer_relocate_live(samplebuffer_t *buf) {
 	uint8_t *base = samplebuffer_base(buf);
 
 	if (live > 0) {
+		samplebuffer_dma_wait(buf);
 		// RSP may still be reading this window from a prior mix round.
 		if (buf->last_round)
 			__mixer_round_wait(buf->last_round);
@@ -282,6 +295,7 @@ void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
 
 void samplebuffer_flush(samplebuffer_t *buf) {
 	samplebuffer_commit(buf);
+	samplebuffer_dma_wait(buf);
 	buf->wpos = buf->widx = buf->ridx = 0;
 	buf->head = 0;
 	buf->wnext = -1;

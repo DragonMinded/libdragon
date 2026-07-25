@@ -56,14 +56,21 @@ static wav64_compression_t algos[WAV64_NUM_FORMATS] = {
 	},
 };
 
-static void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, int wlen, int bps) {
+static void raw_waveform_read(samplebuffer_t *sbuf, wav64_t *wav, int wpos, int wlen, int bps) {
+	uint32_t rom = wav->st->rom_base;
 	while (wlen > 0) {
 		int n = MIN(wlen, SAMPLEBUFFER_MARGIN_UNITS);
 		uint8_t* ram_addr = (uint8_t*)samplebuffer_append(sbuf, n);
 		int bytes = n << bps;
+		uint32_t pi_addr = rom + wav->st->base_offset + (wpos << bps);
 
-		// FIXME: remove CachedAddr() when read() supports uncached addresses
-		read(current_fd, CachedAddr(ram_addr), bytes);
+		if (rom && !(((uint32_t)ram_addr ^ pi_addr) & 1)) {
+			sbuf->dma_ticket = dma_read_async(ram_addr, pi_addr, bytes);
+		} else {
+			lseek(wav->st->current_fd, wav->st->base_offset + (wpos << bps), SEEK_SET);
+			// FIXME: remove CachedAddr() when read() supports uncached addresses
+			read(wav->st->current_fd, CachedAddr(ram_addr), bytes);
+		}
 		wlen -= n;
 		wpos += n;
 	}
@@ -72,11 +79,8 @@ static void raw_waveform_read(samplebuffer_t *sbuf, int current_fd, int wpos, in
 static void wav64_none_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	wav64_t *wav = (wav64_t*)sbuf->wave;
 	int bps = (wav->wave.bits == 8 ? 0 : 1) + (wav->wave.channels == 2 ? 1 : 0);
-	
-	// Always seek to allow for simultaneous playback on multiple channels with
-	// a single file descriptor
-	lseek(wav->st->current_fd, wav->st->base_offset + (wpos << bps), SEEK_SET);
-	raw_waveform_read(sbuf, wav->st->current_fd, wpos, wlen, bps);
+	(void)ctx; (void)seeking;
+	raw_waveform_read(sbuf, wav, wpos, wlen, bps);
 }
 
 static void wav64_none_init(wav64_t *wav, int state_size) {
@@ -202,6 +206,8 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->st->current_fd = file_handle;
 	wav->st->base_offset = head.start_offset + start_offset;
 	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
+	wav->st->rom_base = 0;
+	ioctl(file_handle, IODFS_GET_ROM_BASE, &wav->st->rom_base);
 
 	// Initialize the compression algorithm
 	algos[wav->st->format].init(wav, head.state_size);
@@ -224,6 +230,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 			samplebuffer_set_waveform(&sbuf, &wav->wave, wav->wave.read);
 			if (wav->wave.start) wav->wave.start(wav->wave.ctx, &sbuf);
 			samplebuffer_get(&sbuf, 0, &wlen);
+			samplebuffer_dma_wait(&sbuf);
 			rspq_highpri_sync();
 			assertf(wlen == wav->wave.len, "wav64: preload failed for %s: wlen=%x/%x", wav->wave.name, wlen, wav->wave.len);
 

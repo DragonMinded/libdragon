@@ -141,6 +141,13 @@ typedef struct samplebuffer_s {
      */
     uint32_t last_round;
 
+    /**
+     * Ticket of the most recent async PI DMA into this buffer (0 = none).
+     * Producers set it when issuing dma_read_async; consumers wait via
+     * #samplebuffer_dma_wait before touching the bytes or freeing memory.
+     */
+    uint64_t dma_ticket;
+
     /** Total bytes allocated for the sample area (ring + margin). */
     int capacity_bytes;
 
@@ -235,6 +242,11 @@ void samplebuffer_undo(samplebuffer_t *buf, int wlen);
  * Flush (reset) the sample buffer to empty status, discarding all samples.
  */
 void samplebuffer_flush(samplebuffer_t *buf);
+
+/**
+ * Wait for any in-flight async PI DMA into this buffer to complete.
+ */
+void samplebuffer_dma_wait(samplebuffer_t *buf);
 
 /**
  * Close the sample buffer.
