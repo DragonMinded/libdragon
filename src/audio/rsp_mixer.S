@@ -687,11 +687,13 @@ VadpcmDecodeCur:
 VadpcmResample:
 	blez ticks, VadpcmEpilog
 	nop
-	# Ensure the current sample's frame is loaded.
+	# Ensure the current sample's frame is loaded. Go through VadpcmWaveStart
+	# so that a position that just ran past the end wraps the loop (a short
+	# loop can be crossed several times within one round).
 	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	srl t1, t0, 4
 	lw t2, %lo(CH_VCUR_FRAME)
-	bne t1, t2, VadpcmHavePos
+	bne t1, t2, VadpcmWaveStart
 	nop
 
 	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
