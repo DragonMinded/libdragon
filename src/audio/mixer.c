@@ -130,6 +130,7 @@ typedef struct mixer_channel_s {
 	waveform_t *wave;      ///< Waveform being played back on this channel
 	uint32_t wave_uuid;    ///< UUID of last configured waveform (survives stop)
 	int silence_ns;        ///< Samples still to be emitted while silent (volume ramp)
+	int vframe;            ///< VADPCM frame the decoder state in RDRAM refers to
 } mixer_channel_t;
 
 /** @brief RDRAM completion counter published by the mixer ucode */
@@ -471,15 +472,77 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 	}
 }
 
+static bool mixer_wave_fits(int ch);
+
 /** @brief Apply a VADPCM seek to the channel's codec state via WaveformRead. */
 static void mixer_vadpcm_seek(mixer_channel_t *c, int sample_pos) {
 	assert(c->flags & CH_FLAGS_VADPCM);
 	assert(c->wave && c->wave->read && c->codec_state);
-	samplebuffer_t tmp = {0};
-	tmp.wave = c->wave;
-	tmp.state = c->codec_state;
-	tmp.state_size = c->wave->state_size;
-	c->wave->read(c->wave->ctx, &tmp, sample_pos / 16, 0, true);
+	// Two buffers: a stereo read also touches the right-plane one, even when
+	// seeking with no data to fetch.
+	samplebuffer_t tmp[2] = {{0}};
+	tmp[0].wave = c->wave;
+	tmp[0].state = c->codec_state;
+	tmp[0].state_size = c->wave->state_size;
+	c->wave->read(c->wave->ctx, tmp, sample_pos / 16, 0, true);
+	c->vframe = sample_pos / 16;
+	if (c->flags & CH_FLAGS_STEREO)
+		c[1].vframe = c->vframe;
+}
+
+/**
+ * @brief Re-establish the playback state after the CPU moved a position.
+ *
+ * The RSP always resumes a channel from where the CPU says it is, assuming
+ * that what it needs is already in place: the samples of that position in the
+ * ring, and (for VADPCM) a decoder state in RDRAM saved exactly for the frame
+ * containing it. Both assumptions only hold while playback advances
+ * sequentially, so any jump made by the CPU must be fixed up here.
+ */
+static void mixer_ch_seek(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
+	bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
+	int bps_fx64 = (vadpcm ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+	int frame = (int)(c->pos >> (MIXER_FX64_FRAC + 4));
+
+	if (!c->wave)
+		return;
+
+	// Resident waveforms are always fully available: only the decoder state
+	// has to be moved.
+	if (c->flags & CH_FLAGS_RESIDENT) {
+		if (vadpcm && frame != c->vframe)
+			mixer_vadpcm_seek(c, frame * 16);
+		return;
+	}
+
+	if (c->flags & CH_FLAGS_LOOP_CACHED) {
+		int len = c->len >> bps_fx64;
+		int loop_len = c->loop_len >> bps_fx64;
+		int cache_start = mixer_wave_fits(ch) ? 0 : len - loop_len;
+		bool have_samples = (c->pos >> bps_fx64) >= cache_start;
+		if (have_samples) {
+			// The samples are pinned already: just move the decoder.
+			if (vadpcm && frame != c->vframe)
+				mixer_vadpcm_seek(c, frame * 16);
+			return;
+		}
+		// Seeking before the pinned region: go back to streaming, and let the
+		// next round pin the loop again (re-seeding the decoder while at it).
+		c->flags &= ~CH_FLAGS_LOOP_CACHED;
+		if (vadpcm && (c->flags & CH_FLAGS_STEREO)) {
+			Mixer.channels[ch+1].flags &= ~CH_FLAGS_LOOP_CACHED;
+			samplebuffer_flush(&Mixer.ch_buf[ch+1]);
+		}
+		samplebuffer_flush(sbuf);
+		return;
+	}
+
+	// Streamed: flushing the ring forces the next fetch to seek, which is
+	// what re-seeds the decoder state.
+	if (vadpcm && frame != c->vframe)
+		samplebuffer_flush(sbuf);
 }
 
 void mixer_ch_play(int ch, waveform_t *wave)
@@ -634,8 +697,7 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		c->ptr = resident ? (void*)wave->mem : SAMPLES_PTR(sbuf);
 	}
 	c->pos = 0;
-	if (resident && (c->flags & CH_FLAGS_VADPCM))
-		mixer_vadpcm_seek(c, 0);
+	mixer_ch_seek(ch);
 
 	// Mark ch+1 as stereo sub for PCM interleaved or VADPCM dual-mono.
 	if (c->flags & CH_FLAGS_STEREO) {
@@ -655,9 +717,7 @@ void mixer_ch_set_pos(int ch, double pos) {
 	if (!(c->flags & CH_FLAGS_VADPCM))
 		p <<= (c->flags & CH_FLAGS_BPS_SHIFT);
 	c->pos = p;
-	// Resident VADPCM has no samplebuffer seek path: update predictor state now.
-	if ((c->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_VADPCM)) == (CH_FLAGS_RESIDENT | CH_FLAGS_VADPCM))
-		mixer_vadpcm_seek(c, (int)pos);
+	mixer_ch_seek(ch);
 	tracef("mixer_ch_set_pos: ch=%d pos=%.32g(%llx)\n", ch, pos, c->pos);
 }
 
@@ -842,6 +902,10 @@ static void mixer_fill_loop_cache(int ch) {
 	else
 		c->ptr = (uint8_t*)SAMPLES_PTR(sbuf) - (cache_start << bps);
 	c->flags |= CH_FLAGS_LOOP_CACHED;
+	if (vadpcm) {
+		c->vframe = sloop_start;
+		if (stereo_vadpcm) Mixer.channels[ch+1].vframe = sloop_start;
+	}
 	tracef("ch:%d loop cached at %x len=%x\n", ch, sloop_start, sloop_len);
 }
 
@@ -1033,6 +1097,8 @@ static void mixer_fetch_window(int ch, int ns) {
 	if (vadpcm) {
 		int spos = wpos / 16;
 		int swlen = (wpos + wlen + 15) / 16 - spos + (MIXER_LOOP_OVERREAD + ub - 1) / ub;
+		if (sbuf->widx == 0 || spos < sbuf->wpos || spos > sbuf->wpos + sbuf->widx)
+			c->vframe = spos;
 		void *p = samplebuffer_get(sbuf, spos, &swlen);
 		assert(p);
 		c->ptr = (uint8_t*)p - spos * 9;
@@ -1170,14 +1236,18 @@ static void mixer_advance(int ns) {
 		if (!ch->ptr || (ch->flags & CH_FLAGS_STEREO_SUB))
 			continue;
 		ch->pos += ch->step * (uint64_t)ns;
-		if (!ch->loop_len || ch->pos < ch->len)
-			continue;
-		if (ch->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)) {
-			while (ch->pos >= ch->len)
-				ch->pos -= ch->loop_len;
-		} else if (!mixer_loop_fits(i)) {
-			// Large loop crossing len between two rounds of the same call.
-			mixer_large_loop_wrap(i);
+		if (ch->loop_len && ch->pos >= ch->len) {
+			if (ch->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)) {
+				while (ch->pos >= ch->len)
+					ch->pos -= ch->loop_len;
+			} else if (!mixer_loop_fits(i)) {
+				// Large loop crossing len between two rounds of the same call.
+				mixer_large_loop_wrap(i);
+			}
+		}
+		if (ch->flags & CH_FLAGS_VADPCM) {
+			ch->vframe = (int)(ch->pos >> (MIXER_FX64_FRAC+4));
+			if (ch->flags & CH_FLAGS_STEREO) ch[1].vframe = ch->vframe;
 		}
 	}
 }
