@@ -704,7 +704,15 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		assertf(ch != Mixer.num_channels-1, "cannot configure last channel (%d) as stereo", ch);
 		assertf(!mixer_ch_playing(ch+1) || (Mixer.channels[ch+1].flags & CH_FLAGS_STEREO_SUB),
 			"cannot play stereo waveform on channel %d because channel %d is active", ch, ch+1);
-		Mixer.channels[ch+1].flags |= CH_FLAGS_STEREO_SUB;
+		if (!(c->flags & CH_FLAGS_VADPCM)) {
+			// PCM interleaved: R has no samplebuffer of its own. Replace flags
+			// so a previous mono/VADPCM occupant cannot leave VADPCM set and
+			// make Phase A try to fetch from a null-wave ring.
+			Mixer.channels[ch+1].flags = (Mixer.channels[ch+1].flags & CH_FLAGS_FORCE_MONO) | CH_FLAGS_STEREO_SUB;
+			Mixer.channels[ch+1].ptr = NULL;
+		} else {
+			Mixer.channels[ch+1].flags |= CH_FLAGS_STEREO_SUB;
+		}
 	} else if (ch != Mixer.num_channels-1) {
 		Mixer.channels[ch+1].flags &= ~CH_FLAGS_STEREO_SUB;
 	}
@@ -1137,7 +1145,7 @@ static uint32_t mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 		if (!owner->ptr || (owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)))
 			continue;
 		if (c->flags & CH_FLAGS_STEREO_SUB) {
-			if (!(c->flags & CH_FLAGS_VADPCM))
+			if (!(owner->flags & CH_FLAGS_VADPCM))
 				continue; // PCM R shares the owner's fetch
 			c->pos = owner->pos;
 			c->step = owner->step;
@@ -1167,7 +1175,7 @@ static uint32_t mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 		} else if (c->flags & CH_FLAGS_STEREO_SUB) {
 			mixer_channel_volumes(ch, owner->flags, true, gvol, &lvol, &rvol);
 
-			if (!(c->flags & CH_FLAGS_VADPCM)) {
+			if (!(owner->flags & CH_FLAGS_VADPCM)) {
 				// PCM interleaved: extract R from the owner's sample stream.
 				flags = (owner->flags & (CH_FLAGS_BPS_SHIFT | CH_FLAGS_16BIT | CH_FLAGS_STEREO)) | CH_FLAGS_STEREO_SUB;
 				pos = (uint32_t)owner->pos & 0x7FFFFFFF;
