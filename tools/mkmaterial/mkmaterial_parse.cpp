@@ -208,6 +208,8 @@ void Blender::parse_attr(std::string key, std::string value)
 {
     if (key == "mode") {
         mode = parse_enum(value, {"none", "multiply", "multiply_const", "additive"});
+    } else if (key == "mode.raw") {
+        mode_raw = parse_blender(value);
     } else if (key == "const") {
         constant = parse_float(value, 0, 1);
     } else {
@@ -227,6 +229,10 @@ void Blender::validate(void)
 
 uint32_t Blender::to_rdpq_mode_arg(void)
 {
+    if (mode_raw.is_set) {
+        return mode_raw.blender;
+    }
+
     static const uint32_t builtin_modes[] = {
         0,
         RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),

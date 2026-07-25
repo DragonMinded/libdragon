@@ -134,6 +134,24 @@ void test_rdpq_mat_blender(TestContext *ctx)
     ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
 }
 
+void test_rdpq_mat_blender_raw(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_blender_t exp_raw = get_expected_blender(RDPQ_BLENDER2((IN_RGB,SHADE_ALPHA,FOG_RGB,INV_MUX_ALPHA),(CYCLE1_RGB,IN_ALPHA,MEMORY_RGB,INV_MUX_ALPHA)));
+    rdpq_set_mode_standard();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *blender_raw = rdpq_matdb_load(mdb, "blender_raw");
+    ASSERT(blender_raw != NULL, "Failed to load material 'blender_raw'");
+
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+    rdpq_mat_draw_begin(blender_raw);
+    ASSERT_MAT_SOM("blender_raw", SOM_BLEND_MASK, exp_raw);
+    rdpq_mat_draw_end(blender_raw);
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+}
+
 void test_rdpq_mat_ext(TestContext *ctx)
 {
     RDPQ_INIT();

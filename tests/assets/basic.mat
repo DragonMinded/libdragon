@@ -30,6 +30,9 @@ blender.const = 0.6
 [blender_additive]
 blender.mode = additive
 
+[blender_raw]
+blender.mode.raw = (in_rgb,shade_alpha,fog_rgb,inv_mux_alpha),(cycle1_rgb,in_alpha,memory_rgb,inv_mux_alpha)
+
 [ext_test]
 combiner.rgb = prim
 

@@ -123,10 +123,22 @@ struct Combiner {
     uint64_t to_rdpq_mode_arg(void);
 };
 
+struct BlenderExpr {
+    uint32_t blender{0};
+    bool is_set{false};
+
+    BlenderExpr() = default;
+    BlenderExpr(uint32_t blender) : blender(blender), is_set(true) {}
+};
+
 struct Blender {
     MyEnum mode{{"none", "multiply", "multiply_const", "additive"}};
     float constant{-1};
+    BlenderExpr mode_raw;
 
+    bool is_set() const {
+        return mode_raw.is_set || mode >= 0;
+    }
     void parse_attr(std::string key, std::string value);
     void validate(void);
     uint32_t to_rdpq_mode_arg(void);
@@ -158,6 +170,9 @@ struct Material {
     void validate(void);
     void write(FILE *f);
 };
+
+// mkmaterial_parse_blender.cppp
+BlenderExpr parse_blender(std::string value);
 
 // mkmaterial_parse.cpp
 bool parse_bool(std::string value);

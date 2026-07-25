@@ -184,7 +184,7 @@ void Material::write(FILE *f)
 
     uint16_t flags = MATFLAG_COMBINER; // always write the combiner
     if (tex[0] || tex[1])       flags |= MATFLAG_TEXTURE;
-    if (bl.mode >= 0)           flags |= MATFLAG_BLENDER;
+    if (bl.is_set())            flags |= MATFLAG_BLENDER;
     if (rm.antialias >= 0)      flags |= MATFLAG_RMO_AA;
     if (rm.fog >= 0)            flags |= MATFLAG_RMO_FOG;
     if (rm.dither[0] >= 0)      flags |= MATFLAG_RMO_DITHERING;

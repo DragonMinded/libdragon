@@ -414,6 +414,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_mat_basic,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mat_empty,             0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mat_blender,           0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_mat_blender_raw,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mat_ext,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_idct,                 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_mpeg1_block_decode,         0, TEST_FLAGS_NO_BENCHMARK),
