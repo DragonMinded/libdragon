@@ -13,6 +13,7 @@
 #include "dma.h"
 #include "utils.h"
 #include "n64types.h"
+#include "profile.h"
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
@@ -63,6 +64,7 @@
 }
 
 static void huffv_decompress(wav64_t *wav, wav64_state_vadpcm_t *vstate, uint8_t *dst, int len, uint8_t *scratch, int slen) {
+	PROFILE_SCOPE(PS_VADPCM_HUFF) {
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 
     unsigned int bitpos = vstate->bitpos;
@@ -119,6 +121,7 @@ static void huffv_decompress(wav64_t *wav, wav64_state_vadpcm_t *vstate, uint8_t
     vstate->bitpos = bitpos;
     assertf((void*)src <= CachedAddr(scratch) + slen, "invalid read past end: %p vs %p", src, scratch + slen);
     data_cache_hit_invalidate(CachedAddr(scratch), slen);
+	}
 }
 
 /**
@@ -146,6 +149,7 @@ static int vadpcm_file_index(int frame, int ch, int nframes, int channels) {
  * can consume L-then-R contiguously and leave bitpos at the next block.
  */
 static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
+	PROFILE_SCOPE(PS_VADPCM_READ) {
 	wav64_t *wav = (wav64_t*)sbuf->wave;
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 	wav64_state_vadpcm_t *vstate = sbuf->state;
@@ -174,7 +178,7 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 		}
 	}
 
-	if (wlen <= 0) return;
+	if (wlen <= 0) goto done;
 
 	while (wlen > 0) {
 		int n;
@@ -218,6 +222,7 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 				memcpy(dest_r, spanbuf + (n_l + off) * 9, n * 9);
 			}
 		} else {
+			PROFILE_SCOPE(PS_VADPCM_IO) {
 			for (int c = 0; c < channels; c++) {
 				uint8_t *dest = (c == 0) ? dest_l : dest_r;
 				samplebuffer_t *dstbuf = (c == 0) ? sbuf : sbuf_r;
@@ -225,6 +230,9 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 				int nbytes = n * 9;
 				uint32_t pi_addr = wav->st->rom_base + wav->st->base_offset + fidx * 9;
 				if (wav->st->rom_base && !(((uint32_t)dest ^ pi_addr) & 1)) {
+					// A prior chunk of this same WaveformRead may still be in
+					// flight; wait before replacing the ticket.
+					samplebuffer_dma_wait(dstbuf);
 					dstbuf->dma_ticket = dma_read_async(dest, pi_addr, nbytes);
 				} else {
 					lseek(wav->st->current_fd, wav->st->base_offset + fidx * 9, SEEK_SET);
@@ -232,6 +240,7 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 					assertf(nbytes == read_bytes, "invalid read past end: %d vs %d", nbytes, read_bytes);
 					data_cache_hit_writeback_invalidate(CachedAddr(dest), nbytes);
 				}
+			}
 			}
 		}
 
@@ -241,6 +250,8 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 		wlen -= n;
 		if (wlen < 0) wlen = 0;
 		wpos += n;
+	}
+done: ;
 	}
 }
 
@@ -376,6 +387,10 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
     }
     wav->wave.codec = &wav->st->vadpcm;
     wav->wave.read = waveform_vadpcm_read;
+    // Plain frames stream from ROM with async PI DMA. Huffman frames must be
+    // decompressed by the CPU, and any other medium is read synchronously.
+    wav->wave.async_read = wav->st->rom_base != 0 &&
+        !(vhead->flags & VADPCM_FLAG_HUFFMAN);
 }
 
 void wav64_vadpcm_close(wav64_t *wav)

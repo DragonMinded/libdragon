@@ -645,6 +645,18 @@ typedef struct waveform_s {
       */
 	void *ctx;
 
+	/**
+	 * @brief True if #read returns with its transfer still in flight.
+	 *
+	 * Set this when the samples are fetched with an asynchronous PI DMA
+	 * (see #samplebuffer_dma_wait). The mixer then fetches ahead of time
+	 * (#samplebuffer_prefetch), so that the transfer runs while the CPU does
+	 * something else. Leave it false for readers that produce the samples
+	 * synchronously (CPU decoding, filesystem reads): fetching those early
+	 * would just move the same work around, and waste it on a seek.
+	 */
+	bool async_read;
+
     /**
       * @brief State size required for this waveform to operate
       * 
