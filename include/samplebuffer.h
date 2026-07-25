@@ -226,6 +226,21 @@ void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRe
 void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen);
 
 /**
+ * @brief Start fetching samples that will be requested later (zero-wait).
+ *
+ * Fetches the part of [wpos, wpos+wlen) that the buffer does not hold yet,
+ * leaving any PI DMA in flight: the next #samplebuffer_get finds the samples
+ * already there and only has to wait for a transfer that ran meanwhile.
+ *
+ * This is best-effort: the call does nothing unless the waveform declares
+ * #waveform_t::async_read (there would be nothing to overlap with), and
+ * likewise if the window is already available, if it is not contiguous with
+ * what the buffer holds (a seek is coming, so anything fetched now would be
+ * discarded), or if the ring has no room for it.
+ */
+void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen);
+
+/**
  * @brief Append samples into the buffer (zero-copy).
  *
  * Returns a contiguous uncached pointer where the caller must write `wlen`

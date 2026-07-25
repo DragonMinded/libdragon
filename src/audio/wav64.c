@@ -65,6 +65,7 @@ static void raw_waveform_read(samplebuffer_t *sbuf, wav64_t *wav, int wpos, int 
 		uint32_t pi_addr = rom + wav->st->base_offset + (wpos << bps);
 
 		if (rom && !(((uint32_t)ram_addr ^ pi_addr) & 1)) {
+			samplebuffer_dma_wait(sbuf);
 			sbuf->dma_ticket = dma_read_async(ram_addr, pi_addr, bytes);
 		} else {
 			lseek(wav->st->current_fd, wav->st->base_offset + (wpos << bps), SEEK_SET);
@@ -88,8 +89,12 @@ static void wav64_none_init(wav64_t *wav, int state_size) {
 	// preloaded waveforms set wave->mem and need no read callback.
 	if (!wav->st->samples) {
 		wav->wave.read = wav64_none_read;
+		// Samples come straight from ROM via async PI DMA; a file on any other
+		// medium is read synchronously instead.
+		wav->wave.async_read = wav->st->rom_base != 0;
 	} else {
 		wav->wave.read = NULL;
+		wav->wave.async_read = false;
 		wav->wave.mem = wav->st->samples;
 	}
 	// Also clear start callback (needed in the preloading codepath)

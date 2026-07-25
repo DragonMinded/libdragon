@@ -13,6 +13,7 @@
 #include "dma.h"
 #include "utils.h"
 #include "debug.h"
+#include "profile.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -180,7 +181,19 @@ static void samplebuffer_relocate_live(samplebuffer_t *buf) {
 	buf->head = 0;
 }
 
+/** @brief Units that #samplebuffer_prefetch keeps ready ahead of the mixer. */
+#define SAMPLEBUFFER_PREFETCH_UNITS      SAMPLEBUFFER_MARGIN_UNITS
+
+/** @brief Units left ahead that trigger a refill.
+ *
+ * A WaveformRead costs mostly per call, so refilling late (in bigger chunks)
+ * is cheaper; refilling too late means the mixer has to fetch synchronously
+ * and wait for the transfer. */
+#define SAMPLEBUFFER_PREFETCH_LOW_UNITS  32
+
 void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
+	void *ret = NULL;
+	PROFILE_SCOPE(PS_SBUF_GET) {
 	samplebuffer_commit(buf);
 
 	int ub = samplebuffer_unit_bytes(buf);
@@ -221,6 +234,8 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 				int bps = SAMPLES_BPS_SHIFT(buf);
 				missing = ((missing)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps));
 			}
+			// Free space without discarding past the live read cursor.
+			missing = MIN(missing, ring - (buf->widx - buf->ridx));
 			buf->wv_read(buf->wave->ctx, buf, wpos+reuse, missing, false);
 			samplebuffer_commit(buf);
 			buf->wnext = buf->wpos + buf->widx;
@@ -240,7 +255,47 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 	int slot = samplebuffer_slot(buf, rel);
 	assertf(*wlen <= SAMPLEBUFFER_MARGIN_UNITS || slot + *wlen <= ring,
 		"samplebuffer_get: window %x not contiguous (slot=%x ring=%x)", *wlen, slot, ring);
-	return samplebuffer_base(buf) + slot * ub;
+	ret = samplebuffer_base(buf) + slot * ub;
+	}
+	return ret;
+}
+
+void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen) {
+	if (!buf->wave || !buf->wv_read || !buf->wave->async_read ||
+		buf->widx == 0 || buf->wnext < 0)
+		return;
+	samplebuffer_commit(buf);
+
+	// Only extend the current stream: on a seek the ring is flushed, so
+	// anything fetched now would be thrown away.
+	if (wpos < buf->wpos || wpos > buf->wnext)
+		return;
+	// Fill back up to the watermark, so that one transfer covers several rounds.
+	int ahead = buf->wnext - wpos;
+	int missing = MAX(SAMPLEBUFFER_PREFETCH_UNITS, wlen) - ahead;
+	if (missing <= 0 ||
+		(ahead > SAMPLEBUFFER_PREFETCH_LOW_UNITS && ahead >= wlen))
+		return;
+	if (buf->unit_bytes)
+		missing = ROUND_UP(missing, 8);
+	else {
+		int bps = SAMPLES_BPS_SHIFT(buf);
+		missing = ((missing)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps));
+	}
+	// Never ask for more than a margin: readers split bigger requests into
+	// several appends, and since a buffer tracks a single in-flight transfer,
+	// the second append would have to wait for the first one here.
+	missing = MIN(missing, SAMPLEBUFFER_MARGIN_UNITS);
+	// Never fetch into space that a live window still needs.
+	missing = MIN(missing, buf->size - (buf->widx - buf->ridx));
+	if (missing <= 0)
+		return;
+
+	// Leave the transfer in flight: samplebuffer_get will commit and sync it.
+	PROFILE_SCOPE(PS_SBUF_GET) {
+		buf->wv_read(buf->wave->ctx, buf, buf->wnext, missing, false);
+	}
+	buf->wnext = buf->wpos + buf->widx;
 }
 
 void* samplebuffer_append(samplebuffer_t *buf, int wlen) {

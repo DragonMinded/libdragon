@@ -8,6 +8,7 @@
 #include "xm64.h"
 #include "wav64.h"
 #include "mixer.h"
+#include "mixer_internal.h"
 #include "audio.h"
 #include <assert.h>
 #include "debug.h"
@@ -15,6 +16,7 @@
 #include "dragonfs.h"
 #include "wav64_internal.h"
 #include "asset_internal.h"
+#include "profile.h"
 #include "libxm/xm.h"
 #include "libxm/xm_internal.h"
 #include <stdbool.h>
@@ -31,29 +33,34 @@ static void stop(xm_context_t *ctx, xm64player_t *xmp) {
 }
 
 static int tick(void *arg) {
+	int delay;
+	PROFILE_SCOPE(PS_XM_TICK) {
 	xm64player_t *xmp = (xm64player_t*)arg;
 	xm_context_t *ctx = xmp->ctx;
 	int first_ch = xmp->first_ch;
 
-	for (int i=0;i<ctx->module.num_channels;i++) {
-		xm_channel_context_t *ch = &ctx->channels[i];
-		if (mixer_ch_playing(first_ch+i))
-			ch->sample_position = mixer_ch_get_pos(first_ch+i);
-		else
-			// The mixer auto-stopped the channel: a non-looping sample
-			// reached its end. Mark it as finished like libxm's own mixer
-			// would (see xm_next_of_sample), otherwise the playback loop
-			// below would keep restarting the waveform at the last synced
-			// (stale) position, which is also an invalid seek point for
-			// compressed streams. Any new note will reset this via
-			// xm_trigger_note; seeks reset it explicitly below.
-			ch->sample_position = -1;
+	PROFILE_SCOPE(PS_XM_GETPOS) {
+		for (int i=0;i<ctx->module.num_channels;i++) {
+			xm_channel_context_t *ch = &ctx->channels[i];
+			if (mixer_ch_playing(first_ch+i))
+				ch->sample_position = mixer_ch_get_pos(first_ch+i);
+			else
+				// The mixer auto-stopped the channel: a non-looping sample
+				// reached its end. Mark it as finished like libxm's own mixer
+				// would (see xm_next_of_sample), otherwise the playback loop
+				// below would keep restarting the waveform at the last synced
+				// (stale) position, which is also an invalid seek point for
+				// compressed streams. Any new note will reset this via
+				// xm_trigger_note; seeks reset it explicitly below.
+				ch->sample_position = -1;
+		}
 	}
 
 	// If we're requested to stop playback, do it.
 	if (xmp->stop_requested) {
 		stop(ctx, xmp);
-		return 0;
+		delay = 0;
+		goto done;
 	}
 
 	if (xmp->seek.patidx >= 0) {
@@ -71,48 +78,55 @@ static int tick(void *arg) {
 	}
 
 	assert(ctx->remaining_samples_in_tick <= 0);
-	xm_tick(ctx);
+	PROFILE_SCOPE(PS_XM_LIBXM) {
+		xm_tick(ctx);
+	}
 
 	if (!xmp->looping && ctx->loop_count > 0) {
 		stop(ctx, xmp);
-		return 0;
+		delay = 0;
+		goto done;
 	}
 
 	float gvol = ctx->global_volume * ctx->amplification;
 
-	for (int i=0;i<ctx->module.num_channels;i++) {
-		xm_channel_context_t *ch = &ctx->channels[i];
-		if (ch->sample && ch->sample_position >= 0) {
-			wav64_t *w = ch->sample->wave;
-			
-			// Check if this sample is muted. This is an user-level muting
-			// control exposed via the xm.h API that we respect in case the
-			// user wants to mute some channels (usually for debugging).
-			bool muted = ch->muted || ch->instrument->muted;
+	PROFILE_SCOPE(PS_XM_SYNC) {
+		for (int i=0;i<ctx->module.num_channels;i++) {
+			xm_channel_context_t *ch = &ctx->channels[i];
+			if (ch->sample && ch->sample_position >= 0) {
+				wav64_t *w = ch->sample->wave;
 
-			// Play the waveform, if it was not already playing. We don't handle
-			// explicit key-on events here since it's a bit complex in XM, so
-			// we just passively check whether we need to start playing or not.
-			if (mixer_ch_playing_waveform(first_ch+i) != &w->wave)
-				wav64_play(w, first_ch+i);
+				// Check if this sample is muted. This is an user-level muting
+				// control exposed via the xm.h API that we respect in case the
+				// user wants to mute some channels (usually for debugging).
+				bool muted = ch->muted || ch->instrument->muted;
 
-			// Set the position of the sample expected by the playback engine.
-			mixer_ch_set_pos(first_ch+i, ch->sample_position);
+				// Play the waveform, if it was not already playing. We don't handle
+				// explicit key-on events here since it's a bit complex in XM, so
+				// we just passively check whether we need to start playing or not.
+				if (mixer_ch_playing_waveform(first_ch+i) != &w->wave)
+					wav64_play(w, first_ch+i);
 
-			// Configure also frequency and volume that might have changed
-			// since last tick.
-			mixer_ch_set_freq(first_ch+i, ch->frequency);
-			mixer_ch_set_vol(first_ch+i,
-				muted ? 0 : gvol * ch->actual_volume[0],
-				muted ? 0 : gvol * ch->actual_volume[1]);
-		} else {
-			mixer_ch_stop(first_ch+i);
+				// Set the position of the sample expected by the playback engine.
+				mixer_ch_set_pos(first_ch+i, ch->sample_position);
+
+				// Configure also frequency and volume that might have changed
+				// since last tick.
+				mixer_ch_set_freq(first_ch+i, ch->frequency);
+				mixer_ch_set_vol(first_ch+i,
+					muted ? 0 : gvol * ch->actual_volume[0],
+					muted ? 0 : gvol * ch->actual_volume[1]);
+			} else {
+				mixer_ch_stop(first_ch+i);
+			}
 		}
 	}
 
 	// Schedule next tick according to the number of samples in this tick.
-	int delay = ceilf(ctx->remaining_samples_in_tick);
+	delay = ceilf(ctx->remaining_samples_in_tick);
 	ctx->remaining_samples_in_tick -= delay;
+done: ;
+	}
 	return delay;
 }
 
