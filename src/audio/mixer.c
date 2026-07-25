@@ -1014,9 +1014,10 @@ static void mixer_rsp_bounds(mixer_channel_t *c, bool wrap, uint32_t *len, uint3
 	}
 }
 
-// Fetch from the ring the input window this round is going to read, and return
-// the pointer the RSP must use for the current position.
-static void *mixer_fetch_window(int ch, int ns) {
+// Fetch from the ring the input window this round is going to read.
+// Updates c->ptr to the waveform base; the RSP pointer for PCM may need
+// the high-bit pos offset applied by the caller.
+static void mixer_fetch_window(int ch, int ns) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
 	bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
@@ -1035,22 +1036,52 @@ static void *mixer_fetch_window(int ch, int ns) {
 		void *p = samplebuffer_get(sbuf, spos, &swlen);
 		assert(p);
 		c->ptr = (uint8_t*)p - spos * 9;
-		return c->ptr;
+	} else {
+		int swlen = wlen + (MIXER_LOOP_OVERREAD >> bps);
+		void *p = samplebuffer_get(sbuf, wpos, &swlen);
+		assert(p);
+		c->ptr = (uint8_t*)p - (wpos << bps);
 	}
+}
 
-	int swlen = wlen + (MIXER_LOOP_OVERREAD >> bps);
-	void *p = samplebuffer_get(sbuf, wpos, &swlen);
-	assert(p);
-	c->ptr = (uint8_t*)p - (wpos << bps);
-	return (uint8_t*)c->ptr + ((c->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC);
+/** Wait for any in-flight PI DMA into the samplebuffer this channel reads. */
+static void mixer_wait_channel_dma(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	if (c->flags & CH_FLAGS_RESIDENT)
+		return;
+	// PCM stereo R shares the owner's interleaved buffer.
+	int bufch = ((c->flags & CH_FLAGS_STEREO_SUB) && !(c->flags & CH_FLAGS_VADPCM)) ? ch - 1 : ch;
+	if (samplebuffer_is_inited(&Mixer.ch_buf[bufch]))
+		samplebuffer_dma_wait(&Mixer.ch_buf[bufch]);
 }
 
 // Emit one mix round: a MIX_CHANNEL per active channel, plus the flush that
 // writes the accumulator out to @p out. Returns the id of the round.
+//
+// Phase A kicks all streamed fetches so PI DMAs pipeline across channels;
+// Phase B waits for each channel's DMA only when about to emit its command.
 static uint32_t mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 	uint32_t round_id = ++Mixer.round_next;
 	bool clear_accum = true;
 
+	// Phase A: enqueue all PI DMAs back-to-back.
+	for (int ch = 0; ch < Mixer.num_channels; ch++) {
+		mixer_channel_t *c = &Mixer.channels[ch];
+		mixer_channel_t *owner = (c->flags & CH_FLAGS_STEREO_SUB) ? c-1 : c;
+		if (!owner->ptr || (owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)))
+			continue;
+		if (c->flags & CH_FLAGS_STEREO_SUB) {
+			if (!(c->flags & CH_FLAGS_VADPCM))
+				continue; // PCM R shares the owner's fetch
+			c->pos = owner->pos;
+			c->step = owner->step;
+			c->len = owner->len;
+			c->loop_len = owner->loop_len;
+		}
+		mixer_fetch_window(ch, ns);
+	}
+
+	// Phase B: emit, syncing each channel's DMA at the last moment.
 	for (int ch = 0; ch < Mixer.num_channels; ch++) {
 		mixer_channel_t *c = &Mixer.channels[ch];
 		mixer_channel_t *owner = (c->flags & CH_FLAGS_STEREO_SUB) ? c-1 : c;
@@ -1078,8 +1109,7 @@ static uint32_t mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 				ptr = (uint8_t*)owner->ptr + ((owner->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC);
 				mixer_rsp_bounds(owner, true, &len, &loop_len);
 			} else {
-				// Stereo VADPCM R: a full mono channel on its own plane, but
-				// with the timing of the owner.
+				// Stereo VADPCM R: timing already synced in Phase A when streamed.
 				c->pos = owner->pos;
 				c->step = owner->step;
 				c->len = owner->len;
@@ -1087,12 +1117,9 @@ static uint32_t mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 				flags = CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
 				pos = (uint32_t)c->pos & 0x7FFFFFFF;
 				step = (uint32_t)c->step & 0x7FFFFFFF;
-				if (owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)) {
-					ptr = c->ptr;
+				ptr = c->ptr;
+				if (owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED))
 					mixer_rsp_bounds(c, true, &len, &loop_len);
-				} else {
-					ptr = mixer_fetch_window(ch, ns);
-				}
 			}
 		} else {
 			mixer_channel_volumes(ch, c->flags, false, gvol, &lvol, &rvol);
@@ -1103,7 +1130,8 @@ static uint32_t mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 				ptr = c->ptr;
 				mixer_rsp_bounds(c, true, &len, &loop_len);
 			} else {
-				ptr = mixer_fetch_window(ch, ns);
+				ptr = (c->flags & CH_FLAGS_VADPCM) ? c->ptr :
+					(void*)((uint8_t*)c->ptr + ((c->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC));
 				// Small loops are pinned by mixer_update_loops, large ones are
 				// wrapped by the CPU between rounds: either way the RSP is
 				// never allowed to wrap a streamed channel.
@@ -1111,6 +1139,9 @@ static uint32_t mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 					mixer_rsp_bounds(c, false, &len, &loop_len);
 			}
 		}
+
+		if (owner->ptr)
+			mixer_wait_channel_dma(ch);
 
 		if (clear_accum) {
 			flags |= CH_FLAGS_CLEAR_ACCUM;

@@ -45,6 +45,8 @@ typedef struct wav64_state_s {
 	void *samples;           ///< Pointer to the preloaded samples (if streaming is disabled)
 	int current_fd;			 ///< File descriptor for the wav64 file
 	int base_offset;		 ///< Start of Wav64 data (as offset from start of the file)
+	/** PI bus address of file start (0 if not a DFS file / async DMA unavailable). */
+	uint32_t rom_base;
 	uint8_t flags;           ///< Misc flags
 	/** Codec side-data for in-mixer VADPCM mono (#waveform_t::codec). */
 	waveform_vadpcm_t vadpcm;

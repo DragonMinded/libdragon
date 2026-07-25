@@ -10,6 +10,7 @@
 #include "mixer.h"
 #include "mixer_internal.h"
 #include "samplebuffer.h"
+#include "dma.h"
 #include "utils.h"
 #include "n64types.h"
 #include <unistd.h>
@@ -219,12 +220,18 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 		} else {
 			for (int c = 0; c < channels; c++) {
 				uint8_t *dest = (c == 0) ? dest_l : dest_r;
+				samplebuffer_t *dstbuf = (c == 0) ? sbuf : sbuf_r;
 				int fidx = vadpcm_file_index(wpos, c, nframes_total, channels);
-				lseek(wav->st->current_fd, wav->st->base_offset + fidx * 9, SEEK_SET);
 				int nbytes = n * 9;
-				int read_bytes = read(wav->st->current_fd, CachedAddr(dest), nbytes);
-				assertf(nbytes == read_bytes, "invalid read past end: %d vs %d", nbytes, read_bytes);
-				data_cache_hit_writeback_invalidate(CachedAddr(dest), nbytes);
+				uint32_t pi_addr = wav->st->rom_base + wav->st->base_offset + fidx * 9;
+				if (wav->st->rom_base && !(((uint32_t)dest ^ pi_addr) & 1)) {
+					dstbuf->dma_ticket = dma_read_async(dest, pi_addr, nbytes);
+				} else {
+					lseek(wav->st->current_fd, wav->st->base_offset + fidx * 9, SEEK_SET);
+					int read_bytes = read(wav->st->current_fd, CachedAddr(dest), nbytes);
+					assertf(nbytes == read_bytes, "invalid read past end: %d vs %d", nbytes, read_bytes);
+					data_cache_hit_writeback_invalidate(CachedAddr(dest), nbytes);
+				}
 			}
 		}
 
