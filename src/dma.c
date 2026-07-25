@@ -560,7 +560,7 @@ void io_write(pi_addr_t pi_address, uint32_t data)
  * NOTE: the DMA subsystem requires no explicit init function from the user.
  * This constructor runs before main().
  */
-__attribute__((constructor))
+__attribute__((constructor(130)))
 void __dma_init(void)
 {
     pi_msgs_widx = 0;
