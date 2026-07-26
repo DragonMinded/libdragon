@@ -182,7 +182,7 @@ void Material::write(FILE *f)
     w8(f, name.size());
     fwrite(name.c_str(), 1, name.size(), f);
 
-    uint16_t flags = MATFLAG_COMBINER; // always write the combiner
+    uint32_t flags = MATFLAG_COMBINER; // always write the combiner
     if (tex[0] || tex[1])       flags |= MATFLAG_TEXTURE;
     if (bl.is_set())            flags |= MATFLAG_BLENDER;
     if (rm.antialias >= 0)      flags |= MATFLAG_RMO_AA;
@@ -199,8 +199,11 @@ void Material::write(FILE *f)
     if (has_uni(combexpr::UNIFORM_PRIM_LOD_FRAC)) flags |= MATFLAG_UNIFORM_PRIMLODFRAC;
     if (has_uni(combexpr::UNIFORM_PRIM))          flags |= MATFLAG_UNIFORM_PRIM;
     if (has_uni(combexpr::UNIFORM_ENV))           flags |= MATFLAG_UNIFORM_ENV;
+    if (bl.reg_blend.rgb_set)   flags |= MATFLAG_BLEND_RGB;
+    if (bl.reg_fog.rgb_set)     flags |= MATFLAG_FOG_RGB;
+    if (bl.fog_alpha_set())     flags |= MATFLAG_FOG_ALPHA;
 
-    w16(f, flags);
+    w32(f, flags);
     int ext_off_pos = ftell(f);
     w8_placeholderf(f, "%s.ext_offset", name.c_str());
     
@@ -263,6 +266,15 @@ void Material::write(FILE *f)
     if (flags & MATFLAG_UNIFORM_ENV) {
         w32(f, uniforms[combexpr::UNIFORM_ENV]);
     }
+    if (flags & MATFLAG_BLEND_RGB) {
+        w32(f, bl.reg_blend.get_rgb());
+    }
+    if (flags & MATFLAG_FOG_RGB) {
+        w32(f, bl.reg_fog.get_rgb());
+    }
+    if (flags & MATFLAG_FOG_ALPHA) {
+        w8(f, bl.get_fog_alpha());
+    }
     w8(f, 0xAB); // end of material
 
     if (ext.size() == 0) {
@@ -308,7 +320,7 @@ void mat_writedb(FILE *f, std::vector<Material> &materials)
 {
     // Write header
     fwrite("MDB", 1, 3, f);
-    w8(f, 1); // version
+    w8(f, 2); // version
     w16(f, materials.size()); // num_materials
     w16(f, 0); // flags
 

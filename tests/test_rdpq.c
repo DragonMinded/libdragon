@@ -52,6 +52,15 @@ uint64_t debug_rdp_stream_last_cc(void) {
     return rdp_stream[rdp_stream_ctx.last_cc];
 }
 
+uint64_t debug_rdp_stream_find_last_cmd(uint32_t cmd_id) {
+    for (int i = rdp_stream_ctx.idx-1; i >= 0; i--) {
+        if (BITS(rdp_stream[i],56,61) == cmd_id) {
+            return rdp_stream[i];
+        }
+    }
+    return 0;
+}
+
 const char* debug_rdp_stream_last_cc_disasm(void) {
     uint64_t cmds[1] = { debug_rdp_stream_last_cc() };
     static char buf[256];
