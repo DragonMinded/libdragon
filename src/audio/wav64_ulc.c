@@ -1,6 +1,6 @@
 /**
  * @file wav64_ulc.c
- * @author Dominic Szablewski <https://phoboslab.org>
+ * @author Dominic Szablewski <dominic@phoboslab.org>
  * @brief Support for ulc-compressed WAV64 files
  * 
  * ULC (Ultra-Low-Complexity Codec) is an MDCT-based transform codec, created
@@ -54,25 +54,34 @@
 #include "rspq.h"
 #include "utils.h"
 
-// We only support a fixed block size here. This lets us make some assumptions
-// in the RSP code to make it simpler and more performant. 1024 is also the 
-// maximum that fits on the RSP
+/** @brief Fixed transform block size (samples).
+ *
+ * Fixed so the RSP code can make size assumptions; 1024 is also the
+ * maximum that fits in RSP DMEM.
+ */
 #define ULC_BLOCK_SIZE 1024
 
-// The converter stores one absolute block offset for every eight blocks.
+/** @brief Number of blocks between consecutive seek-table entries. */
 #define ULC_SEEK_INTERVAL_BLOCKS 8
 
-// ULC has two blocks of preroll that we need to decode until we can produce 
-// valid samples. This happens at the beginning of the file or when seeking, 
+/** @brief Codec delay blocks that must be decoded before valid output.
+ *
+ * Required at stream start and after seeking.
+ */
 #define ULC_PREROLL_BLOCKS 2
 
+/** @brief Per-channel ULC decoder state
+ *
+ * Stored in the samplebuffer state area. Immediately after this struct
+ * (64-byte aligned) live #temp_buffer and #transform_inv_lap.
+ */
 typedef struct ulc_state_t {
-    int channels;
-    int last_sb_size;
-    uint32_t stream_offset;
-    uint32_t block_index;
-    int16_t *temp_buffer;
-    int16_t *transform_inv_lap;
+    int channels;               ///< Number of channels (1 or 2)
+    int last_sb_size;           ///< Size of the last decoded subblock (for overlap)
+    uint32_t stream_offset;     ///< Byte offset of the next compressed block from the stream base
+    uint32_t block_index;       ///< Index of the next block to decode
+    int16_t *temp_buffer;       ///< Scratch for planar mid/side and preroll coefficient retention
+    int16_t *transform_inv_lap; ///< Retained second half of previous IMDCT transforms (overlap-add)
 } ulc_state_t;
 
 _Static_assert(sizeof(ulc_state_t) == 24, "invalid ULC decoder state size");
@@ -102,6 +111,8 @@ static const uint16_t ulc_decimation_patterns[] = {
 
 static bool ulc_rsp_in_highpri = false;
 static uint32_t ulc_rsp_overlay_id = 0;
+
+/** @brief RSP overlay ID for the ULC decoder. */
 DEFINE_RSP_UCODE(rsp_ulc);
 
 enum {
@@ -123,21 +134,24 @@ enum {
 //     the final output to dst. For stereo, scaling is done in the separate 
 //     stereo interleave call.
 
-#define ULC_RSP_TRANSFORM      0x80000000u
-#define ULC_RSP_LAP            0x40000000u
-#define ULC_RSP_CLEAR_LAP      0x20000000u
-#define ULC_RSP_DISCARD_OUTPUT 0x10000000u
-#define ULC_RSP_SCALE_SAMPLES  0x08000000u
+#define ULC_RSP_TRANSFORM      0x80000000u          ///< Apply the inverse MDCT, converting frequency coefficients into time-domain samples.
+#define ULC_RSP_LAP            0x40000000u          ///< Overlap-add the current transform with the retained second half of previous transforms, and update the retained lap state.
+#define ULC_RSP_CLEAR_LAP      0x20000000u          ///< Clear the lap buffer for the very first decoded block or subblock for each channel.
+#define ULC_RSP_DISCARD_OUTPUT 0x10000000u          ///< Preroll blocks need to be decoded and update the lap buffer, but we don't need to output samples.
+#define ULC_RSP_SCALE_SAMPLES  0x08000000u          ///< For mono we can directly scale from q14 to q15 and write the final output to dst. For stereo, scaling is done in the separate stereo interleave call.
 
 
 // The RSP code works in int16 and assumes 14 fractional bits. We need to scale
 // decoded coefficients accordingly.
 
-#define ULC_FP_BITS 14
-#define ULC_FP_ONE (1 << ULC_FP_BITS)
+#define ULC_FP_BITS 14                          ///< Fixed point precision bits.
 
-// Decode block
+#define ULC_FP_ONE (1 << ULC_FP_BITS)          ///< Fixed point one.
+
+/** @brief Escape sequence for stop code. */
 #define ULC_ESCAPE_SEQUENCE_STOP           -1
+
+/** @brief Escape sequence for noise fill to end. */
 #define ULC_ESCAPE_SEQUENCE_STOP_NOISEFILL -2
 
 static inline uint32_t ulc_rand(void) {
