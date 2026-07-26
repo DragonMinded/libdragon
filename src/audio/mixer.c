@@ -1048,6 +1048,10 @@ static void mixer_refresh_max_ns(int ch) {
 
 // Number of samples the next round can mix: a full round, unless a streamed
 // channel would outrun what the CPU is able to feed it in one go.
+//
+// The result is always even, so that each round advances the output pointer by
+// a multiple of 8 bytes and MIX_FLUSH can DMA the accumulator out as-is
+// (see #mixer_poll_async).
 static int mixer_round_length(int max_ns) {
 	int ns = MIN(max_ns, MIXER_MAX_SAMPLES_PER_ROUND);
 
@@ -1074,7 +1078,15 @@ static int mixer_round_length(int max_ns) {
 			}
 		}
 	}
-	return MAX(ns, 1);
+
+	// Truncate to an even number of samples. Stopping one sample before a
+	// constraint is always safe (the next round resumes there); the only
+	// exception is a limit exactly one sample away, where we mix one sample
+	// too many. That sample is still valid data: past a small loop point it
+	// is the loop body the CPU is about to pin, past the end of a large loop
+	// it is covered by #MIXER_LOOP_OVERREAD, and in both cases the CPU takes
+	// over from the next round.
+	return MAX(ns & ~1, 2);
 }
 
 // Volumes to send for a channel: a stereo owner only carries the L plane and
@@ -1397,6 +1409,14 @@ static void mixer_poll_async(int16_t *out16, int num_samples) {
 	// otherwise buffering might become complicated / impossible.
 	assert(num_samples % 2 == 0);
 
+	// MIX_FLUSH DMAs the accumulator straight out of DMEM, so every output
+	// address the RSP is given must be 8-byte aligned. That holds as long as
+	// the buffer itself is aligned and we only ever advance it by an even
+	// number of stereo samples, which is what the rest of this function and
+	// #mixer_round_length guarantee.
+	assertf(((uint32_t)out16 & 7) == 0,
+		"mixer output buffer must be 8-byte aligned: %p", out16);
+
 	// Check if the mixer is throttled. If so, do not produce more
 	// than the allowance (with a small extra equal to a full audio buffer,
 	// to avoid issues with fixed-size buffers like those provided by audio.c),
@@ -1404,7 +1424,7 @@ static void mixer_poll_async(int16_t *out16, int num_samples) {
 	if (Mixer.throttled) {
 		int extra = Mixer.sample_rate / MIXER_POLL_PER_SECOND;
 		int total = num_samples;
-		num_samples = MIN(num_samples, Mixer.max_samples+extra);
+		num_samples = (int)MIN(num_samples, Mixer.max_samples+extra) & ~1;
 		Mixer.max_samples -= num_samples;
 		memset(out + num_samples, 0, (total - num_samples) * sizeof(int32_t));
 	}
@@ -1412,13 +1432,20 @@ static void mixer_poll_async(int16_t *out16, int num_samples) {
 	while (num_samples > 0) {
 		mixer_event_t *e = mixer_next_event();
 
-		int ns = MIN(num_samples, e ? e->ticks - Mixer.ticks : num_samples);
+		// Stop at the next event, rounding the split up to an even number of
+		// samples. The event then fires up to one sample late, but without
+		// drifting: its schedule stays anchored to absolute ticks.
+		int ns = num_samples;
+		if (e) {
+			int64_t delay = e->ticks - Mixer.ticks;
+			ns = delay > 0 ? MIN(ns, (int)ROUND_UP(delay, 2)) : 0;
+		}
 		if (ns > 0) {
 			mixer_exec(out, ns);
 			out += ns;
 			num_samples -= ns;
 		}
-		if (e && Mixer.ticks == e->ticks) {
+		if (e && Mixer.ticks >= e->ticks) {
 			int64_t repeat = e->cb(e->ctx);
 			if (repeat)
 				e->ticks += repeat;

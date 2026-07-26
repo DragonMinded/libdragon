@@ -69,17 +69,9 @@
 # Zero ACCUM before mixing (first MIX_CHANNEL of a round; ACCUM is in .bss).
 #define CH_FLAGS_CLEAR_ACCUM      (1<<7)
 
-# Resample staging (8 samples) and volume spill during VADPCM decode.
-#define DMEM_SCRATCH_SIZE         128
-
-# Bytes of ACCUM staged per DMA when the output pointer is not 8-byte aligned.
-# Must be a multiple of 8, so that every chunk keeps the same misalignment,
-# and must leave room in DMEM_SCRATCH for the word preceding the chunk plus
-# the 8-byte rounding of the transfer.
-#define FLUSH_CHUNK               (DMEM_SCRATCH_SIZE - 8)
-.if (FLUSH_CHUNK % 8) != 0 || (FLUSH_CHUNK + 8) > DMEM_SCRATCH_SIZE
-.error "FLUSH_CHUNK must be a multiple of 8 and fit in DMEM_SCRATCH"
-.endif
+# Resample staging (8 samples) and volume spill during VADPCM decode
+# (4 vectors).
+#define DMEM_SCRATCH_SIZE         64
 
 # Sample DMA cache (must be <= MIXER_LOOP_OVERREAD in mixer.c).
 #define SAMPLE_CACHE_SIZE         64
@@ -903,75 +895,25 @@ MixOne:
 # MIX_FLUSH – DMA ACCUM to RDRAM and clear ACCUM.
 #
 # a0: [nsamples:16][pad:16]
-# a1: output RDRAM pointer (physical)
+# a1: output RDRAM pointer (physical, 8-byte aligned)
+#
+# The DMA engine ignores the low 3 bits of both addresses, so ACCUM can only
+# be sent as-is to an 8-byte aligned pointer. The CPU guarantees that: the
+# output buffer is aligned and every round mixes an even number of stereo
+# samples (see mixer_round_length).
 ###############################################################
 
 	.func MIX_FLUSH
 MIX_FLUSH:
 	andi t4, a0, 0xFFFF            # nsamples
-	move s1, a1                    # output rdram
-
 	beqz t4, RSPQ_Loop
-	nop
+	move s0, a1                    # output rdram
 
-	# Handle 4-byte-but-not-8-byte aligned output. The DMA engine ignores the
-	# low 3 bits of both addresses, so data must sit at an odd word offset in
-	# DMEM to land on an odd word offset in RDRAM: ACCUM (8-byte aligned)
-	# cannot be sent as-is and has to be staged through DMEM_SCRATCH, in
-	# chunks of FLUSH_CHUNK bytes. Every transfer also rewrites the word that
-	# precedes its chunk: for the first one that is memory outside our buffer,
-	# so it is read back from RDRAM first; for the others it is the last word
-	# of the previous chunk, still known here.
-	andi t1, s1, 7
-	beqz t1, MIX_FLUSH_Dma
-
-	move s0, s1                    # rdram cursor (stays 4 mod 8: chunks are 8-byte multiples)
-	li s4, %lo(DMEM_SCRATCH)
-	jal DMAIn
-	li t0, DMA_SIZE(8, 1)
-	li t5, %lo(ACCUM)              # accum cursor
-	sll t6, t4, 2                  # bytes left
-	lw t7, %lo(DMEM_SCRATCH)       # word preceding the chunk
-
-MIX_FLUSH_Stage:
-	move t3, t6                    # this chunk: MIN(bytes left, FLUSH_CHUNK)
-	li t2, FLUSH_CHUNK
-	bltu t6, t2, 1f
-	nop
-	move t3, t2
-1:	li t2, %lo(DMEM_SCRATCH)
-	sw t7, 0(t2)
-	addi t2, 4
-	add t8, t2, t3
-2:	lw t7, 0(t5)                   # exits holding the last word staged
-	addi t5, 4
-	sw t7, 0(t2)
-	addi t2, 4
-	bne t2, t8, 2b
-	nop
-
-	li s4, %lo(DMEM_SCRATCH+4)     # aligned down by the DMA engine
-	move s0, s1
-	addi t0, t3, 3                 # +4 bytes of prefix - 1 for DMA_SIZE
-	jal DMAOut
-	nop
-
-	add s1, t3
-	sub t6, t3
-	bgtz t6, MIX_FLUSH_Stage
-	nop
-	j MIX_FLUSH_Clear
-	nop
-
-MIX_FLUSH_Dma:
-	li s4, %lo(ACCUM)
-	move s0, s1
 	sll t0, t4, 2
 	addi t0, -1
 	jal DMAOut
-	nop
+	li s4, %lo(ACCUM)
 
-MIX_FLUSH_Clear:
 	li s4, %lo(ACCUM)
 	li t0, (MAX_SAMPLES_PER_ROUND * 4) / 64 - 1
 	vxor v_zero, v_zero, v_zero
