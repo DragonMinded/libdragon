@@ -109,7 +109,6 @@ static const uint16_t ulc_decimation_patterns[] = {
     0x3321 | 0x8000, // 1111: N/2,N/4,N/8,N/8*
 };
 
-static bool ulc_rsp_in_highpri = false;
 static uint32_t ulc_rsp_overlay_id = 0;
 
 /** @brief RSP overlay ID for the ULC decoder. */
@@ -301,18 +300,10 @@ static void ulc_decode_coeffs(int16_t *coeff_dst, int sb_size, const uint8_t **s
 }
 
 static inline void ulc_rsp_synthesize(int16_t *coeffs, int16_t *lap, int16_t *dst, int flags) {
-    if (!ulc_rsp_in_highpri) {
-        ulc_rsp_in_highpri = true;
-        rspq_highpri_begin();
-    }
     rspq_write(ulc_rsp_overlay_id, ULC_RSP_CMD_synthesize, PhysicalAddr(coeffs), PhysicalAddr(lap), PhysicalAddr(dst), flags);
 }
 
 static inline void ulc_rsp_stereo_interleave(int16_t *mid, int16_t *side, int16_t *dst) {
-    if (!ulc_rsp_in_highpri) {
-        ulc_rsp_in_highpri = true;
-        rspq_highpri_begin();
-    }
     rspq_write(ulc_rsp_overlay_id, ULC_RSP_CMD_stereo_interleave, PhysicalAddr(mid), PhysicalAddr(side), PhysicalAddr(dst));
 }
 
@@ -558,6 +549,10 @@ static void waveform_ulc_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wle
         blocks_len += ULC_PREROLL_BLOCKS;
     }
 
+    // Batch all the decode commands in a single highpri sequence. When the
+    // mixer calls us from within its own highpri burst, this simply nests.
+    rspq_highpri_begin();
+
     for (int i = 0; i < blocks_len; i++) {
         assertf(state->block_index < ext->blocks_len, "wav64: %s: ULC blocks exhausted: %lu/%lu", wav->wave.name, state->block_index, ext->blocks_len);
 
@@ -573,10 +568,7 @@ static void waveform_ulc_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wle
         }
     }
 
-    if (ulc_rsp_in_highpri) {
-        ulc_rsp_in_highpri = false;
-        rspq_highpri_end();
-    }
+    rspq_highpri_end();
 
     int valid = wav->wave.loop_len ? MIN(appended, wav->wave.len - wpos) : appended;
     if (appended > valid) {
@@ -600,6 +592,7 @@ void wav64_ulc_init(wav64_t *wav, int state_size) {
 
     wav->wave.start = waveform_ulc_start;
     wav->wave.read = waveform_ulc_read;
+    wav->wave.append_units = ULC_BLOCK_SIZE;
 }
 
 int wav64_ulc_get_bitrate(wav64_t *wav) {

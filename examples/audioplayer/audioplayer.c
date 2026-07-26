@@ -429,7 +429,7 @@ int main(void) {
 	if (num_songs == 0)
 		page = PAGE_INTRO_ERROR;
 
-#if 1
+#if 0
 	// Force immediately playback of a song (for mixer profiling).
 	page = PAGE_SONG;
 	cur_rom = "rom:/BUTTERFL.xm64";
