@@ -1,7 +1,7 @@
 /**
  * @file samplebuffer.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @brief Sample buffer (ring FIFO)
+ * @brief Sample buffer
  * @ingroup mixer
  */
 
@@ -20,41 +20,25 @@ typedef struct waveform_s waveform_t;
 /// @endcond
 
 /**
- * Tagged pointer to an array of samples. It contains both the void*
- * sample pointer, and byte-per-sample information (encoded as shift value).
+ * Pointer to the sample area (historically a tagged pointer; the low bits are
+ * unused and the width of each unit lives in #samplebuffer_t::unit_bytes).
  */
 typedef uint32_t sample_ptr_t;
 
 /**
- * SAMPLES_BPS_SHIFT extracts the byte-per-sample information from a sample_ptr_t.
- * Byte-per-sample is encoded as shift value, so the actual number of bits is
- * 1 << BPS. Valid shift values are 0, 1, 2 (which corresponds to 1, 2 or 4
- * bytes per sample).
+ * Extract the raw void* to the sample array from a samplebuffer.
  */
-#define SAMPLES_BPS_SHIFT(buf)      ((buf)->ptr_and_flags & 3)
-
-/**
- * SAMPLES_PTR extract the raw void* to the sample array. The size of array
- * is not encoded in the tagged pointer. Notice that it is implemented with a
- * XOR because on MIPS it's faster than using a reverse mask.
- */
-#define SAMPLES_PTR(buf)            (void*)((buf)->ptr_and_flags ^ SAMPLES_BPS_SHIFT(buf))
-
-/**
- * SAMPLES_PTR_MAKE create a tagged pointer, given a pointer to an array of
- * samples and a byte-per-sample value (encoded as shift value).
- */
-#define SAMPLES_PTR_MAKE(ptr, bps)  ((sample_ptr_t)(ptr) | (bps))
+#define SAMPLES_PTR(buf)            ((void*)(uintptr_t)((buf)->ptr_and_flags))
 
 /**
  * Maximum window (in units) that #samplebuffer_get / #samplebuffer_append may
- * request. Matches the ring tail margin: one MIX_CHANNEL input span plus
- * RSP sample-cache overread.
+ * request. Matches the samplebuffer tail margin: one MIX_CHANNEL input span
+ * plus RSP sample-cache overread.
  */
 #define SAMPLEBUFFER_MARGIN_UNITS  128
 
 /**
- * samplebuffer_t is a ring FIFO of samples used by the mixer to feed the RSP.
+ * samplebuffer_t holds samples used by the mixer to feed the RSP.
  *
  * The mixer follows a "pull" architecture. During mixer_poll, it will call
  * samplebuffer_get() to extract samples from the buffer. If the required
@@ -63,11 +47,11 @@ typedef uint32_t sample_ptr_t;
  * waveform read function will push samples into the buffer via samplebuffer_append,
  * so that they become available for the mixer.
  *
- * Data is stored in a circular ring with a small tail margin so that any
- * window up to the margin size is always contiguous in physical memory
- * (required by RSP DMA). RING_SIZE * unit_bytes is kept a multiple of 8 so
- * that absolute waveform positions preserve their 2-byte phase in the ring
- * (dma_read / dfs compatibility).
+ * Data is stored circularly with a small tail margin so that any window up to
+ * the margin size is always contiguous in physical memory (required by RSP
+ * DMA). size * unit_bytes is kept a multiple of 8 so that absolute waveform
+ * positions preserve their 2-byte phase in the samplebuffer (dma_read / dfs
+ * compatibility).
  *
  * In general, the sample buffer assumes that the contained data is committed
  * to physical memory, not just CPU cache. It is responsibility of the client
@@ -76,31 +60,37 @@ typedef uint32_t sample_ptr_t;
  */
 typedef struct samplebuffer_s {
     /**
-     * Tagged pointer to the actual buffer. Lower bits contain bit-per-shift.
+     * Pointer to the sample area (8-byte aligned, uncached).
      */
     sample_ptr_t ptr_and_flags;
 
     /**
-     * Bytes per logical unit when not a power-of-two sample width.
-     * 0 means "use 1 << SAMPLES_BPS_SHIFT(buf)" (PCM path). Non-zero is used
-     * for compressed frame stores (e.g. 9 for mono VADPCM frames). In that
-     * mode wpos/widx/size are counted in units (frames), not PCM samples.
+     * Bytes per logical unit counted by wpos/widx/size.
+     * PCM: 1, 2, or 4. Compressed frame stores: e.g. 9 for mono VADPCM.
      */
     uint8_t unit_bytes;
 
     /**
-     * Ring size in units (excludes the tail margin).
+     * Usable size in units (excludes the tail margin).
      **/
     int size;
 
     /**
+     * Granularity in units of the appends done by the producer, or 0 if
+     * unknown: declared via #waveform_t::append_units, or learnt from the
+     * appends themselves. When it exceeds the tail margin (only then can an
+     * append need a relocate), #size is kept a multiple of it.
+     */
+    int append_units;
+
+    /**
      * Absolute position in the waveform of the first sample
-     * currently valid in the ring.
+     * currently valid in the samplebuffer.
      */
     int wpos;
 
     /**
-     * Number of valid units currently stored in the ring.
+     * Number of valid units currently stored in the samplebuffer.
      */
     int widx;
 
@@ -136,25 +126,29 @@ typedef struct samplebuffer_s {
     WaveformRead wv_read;
 
     /**
-     * Highest mix round id whose RSP mix command still references bytes
-     * in this buffer.
-     */
-    uint32_t last_round;
-
-    /**
      * Ticket of the most recent async PI DMA into this buffer (0 = none).
      * Producers set it when issuing dma_read_async; consumers wait via
      * #samplebuffer_dma_wait before touching the bytes or freeing memory.
      */
     uint64_t dma_ticket;
 
-    /** Total bytes allocated for the sample area (ring + margin). */
+    /** Total bytes allocated for the sample area (usable size + margin). */
     int capacity_bytes;
 
-    /** Physical slot of wpos within the ring. */
+    /**
+     * Physical index (0 .. size-1) of #wpos in the circular sample area.
+     * A unit at relative offset `rel` from wpos lives at
+     * `(head + rel) % size`. Advances when the oldest units are discarded.
+     */
     int head;
 
-    /** Pending append into the margin that needs a mirror copy-back. */
+    /**
+     * Latest #samplebuffer_append that has not been committed yet: physical
+     * start slot and length in units. An append may spill into the tail
+     * margin so the write stays contiguous; commit then mirrors the overflow
+     * back to the start of the sample area (after any PI DMA has finished).
+     * pending_len == 0 means nothing is pending.
+     */
     int pending_slot;
     int pending_len;
 } samplebuffer_t;
@@ -170,7 +164,7 @@ typedef struct samplebuffer_s {
  *
  * The memory buffer will be used for storing samples and for the state.
  * Part of the sample area is reserved as a tail margin for contiguous
- * RSP DMA across the ring wrap.
+ * RSP DMA across the wrap.
  *
  * @param[in]   buf              Sample buffer
  * @param[in]   uncached_mem     Memory buffer to use. Must be 8-byte aligned,
@@ -186,29 +180,22 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t *uncached_mem, int size, int
 bool samplebuffer_is_inited(samplebuffer_t *buf);
 
 /**
- * @brief Configure the bit width of the samples stored in the buffer.
- *
- * Valid values for "bps" are 1, 2, or 4: 1 can be used for 8-bit mono samples,
- * 2 for either 8-bit interleaved stereo or 16-bit mono, and 4 for 16-bit
- * interleaved stereo.
- *
- * Clears any previous #samplebuffer_set_unit_bytes setting.
- */
-void samplebuffer_set_bps(samplebuffer_t *buf, int bps);
-
-/**
- * @brief Configure a non-power-of-two unit size (compressed frames).
+ * @brief Configure the logical unit size (bytes per wpos/widx step).
  *
  * After this call, wpos/widx/size are expressed in units of `unit_bytes`
- * each (e.g. VADPCM frames of 9 bytes). The buffer must be empty.
+ * each (e.g. 2 for 16-bit mono PCM, 9 for mono VADPCM frames). The buffer
+ * must be empty.
  */
 void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes);
 
 /**
- * @brief Bytes per logical unit in the sample buffer.
+ * @brief Configure the bit width of PCM samples stored in the buffer.
+ *
+ * Valid values are 8, 16, or 32 (total bits per interleaved frame).
+ * Wrapper for #samplebuffer_set_unit_bytes with `bps / 8`.
  */
-static inline int samplebuffer_unit_bytes(const samplebuffer_t *buf) {
-	return buf->unit_bytes ? (int)buf->unit_bytes : (1 << SAMPLES_BPS_SHIFT(buf));
+static inline void samplebuffer_set_bps(samplebuffer_t *buf, int bps) {
+	samplebuffer_set_unit_bytes(buf, bps / 8);
 }
 
 /**
@@ -236,7 +223,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen);
  * #waveform_t::async_read (there would be nothing to overlap with), and
  * likewise if the window is already available, if it is not contiguous with
  * what the buffer holds (a seek is coming, so anything fetched now would be
- * discarded), or if the ring has no room for it.
+ * discarded), or if the samplebuffer has no room for it.
  */
 void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen);
 
@@ -244,7 +231,9 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen);
  * @brief Append samples into the buffer (zero-copy).
  *
  * Returns a contiguous uncached pointer where the caller must write `wlen`
- * units. The window size must not exceed the ring margin.
+ * units. Windows larger than the samplebuffer margin are allowed, but they
+ * may force the live window to be relocated to keep the write contiguous:
+ * declare their size in #waveform_t::append_units to avoid that.
  */
 void* samplebuffer_append(samplebuffer_t *buf, int wlen);
 

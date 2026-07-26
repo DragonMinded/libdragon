@@ -4,6 +4,7 @@
 // We need to show lots of internal details of the module which are not
 // exposed via public API, so include the internal header file.
 #include "../../src/audio/libxm/xm_internal.h"
+#include "../../src/audio/mixer_internal.h"
 #include "../../src/accounting_internal.h"
 
 #define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
@@ -307,6 +308,7 @@ enum Page page_song(void) {
 		}
 
 		display_show(disp);
+		profile_next_frame();
 
 		uint32_t start_play_loop = TICKS_READ();
 		//int audiosz = audio_get_buffer_length();
@@ -404,6 +406,7 @@ enum Page page_song(void) {
 int main(void) {
 	debug_init_emulog();
 	debug_init_usblog();
+	emux_ioctl_fast();
 	joypad_init();
 
 	display_init(RESOLUTION_512x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
@@ -426,14 +429,22 @@ int main(void) {
 	if (num_songs == 0)
 		page = PAGE_INTRO_ERROR;
 
-#if 0
-	// Force immediately playback of a song
+#if 1
+	// Force immediately playback of a song (for mixer profiling).
 	page = PAGE_SONG;
-	cur_rom = "rom:/Claustrophobia.xm64";
+	cur_rom = "rom:/BUTTERFL.xm64";
 #endif
 
 	audio_init(44100, 4);
 	mixer_init(32);
+
+	profile_parms_t pparms = {
+		.num_slots = 32,
+		.dump_stderr_interval = 5.0f,
+	};
+	profile_init(&pparms);
+	__mixer_profile_init();
+	profile_set_target_fps(60.0f);
 
 	while(1) {
 		switch (page) {

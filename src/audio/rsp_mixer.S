@@ -8,26 +8,26 @@
 	# Architecture (per-channel commands)
 	# ===================================
 	#
-# Mixing is driven by three RSPQ commands:
-#
-#   MIX_SETCHANNEL – record the VADPCM codebook/state pointers of one channel
-#                  into a per-channel DMEM table.
-#   MIX_CHANNEL  – resample one channel for up to MAX_SAMPLES_PER_ROUND
-#                  output ticks and accumulate into a stereo DMEM buffer
-#                  (ACCUM) in .bss. Optionally decode mono VADPCM frames
-#                  into a DMEM window first (CH_FLAGS_VADPCM). Stereo
-#                  VADPCM is two independent mono MIX_CHANNELs (L/R planes).
-#   MIX_FLUSH    – DMA ACCUM out to RDRAM, clear it, publish the round id.
-#
-# All MIX_CHANNEL + MIX_FLUSH of a round are enqueued in one highpri burst
-# of this overlay so ACCUM (in .bss) cannot be clobbered mid-round. XVOL_L/R
-# (one-tap volume filter state) and the per-channel VADPCM table live in
-# saved state, so they survive overlay swaps.
-#
-# Per-round channel parameters travel inline in the MIX_CHANNEL command; the
-# VADPCM pointers, which only change when a new waveform starts, are sent by
-# MIX_SETCHANNEL. Sample data comes from
-# either resident RDRAM or a CPU-side ring FIFO (no RSP compaction).
+	# Mixing is driven by three RSPQ commands:
+	#
+	#   MIX_SETCHANNEL – record the VADPCM codebook/state pointers of one channel
+	#                  into a per-channel DMEM table.
+	#   MIX_CHANNEL  – resample one channel for up to MAX_SAMPLES_PER_ROUND
+	#                  output ticks and accumulate into a stereo DMEM buffer
+	#                  (ACCUM) in .bss. Optionally decode mono VADPCM frames
+	#                  into a DMEM window first (CH_FLAGS_VADPCM). Stereo
+	#                  VADPCM is two independent mono MIX_CHANNELs (L/R planes).
+	#   MIX_FLUSH    – DMA ACCUM out to RDRAM and clear it.
+	#
+	# All MIX_CHANNEL + MIX_FLUSH of a round are enqueued in one highpri burst
+	# of this overlay so ACCUM (in .bss) cannot be clobbered mid-round. XVOL_L/R
+	# (one-tap volume filter state) and the per-channel VADPCM table live in
+	# saved state, so they survive overlay swaps.
+	#
+	# Per-round channel parameters travel inline in the MIX_CHANNEL command; the
+	# VADPCM pointers, which only change when a new waveform starts, are sent by
+	# MIX_SETCHANNEL. Sample data comes from
+	# either resident RDRAM or a CPU-side samplebuffer (no RSP compaction).
 	# Loop wraps (pos -= loop_len, reload loop_state) are handled here when
 	# the CPU pins a stable loop region (resident or loop-cached).
 	#
@@ -111,7 +111,7 @@
 	RSPQ_BeginOverlayHeader
 		RSPQ_DefineCommand MIX_CHANNEL,       32		# 0x0
 		RSPQ_DefineCommand MIX_SETCHANNEL,    16		# 0x1
-		RSPQ_DefineCommand MIX_FLUSH,         12		# 0x2
+		RSPQ_DefineCommand MIX_FLUSH,          8		# 0x2
 	RSPQ_EndOverlayHeader
 
 ############################################################################
@@ -134,15 +134,10 @@ BANNER1:    .ascii " Coded by Rasky "
 	.align 4
 XVOL_L:                   .dcb.w MAX_CHANNELS
 XVOL_R:                   .dcb.w MAX_CHANNELS
-	.align 4
-COUNTER_RDRAM:            .long  0
-	                      .long  0
-	                      .long  0
-	                      .long  0
 	# Per-channel VADPCM pointers, written by MIX_SETCHANNEL. They only
 	# change when a new waveform is played, so the CPU sends them once
 	# instead of inlining them in every MIX_CHANNEL.
-	.align 2
+	.align 4
 CHTBL_CODEBOOK:           .dcb.l MAX_CHANNELS
 CHTBL_STATE:              .dcb.l MAX_CHANNELS
 CHTBL_LOOP_STATE:         .dcb.l MAX_CHANNELS
@@ -183,7 +178,7 @@ MIX_VADPCM_COMP:          .space (VADPCM_WIN_FRAMES * 9 + 8)
 	.align 4
 MIX_VADPCM_PCM:           .space (VADPCM_WIN_SAMPLES * 2)
 
-	# Scratch used to DMA the round id out to COUNTER_RDRAM.
+	# Scratch for the VADPCM catch-up path (wanted frame index).
 	.align 3
 ROUND_SCRATCH:            .long  0
 	                      .long  0
@@ -905,20 +900,18 @@ MixOne:
 
 
 ###############################################################
-# MIX_FLUSH – DMA ACCUM to RDRAM, clear ACCUM, publish round id.
+# MIX_FLUSH – DMA ACCUM to RDRAM and clear ACCUM.
 #
 # a0: [nsamples:16][pad:16]
 # a1: output RDRAM pointer (physical)
-# a2: round_id
 ###############################################################
 
 	.func MIX_FLUSH
 MIX_FLUSH:
 	andi t4, a0, 0xFFFF            # nsamples
 	move s1, a1                    # output rdram
-	move k1, a2                    # round_id
 
-	beqz t4, MIX_FLUSH_Publish
+	beqz t4, RSPQ_Loop
 	nop
 
 	# Handle 4-byte-but-not-8-byte aligned output. The DMA engine ignores the
@@ -990,12 +983,8 @@ MIX_FLUSH_Clear:
 	bnez t0, 1b
 	addi t0, -1
 
-MIX_FLUSH_Publish:
-	sw k1, %lo(ROUND_SCRATCH)
-	li s4, %lo(ROUND_SCRATCH)
-	lw s0, %lo(COUNTER_RDRAM)
-	li t0, DMA_SIZE(8, 1)
-	jal_and_j DMAOutAsync, RSPQ_Loop
+	j RSPQ_Loop
+	nop
 	.endfunc
 
 

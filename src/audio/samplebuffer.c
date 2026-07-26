@@ -1,7 +1,7 @@
 /**
  * @file samplebuffer.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @brief Sample buffer (ring FIFO)
+ * @brief Sample buffer
  * @ingroup mixer
  */
 
@@ -14,6 +14,7 @@
 #include "utils.h"
 #include "debug.h"
 #include "profile.h"
+#include "rspq.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -30,6 +31,17 @@ static inline uint8_t *samplebuffer_base(const samplebuffer_t *buf) {
 	return SAMPLES_PTR(buf);
 }
 
+/** Round a unit count so that count * unit_bytes is a multiple of 8. */
+static int samplebuffer_align_len(const samplebuffer_t *buf, int len) {
+	int ub = buf->unit_bytes;
+	assert(ub > 0);
+	if (ub & (ub - 1))
+		return ROUND_UP(len, 8);
+	// PCM: ub is 1, 2, or 4 → ROUND_UP(len << bps, 8) >> bps (no division).
+	int bps = ub == 1 ? 0 : (ub == 2 ? 1 : 2);
+	return ((len + ((8 >> bps) - 1)) >> (3 - bps)) << (3 - bps);
+}
+
 void samplebuffer_dma_wait(samplebuffer_t *buf) {
 	if (buf->dma_ticket) {
 		dma_wait_finished(buf->dma_ticket);
@@ -41,7 +53,7 @@ void samplebuffer_dma_wait(samplebuffer_t *buf) {
 static void samplebuffer_commit(samplebuffer_t *buf) {
 	if (buf->pending_len <= 0)
 		return;
-	int ub = samplebuffer_unit_bytes(buf);
+	int ub = buf->unit_bytes;
 	int ring = buf->size;
 	int slot = buf->pending_slot;
 	int len = buf->pending_len;
@@ -55,7 +67,7 @@ static void samplebuffer_commit(samplebuffer_t *buf) {
 		       n * ub);
 	} else if (slot + len > ring) {
 		samplebuffer_dma_wait(buf);
-		// Write crossed the ring end into the margin: mirror the overflow
+		// Write crossed the usable end into the margin: mirror the overflow
 		// back to the start (producer wrote into the margin area).
 		int overflow = slot + len - ring;
 		memcpy(samplebuffer_base(buf),
@@ -70,7 +82,7 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes, i
 
 	assertf(UncachedAddr(uncached_mem) == uncached_mem,
 		"specified buffer must be in the uncached segment.\nTry using malloc_uncached() to allocate it");
-	buf->ptr_and_flags = (uint32_t)uncached_mem;
+	buf->ptr_and_flags = (uint32_t)(uintptr_t)uncached_mem;
 	assert((buf->ptr_and_flags & 7) == 0);
 	buf->size = nbytes;
 	buf->capacity_bytes = nbytes;
@@ -83,21 +95,49 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes, i
 	buf->wnext = -1;
 }
 
-void samplebuffer_set_bps(samplebuffer_t *buf, int bits_per_sample) {
-	assert(bits_per_sample == 8 || bits_per_sample == 16 || bits_per_sample == 32);
-	assertf(buf->widx == 0 && buf->ridx == 0 && buf->wpos == 0,
-		"samplebuffer_set_bps can only be called on an empty samplebuffer");
+static int gcd(int a, int b) {
+	while (b) { int t = a % b; a = b; b = t; }
+	return a;
+}
 
-	int bps = bits_per_sample == 8 ? 0 : (bits_per_sample == 16 ? 1 : 2);
-	buf->unit_bytes = 0;
-	buf->ptr_and_flags = SAMPLES_PTR_MAKE(SAMPLES_PTR(buf), bps);
-	int ub = 1 << bps;
-	int margin_bytes = SAMPLEBUFFER_MARGIN_UNITS * ub;
-	int usable = buf->capacity_bytes - margin_bytes;
-	assertf(usable > 0, "samplebuffer too small for ring margin");
-	usable &= ~7;
-	buf->size = usable >> bps;
-	assert(buf->size > 0);
+/**
+ * Recompute the usable size in units, from the allocated bytes, the unit size
+ * and the append granularity. The samplebuffer must be empty.
+ */
+static void samplebuffer_recalc_size(samplebuffer_t *buf) {
+	int ub = buf->unit_bytes;
+	assert(ub > 0);
+	int usable = buf->capacity_bytes - SAMPLEBUFFER_MARGIN_UNITS * ub;
+	assertf(usable >= ub, "samplebuffer too small for margin");
+
+	// size * unit_bytes must be a multiple of 8, so that a waveform position
+	// keeps its byte phase when it wraps around the samplebuffer.
+	int n;
+	if ((ub & (ub - 1)) == 0) {
+		int bps = ub == 1 ? 0 : (ub == 2 ? 1 : 2);
+		n = (usable & ~7) >> bps;
+	} else {
+		n = usable / ub;
+		while (n > 0 && ((n * ub) & 7))
+			n--;
+	}
+	assertf(n >= SAMPLEBUFFER_MARGIN_UNITS, "samplebuffer too small");
+
+	// If the producer appends chunks that do not fit the tail margin, keep the
+	// size a multiple of the chunk (and of the byte phase above): the write
+	// cursor then wraps exactly at the end of the usable area, so a chunk is
+	// never split by the wrap and never needs the live window to be relocated.
+	// Smaller chunks always fit the margin, so they gain nothing from this.
+	// Give up if it would not leave room for two chunks.
+	int f = buf->append_units;
+	if (f > SAMPLEBUFFER_MARGIN_UNITS) {
+		int phase = 8 / gcd(ub, 8);
+		int step = f / gcd(f, phase) * phase;
+		if (n - n % step >= 2*f)
+			n -= n % step;
+	}
+
+	buf->size = n;
 }
 
 void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes) {
@@ -106,21 +146,17 @@ void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes) {
 		"samplebuffer_set_unit_bytes can only be called on an empty samplebuffer");
 
 	buf->unit_bytes = (uint8_t)unit_bytes;
-	buf->ptr_and_flags = SAMPLES_PTR_MAKE(SAMPLES_PTR(buf), 0);
-	int margin_bytes = SAMPLEBUFFER_MARGIN_UNITS * unit_bytes;
-	int usable = buf->capacity_bytes - margin_bytes;
-	assertf(usable >= unit_bytes, "samplebuffer too small for ring margin");
-	int ring = usable / unit_bytes;
-	while (ring > 0 && ((ring * unit_bytes) & 7))
-		ring--;
-	assertf(ring >= SAMPLEBUFFER_MARGIN_UNITS, "samplebuffer ring too small");
-	buf->size = ring;
+	samplebuffer_recalc_size(buf);
 }
 
 void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read) {
 	buf->wave = wave;
 	buf->wv_read = read;
 	assert(wave->state_size <= buf->state_size);
+
+	buf->append_units = wave->append_units;
+	if (buf->unit_bytes && buf->widx == 0 && buf->ridx == 0)
+		samplebuffer_recalc_size(buf);
 }
 
 bool samplebuffer_is_inited(samplebuffer_t *buf)
@@ -141,44 +177,56 @@ static inline int samplebuffer_slot(const samplebuffer_t *buf, int rel) {
 	return (buf->head + rel) % buf->size;
 }
 
-/** Move the live window [ridx, widx) to physical slot 0 (rare; large appends). */
-static void samplebuffer_relocate_live(samplebuffer_t *buf) {
-	int ub = samplebuffer_unit_bytes(buf);
+/**
+ * Move the live window [ridx, widx) to the start of the sample area, so that a
+ * following append of wlen units is contiguous (rare; only large appends).
+ *
+ * With a known append granularity, the window is placed so that the write
+ * cursor lands on a multiple of it: as the usable size is a multiple as well,
+ * from here on appends wrap exactly at the end of the samplebuffer and no
+ * further relocation is needed, until an undo or a seek breaks the phase again.
+ */
+static void samplebuffer_relocate_live(samplebuffer_t *buf, int wlen) {
+	int ub = buf->unit_bytes;
 	int ring = buf->size;
 	int live = buf->widx - buf->ridx;
 	uint8_t *base = samplebuffer_base(buf);
 
+	int dst = 0;
+	int f = buf->append_units;
+	if (f > SAMPLEBUFFER_MARGIN_UNITS && ring % f == 0 &&
+		ROUND_UP(live, f) + wlen <= ring)
+		dst = ROUND_UP(live, f) - live;
+
 	if (live > 0) {
 		samplebuffer_dma_wait(buf);
-		// RSP may still be reading this window from a prior mix round.
-		if (buf->last_round)
-			__mixer_round_wait(buf->last_round);
+		// RSP may still be reading this window from a prior mix round. With
+		// #waveform_t::append_units this path is rare (seek / undo that breaks
+		// the write phase), so a full highpri sync is acceptable.
+		rspq_highpri_sync();
 		int src = samplebuffer_slot(buf, buf->ridx);
-		if (src != 0) {
+		if (src != dst) {
 			int nbytes = live * ub;
 			if (src + live <= ring) {
-				memmove(base, base + src * ub, nbytes);
+				memmove(base + dst * ub, base + src * ub, nbytes);
 			} else {
 				int first = ring - src;
 				void *tmp = malloc(nbytes);
 				assert(tmp);
 				memcpy(tmp, base + src * ub, first * ub);
 				memcpy((uint8_t*)tmp + first * ub, base, (live - first) * ub);
-				memcpy(base, tmp, nbytes);
+				memcpy(base + dst * ub, tmp, nbytes);
 				free(tmp);
 			}
 		}
-		// Keep margin mirror coherent for any live bytes in [0, MARGIN).
-		if (live > 0 && live <= SAMPLEBUFFER_MARGIN_UNITS)
-			memcpy(base + ring * ub, base, live * ub);
-		else if (live > SAMPLEBUFFER_MARGIN_UNITS)
-			memcpy(base + ring * ub, base, SAMPLEBUFFER_MARGIN_UNITS * ub);
+		// Keep the margin mirror coherent with the new start of the sample area.
+		memcpy(base + ring * ub, base, SAMPLEBUFFER_MARGIN_UNITS * ub);
 	}
 
 	buf->wpos += buf->ridx;
 	buf->widx = live;
 	buf->ridx = 0;
-	buf->head = 0;
+	buf->head = dst;
 }
 
 /** @brief Units that #samplebuffer_prefetch keeps ready ahead of the mixer. */
@@ -196,15 +244,9 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 	PROFILE_SCOPE(PS_SBUF_GET) {
 	samplebuffer_commit(buf);
 
-	int ub = samplebuffer_unit_bytes(buf);
+	int ub = buf->unit_bytes;
 	int ring = buf->size;
-	int round_len = *wlen;
-	if (buf->unit_bytes) {
-		round_len = ROUND_UP(round_len, 8);
-	} else {
-		int bps = SAMPLES_BPS_SHIFT(buf);
-		round_len = ((round_len)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps));
-	}
+	int round_len = samplebuffer_align_len(buf, *wlen);
 
 	tracef("samplebuffer_get: wpos=%x wlen=%x\n", wpos, *wlen);
 
@@ -215,7 +257,8 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		buf->wpos = wpos;
 		buf->head = 0;
 		int len = round_len;
-		if (!buf->unit_bytes && (buf->wpos * ub) & 1) {
+		// 8-bit PCM + odd wpos: dma_read needs a 2-byte aligned start.
+		if (ub == 1 && (buf->wpos & 1)) {
 			buf->wpos--; len++;
 		}
 		buf->wv_read(buf->wave->ctx, buf, buf->wpos, len, seeking);
@@ -227,13 +270,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		if (reuse < *wlen) {
 			tracef("samplebuffer_get: read missing: reuse=%x wpos=%x wlen=%x\n", reuse, wpos, *wlen);
 			assertf(wpos+reuse == buf->wnext, "wpos:%x reuse:%x buf->wnext:%x", wpos, reuse, buf->wnext);
-			int missing = *wlen - reuse;
-			if (buf->unit_bytes)
-				missing = ROUND_UP(missing, 8);
-			else {
-				int bps = SAMPLES_BPS_SHIFT(buf);
-				missing = ((missing)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps));
-			}
+			int missing = samplebuffer_align_len(buf, *wlen - reuse);
 			// Free space without discarding past the live read cursor.
 			missing = MIN(missing, ring - (buf->widx - buf->ridx));
 			buf->wv_read(buf->wave->ctx, buf, wpos+reuse, missing, false);
@@ -254,7 +291,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 
 	int slot = samplebuffer_slot(buf, rel);
 	assertf(*wlen <= SAMPLEBUFFER_MARGIN_UNITS || slot + *wlen <= ring,
-		"samplebuffer_get: window %x not contiguous (slot=%x ring=%x)", *wlen, slot, ring);
+		"samplebuffer_get: window %x not contiguous (slot=%x size=%x)", *wlen, slot, ring);
 	ret = samplebuffer_base(buf) + slot * ub;
 	}
 	return ret;
@@ -266,8 +303,8 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen) {
 		return;
 	samplebuffer_commit(buf);
 
-	// Only extend the current stream: on a seek the ring is flushed, so
-	// anything fetched now would be thrown away.
+	// Only extend the current stream: on a seek the samplebuffer is flushed,
+	// so anything fetched now would be thrown away.
 	if (wpos < buf->wpos || wpos > buf->wnext)
 		return;
 	// Fill back up to the watermark, so that one transfer covers several rounds.
@@ -276,12 +313,7 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen) {
 	if (missing <= 0 ||
 		(ahead > SAMPLEBUFFER_PREFETCH_LOW_UNITS && ahead >= wlen))
 		return;
-	if (buf->unit_bytes)
-		missing = ROUND_UP(missing, 8);
-	else {
-		int bps = SAMPLES_BPS_SHIFT(buf);
-		missing = ((missing)+((8>>(bps))-1)) >> (3-(bps)) << (3-(bps));
-	}
+	missing = samplebuffer_align_len(buf, missing);
 	// Never ask for more than a margin: readers split bigger requests into
 	// several appends, and since a buffer tracks a single in-flight transfer,
 	// the second append would have to wait for the first one here.
@@ -301,9 +333,25 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen) {
 void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 	samplebuffer_commit(buf);
 
-	int ub = samplebuffer_unit_bytes(buf);
+	// Learn the granularity of the large appends, for producers that do not
+	// declare it (or declare a divisor of the chunk they really use: one that
+	// fits the margin cannot save any relocate, so the chunk we are seeing is
+	// a better guess). The size can only be changed while the samplebuffer is
+	// empty, as it is the modulus of all the physical positions.
+	if (wlen > SAMPLEBUFFER_MARGIN_UNITS) {
+		int f = buf->append_units > SAMPLEBUFFER_MARGIN_UNITS
+			? gcd(buf->append_units, wlen) : wlen;
+		if (f != buf->append_units) {
+			buf->append_units = f;
+			if (buf->widx == 0 && buf->ridx == 0)
+				samplebuffer_recalc_size(buf);
+		}
+	}
+
+	int ub = buf->unit_bytes;
 	int ring = buf->size;
-	assertf(buf->unit_bytes || ((buf->wpos * ub) % 2) == 0, "buf->wpos:%x", buf->wpos);
+	// PCM: dma_read / dfs need an even byte offset into the sample area.
+	assertf((ub & (ub - 1)) != 0 || ((buf->wpos * ub) % 2) == 0, "buf->wpos:%x", buf->wpos);
 
 	// Make room by discarding the oldest units past the read cursor.
 	while (buf->widx + wlen > ring) {
@@ -318,19 +366,19 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 	}
 
 	int slot = samplebuffer_slot(buf, buf->widx);
-	// Contiguous write: fit before ring end, or spill into the margin (≤MARGIN).
-	// Codecs that append full frames larger than the margin (Opus, YM) may need
-	// a one-shot relocate of the live window to physical 0 so the write is linear.
+	// Contiguous write: fit before the usable end, or spill into the margin
+	// (≤MARGIN). Codecs that append full frames larger than the margin (Opus,
+	// YM) may need a relocate of the live window so that the write is linear.
 	if (slot + wlen > ring && wlen > SAMPLEBUFFER_MARGIN_UNITS) {
 		assertf(buf->widx - buf->ridx + wlen <= ring,
 			"samplebuffer_append: buffer too small\n"
 			"live:%x wlen:%x size:%x", buf->widx - buf->ridx, wlen, ring);
-		samplebuffer_relocate_live(buf);
-		slot = buf->widx;
+		samplebuffer_relocate_live(buf, wlen);
+		slot = samplebuffer_slot(buf, buf->widx);
 		assert(slot + wlen <= ring);
 	} else if (slot + wlen > ring) {
 		assertf(wlen <= SAMPLEBUFFER_MARGIN_UNITS,
-			"samplebuffer_append: large append %x wraps ring (slot=%x)", wlen, slot);
+			"samplebuffer_append: large append %x wraps (slot=%x)", wlen, slot);
 	}
 
 	buf->pending_slot = slot;

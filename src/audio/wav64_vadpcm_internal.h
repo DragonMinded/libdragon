@@ -10,7 +10,7 @@
 /**
  * Stereo VADPCM file layout: blocks of this many frames per channel, alternating
  * L then R (mono is a single linear plane). Matches #SAMPLEBUFFER_MARGIN_UNITS
- * so one ring fill is one file block.
+ * so one samplebuffer fill is one file block.
  */
 #define WAV64_VADPCM_BLOCK_FRAMES  128
 

@@ -11,7 +11,6 @@
 #include "wav64_opus_internal.h"
 #include "wav64_ulc_internal.h"
 #include "mixer.h"
-#include "mixer_internal.h"
 #include "dragonfs.h"
 #include "n64sys.h"
 #include "dma.h"
@@ -327,7 +326,7 @@ void wav64_close(wav64_t *wav)
 
 	// Wait for in-flight mix/decode rounds that may still reference
 	// codebook/state/ext before freeing the heap.
-	__mixer_wait_idle();
+	rspq_highpri_sync();
 
 	if (algos[wav->st->format].close)
 		algos[wav->st->format].close(wav);
