@@ -66,7 +66,7 @@ static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bo
 	// Now switch to integers. Number of audioframes to process, and number
 	// of (integer) samplers per audioframe.
 	int nframes = lastframe - player->curframe + 1;
-	int samples_per_frame = (int)f_samples_per_frame;
+	int samples_per_frame = player->wave.append_units;
 
 	// Get the pointer to the sample buffer.
 	int16_t *samples = samplebuffer_append(sbuf, nframes*samples_per_frame);
@@ -205,6 +205,8 @@ void ym64player_open(ym64player_t *player, const char *fn, ym64player_songinfo_t
 		.loop_len = len-loop_start,
 		.read = ym_wave_read,
 		.ctx = player,
+		// Every audioframe is reconstructed as a whole (see #ym_wave_read).
+		.append_units = (int)(freq / player->playfreq),
 	};
 
 	ay8910_reset(&player->ay);

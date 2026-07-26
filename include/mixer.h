@@ -657,6 +657,22 @@ typedef struct waveform_s {
 	 */
 	bool async_read;
 
+	/**
+	 * @brief Granularity in units of the appends made by #read (0 if unknown).
+	 *
+	 * Set this when #read always appends a whole multiple of a fixed chunk
+	 * (a codec frame: 960 samples for Opus, one audioframe for YM64). The
+	 * samplebuffer then keeps its usable size a multiple of the chunk, so that
+	 * a chunk is never split by the wrap and the live window does not have to
+	 * be relocated to keep the append contiguous.
+	 *
+	 * Any value is allowed: the samplebuffer applies it only when it is worth
+	 * it (a chunk that fits the tail margin never needs a relocate anyway) and
+	 * only when the buffer is large enough to keep a couple of chunks after
+	 * the rounding. Leave it 0 if the appends have no fixed size.
+	 */
+	int append_units;
+
     /**
       * @brief State size required for this waveform to operate
       * 
