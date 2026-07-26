@@ -86,6 +86,7 @@ mksprite/x264_amalgam.o:           CFLAGS += -Imksprite/x264
 mksprite/x264_amalgam2.o:          CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand -fno-strict-aliasing
 mksprite/x264_amalgam2.o:          CFLAGS += -Imksprite/x264
 audioconv64/libvadpcm.o:           CFLAGS += -Iaudioconv64/vadpcm
+audioconv64/libulc.o:              CFLAGS += -Wno-unused-but-set-variable -Wno-error
 
 
 common-clean:
