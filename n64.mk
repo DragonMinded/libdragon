@@ -6,7 +6,7 @@ N64_MKDFS_ROOT ?= filesystem
 
 N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
 N64_ROM_CATEGORY = # Set an N64 Media Category code in the ROM header (N, D, C, E, Z)
-N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
+N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16k sram256k sram768k sram1m flashram
 N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
 N64_ROM_REGIONFREE ?= 1 # Set to true to allow booting on any console region
 N64_ROM_REGION = # Set to a region code (emulators will boot on a specific console region)
