@@ -217,7 +217,13 @@ static int fat_disk_write_sd(const uint8_t* buff, int64_t sector, int count)
 	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
 	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
 	assertf((uint32_t)sector == sector, "unsupported access to SD card > 2 TiB");
-	return cart_card_wr_dram(buff, sector, count) ? RES_ERROR : RES_OK;
+
+	if (PhysicalAddr(buff) < 0x00800000)
+		return cart_card_wr_dram(buff, sector, count) ? RES_ERROR : RES_OK;
+	if (io_accessible(PhysicalAddr(buff)))
+		return cart_card_wr_cart(PhysicalAddr(buff), sector, count) ? RES_ERROR : RES_OK;
+
+	return RES_PARERR;
 }
 
 static fat_disk_t fat_disk_sd =
