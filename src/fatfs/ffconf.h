@@ -254,7 +254,7 @@
 /  These options have no effect in read-only configuration (FF_FS_READONLY = 1). */
 
 
-#define FF_FS_CRTIME	0
+#define FF_FS_CRTIME	1
 /* This option switches support for creation time of files and directories.
 /  (0:Disable or 1:Enable)
 /  When enabled, crdate and crtime members are added to the FILINFO structure
