@@ -200,7 +200,9 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 			if (channels == 1) {
 				int nbytes = n * 9;
 				int scratch_size = ROUND_UP(nbytes * 2, 16);
-				void *scratch = alloca(scratch_size);
+				// data_cache_hit_invalidate requires a 16-byte aligned address;
+				// alloca only guarantees the platform ABI alignment.
+				uint8_t *scratch = (uint8_t *)ROUND_UP((uintptr_t)alloca(scratch_size + 15), 16);
 				huffv_decompress(wav, vstate, dest_l, nbytes, scratch, scratch_size);
 			} else {
 				// From bitpos at L_wpos: stream is L_wpos..L_end, R_0..R_end of block.
@@ -215,8 +217,8 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 				int span = n_l + n_r;
 				int nbytes = span * 9;
 				int scratch_size = ROUND_UP(nbytes * 2, 16);
-				void *scratch = alloca(scratch_size);
-				uint8_t *spanbuf = alloca(ROUND_UP(nbytes, 16));
+				uint8_t *scratch = (uint8_t *)ROUND_UP((uintptr_t)alloca(scratch_size + 15), 16);
+				uint8_t *spanbuf = (uint8_t *)ROUND_UP((uintptr_t)alloca(nbytes + 15), 16);
 				huffv_decompress(wav, vstate, spanbuf, nbytes, scratch, scratch_size);
 				memcpy(dest_l, spanbuf, n * 9);
 				memcpy(dest_r, spanbuf + (n_l + off) * 9, n * 9);
