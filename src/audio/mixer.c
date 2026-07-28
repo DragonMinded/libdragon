@@ -547,16 +547,30 @@ void mixer_ch_play(int ch, waveform_t *wave)
 	bool stereo_vadpcm = vadpcm && wave->channels == 2;
 
 	// Stereo VADPCM uses two mono rings (ch and ch+1). PCM stereo uses one
-	// interleaved buffer on the owner (STEREO_ALLOC).
+	// interleaved buffer on the owner (STEREO_ALLOC). The ring on ch+1 belongs
+	// to this channel for as long as it keeps playing stereo VADPCM: ch+1
+	// cannot be played on its own while STEREO_SUB is set.
+	bool was_stereo_vadpcm = !(c->flags & CH_FLAGS_RESIDENT) &&
+		(c->flags & (CH_FLAGS_VADPCM|CH_FLAGS_STEREO)) == (CH_FLAGS_VADPCM|CH_FLAGS_STEREO);
 	if (!resident && stereo_vadpcm) {
-		if (!samplebuffer_is_inited(sbuf) || !samplebuffer_is_inited(&Mixer.ch_buf[ch+1])) {
+		// Only reuse the pair if it was allocated as a pair and is still intact
+		// (mixer_ch_set_limits frees just the primary ring).
+		if (!was_stereo_vadpcm || !samplebuffer_is_inited(sbuf)) {
 			rspq_highpri_sync();
 			samplebuffer_close(sbuf);
 			samplebuffer_close(&Mixer.ch_buf[ch+1]);
 		}
-	} else if (!resident && wave->channels == 2 && !(c->flags & CH_FLAGS_STEREO_ALLOC)) {
-		rspq_highpri_sync();
-		samplebuffer_close(sbuf);
+	} else if (!resident) {
+		// Leaving stereo VADPCM: release the secondary ring, or the next stereo
+		// VADPCM would find it allocated but still holding the previous stream.
+		if (was_stereo_vadpcm) {
+			rspq_highpri_sync();
+			samplebuffer_close(&Mixer.ch_buf[ch+1]);
+		}
+		if (wave->channels == 2 && !(c->flags & CH_FLAGS_STEREO_ALLOC)) {
+			rspq_highpri_sync();
+			samplebuffer_close(sbuf);
+		}
 	}
 	// Check if the state buffer is big enough, otherwise we need to reallocate
 	if (!resident && sbuf->state_size < wave->state_size) {
