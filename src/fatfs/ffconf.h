@@ -5,7 +5,7 @@
 /  Configurations of FatFs Module
 /---------------------------------------------------------------------------*/
 
-#define FFCONF_DEF	5380	/* Revision ID */
+#define FFCONF_DEF	80386	/* Revision ID */
 
 /*---------------------------------------------------------------------------/
 / Function Configurations
@@ -252,6 +252,13 @@
 /  to the project to read current time form real-time clock. FF_NORTC_MON,
 /  FF_NORTC_MDAY and FF_NORTC_YEAR have no effect.
 /  These options have no effect in read-only configuration (FF_FS_READONLY = 1). */
+
+
+#define FF_FS_CRTIME	0
+/* This option switches support for creation time of files and directories.
+/  (0:Disable or 1:Enable)
+/  When enabled, crdate and crtime members are added to the FILINFO structure
+/  and creation timestamps are managed in addition to modification timestamps. */
 
 
 #define FF_FS_NOFSINFO	0
