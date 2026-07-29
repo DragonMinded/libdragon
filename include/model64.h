@@ -6,6 +6,9 @@
 #ifndef __LIBDRAGON_MODEL64_H
 #define __LIBDRAGON_MODEL64_H
 
+#include <preview.h>
+ASSERT_PREVIEW
+
 #include <stdint.h>
 #include <stdbool.h>
 
