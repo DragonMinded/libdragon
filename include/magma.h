@@ -674,8 +674,8 @@ inline void mg_set_viewport_fullscreen(resolution_t res)
     mg_viewport_t viewport = {
         .x = 0,
         .y = 0,
-        .width = res.width,
-        .height = res.height,
+        .width = (float) res.width,
+        .height = (float) res.height,
         .minDepth = 0.0f,
         .maxDepth = 1.0f,
     };
