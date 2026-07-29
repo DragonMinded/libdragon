@@ -6,6 +6,9 @@
 #ifndef __LIBDRAGON_GLU_H
 #define __LIBDRAGON_GLU_H
 
+#include <preview.h>
+ASSERT_PREVIEW
+
 #ifdef __cplusplus
 extern "C" {
 #endif

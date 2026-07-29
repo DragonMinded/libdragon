@@ -6,6 +6,9 @@
 #ifndef __LIBDRAGON_GL_ENUMS_H
 #define __LIBDRAGON_GL_ENUMS_H
 
+#include <preview.h>
+ASSERT_PREVIEW
+
 #define GL_BYTE                                         0x1400
 #define GL_UNSIGNED_BYTE                                0x1401
 #define GL_SHORT                                        0x1402

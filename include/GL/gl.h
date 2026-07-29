@@ -5,6 +5,9 @@
 #ifndef __LIBDRAGON_GL_H
 #define __LIBDRAGON_GL_H
 
+#include <preview.h>
+ASSERT_PREVIEW
+
 #include <stdint.h>
 #include <stddef.h>
 
