@@ -141,6 +141,45 @@ typedef struct {
 #define IOFAT_GET_CLUSTER_SIZE  _IO('F', 3)
 
 /**
+ * @brief Physical SD sector range for a file chunk
+ * 
+ * Represents a contiguous range of physical SD card sectors that contain
+ * a portion of a file's data. Used by #fat_file_get_sector_ranges.
+ */
+typedef struct {
+    uint32_t start_sector;      ///< Physical SD sector LBA
+    uint32_t sector_count;      ///< Number of consecutive sectors in this range
+} fatfs_sector_range_t;
+
+/**
+ * @brief Get FAT filesystem information
+ * 
+ * Returns filesystem-wide parameters needed for sector address calculations.
+ * 
+ * The argument must be a pointer to a structure:
+ * \code{.c}
+ *   typedef struct {
+ *       uint32_t cluster_size_sectors;   // Output: sectors per cluster
+ *       uint32_t data_area_lba;          // Output: LBA of data area start
+ *   } fatfs_filesystem_info_t;
+ * 
+ *   FILE *f = fopen("sd:/myfile.bin", "rb");
+ *   fatfs_filesystem_info_t info = {0};
+ *   ioctl(fileno(f), IOFAT_GET_FILESYSTEM_INFO, &info);
+ *   // Use info.cluster_size_sectors and info.data_area_lba
+ * \endcode
+ */
+#define IOFAT_GET_FILESYSTEM_INFO  _IO('F', 4)
+
+/**
+ * @brief Input/output structure for #IOFAT_GET_FILESYSTEM_INFO
+ */
+typedef struct {
+    uint32_t cluster_size_sectors;   ///< Output: sectors per cluster
+    uint32_t data_area_lba;          ///< Output: LBA of FAT data area start
+} fatfs_filesystem_info_t;
+
+/**
  * @brief FAT file attribute bits (matching FatFS AM_* constants)
  *
  * When stat() or fstat() is called on a file from a FAT-mounted volume
@@ -253,6 +292,64 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags);
  * @return -1 on failure (errno will be set)
  */
 int fat_unmount(int vol_id);
+
+/**
+ * @brief Get physical sector ranges for a file using a FILE pointer
+ * 
+ * User-space convenience wrapper that traverses all clusters of an open file
+ * and maps them to physical SD card sector addresses. Useful for DMA transfers
+ * or flashcart hardware configuration.
+ * 
+ * Retrieves all physical SD card sectors used by an open file.
+ * 
+ * @param f                 Open file handle (from fopen)
+ * @param ranges            Pointer to array of fatfs_sector_range_t (caller allocated)
+ * @param max_ranges        Maximum number of ranges that fit in the array
+ * @param num_ranges        Output: pointer to store actual number of ranges populated
+ * 
+ * @return 0 on success
+ * @return -1 on failure (errno will be set; ENOBUFS if file has too many ranges)
+ * 
+ * Example:
+ * \code{.c}
+ *   FILE *f = fopen("sd:/game.rom", "rb");
+ *   fatfs_sector_range_t ranges[32];
+ *   uint32_t num_ranges;
+ *   
+ *   if (fat_file_get_sector_ranges(f, ranges, 32, &num_ranges) == 0) {
+ *       for (uint32_t i = 0; i < num_ranges; i++) {
+ *           printf("Range %d: sector %lu, count %lu\n",
+ *               i, ranges[i].start_sector, ranges[i].sector_count);
+ *       }
+ *   }
+ * \endcode
+ */
+int fat_file_get_sector_ranges(FILE *f, fatfs_sector_range_t *ranges,
+    uint32_t max_ranges, uint32_t *num_ranges);
+
+/**
+ * @brief Get FAT filesystem information using a FILE pointer
+ * 
+ * Convenience wrapper around #IOFAT_GET_FILESYSTEM_INFO ioctl.
+ * 
+ * @param f                 Open file handle (from fopen)
+ * @param info              Pointer to output structure (caller allocated)
+ * 
+ * @return 0 on success
+ * @return -1 on failure (errno will be set)
+ * 
+ * Example:
+ * \code{.c}
+ *   FILE *f = fopen("sd:/game.rom", "rb");
+ *   fatfs_filesystem_info_t info;
+ *   
+ *   if (fat_get_filesystem_info(f, &info) == 0) {
+ *       printf("Cluster size: %lu sectors\n", info.cluster_size_sectors);
+ *       printf("Data area LBA: 0x%lx\n", info.data_area_lba);
+ *   }
+ * \endcode
+ */
+int fat_get_filesystem_info(FILE *f, fatfs_filesystem_info_t *info);
 
 #ifdef __cplusplus
 }

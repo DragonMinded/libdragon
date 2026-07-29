@@ -6,6 +6,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <sys/errno.h>
 #include <time.h>
 #include "fat.h"
@@ -301,6 +302,12 @@ static int __fat_ioctl(void *file, unsigned long request, void *arg)
 			*cluster_size = f->obj.fs->csize;
 			return 0;
 		}
+		case IOFAT_GET_FILESYSTEM_INFO: {
+			fatfs_filesystem_info_t *info = arg;
+			info->cluster_size_sectors = f->obj.fs->csize;
+			info->data_area_lba = f->obj.fs->database;
+			return 0;
+		}
 		default: {
 			errno = ENOTTY;
 			return -1;
@@ -506,6 +513,127 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
     }
 
     return vol_id;
+}
+
+int fat_file_get_sector_ranges(FILE *f, fatfs_sector_range_t *ranges,
+    uint32_t max_ranges, uint32_t *num_ranges)
+{
+	if (!f || !ranges || !num_ranges || max_ranges == 0) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	// Get filesystem info
+	fatfs_filesystem_info_t fs_info;
+	if (ioctl(fileno(f), IOFAT_GET_FILESYSTEM_INFO, &fs_info) != 0) {
+		return -1;
+	}
+
+	uint32_t cluster_size_sectors = fs_info.cluster_size_sectors;
+	uint32_t data_area_lba = fs_info.data_area_lba;
+	uint32_t cluster_size_bytes = cluster_size_sectors * 512;
+	
+	// Get file size
+	long current_pos = ftell(f);
+	if (current_pos < 0) {
+		errno = EIO;
+		return -1;
+	}
+	
+	// Seek to end to get size
+	if (fseek(f, 0, SEEK_END) != 0) {
+		errno = EIO;
+		return -1;
+	}
+	
+	long file_size = ftell(f);
+	if (file_size < 0) {
+		errno = EIO;
+		return -1;
+	}
+
+	// Traverse file by seeking at cluster-size intervals
+	uint32_t range_count = 0;
+	uint32_t last_sector = 0;
+	uint32_t last_count = 0;
+	bool in_range = false;
+
+	if (file_size == 0) {
+		*num_ranges = 0;
+		fseek(f, current_pos, SEEK_SET);
+		return 0;
+	}
+
+	for (long file_offset = 0; file_offset < file_size; file_offset += cluster_size_bytes) {
+		// Seek to this position in the file
+		if (fseek(f, file_offset, SEEK_SET) != 0) {
+			errno = EIO;
+			return -1;
+		}
+
+		// Get current cluster
+		int32_t cluster = 0;
+		if (ioctl(fileno(f), IOFAT_GET_CLUSTER, &cluster) != 0) {
+			return -1;
+		}
+
+		// Check cluster validity (should be >= 2 for FAT)
+		if (cluster < 2) {
+			errno = EIO;
+			return -1;
+		}
+
+		// Calculate physical sector for this cluster
+		uint32_t cluster_sector = data_area_lba + (uint32_t)(cluster - 2) * cluster_size_sectors;
+
+		// Check if contiguous with previous cluster
+		if (in_range && cluster_sector == last_sector + last_count) {
+			// Extend current range
+			last_count += cluster_size_sectors;
+		} else {
+			// Save previous range if any
+			if (in_range) {
+				if (range_count >= max_ranges) {
+					errno = ENOBUFS;
+					fseek(f, current_pos, SEEK_SET);
+					return -1;
+				}
+				ranges[range_count].start_sector = last_sector;
+				ranges[range_count].sector_count = last_count;
+				range_count++;
+			}
+			// Start new range
+			last_sector = cluster_sector;
+			last_count = cluster_size_sectors;
+			in_range = true;
+		}
+	}
+
+	// Save last range
+	if (in_range) {
+		if (range_count >= max_ranges) {
+			errno = ENOBUFS;
+			fseek(f, current_pos, SEEK_SET);
+			return -1;
+		}
+		ranges[range_count].start_sector = last_sector;
+		ranges[range_count].sector_count = last_count;
+		range_count++;
+	}
+
+	*num_ranges = range_count;
+	fseek(f, current_pos, SEEK_SET);
+	return 0;
+}
+
+int fat_get_filesystem_info(FILE *f, fatfs_filesystem_info_t *info)
+{
+	if (!f || !info) {
+		errno = EINVAL;
+		return -1;
+	}
+
+	return ioctl(fileno(f), IOFAT_GET_FILESYSTEM_INFO, info);
 }
 
 int fat_unmount(int vol_id)
