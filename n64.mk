@@ -1,6 +1,9 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
 
+# Set to 1 to allow use of the preview API (which may change over time)
+LIBDRAGON_PREVIEW ?= 0
+
 # Override this if your project uses a different directory for your DFS filesystem root
 N64_MKDFS_ROOT ?= filesystem
 
@@ -83,6 +86,11 @@ N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -mabi=o64 -Wa,--fatal-warnings -I$(N64
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
+ifeq ($(LIBDRAGON_PREVIEW),1)
+N64_C_AND_CXX_FLAGS += -DLIBDRAGON_PREVIEW
+N64_ASFLAGS += -DLIBDRAGON_PREVIEW
+N64_RSPASFLAGS += -DLIBDRAGON_PREVIEW
+endif
 
 N64_TOOLFLAGS = --toc
 N64_TOOLFLAGS += --title $(N64_ROM_TITLE)
