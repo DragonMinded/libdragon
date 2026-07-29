@@ -113,18 +113,48 @@ jobs:
       # As we have a tagged image now, we can use that to run build.sh if it is
       # built in the previous step. o/w it will be downloaded from the registry.
       # Then verify everything is building properly
-      - name: Build libdragon
+      - name: Run libdragon docker container
         run: |
-          docker run \
+          docker run -d --name libdragon \
           --mount type=bind,source=$(pwd),target=/libdragon \
           --workdir=/libdragon \
           ghcr.io/${{ steps.vars.outputs.repository_name }}:latest \
-          ./build.sh --test
+          sleep infinity
 
-      - name: "Upload built ROMs to artifacts"
+      - name: Build libdragon
+        run: |
+          docker container exec libdragon ./build.sh --no-examples
+
+      - name: "Run tests"
+        run: |
+          docker container exec libdragon make -C tests/cpakfs test
+          docker container exec libdragon make -C tests/hashtable test
+          docker container exec libdragon python3 -m unittest discover tools/cpaktool/tests
+
+      - name: "(stable) Build examples and tests ROMs"
+        run: |
+          docker container exec libdragon make clobber
+          docker container exec libdragon make -C tests
+          docker container exec libdragon make examples
+
+      - name: "(stable) Upload built ROMs to artifacts"
         uses: actions/upload-artifact@v7
         with:
-          name: roms
+          name: roms-stable
+          path: |
+            ${{ github.workspace }}/examples/**/*.z64
+            ${{ github.workspace }}/tests/*.z64
+
+      - name: "(preview) Build examples and tests ROMs"
+        run: |
+          docker container exec -e LIBDRAGON_PREVIEW=1 libdragon make clobber
+          docker container exec -e LIBDRAGON_PREVIEW=1 libdragon make -C tests
+          docker container exec -e LIBDRAGON_PREVIEW=1 libdragon make examples
+
+      - name: "(preview) Upload built ROMs to artifacts"
+        uses: actions/upload-artifact@v7
+        with:
+          name: roms-preview
           path: |
             ${{ github.workspace }}/examples/**/*.z64
             ${{ github.workspace }}/tests/*.z64

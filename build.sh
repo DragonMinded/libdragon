@@ -6,9 +6,12 @@ IFS=$'\n\t'
 
 # If --test is passed, run tests after building
 TEST_MODE=false
+# If --no-examples is passed, don't build examples
+BUILD_EXAMPLES=true
 while (( $# )); do
   case "$1" in
     --test) TEST_MODE=true; shift ;;
+    --no-examples) BUILD_EXAMPLES=false; shift ;;
     *) break ;;
   esac
 done
@@ -64,11 +67,13 @@ if [ "$TEST_MODE" = true ]; then
   makeWithParams test
 fi
 
+if [ "$BUILD_EXAMPLES" = true ]; then
 # Build examples - libdragon must be already installed at this point,
 # so first clobber the build to make sure that everything works against the
 # installed version rather than using local artifacts.
 makeWithParams clobber
 makeWithParams examples
+fi
 
 echo
 echo Libdragon built successfully!
