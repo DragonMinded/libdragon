@@ -16,7 +16,7 @@ N64_INCLUDEDIR = $(CURDIR)/include
 # for libdragon specifically via a make override.
 N64_BACKTRACE_FILE_PREFIX=libdragon
 
-LIBDRAGON_CFLAGS = -I$(CURDIR)/src
+LIBDRAGON_CFLAGS = -I$(CURDIR)/src -DLIBDRAGON_BUILD_TIME
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
