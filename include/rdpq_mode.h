@@ -387,7 +387,7 @@ void rdpq_set_mode_yuv(bool bilinear);
  * #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER to #display_init.
  * 
  * On the other hand, if you want to make sure that no antialias is performed,
- * disable antialias with `rdpq_mode_antialias(false)` (which is the default
+ * disable antialias with `rdpq_mode_antialias(AA_NONE)` (which is the default
  * for #rdpq_set_mode_standard), and that will make sure that the VI will not
  * do anything to the image, even if #display_init was called with
  * #FILTERS_RESAMPLE_ANTIALIAS or #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER.

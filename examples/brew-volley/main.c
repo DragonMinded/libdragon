@@ -391,7 +391,7 @@ void render(int cur_frame)
             rdpq_set_mode_standard();
             rdpq_mode_filter(FILTER_BILINEAR);
             rdpq_mode_alphacompare(1);
-            rdpq_mode_antialias(false);
+            rdpq_mode_antialias(AA_NONE);
             rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
 
         background_block = rspq_block_end();
