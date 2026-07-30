@@ -31,12 +31,13 @@
 	# Loop wraps (pos -= loop_len, reload loop_state) are handled here when
 	# the CPU pins a stable loop region (resident or loop-cached).
 	#
-	# PCM resampling is 4-tap Catmull-Rom (Hermite) with a fixed-point step
-	# (WAVEFORM_POS_FRAC_BITS). Stereo PCM is two MIX_CHANNELs (owner=L,
-	# STEREO_SUB=R) that share the same interleaved cache and the same loop
-	# body as mono; only the post-transpose tap shuffle differs. VADPCM frames
-	# are DMA'd compressed, decoded into a DMEM window, then point-resampled.
-	# The volume filter runs once every 8 samples.
+	# PCM and VADPCM resampling is 4-tap Catmull-Rom (Hermite) with a
+	# fixed-point step (WAVEFORM_POS_FRAC_BITS). Stereo PCM is two MIX_CHANNELs
+	# (owner=L, STEREO_SUB=R) that share the same interleaved cache and loop
+	# body as mono; only the gather differs. VADPCM frames are DMA'd compressed,
+	# decoded into DMEM_SAMPLE_CACHE, then Hermite-resampled by that same loop.
+	# Stereo VADPCM is two independent mono MIX_CHANNELs. The volume filter
+	# runs once every 8 samples.
 	#
 	####################################################################
 
@@ -88,9 +89,9 @@
 #define SAMPLE_CACHE_SIZE         64
 #define SAMPLE_CACHE_SAMPLES      128
 
-# In-mixer VADPCM: one decoded frame in DMEM (16 samples). Enough for
-# point resampling within the frame; the next frame is decoded on demand.
-#define VADPCM_WIN_FRAMES         1
+# In-mixer VADPCM: decode up to this many frames into DMEM_SAMPLE_CACHE
+# (16 samples each). 8 frames = SAMPLE_CACHE_SAMPLES.
+#define VADPCM_WIN_FRAMES         8
 #define VADPCM_WIN_SAMPLES        (VADPCM_WIN_FRAMES * 16)
 
 
@@ -98,6 +99,11 @@
 	# Global register allocations
 	################################
 
+	# $v00 is zeroed once per command and must stay zero for the whole of it:
+	# it is the vs operand of the vor/vsub that build the splats of the mono
+	# resampler, and vs cannot be swizzled, so no element of another vector
+	# can stand in for it. Nothing else in this file may write to it, VADPCM
+	# decoder included (see v____).
 	#define v_zero        $v00
 	#define v_shift       $v30
 	#define v_const1      $v31
@@ -193,13 +199,17 @@ ACCUM_PAD:                .dcb.w (ACCUM_PAD_SAMPLES * 2)
 	#
 	# The mono resampler sees it as a window of SAMPLE_CACHE_SAMPLES int16
 	# samples: 8-bit waveforms are DMA'd into its upper half and widened in
-	# place to fill it, so that one inner loop serves both PCM formats. The
-	# stereo and VADPCM paths use the first SAMPLE_CACHE_SIZE bytes only.
+	# place to fill it, so that one inner loop serves both PCM formats.
+	# VADPCM decodes directly into this window (up to VADPCM_WIN_FRAMES).
 	#
 	# The window is followed by four zero samples: the mono resampler parks
 	# the lanes it must discard there, so they interpolate to silence
 	# instead of needing a separate mask (MonoLoop). It is 16-byte aligned
 	# because it is written/read with sqv/lqv.
+	#
+	# The pipelined VADPCM decoder spills one stale vector 16 bytes below the
+	# window before its first real store: that lands in the tail of ACCUM_PAD,
+	# which is never DMA'd out.
 	.align 4
 DMEM_SAMPLE_CACHE:        .dcb.b SAMPLE_CACHE_SAMPLES * 2
 DMEM_SAMPLE_CACHE_ZERO:   .dcb.b 16
@@ -223,12 +233,12 @@ MIX_VADPCM_CODEBOOK:      .space 128
 MIX_VADPCM_STATE:         .space 16
 	.align 4
 MIX_VADPCM_STATE_BEFORE:  .space 16
+	# Compressed frames of one fill, plus room for the 8-byte lookahead of
+	# the decoder priming and for the DMA rounding up to 8 bytes.
 	.align 3
-MIX_VADPCM_COMP:          .space (VADPCM_WIN_FRAMES * 9 + 8)
-	.align 4
-MIX_VADPCM_PCM:           .space (VADPCM_WIN_SAMPLES * 2)
+MIX_VADPCM_COMP:          .space (VADPCM_WIN_FRAMES * 9 + 24)
 
-	# Scratch for the VADPCM catch-up path (wanted frame index).
+	# Frame index the current fill starts at.
 	.align 3
 ROUND_SCRATCH:            .long  0
 	                      .long  0
@@ -249,18 +259,22 @@ CH_LVOL:                  .half  0
 CH_RVOL:                  .half  0
 CH_NSAMPLES:              .half  0
 CH_ACC_OFF:               .half  0
-# Frame index currently in MIX_VADPCM_PCM; -1 = none.
+# First frame currently decoded into DMEM_SAMPLE_CACHE; -1 = none.
 CH_VCUR_FRAME:            .long  0
 # Frame index that MIX_VADPCM_STATE is ready to decode next.
 CH_VNEXT_FRAME:           .long  0
 CH_VADPCM_RA:             .long  0
-CH_ACC_PTR:               .long  0
-# Volume-filter step countdown, preserved across frame decodes.
-CH_K1:                    .half  0
+# Frames of the current fill, and frames the next decode call will produce
+# (they differ while the decoder is catching up to the start of the fill).
+CH_VNFRAMES:              .half  0
+CH_VDECN:                 .half  0
+# k_limit of the current fill, computed before the decode clobbers it.
+CH_VLIMIT:                .half  0
 # Per-sample step of the mono resampler, split the same way as the position:
 # fraction as 0.16, plus whole samples.
 CH_STEPF:                 .half  0
 CH_STEPI:                 .half  0
+                          .half  0
                           .half  0
 
 
@@ -283,11 +297,13 @@ CH_STEPI:                 .half  0
 # MIX_SETCHANNEL.
 #
 # Positions for CH_FLAGS_VADPCM are in *samples* (not bytes). ptr points to
-# compressed 9-byte frames; frame i starts at ptr + i*9.
+# compressed 9-byte frames; frame i starts at ptr + i*9. VADPCM is decoded
+# into DMEM_SAMPLE_CACHE and Hermite-resampled like PCM.
 #
-# Stereo owner (CH_FLAGS_STEREO): ptr points to interleaved LR samples;
+# Stereo PCM owner (CH_FLAGS_STEREO): ptr points to interleaved LR samples;
 # L is extracted and mixed with (lvol, rvol). The stereo-sub channel is
 # a separate MIX_CHANNEL with CH_FLAGS_STEREO_SUB that extracts R.
+# Stereo VADPCM is two mono MIX_CHANNELs (STEREO bit ignored by the ucode).
 ###############################################################
 
 	#define ticks          t3
@@ -401,8 +417,6 @@ MIX_CHANNEL:
 	sw t0, %lo(CH_STATE)
 	lw t0, %lo(CHTBL_LOOP_STATE)(t1)
 	sw t0, %lo(CH_LOOP_STATE)
-	li t0, -1
-	sw t0, %lo(CH_VCUR_FRAME)
 
 	li t0, %lo(VCONST_1)
 	lqv v_const1, 0,t0
@@ -522,7 +536,13 @@ MonoSetup:
 	#   frac_shift    left shift turning wv_pos into a 0.16 unit fraction
 	lh t0, %lo(CH_FLAGS)
 	andi bps, t0, CH_FLAGS_BPS_SHIFT
+	# A VADPCM command decodes one plane into an int16 cache, so its units are
+	# mono samples however the STEREO bit (which the owner still carries) reads.
 	andi stereo_shift, t0, CH_FLAGS_STEREO
+	andi t1, t0, CH_FLAGS_VADPCM
+	srl t1, 2                                # VADPCM bit -> STEREO bit
+	nor t1, t1, zero
+	and stereo_shift, t1
 	srl stereo_shift, 3                      # bit 3 → 0 or 1
 	li cache_half, %lo(DMEM_SAMPLE_CACHE)
 	li t1, %lo(DMEM_SAMPLE_CACHE_ZERO)
@@ -563,6 +583,11 @@ MonoSetup:
 	li k_ff, 0xFF
 
 MonoWaveStart:
+	# VADPCM refills by decoding into the sample cache, not by DMA of PCM.
+	lh t0, %lo(CH_FLAGS)
+	andi t0, CH_FLAGS_VADPCM
+	bnez t0, VadpcmWaveStart
+	nop
 	bltu wv_pos, wv_len, MonoDmaFetch
 	nop
 	beqz wv_loop_len, MIX_CHANNEL_SilenceLeft
@@ -823,7 +848,7 @@ MonoGatherMix:
 	addi acc_ptr, 8*4
 	bltz partial, MonoPartial
 	nop
-	j MIX_CHANNEL_Done
+	j MonoExit
 	nop
 
 MonoGatherStereo:
@@ -901,12 +926,21 @@ MonoPartial:
 	sub wv_pos, wv_step
 2:	bgtz ticks, MonoWaveStart
 	nop
+	# fall through
+
+MonoExit:
+	# VADPCM must write decoder state back before finishing.
+	lh t0, %lo(CH_FLAGS)
+	andi t0, CH_FLAGS_VADPCM
+	bnez t0, VadpcmEpilog
+	nop
 	j MIX_CHANNEL_Done
 	nop
 
 ############################################################
-# Mono VADPCM path: decode one frame at a time into MIX_VADPCM_PCM,
-# then point-resample like 16-bit PCM. State is written back at epilog.
+# VADPCM path: decode into DMEM_SAMPLE_CACHE, then Hermite (MonoLoop).
+# Positions are in samples (not bytes). STEREO on the wire is ignored —
+# stereo VADPCM is two independent mono MIX_CHANNELs.
 ############################################################
 
 VadpcmSetup:
@@ -916,27 +950,25 @@ VadpcmSetup:
 	jal DMAInAsync
 	li t0, DMA_SIZE(128, 1)
 
-	# DMA decoder state. next_frame = floor(pos/16).
+	# DMA decoder state. next_frame = floor(pos/16); the cache is empty.
 	lw s0, %lo(CH_STATE)
 	li s4, %lo(MIX_VADPCM_STATE)
 	jal DMAIn
 	li t0, DMA_SIZE(16, 1)
 
-	lw t0, %lo(CH_POS)
-	srl t0, WAVEFORM_POS_FRAC_BITS
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	srl t0, 4
 	sw t0, %lo(CH_VNEXT_FRAME)
 	li t0, -1
+	j MonoSetup                              # bps = 0, stereo_shift = 0
 	sw t0, %lo(CH_VCUR_FRAME)
-	li k1, 8                       # volume-filter step countdown (samples)
-	# fall through
 
 VadpcmWaveStart:
-	bltu wv_pos, wv_len, VadpcmHavePos
+	bltu wv_pos, wv_len, VadpcmFillCache
 	nop
 	beqz wv_loop_len, VadpcmEpilog
 	sub wv_pos, wv_loop_len
-	# Cached-loop wrap: reload loop-start state and invalidate window.
+	# Cached-loop wrap: reload loop-start state and invalidate the window.
 	lw s0, %lo(CH_LOOP_STATE)
 	beqz s0, 1f
 	li s4, %lo(MIX_VADPCM_STATE)
@@ -946,115 +978,128 @@ VadpcmWaveStart:
 	srl t0, 4
 	sw t0, %lo(CH_VNEXT_FRAME)
 	li t0, -1
-	sw t0, %lo(CH_VCUR_FRAME)
 	j VadpcmWaveStart
-	nop
+	sw t0, %lo(CH_VCUR_FRAME)
 
-VadpcmHavePos:
-	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS   # sample
-	srl t1, t0, 4                            # frame needed
-	lw t2, %lo(CH_VCUR_FRAME)
-	beq t1, t2, VadpcmResample
-	sw t1, %lo(ROUND_SCRATCH)                # wanted frame
-	# A frame decode may clobber k1 (the volumes live in $v24/$v25, which
-	# the decoder does not touch).
-	sh k1, %lo(CH_K1)
-VadpcmCatchUp:
-	lw t2, %lo(CH_VNEXT_FRAME)
-	lw t1, %lo(ROUND_SCRATCH)
-	beq t2, t1, VadpcmDecodeCur
-	nop
-	slt t0, t1, t2
-	bnez t0, VadpcmDecodeCur
-	nop
-	# Decode-discard one frame (large step skipped past it)
+VadpcmFillCache:
+	# Decode min(VADPCM_WIN_FRAMES, frames left) frames of 16 samples into the
+	# sample cache, then let MonoLoop resample them like 16-bit mono PCM.
+	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
+	srl t1, t0, 4                            # start_frame
+	sw t1, %lo(ROUND_SCRATCH)
+	srl t0, wv_len, WAVEFORM_POS_FRAC_BITS
+	addi t0, 15
+	srl t0, 4                                # frames covered by the waveform
+	sub t0, t1
+	blez t0, VadpcmEpilog
+	li t2, VADPCM_WIN_FRAMES
+	# While more frames follow, only lanes with all four taps inside the
+	# decoded window are accepted (the rest are replayed after the next fill).
+	# At the end of the waveform there is nothing left to replay, so the taps
+	# past the last sample are taken from four zero samples appended below.
+	slt t9, t2, t0
+	bnez t9, 1f
+	li t1, -3*2
+	move t2, t0
+	li t1, 0
+1:	sh t2, %lo(CH_VNFRAMES)
+	sll t0, t2, 5                            # nframes * 16 samples * 2 bytes
+	addi t0, %lo(DMEM_SAMPLE_CACHE)
+	sw zero, 0(t0)                           # four zero samples past the end
+	sw zero, 4(t0)
+	add t1, t0
+	sh t1, %lo(CH_VLIMIT)
 	sh ticks, %lo(CH_NSAMPLES)
 	sw wv_pos, %lo(CH_POS)
-	sw acc_ptr, %lo(CH_ACC_PTR)
-	jal VadpcmDecodeFrame
+
+	# Bring MIX_VADPCM_STATE, which decodes CH_VNEXT_FRAME, to start_frame.
+	# Every fill but the first starts a few frames back, because the taps of
+	# the last samples of the previous window were rejected and replayed;
+	# rewinding is free, since the state of a frame is just the eight samples
+	# before it and those are still in the cache. Decoding forward is only
+	# needed when the position jumped past the window.
+VadpcmAlignState:
+	lw t2, %lo(CH_VNEXT_FRAME)
+	lw t1, %lo(ROUND_SCRATCH)
+	beq t2, t1, VadpcmAligned
+	lw t0, %lo(CH_VCUR_FRAME)
+	slt t9, t1, t2
+	beqz t9, VadpcmCatchUp
+	sub t9, t1, t0                           # frames of the window to keep
+	li s0, %lo(MIX_VADPCM_STATE_BEFORE)
+	beqz t9, 1f
+	sll t9, 5
+	addi t9, %lo(DMEM_SAMPLE_CACHE)
+	addi s0, t9, -16
+1:	li s1, %lo(MIX_VADPCM_STATE)
+	lqv $v01, 0,s0
+	sqv $v01, 0,s1
+	j VadpcmAligned
+	sw t1, %lo(CH_VNEXT_FRAME)
+
+VadpcmCatchUp:
+	li t0, 1
+	sh t0, %lo(CH_VDECN)
+1:	lw t2, %lo(CH_VNEXT_FRAME)
+	lw t1, %lo(ROUND_SCRATCH)
+	beq t2, t1, VadpcmAligned
 	nop
-	lh ticks, %lo(CH_NSAMPLES)
-	lw wv_pos, %lo(CH_POS)
-	lw acc_ptr, %lo(CH_ACC_PTR)
-	lw wv_step, %lo(CH_STEP)
-	lw wv_len, %lo(CH_LEN)
-	lw wv_loop_len, %lo(CH_LOOP_LEN)
-	j VadpcmCatchUp
+	jal VadpcmDecodeFrames
+	nop
+	j 1b
 	nop
 
-VadpcmDecodeCur:
-	# Snapshot state before decoding the frame we will resample from.
+VadpcmAligned:
+	# Snapshot the state that decodes start_frame: the epilog needs it if the
+	# command ends before a single frame has been consumed.
 	li s0, %lo(MIX_VADPCM_STATE)
 	li s1, %lo(MIX_VADPCM_STATE_BEFORE)
 	lqv $v01, 0,s0
 	sqv $v01, 0,s1
-	sh ticks, %lo(CH_NSAMPLES)
-	sw wv_pos, %lo(CH_POS)
-	sw acc_ptr, %lo(CH_ACC_PTR)
-	jal VadpcmDecodeFrame
-	nop
+	lw t1, %lo(ROUND_SCRATCH)
+	lh t0, %lo(CH_VNFRAMES)
+	sw t1, %lo(CH_VCUR_FRAME)
+	jal VadpcmDecodeFrames
+	sh t0, %lo(CH_VDECN)
+
+	# The decoder clobbers ticks/pos/len/loop_len/addr, k_ff, s2, $v01-$v23
+	# and $v31 (which it needs as the shift table of vsra8).
 	lh ticks, %lo(CH_NSAMPLES)
 	lw wv_pos, %lo(CH_POS)
-	lw acc_ptr, %lo(CH_ACC_PTR)
-	lw wv_step, %lo(CH_STEP)
 	lw wv_len, %lo(CH_LEN)
 	lw wv_loop_len, %lo(CH_LOOP_LEN)
-	lw t1, %lo(CH_VNEXT_FRAME)
-	addi t1, -1                              # frame just decoded
-	sw t1, %lo(CH_VCUR_FRAME)
-	# Decode clobbers $v31 (vsra8 uses vshift8): reload mixer constants.
+	lw wv_addr, %lo(CH_PTR)
 	li t0, %lo(VCONST_1)
 	lqv v_const1, 0,t0
-	lh k1, %lo(CH_K1)                      # resume volume-filter countdown
-	# fall through to resample
-
-VadpcmResample:
-	blez ticks, VadpcmEpilog
-	nop
-	# Ensure the current sample's frame is loaded. Go through VadpcmWaveStart
-	# so that a position that just ran past the end wraps the loop (a short
-	# loop can be crossed several times within one round).
-	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
-	srl t1, t0, 4
-	lw t2, %lo(CH_VCUR_FRAME)
-	bne t1, t2, VadpcmWaveStart
-	nop
-
-	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
-	andi t0, 15
-	sll t0, 1
-	li s1, %lo(MIX_VADPCM_PCM)
-	add t0, s1
-	lhu t0, 0(t0)
-	add wv_pos, wv_step
-	mtc2 t0, $v01.e0
-	jal MixOne
-	nop
-#if VOLUME_FILTER
-	# MixOne does not advance the volume filter. Apply the same 8-sample
-	# coefficient the PCM MixBatch path uses, once every 8 output samples.
-	addi k1, -1
-	bgtz k1, 1f
-	nop
-	li k1, 8
-	vmudm v_xvol, v_xvol,  k_alpha
-	vmadm v_xvol, v_chvol, k_1malpha
-1:
-#endif
-	addi ticks, -1
-	j VadpcmResample
-	addi acc_ptr, 4
+	lh t1, %lo(CH_VLIMIT)
+	mtc2 t1, k_limit
+	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
+	andi s2, 15                              # offset of wv_pos in the cache
+	sll wv_step_8x, wv_step, 3
+	j MonoRefill
+	li k_ff, 0xFF
 
 VadpcmEpilog:
-	# Write back state for frame at wv_pos. STATE_BEFORE = ready for
-	# CH_VCUR_FRAME; STATE = ready for CH_VNEXT_FRAME.
+	# The state that decodes frame F is just the eight samples before it, so
+	# once the cache holds F it can be written back straight out of it. Only
+	# the two ends need the snapshots: nothing decoded yet (STATE, as loaded)
+	# or nothing consumed yet (STATE_BEFORE, taken at CH_VCUR_FRAME).
 	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
-	srl t0, 4
+	srl t0, 4                                # end_frame
 	lw t1, %lo(CH_VCUR_FRAME)
 	li s4, %lo(MIX_VADPCM_STATE)
-	bne t0, t1, 1f
-	nop
-	li s4, %lo(MIX_VADPCM_STATE_BEFORE)
+	bltz t1, 1f
+	sub t0, t1                               # frames consumed
+	blez t0, 2f
+	lw t2, %lo(CH_VNEXT_FRAME)
+	sub t2, t1                               # frames decoded
+	slt t9, t2, t0
+	bnez t9, 1f
+	sll t0, 5
+	addi t0, %lo(DMEM_SAMPLE_CACHE)
+	j 1f
+	addi s4, t0, -16                         # eight samples before end_frame
+2:	li s4, %lo(MIX_VADPCM_STATE_BEFORE)
 1:	lw s0, %lo(CH_STATE)
 	jal DMAOut
 	li t0, DMA_SIZE(16, 1)
@@ -1101,26 +1146,6 @@ MIX_CHANNEL_Done:
 	sw t1, %lo(XVOL)(t0)
 	j RSPQ_Loop
 	nop
-	.endfunc
-
-
-###############################################################
-# MixOne – mix a single sample in $v01.e0 into ACCUM at acc_ptr.
-# Used by the VADPCM point-resampler. Does NOT update the volume
-# filter (the caller advances it every 8 samples).
-###############################################################
-
-	.func MixOne
-MixOne:
-	lsv $v04.e0, 0,acc_ptr         # lane 0 = left, lane 1 = right
-	lsv $v04.e1, 2,acc_ptr
-	nop
-	nop
-	vmudh $v04, $v04, k_one
-	vmacf $v04, v_xvol, $v01.e0
-	ssv $v04.e0, 0,acc_ptr
-	jr ra
-	ssv $v04.e1, 2,acc_ptr
 	.endfunc
 
 
@@ -1236,10 +1261,19 @@ MIX_SETCHANNEL:
 #define vstate2 $v20
 #define vstate3 $v21
 #define vresult $v03
-#define v____   $v00
+# Destination of the vmudh/vmadh whose result is only wanted in the
+# accumulator. It must not be $v00: the mixer needs that one to stay zero
+# across the decode. $v04/$v05 are the two the decoder does not otherwise use,
+# and the mixer only keeps powers of x there, which it recomputes every group.
+#define v____   $v04
 
-	.func VadpcmDecodeFrame
-VadpcmDecodeFrame:
+	# Decode CH_VDECN frames starting at CH_VNEXT_FRAME into
+	# DMEM_SAMPLE_CACHE. Advances CH_VNEXT_FRAME by CH_VDECN.
+	# Clobbers t2, t3, t4, t6, t7, t8, t9, s0-s5 and $v01-$v23, $v31 ($v30 is
+	# rewritten with the shift table it already held). $v00 is deliberately
+	# left alone, see v____.
+	.func VadpcmDecodeFrames
+VadpcmDecodeFrames:
 	sw ra, %lo(CH_VADPCM_RA)
 
 	# MIX_CHANNEL keeps volume-filter constants in $v31 (v_const1), but
@@ -1248,7 +1282,7 @@ VadpcmDecodeFrame:
 	lpv vshift8, 0x00,zero
 	vsrl vshift, vshift8, 8
 
-	# RDRAM address of compressed frame: ptr + next_frame*9
+	# RDRAM address of first compressed frame: ptr + next_frame*9
 	lw t0, %lo(CH_VNEXT_FRAME)
 	sll t1, t0, 3
 	add t1, t0
@@ -1256,13 +1290,19 @@ VadpcmDecodeFrame:
 	add s0, t1
 	andi t9, s0, 7                        # misalignment (survives DMAIn)
 	sub s0, t9
+	lh nframes, %lo(CH_VDECN)
+	# nframes*9 bytes, plus the 8-byte lookahead and the misalignment that
+	# DMAIn folds into s4.
+	sll t0, nframes, 3
+	add t0, nframes
+	addi t0, 16
 	li s4, %lo(MIX_VADPCM_COMP)
 	jal DMAIn
-	li t0, DMA_SIZE(9+8, 1)
+	addi t0, -1                            # = DMA_SIZE(t0, 1)
 
 	li dmem_codebook, %lo(MIX_VADPCM_CODEBOOK)
 	li dmem_state, %lo(MIX_VADPCM_STATE)
-	li dmem_output, %lo(MIX_VADPCM_PCM)
+	li dmem_output, %lo(DMEM_SAMPLE_CACHE)
 	li dmem_input, %lo(MIX_VADPCM_COMP)
 	add dmem_input, t9
 	addiu dmem_input, 1
@@ -1270,8 +1310,7 @@ VadpcmDecodeFrame:
 	jal VADPCM_LoadIdentity
 	nop
 
-	li nframes, 1
-	li a2, 0                               # mono path in SaveState
+	lh nframes, %lo(CH_VDECN)
 	lqv vstate1, 0x00,dmem_state
 	li t1, 1
 	j VADPCM_Priming
@@ -1370,7 +1409,8 @@ VADPCM_DecodeLoop:
 VADPCM_SaveState:
 	sqv vstate1, 0x00,dmem_state
 	lw t0, %lo(CH_VNEXT_FRAME)
-	addi t0, 1
+	lh t1, %lo(CH_VDECN)
+	add t0, t1
 	sw t0, %lo(CH_VNEXT_FRAME)
 	lw ra, %lo(CH_VADPCM_RA)
 	jr ra

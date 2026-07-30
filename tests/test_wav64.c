@@ -1,9 +1,9 @@
 /**
  * @file test_wav64.c
- * @brief Standalone testrom for in-mixer VADPCM (MIX_CHANNEL)
+ * @brief Standalone testrom for in-mixer VADPCM + PCM Hermite resampling
  *
- * Exercises the VADPCM path inside MIX_CHANNEL and compares against the
- * reference C decoder. The legacy VADPCM_Decompress command has been removed.
+ * Exercises MIX_CHANNEL: VADPCM decode into the sample cache followed by the
+ * same 4-tap Hermite resampler used for PCM, compared against a C reference.
  */
 #include <libdragon.h>
 #include <malloc.h>
@@ -165,102 +165,13 @@ static void gen_frames(uint8_t *frames, int nframes_total) {
     }
 }
 
-static bool test_vadpcm_inmixer(int nframes, int seed) {
-    my_srand(seed);
-
-    wav64_vadpcm_vector_t *codebook = malloc_uncached(8 * sizeof(wav64_vadpcm_vector_t));
-    gen_codebook(codebook);
-
-    wav64_vadpcm_vector_t *state_rsp = malloc_uncached(sizeof(wav64_vadpcm_vector_t));
-    memset(state_rsp, 0, sizeof(*state_rsp));
-    wav64_vadpcm_vector_t state_ref;
-    memset(&state_ref, 0, sizeof(state_ref));
-
-    int in_bytes = 9 * nframes;
-    uint8_t *frames = malloc_uncached(in_bytes + 16);
-    gen_frames(frames, nframes);
-
-    int nsamples = nframes * 16;
-    int16_t *ref_out = malloc((size_t)nsamples * sizeof(int16_t));
-    vadpcm_error err = vadpcm_decode(NPREDICTORS, ORDER, codebook, &state_ref,
-        nframes, ref_out, frames);
-    assertf(err == 0, "reference decode error: %d", err);
-
-    int32_t *out = malloc_uncached(nsamples * 4);
-    memset(out, 0, nsamples * 4);
-
-    uint32_t step = 1u << MIXER_FX64_FRAC;
-    int16_t vol = 0x7FFF;
-    uint32_t flags = CH_FLAGS_VADPCM | CH_FLAGS_16BIT | CH_FLAGS_CLEAR_ACCUM;
-
-    // Warm up the per-channel volume filter.
-    wav64_vadpcm_vector_t *state_warm = malloc_uncached(sizeof(wav64_vadpcm_vector_t));
-    memset(state_warm, 0, sizeof(*state_warm));
-    int32_t *warm_out = malloc_uncached(256 * 4);
-    for (int i = 0; i < 4; i++) {
-        rspq_highpri_begin();
-        emit_setchannel(0, codebook, state_warm);
-        emit_channel(0, flags, vol, 0, step,
-            (uint32_t)nsamples << MIXER_FX64_FRAC,
-            (uint32_t)nsamples << MIXER_FX64_FRAC,
-            frames, 256);
-        emit_flush(256, warm_out);
-        rspq_highpri_end();
-    }
-    rspq_wait();
-    free_uncached(state_warm);
-    free_uncached(warm_out);
-
-    rspq_highpri_begin();
-    emit_setchannel(0, codebook, state_rsp);
-    emit_channel(0, flags, vol, 0, step, 0xFFFFFFFFu, 0, frames, nsamples);
-    emit_flush(nsamples, out);
-    rspq_highpri_end();
-    rspq_wait();
-
-    // vmulf volume path: allow ±2 LSB vs full-scale reference.
-    bool ok = true;
-    int16_t *stereo = (int16_t*)out;
-    for (int i = 0; i < nsamples; i++) {
-        int16_t l = stereo[i*2], r = stereo[i*2+1];
-        int d0 = l - ref_out[i], d1 = r - ref_out[i];
-        if (d0 < -2 || d0 > 2 || d1 < -2 || d1 > 2) {
-            printf("FAILED in-mixer: nframes=%d seed=%d sample %d: L=%d R=%d ref=%d\n",
-                nframes, seed, i, l, r, ref_out[i]);
-            ok = false;
-            break;
-        }
-    }
-    if (ok && memcmp(state_rsp, &state_ref, sizeof(state_ref)) != 0) {
-        printf("FAILED in-mixer: nframes=%d seed=%d: state mismatch\n", nframes, seed);
-        ok = false;
-    }
-
-    free_uncached(codebook);
-    free_uncached(state_rsp);
-    free_uncached(frames);
-    free_uncached(out);
-    free(ref_out);
-    return ok;
-}
-
 //////////////////////////////////////////////////////////////////////////////
-// Mono PCM resampling
+// Hermite reference (shared by PCM and VADPCM tests)
 //////////////////////////////////////////////////////////////////////////////
 
 // Reference implementation of the RSP mono resampler: 4-tap Catmull-Rom
 // evaluated between the second and third tap, in the exact fixed point the
 // ucode uses.
-//
-//   x    = fraction of the sample position, 0.16 unsigned
-//   y0..3= the four taps around it, int16 (8-bit data is scaled by 256)
-//   out  = y1
-//        + x  *(y2 - y0)/2
-//        + x^2*(y0 - 5*y1/2 + 2*y2 - y3/2)
-//        + x^3*(-y0/2 + 3*y1/2 - 3*y2/2 + y3/2)
-//
-// Powers of x are truncated back to 0.16 after each product (vmudl), and every
-// term is summed in the 48-bit accumulator; only the final read clamps.
 static int16_t hermite_ref(int16_t y0, int16_t y1, int16_t y2, int16_t y3, uint16_t x)
 {
     uint16_t x2   = (uint16_t)(((uint32_t)x  * x) >> 16);
@@ -300,9 +211,6 @@ static int16_t hermite_ref(int16_t y0, int16_t y1, int16_t y2, int16_t y3, uint1
 #define WARMUP_SAMPLES  256
 
 // Value the one-tap volume filter of the ucode settles on for a given target.
-// It is not the target itself: the accumulator is read back truncated, so the
-// recurrence has a whole range of fixed points and, coming from zero, it stops
-// a few LSB short. Mirrors the vmudm/vmadm pair in the ucode.
 static int16_t volume_settle(int16_t target)
 {
     int32_t x = 0;
@@ -310,6 +218,111 @@ static int16_t volume_settle(int16_t target)
         x = (int32_t)(((int64_t)x * 0xe076 + (int64_t)target * 0x1f8a) >> 16);
     return (int16_t)x;
 }
+
+static bool test_vadpcm_inmixer(int nframes, uint32_t step, int nout, int seed) {
+    my_srand(seed);
+
+    wav64_vadpcm_vector_t *codebook = malloc_uncached(8 * sizeof(wav64_vadpcm_vector_t));
+    gen_codebook(codebook);
+
+    wav64_vadpcm_vector_t *state_rsp = malloc_uncached(sizeof(wav64_vadpcm_vector_t));
+    memset(state_rsp, 0, sizeof(*state_rsp));
+    wav64_vadpcm_vector_t state_ref;
+    memset(&state_ref, 0, sizeof(state_ref));
+
+    int in_bytes = 9 * nframes;
+    uint8_t *frames = malloc_uncached(in_bytes + 16);
+    memset(frames, 0, in_bytes + 16);
+    gen_frames(frames, nframes);
+
+    int nsamples = nframes * 16;
+    // Pad decoded PCM with zeros for Hermite taps past the last sample.
+    int16_t *ref_pcm = malloc((size_t)(nsamples + 4) * sizeof(int16_t));
+    memset(ref_pcm, 0, (size_t)(nsamples + 4) * sizeof(int16_t));
+    vadpcm_error err = vadpcm_decode(NPREDICTORS, ORDER, codebook, &state_ref,
+        nframes, ref_pcm, frames);
+    assertf(err == 0, "reference decode error: %d", err);
+
+    int32_t *out = malloc_uncached(nout * 4);
+    memset(out, 0, nout * 4);
+
+    int16_t vol = 0x7FFF;
+    uint32_t flags = CH_FLAGS_VADPCM | CH_FLAGS_16BIT | CH_FLAGS_CLEAR_ACCUM;
+    uint32_t len = (uint32_t)nsamples << MIXER_FX64_FRAC;
+
+    // Warm up the per-channel volume filter (step 0 keeps pos at 0).
+    wav64_vadpcm_vector_t *state_warm = malloc_uncached(sizeof(wav64_vadpcm_vector_t));
+    memset(state_warm, 0, sizeof(*state_warm));
+    int32_t *warm_out = malloc_uncached(WARMUP_SAMPLES * 4);
+    for (int i = 0; i < 4; i++) {
+        rspq_highpri_begin();
+        emit_setchannel(0, codebook, state_warm);
+        emit_channel(0, flags, vol, 0, 0, len, 0, frames, WARMUP_SAMPLES);
+        emit_flush(WARMUP_SAMPLES, warm_out);
+        rspq_highpri_end();
+    }
+    rspq_wait();
+    free_uncached(state_warm);
+    free_uncached(warm_out);
+
+    // Fresh state for the measured run.
+    memset(state_rsp, 0, sizeof(*state_rsp));
+    rspq_highpri_begin();
+    emit_setchannel(0, codebook, state_rsp);
+    emit_channel(0, flags, vol, 0, step, len, 0, frames, nout);
+    emit_flush(nout, out);
+    rspq_highpri_end();
+    rspq_wait();
+
+    bool ok = true;
+    int16_t *stereo = (int16_t*)out;
+    int16_t settled = volume_settle(vol);
+    for (int i = 0; i < nout; i++) {
+        uint32_t pos = step * (uint32_t)i;
+        int si = pos >> MIXER_FX64_FRAC;
+        uint16_t x = (uint16_t)(pos << 4);
+        int16_t y0 = ref_pcm[si], y1 = ref_pcm[si+1], y2 = ref_pcm[si+2], y3 = ref_pcm[si+3];
+        int16_t res = hermite_ref(y0, y1, y2, y3, x);
+        int32_t v = (int32_t)(((int64_t)res * settled * 2) >> 16);
+        int16_t l = stereo[i*2], r = stereo[i*2+1];
+        int d0 = l - v, d1 = r - v;
+        if (d0 < -2 || d0 > 2 || d1 < -2 || d1 > 2) {
+            printf("FAILED vadpcm hermite: nf=%d step=%#lx seed=%d i=%d: L=%d R=%d ref=%ld\n",
+                nframes, (long)step, seed, i, l, r, (long)v);
+            printf("  si=%d x=%#x taps=%d %d %d %d\n", si, x, y0, y1, y2, y3);
+            ok = false;
+            break;
+        }
+    }
+
+    // State ready for floor(final_pos / 16).
+    uint32_t end_pos = step * (uint32_t)nout;
+    int end_frame = end_pos >> (MIXER_FX64_FRAC + 4);
+    if (end_frame > nframes) end_frame = nframes;
+    wav64_vadpcm_vector_t state_end;
+    memset(&state_end, 0, sizeof(state_end));
+    int16_t *discard = malloc((size_t)nframes * 16 * sizeof(int16_t));
+    err = vadpcm_decode(NPREDICTORS, ORDER, codebook, &state_end,
+        end_frame, discard, frames);
+    assertf(err == 0, "reference end-state decode error: %d", err);
+    free(discard);
+    if (ok && memcmp(state_rsp, &state_end, sizeof(state_end)) != 0) {
+        printf("FAILED vadpcm hermite: nf=%d step=%#lx seed=%d: state mismatch (end_frame=%d)\n",
+            nframes, (long)step, seed, end_frame);
+        ok = false;
+    }
+
+    free_uncached(codebook);
+    free_uncached(state_rsp);
+    free_uncached(frames);
+    free_uncached(out);
+    free(ref_pcm);
+    return ok;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Mono PCM resampling
+//////////////////////////////////////////////////////////////////////////////
 
 static bool test_pcm_resample(bool is16, uint32_t step, int nsamples, int seed)
 {
@@ -473,18 +486,27 @@ int main(void)
 
     console_init();
 
-    printf("WAV64 VADPCM in-mixer tests\n\n");
+    printf("WAV64 VADPCM Hermite tests\n\n");
 
     audio_init(44100, 4);
     mixer_init(8);
 
     int total = 0, failed = 0;
     int inmix_frames[] = { 1, 2, 8, 16 };
-    for (int s = 0; s < 8; s++) {
+    const double vad_ratios[] = { 0.5, 1.0, 1.2891, 1.5 };
+    for (int s = 0; s < 4; s++) {
         for (int fc = 0; fc < 4; fc++) {
-            total++;
-            if (!test_vadpcm_inmixer(inmix_frames[fc], s + 1))
-                failed++;
+            for (int r = 0; r < 4; r++) {
+                uint32_t step = (uint32_t)(vad_ratios[r] * (1 << MIXER_FX64_FRAC));
+                int nwave = inmix_frames[fc] * 16;
+                // Stay inside the waveform including Hermite overread.
+                int nout = nwave / 2;
+                if (nout > 96) nout = 96;
+                if (nout < 8) nout = nwave > 8 ? 8 : nwave;
+                total++;
+                if (!test_vadpcm_inmixer(inmix_frames[fc], step, nout, s + 1))
+                    failed++;
+            }
         }
     }
 
