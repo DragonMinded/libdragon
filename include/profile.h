@@ -103,7 +103,7 @@ void profile_register(int slot, const char *name, int nest_level);
  *
  * This is an optional function that can be called to communicate to the
  * profiler the target frame rate. When the profiler is aware of the target
- * frame rate, it will be to show stats related to the expected deadline for
+ * frame rate, it will be used to show stats related to the expected deadline for
  * each frame (eg: how much CPU percentage is used on average in each frame).
  +
  * @param fps 			Target frame rate in frames per second
