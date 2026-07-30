@@ -55,6 +55,11 @@
 # Max output samples that fit in ACCUM (stereo int16). Must match mixer.c.
 #define MAX_SAMPLES_PER_ROUND     512
 
+# Extra ACCUM slots the mono resampler is allowed to overshoot into. Sized so
+# that ACCUM+padding is a whole number of 64-byte clear blocks.
+#define ACCUM_PAD_SAMPLES         16
+#define ACCUM_CLEAR_BLOCKS        (((MAX_SAMPLES_PER_ROUND + ACCUM_PAD_SAMPLES) * 4) / 64)
+
 # Number of fractional bits used in the fixed point numbers that specify
 # the waveform position, step, length and loop length.
 # NOTE: This must be the same of MIXER_FX64_FRAC in mixer.c.
@@ -69,9 +74,8 @@
 # Zero ACCUM before mixing (first MIX_CHANNEL of a round; ACCUM is in .bss).
 #define CH_FLAGS_CLEAR_ACCUM      (1<<7)
 
-# Resample staging (8 samples) and volume spill during VADPCM decode
-# (4 vectors).
-#define DMEM_SCRATCH_SIZE         64
+# Resample staging (8 samples) for the stereo and VADPCM paths.
+#define DMEM_SCRATCH_SIZE         16
 
 # Sample DMA cache (must be <= MIXER_LOOP_OVERREAD in mixer.c).
 #define SAMPLE_CACHE_SIZE         64
@@ -87,15 +91,21 @@
 	################################
 
 	#define v_zero        $v00
-	#define v_shift8      $v29
 	#define v_shift       $v30
 	#define v_const1      $v31
 
 	#define k_0000        v_zero
-	#define k_8000        v_shift8.e0
-	#define k_ffff        v_const1.e0
 	#define k_alpha       v_const1.e1
 	#define k_1malpha     v_const1.e2
+	# k_half:  0.5 as a 0.16 unsigned fraction. Multiplying by it with vmudl
+	#          is a logical shift right by one (vsrl cannot be used here: it
+	#          needs the RSPQ shift table in $v31, which holds VCONST_1).
+	# k_one:   integer one. vmudh by it loads a vector into the accumulator
+	#          unshifted, to start a vmadm chain.
+	# k_eight: integer eight, one group of the mono resampler.
+	#define k_half        v_const1.e3
+	#define k_one         v_const1.e4
+	#define k_eight       v_const1.e5
 
 
 	.data
@@ -113,6 +123,16 @@ VCONST_1:
 	.half 0x7FFF
 	.half 0xe076      #   (0.9837**8) fixed 0.16
 	.half 0x1f8a      # 1-(0.9837**8) fixed 0.16
+	.half 0x8000      # 0.5 fixed 0.16
+	.half 1           # integer one
+	.half 8           # integer eight
+
+	# Lane -> output sample mapping used by the mono resampler. The eight
+	# results come out interleaved this way so that the .q0/.q1 swizzles
+	# feed the LRLRLRLR layout of ACCUM without any further shuffling.
+	.align 4
+PERM8:
+	.half 0, 4, 1, 5, 2, 6, 3, 7
 
 	.align 4
 BANNER0:    .ascii "Dragon RSP Audio"
@@ -123,9 +143,11 @@ BANNER1:    .ascii " Coded by Rasky "
 	# Layout must match mixer_overlay_state_t in mixer.c.
 	# ================================================================
 	RSPQ_BeginSavedState
+	# One-tap volume filter state, [left:16][right:16] per channel. Kept
+	# interleaved so it can be splatted into the [L,R,L,R,...] vector the
+	# mixing loops use with a single word load.
 	.align 4
-XVOL_L:                   .dcb.w MAX_CHANNELS
-XVOL_R:                   .dcb.w MAX_CHANNELS
+XVOL:                     .dcb.l MAX_CHANNELS
 	# Per-channel VADPCM pointers, written by MIX_SETCHANNEL. They only
 	# change when a new waveform is played, so the CPU sends them once
 	# instead of inlining them in every MIX_CHANNEL.
@@ -146,14 +168,37 @@ IDENTITY:  .half  1<<11,1<<11,1<<11,1<<11, 1<<11,1<<11,1<<11,1<<11
 	# highpri burst of this overlay, so no overlay switch can clobber it
 	# mid-round. Cleared by the first MIX_CHANNEL (CH_FLAGS_CLEAR_ACCUM)
 	# and again by MIX_FLUSH after DMA-out.
+	# The mono resampler emits whole groups of 8 samples, so it can write up
+	# to 7 samples past the end of the round. ACCUM_PAD absorbs them; it is
+	# never DMA'd out, but it is cleared together with ACCUM so that the
+	# accumulation never saturates on leftovers.
 	.align 4
 ACCUM:                    .dcb.w (MAX_SAMPLES_PER_ROUND * 2)
+ACCUM_PAD:                .dcb.w (ACCUM_PAD_SAMPLES * 2)
 
-	# Temporary cache of samples fetched by DMA for resampling.
-	.align 3
+	# Temporary cache of samples fetched by DMA for resampling. Each cache is
+	# followed by a window of four zero samples: the mono resampler parks the
+	# lanes it must discard there, so they interpolate to silence instead of
+	# needing a separate mask (MonoLoop). Both caches are 16-byte aligned
+	# because they are written/read with sqv/lqv.
+	.align 4
 DMEM_SAMPLE_CACHE:        .dcb.b SAMPLE_CACHE_SIZE
+DMEM_SAMPLE_CACHE_ZERO:   .dcb.b 16
 
-	# Contiguous resample staging, plus volume spill during VADPCM decode.
+	# 8-bit samples widened to int16 after each DMA, so that one inner loop
+	# serves both PCM formats.
+	.align 4
+DMEM_SAMPLE_CACHE16:      .dcb.b SAMPLE_CACHE_SIZE * 2
+DMEM_SAMPLE_CACHE16_ZERO: .dcb.b 16
+
+	# Per-lane tap addresses produced by the mono resampler, and the
+	# scratch used to transpose the eight gathered 4-tap groups.
+	.align 4
+DMEM_ADDRS:               .dcb.b 16
+	.align 4
+DMEM_TRANSPOSE:           .dcb.b 128
+
+	# Contiguous resample staging (stereo and VADPCM paths).
 	.align 4
 DMEM_SCRATCH:             .dcb.b DMEM_SCRATCH_SIZE
 
@@ -199,6 +244,10 @@ CH_VADPCM_RA:             .long  0
 CH_ACC_PTR:               .long  0
 # Volume-filter step countdown, preserved across frame decodes.
 CH_K1:                    .half  0
+# Per-sample step of the mono resampler, split the same way as the position:
+# fraction as 0.16, plus whole samples.
+CH_STEPF:                 .half  0
+CH_STEPI:                 .half  0
                           .half  0
 
 
@@ -243,6 +292,56 @@ CH_K1:                    .half  0
 	#define is_stereo      v0
 	#define acc_ptr        s8
 	#define ch_idx         k0
+
+	# Volumes, as [L,R,L,R,L,R,L,R] to match the ACCUM layout. $v24/$v25
+	# are outside the range the VADPCM decoder uses, so they survive a
+	# frame decode untouched.
+	#define v_xvol         $v24
+	#define v_chvol        $v25
+
+	# Mono resampler state, live across MonoLoop iterations:
+	#   v_frac  fraction of the sample position, 0.16 unsigned
+	#   v_idx   DMEM index of tap y0, in units of 2 bytes
+	#   v_kmono broadcast scalars of the loop, see k_* below
+	#define v_frac         $v26
+	#define v_idx          $v27
+	#define v_kmono        $v29
+	# k_limit  first tap address that would read past the cache
+	# k_zaddr  address of the window of four zero samples
+	# k_step8f 8-sample step, fractional part
+	# k_step8i 8-sample step, whole samples
+	#define k_limit        v_kmono.e0
+	#define k_zaddr        v_kmono.e1
+	#define k_step8f       v_kmono.e2
+	#define k_step8i       v_kmono.e3
+	# Transient within one MonoLoop iteration.
+	#define v_addr         $v01
+	#define v_x2           $v02
+	#define v_x05          $v03
+	#define v_x205         $v04
+	#define v_x3           $v05
+	#define v_x305         $v06
+	#define v_res          $v07
+	#define v_y0n          $v09
+	#define v_y1n          $v10
+	#define v_y2n          $v11
+	#define v_y3n          $v12
+	#define v_cnt          $v13
+	#define v_acc0         $v14
+	#define v_acc1         $v15
+	#define v_y0           $v16
+	#define v_y1           $v17
+	#define v_y2           $v18
+	#define v_y3           $v19
+	#define v_tmp          $v20
+
+	#define addr_ptr       v0
+	#define tr_ptr         a0
+	#define bps            a1
+	#define cache_half     a2
+	#define frac_shift     a3
+	#define mask           v1
+	#define k_ff           s5
 
 	.func MIX_CHANNEL
 MIX_CHANNEL:
@@ -291,7 +390,7 @@ MIX_CHANNEL:
 	andi t0, CH_FLAGS_CLEAR_ACCUM
 	beqz t0, MIX_CHANNEL_NoClear
 	li s4, %lo(ACCUM)
-	li t0, (MAX_SAMPLES_PER_ROUND * 4) / 64 - 1
+	li t0, ACCUM_CLEAR_BLOCKS - 1
 1:	sqv v_zero, 0x00,s4
 	sqv v_zero, 0x10,s4
 	sqv v_zero, 0x20,s4
@@ -301,24 +400,24 @@ MIX_CHANNEL:
 	addi t0, -1
 
 MIX_CHANNEL_NoClear:
-	# Load current filtered volumes for this channel into vector regs
-	# (kept in $v13/$v14 for the duration of the command).
+	# Splat the current filtered volume and the target volume of this
+	# channel into [L,R,L,R,L,R,L,R] vectors. Both are stored as adjacent
+	# halfword pairs in DMEM, so one word replicated four times does it.
+	li s0, %lo(DMEM_SCRATCH)
 	lh ch_idx, %lo(CH_IDX)
-	sll t0, ch_idx, 1
-	lh t1, %lo(XVOL_L)(t0)
-	lh t2, %lo(XVOL_R)(t0)
-	mtc2 t1, $v13.e0               # v_xvol_l
-	mtc2 t2, $v14.e0               # v_xvol_r
-	vor $v13, v_zero, $v13.e0
-	vor $v14, v_zero, $v14.e0
-
-	# Target volumes
-	lh t1, %lo(CH_LVOL)
-	lh t2, %lo(CH_RVOL)
-	mtc2 t1, $v15.e0               # v_chvol_l
-	mtc2 t2, $v16.e0               # v_chvol_r
-	vor $v15, v_zero, $v15.e0
-	vor $v16, v_zero, $v16.e0
+	sll t0, ch_idx, 2
+	lw t1, %lo(XVOL)(t0)
+	lw t2, %lo(CH_LVOL)             # CH_RVOL is the next halfword
+	sw t1, 0x00(s0)
+	sw t1, 0x04(s0)
+	sw t1, 0x08(s0)
+	sw t1, 0x0C(s0)
+	lqv v_xvol, 0x00,s0
+	sw t2, 0x00(s0)
+	sw t2, 0x04(s0)
+	sw t2, 0x08(s0)
+	sw t2, 0x0C(s0)
+	lqv v_chvol, 0x00,s0
 
 	lh ticks, %lo(CH_NSAMPLES)
 	beqz ticks, MIX_CHANNEL_Done
@@ -343,6 +442,9 @@ MIX_CHANNEL_NoClear:
 	andi is_stereo_sub, t0, CH_FLAGS_STEREO_SUB
 	andi t1, t0, CH_FLAGS_VADPCM
 	bnez t1, VadpcmSetup
+	or t1, is_stereo, is_stereo_sub
+	beqz t1, MonoSetup
+	nop
 
 	li dma_cache_end, %lo(DMEM_SAMPLE_CACHE+SAMPLE_CACHE_SIZE)
 	sll dma_cache_end, WAVEFORM_POS_FRAC_BITS
@@ -366,114 +468,12 @@ WaveDmaFetch:
 	sll wv_pos_to_dmem, WAVEFORM_POS_FRAC_BITS
 	sll wv_step_8x, wv_step, 3
 
-	# Route to the correct resampling path. Stereo and stereo-sub share the
-	# interleaved fetch; sub extracts the R sample.
-	bnez is_stereo_sub, WaveGoStereo
+	# Stereo and stereo-sub share the interleaved fetch; sub extracts R.
 	sub wv_pos, wv_pos_to_dmem
-	bnez is_stereo, WaveGoStereo
-	nop
-	bnez is_16bit, WaveLoop16_8x
-	nop
-	j WaveLoop8_8x
-	nop
-
-WaveGoStereo:
 	bnez is_16bit, WaveLoop16_Stereo_8x
 	nop
 	j WaveLoop8StereoChecks
 	nop
-
-	############################################################
-	# Mono 8-bit
-	############################################################
-
-WaveLoop8_8x:
-	add t0, wv_pos, wv_step_8x
-	bgt t0, dma_cache_end, WaveLoop8Checks
-	li t0, 8
-	blt ticks, t0, WaveLoop8Checks
-
-	li out_ptr, %lo(DMEM_SCRATCH)
-	li t1, 8
-1:	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
-	lbu t0, 0(t0)
-	add wv_pos, wv_step
-	sb t0, 0(out_ptr)
-	addi out_ptr, 1
-	addi t1, -1
-	bnez t1, 1b
-	nop
-
-	jal MixBatch8bit
-	li t0, 8
-	addi ticks, -8
-	j WaveLoop8_8x
-	addi acc_ptr, 8*4
-
-WaveLoop8:
-	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
-	lbu t0, 0(t0)
-	add wv_pos, wv_step
-	# sign extend and mix one sample
-	sll t0, 8
-	mtc2 t0, $v01.e0
-	jal MixOne
-	nop
-	addi ticks, -1
-	addi acc_ptr, 4
-WaveLoop8Checks:
-	blez ticks, WaveBeforeEpilog
-	slt t0, wv_pos, dma_cache_end
-	bnez t0, WaveLoop8
-	nop
-	j WaveStart
-	add wv_pos, wv_pos_to_dmem
-
-	############################################################
-	# Mono 16-bit
-	############################################################
-
-WaveLoop16_8x:
-	add t0, wv_pos, wv_step_8x
-	bgt t0, dma_cache_end, WaveLoop16Checks
-	li t0, 8
-	blt ticks, t0, WaveLoop16Checks
-
-	li out_ptr, %lo(DMEM_SCRATCH)
-	li t1, 8
-1:	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
-	sll t0, 1
-	lhu t0, 0(t0)
-	add wv_pos, wv_step
-	sh t0, 0(out_ptr)
-	addi out_ptr, 2
-	addi t1, -1
-	bnez t1, 1b
-	nop
-
-	jal MixBatch16bit
-	nop
-	addi ticks, -8
-	j WaveLoop16_8x
-	addi acc_ptr, 8*4
-
-WaveLoop16:
-	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS+1
-	sll t0, 1
-	lhu t0, 0(t0)
-	add wv_pos, wv_step
-	mtc2 t0, $v01.e0
-	jal MixOne
-	nop
-	addi ticks, -1
-	addi acc_ptr, 4
-WaveLoop16Checks:
-	blez ticks, WaveBeforeEpilog
-	slt t0, wv_pos, dma_cache_end
-	bnez t0, WaveLoop16
-	nop
-	j WaveStart
-	add wv_pos, wv_pos_to_dmem
 
 	############################################################
 	# Stereo 8-bit (owner extracts L, sub extracts R)
@@ -562,6 +562,288 @@ WaveLoop16StereoChecks:
 	j WaveStart
 	add wv_pos, wv_pos_to_dmem
 
+	############################################################
+	# Mono 8/16-bit: 4-tap Catmull-Rom (Hermite) resampling
+	#
+	# Eight output samples are produced per iteration, one per vector lane.
+	# Lane k carries output sample PERM8[k] = [0,4,1,5,2,6,3,7], so that the
+	# .q0/.q1 swizzles of the interpolated vector line up with the LRLRLRLR
+	# layout of ACCUM without any further shuffling.
+	#
+	# The sample position is split across two vectors: v_frac holds the
+	# fraction as 0.16 and v_idx the DMEM index of the first tap, in units
+	# of 2 bytes. Advancing eight samples is then vaddc+vadd, because the
+	# carry out of the fraction is exactly the carry into the sample index.
+	#
+	# With taps y0..y3 and x the fraction, the spline is evaluated in the
+	# central interval, between y1 and y2:
+	#
+	#   out = y1 + x*(y2-y0)/2
+	#            + x^2*(y0 - 5*y1/2 + 2*y2 - y3/2)
+	#            + x^3*(-y0/2 + 3*y1/2 - 3*y2/2 + y3/2)
+	#
+	# so the output lags the nominal position by one sample. That keeps the
+	# tap window at [pos, pos+3] and no sample before pos is ever needed —
+	# which matters because the sample cache is DMA'd starting exactly at
+	# pos, and for a streamed waveform the samples before it may no longer
+	# be in RDRAM.
+	#
+	# Lanes whose tap window runs past the end of the cache are parked on a
+	# window of four zero samples: they interpolate to silence and, since
+	# ACCUM is accumulated in place, leave it untouched. Being always the
+	# last ones in output order, they are simply counted and replayed after
+	# the next DMA.
+	#
+	# The mono path reuses the register names of the stereo dispatch for its
+	# own purposes (see the #defines above); is_16bit/is_stereo are dead here.
+	############################################################
+
+MonoSetup:
+	# A sample is always 2 bytes in DMEM: 8-bit waveforms are widened after
+	# each DMA so that a single inner loop serves both PCM formats.
+	#   bps         0 for 8-bit source samples, 1 for 16-bit
+	#   cache_half  DMEM address of the int16 cache, in units of 2 bytes
+	#   frac_shift  left shift turning wv_pos into a 0.16 sample fraction
+	lh t0, %lo(CH_FLAGS)
+	andi bps, t0, CH_FLAGS_BPS_SHIFT
+	li cache_half, %lo(DMEM_SAMPLE_CACHE16)
+	li t1, %lo(DMEM_SAMPLE_CACHE16_ZERO)
+	li frac_shift, 4
+	li t0, SAMPLE_CACHE_SIZE
+	beqz bps, 1f
+	nop
+	li cache_half, %lo(DMEM_SAMPLE_CACHE)
+	li t1, %lo(DMEM_SAMPLE_CACHE_ZERO)
+	li frac_shift, 3
+	srl t0, 1
+1:
+	# The window of four zero samples the rejected lanes are parked on. It
+	# sits right after the cache, so it also fails the "tap window inside
+	# the cache" test and a single comparison covers both cases.
+	sw zero, 0(t1)
+	sw zero, 4(t1)
+
+	# Assemble the loop scalars in DMEM and splat them in one load.
+	li s0, %lo(DMEM_SCRATCH)
+	sh t1, 0x02(s0)                          # k_zaddr
+	sll t0, 1                                # cache size in bytes
+	add t0, cache_half
+	addi t0, -3*2                            # y3 must stay inside the cache
+	sh t0, 0x00(s0)                          # k_limit
+	srl cache_half, 1                        # byte address -> DMEM index
+	sll t2, wv_step, 3
+	sllv t0, t2, frac_shift
+	sh t0, 0x04(s0)                          # k_step8f
+	srl t0, t2, WAVEFORM_POS_FRAC_BITS
+	srlv t0, t0, bps
+	sh t0, 0x06(s0)                          # k_step8i
+	# Same split for one sample, needed to seed the eight lanes.
+	sllv t0, wv_step, frac_shift
+	sh t0, %lo(CH_STEPF)
+	srl t0, wv_step, WAVEFORM_POS_FRAC_BITS
+	srlv t0, t0, bps
+	sh t0, %lo(CH_STEPI)
+	lqv v_kmono, 0x00,s0
+
+	li addr_ptr, %lo(DMEM_ADDRS)
+	li tr_ptr, %lo(DMEM_TRANSPOSE)
+	li k_ff, 0xFF
+
+MonoWaveStart:
+	bltu wv_pos, wv_len, MonoDmaFetch
+	nop
+	beqz wv_loop_len, MIX_CHANNEL_SilenceLeft
+	nop
+	j MonoWaveStart
+	sub wv_pos, wv_loop_len
+
+MonoDmaFetch:
+	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
+	add s0, s2, wv_addr
+	li s4, %lo(DMEM_SAMPLE_CACHE)
+	andi s2, s0, 7                           # DMA rounds down to 8 bytes
+	jal DMAIn
+	li t0, DMA_SIZE(SAMPLE_CACHE_SIZE, 1)
+	sll wv_step_8x, wv_step, 3               # DMAExec clobbers t2
+
+	# Widen the 8-bit cache to int16: lpv shifts each byte into the high
+	# half of a lane, which is exactly the <<8 scaling the mixer expects.
+	bnez bps, MonoRefill
+	li s1, %lo(DMEM_SAMPLE_CACHE)
+	li s3, %lo(DMEM_SAMPLE_CACHE16)
+	lpv $v08, 0x00,s1
+	lpv $v09, 0x08,s1
+	lpv $v10, 0x10,s1
+	lpv $v11, 0x18,s1
+	lpv $v12, 0x20,s1
+	lpv $v13, 0x28,s1
+	lpv $v14, 0x30,s1
+	lpv $v15, 0x38,s1
+	sqv $v08, 0x00,s3
+	sqv $v09, 0x10,s3
+	sqv $v10, 0x20,s3
+	sqv $v11, 0x30,s3
+	sqv $v12, 0x40,s3
+	sqv $v13, 0x50,s3
+	sqv $v14, 0x60,s3
+	sqv $v15, 0x70,s3
+
+MonoRefill:
+	# Seed the eight lanes: lane k plays output sample PERM8[k], so it
+	# starts at wv_pos + PERM8[k]*step. The whole-sample carry of that
+	# product comes out of the accumulator, hence the vmudn/vsar pair.
+	li t1, %lo(PERM8)
+	lqv $v16, 0x00,t1
+	lh t0, %lo(CH_STEPF)
+	mtc2 t0, $v21.e0
+	lh t0, %lo(CH_STEPI)
+	mtc2 t0, $v22.e0
+	srlv t0, s2, bps                         # DMA misalignment -> index of
+	add t0, cache_half                       #   wv_pos inside the cache
+	mtc2 t0, $v23.e0
+	sllv t0, wv_pos, frac_shift              # fraction of wv_pos, 0.16
+	mtc2 t0, $v20.e0
+	# vmudn reads vs unsigned, so the step fraction must be the one splatted
+	# into a full vector: it is a 0.16 value and can have bit 15 set.
+	vor   $v18, v_zero, $v21.e0
+	vmudn v_frac, $v18, $v16                 # PERM8*step: fraction...
+	vsar  $v17, COP2_ACC_MD                  # ...and whole samples
+	vmudh v_idx, $v16, $v22.e0
+	vaddc v_frac, v_frac, $v20.e0
+	vadd  v_idx, v_idx, $v17                 # + carry out of the fraction
+	vadd  v_idx, v_idx, $v23.e0
+
+	.balign 8
+MonoLoop:
+	# Reject the lanes whose 4-tap window is not fully inside the cache,
+	# parking them on the zero window; VCC records the survivors.
+	vsll  v_addr, v_idx,  1                  # tap index -> DMEM address
+	vmudl v_x2,   v_frac, v_frac             # x^2
+	vmudl v_x05,  v_frac, k_half             # x/2
+	vlt   v_tmp,  v_addr, k_limit
+	vmudl v_x3,   v_x2,   v_frac             # x^3
+	vmrg  v_addr, v_addr, k_zaddr
+	vmudl v_x205, v_x2,   k_half             # x^2/2
+	vaddc v_frac, v_frac, k_step8f           # advance the eight positions:
+	vadd  v_idx,  v_idx,  k_step8i           #   the carry crosses over
+	vmudl v_x305, v_x3,   k_half             # x^3/2
+	cfc2 mask, COP2_CTRL_VCC
+	sqv v_addr, 0x00,addr_ptr
+
+	# Gather the four taps of each output sample, then transpose the eight
+	# 4-tap groups into four vectors holding one tap of all eight samples.
+	lhu s0, 0x00(addr_ptr)
+	lhu s1, 0x02(addr_ptr)
+	lhu s2, 0x04(addr_ptr)
+	lhu s3, 0x06(addr_ptr)
+	lhu s4, 0x08(addr_ptr)
+	lhu s6, 0x0A(addr_ptr)
+	lhu s7, 0x0C(addr_ptr)
+	lhu t0, 0x0E(addr_ptr)
+	ldv $v08, 0x00,s0
+	ldv $v09, 0x00,s1
+	ldv $v10, 0x00,s2
+	ldv $v11, 0x00,s3
+	ldv $v12, 0x00,s4
+	ldv $v13, 0x00,s6
+	ldv $v14, 0x00,s7
+	ldv $v15, 0x00,t0
+	stv $v08.e0, 0x00,tr_ptr
+	stv $v08.e1, 0x10,tr_ptr
+	stv $v08.e2, 0x20,tr_ptr
+	stv $v08.e3, 0x30,tr_ptr
+	stv $v08.e4, 0x40,tr_ptr
+	stv $v08.e5, 0x50,tr_ptr
+	stv $v08.e6, 0x60,tr_ptr
+	stv $v08.e7, 0x70,tr_ptr
+	ltv $v16.e0, 0x00,tr_ptr
+	ltv $v16.e7, 0x10,tr_ptr
+	ltv $v16.e6, 0x20,tr_ptr
+	ltv $v16.e5, 0x30,tr_ptr
+	ltv $v16.e4, 0x40,tr_ptr
+	ltv $v16.e3, 0x50,tr_ptr
+	ltv $v16.e2, 0x60,tr_ptr
+	ltv $v16.e1, 0x70,tr_ptr
+
+	# ACCUM is accumulated in place. acc_ptr is only 4-byte aligned once a
+	# partial group has been replayed, so the two quads are read and
+	# written with the unaligned lqv/lrv and sqv/srv pairs.
+	lqv v_acc0, 0x00,acc_ptr
+	lrv v_acc0, 0x10,acc_ptr
+	lqv v_acc1, 0x10,acc_ptr
+	lrv v_acc1, 0x20,acc_ptr
+
+	# Negated taps: the coefficients are fed to the accumulator one unit at
+	# a time (vmadm saturates its output but not the accumulator), so the
+	# subtractions of the polynomial are done on the taps instead.
+	vsub v_y0n, v_zero, v_y0
+	vsub v_y1n, v_zero, v_y1
+	vsub v_y2n, v_zero, v_y2
+	vsub v_y3n, v_zero, v_y3
+
+	vmudh v_res, v_y1,  k_one                # y1
+	vmadm v_res, v_y2,  v_x05                # + x  * (y2 - y0)/2
+	vmadm v_res, v_y0n, v_x05
+	vmadm v_res, v_y0,  v_x2                 # + x^2 * (y0 - 5*y1/2
+	vmadm v_res, v_y1n, v_x2                 #          + 2*y2 - y3/2)
+	vmadm v_res, v_y1n, v_x2
+	vmadm v_res, v_y1n, v_x205
+	vmadm v_res, v_y2,  v_x2
+	vmadm v_res, v_y2,  v_x2
+	vmadm v_res, v_y3n, v_x205
+	vmadm v_res, v_y0n, v_x305               # + x^3 * (-y0/2 + 3*y1/2
+	vmadm v_res, v_y1,  v_x3                 #          - 3*y2/2 + y3/2)
+	vmadm v_res, v_y1,  v_x305
+	vmadm v_res, v_y2n, v_x3
+	vmadm v_res, v_y2n, v_x305
+	vmadm v_res, v_y3,  v_x305
+
+	# .q0/.q1 duplicate each result into the L and R slot of one ACCUM
+	# entry, so the interleaved volume vector applies both gains at once.
+	vmudh v_acc0, v_acc0, k_one
+	vmacf v_acc0, v_xvol, v_res.q0
+	vmudh v_acc1, v_acc1, k_one
+	vmacf v_acc1, v_xvol, v_res.q1
+#if VOLUME_FILTER
+	vmudm v_xvol, v_xvol,  k_alpha
+	vmadm v_xvol, v_chvol, k_1malpha
+#endif
+	sqv v_acc0, 0x00,acc_ptr
+	srv v_acc0, 0x10,acc_ptr
+	sqv v_acc1, 0x10,acc_ptr
+	srv v_acc1, 0x20,acc_ptr
+
+	addi acc_ptr, 8*4
+	addi ticks, -8
+	bne mask, k_ff, MonoPartial
+	add wv_pos, wv_step_8x
+	bgtz ticks, MonoLoop
+	nop
+	j MIX_CHANNEL_Done
+	nop
+
+MonoPartial:
+	# Some lanes were parked: they contributed nothing to ACCUM, so give
+	# their ticks, ACCUM slots and positions back and replay them once the
+	# cache has been refilled.
+	vmrg  v_cnt, v_zero, k_one               # 1 for each rejected lane
+	vadd  v_cnt, v_cnt, v_cnt.q1
+	vadd  v_cnt, v_cnt, v_cnt.h2
+	vadd  v_cnt, v_cnt, v_cnt.e4
+	mfc2  t0, v_cnt.e0
+	add ticks, t0
+	sll t1, t0, 2
+	sub acc_ptr, t1
+	beqz t0, 2f
+	nop
+1:	addi t0, -1
+	bnez t0, 1b
+	sub wv_pos, wv_step
+2:	bgtz ticks, MonoWaveStart
+	nop
+	j MIX_CHANNEL_Done
+	nop
+
 ############################################################
 # Mono VADPCM path: decode one frame at a time into MIX_VADPCM_PCM,
 # then point-resample like 16-bit PCM. State is written back at epilog.
@@ -614,16 +896,8 @@ VadpcmHavePos:
 	lw t2, %lo(CH_VCUR_FRAME)
 	beq t1, t2, VadpcmResample
 	sw t1, %lo(ROUND_SCRATCH)                # wanted frame
-	# A frame decode clobbers $v13-$v16 (filtered/target volumes) and may
-	# clobber k1. Spill them to DMEM_SCRATCH (unused in the VADPCM path) so
-	# the post-decode reload in VadpcmDecodeCur resumes the volume filter
-	# from the current value instead of the command-start one (which would
-	# stall the filter convergence).
-	li t0, %lo(DMEM_SCRATCH)
-	sqv $v13, 0x00,t0
-	sqv $v14, 0x10,t0
-	sqv $v15, 0x20,t0
-	sqv $v16, 0x30,t0
+	# A frame decode may clobber k1 (the volumes live in $v24/$v25, which
+	# the decoder does not touch).
 	sh k1, %lo(CH_K1)
 VadpcmCatchUp:
 	lw t2, %lo(CH_VNEXT_FRAME)
@@ -668,15 +942,9 @@ VadpcmDecodeCur:
 	lw t1, %lo(CH_VNEXT_FRAME)
 	addi t1, -1                              # frame just decoded
 	sw t1, %lo(CH_VCUR_FRAME)
-	# Decode clobbers $v31 (vsra8 uses vshift8). Reload mixer constants
-	# and unspill the volumes saved in VadpcmHavePos before resampling.
+	# Decode clobbers $v31 (vsra8 uses vshift8): reload mixer constants.
 	li t0, %lo(VCONST_1)
 	lqv v_const1, 0,t0
-	li t0, %lo(DMEM_SCRATCH)
-	lqv $v13, 0x00,t0
-	lqv $v14, 0x10,t0
-	lqv $v15, 0x20,t0
-	lqv $v16, 0x30,t0
 	lh k1, %lo(CH_K1)                      # resume volume-filter countdown
 	# fall through to resample
 
@@ -709,10 +977,8 @@ VadpcmResample:
 	bgtz k1, 1f
 	nop
 	li k1, 8
-	vmudm $v13, $v13, k_alpha
-	vmadm $v13, $v15, k_1malpha
-	vmudm $v14, $v14, k_alpha
-	vmadm $v14, $v16, k_1malpha
+	vmudm v_xvol, v_xvol,  k_alpha
+	vmadm v_xvol, v_chvol, k_1malpha
 1:
 #endif
 	addi ticks, -1
@@ -758,10 +1024,8 @@ SilenceLoop:
 1:
 #if VOLUME_FILTER
 	# xvol = xvol*alpha + chvol*(1-alpha)
-	vmudm $v13, $v13, k_alpha
-	vmadm $v13, $v15, k_1malpha
-	vmudm $v14, $v14, k_alpha
-	vmadm $v14, $v16, k_1malpha
+	vmudm v_xvol, v_xvol,  k_alpha
+	vmadm v_xvol, v_chvol, k_1malpha
 #endif
 	sub ticks, t0
 	sll t1, t0, 2                  # each sample = 4 bytes in ACCUM
@@ -771,11 +1035,13 @@ SilenceLoop:
 MIX_CHANNEL_Done:
 	# Store updated xvol for this channel
 	lh ch_idx, %lo(CH_IDX)
-	sll t0, ch_idx, 1
-	mfc2 t1, $v13.e0
-	mfc2 t2, $v14.e0
-	sh t1, %lo(XVOL_L)(t0)
-	sh t2, %lo(XVOL_R)(t0)
+	sll t0, ch_idx, 2
+	mfc2 t1, v_xvol.e0
+	mfc2 t2, v_xvol.e1
+	sll t1, 16
+	andi t2, 0xFFFF
+	or t1, t2
+	sw t1, %lo(XVOL)(t0)
 	j RSPQ_Loop
 	nop
 	.endfunc
@@ -786,8 +1052,7 @@ MIX_CHANNEL_Done:
 # into ACCUM at acc_ptr, then update the volume filter.
 #
 # DMEM_SCRATCH holds: s0 s1 s2 s3 s4 s5 s6 s7 (halfwords)
-# $v13/$v14 = xvol_l / xvol_r (broadcast)
-# $v15/$v16 = chvol_l / chvol_r (broadcast)
+# v_xvol / v_chvol = filtered / target volume, as [L,R,L,R,...]
 ###############################################################
 
 	.func MixBatch16bit
@@ -795,77 +1060,22 @@ MixBatch16bit:
 	move ra2, ra
 	li s0, %lo(DMEM_SCRATCH)
 	lqv $v01, 0,s0                 # 8 samples
-
-	# Apply volumes
-	vmulf $v02, $v01, $v13         # left  = sample * xvol_l
-	vmulf $v03, $v01, $v14         # right = sample * xvol_r
-
-	# Interleave L/R into two vectors matching ACCUM layout and add.
-	# Build L0 R0 L1 R1 L2 R2 L3 R3 in $v04 via even/odd merge.
-	li t0, 0x5555
-	ctc2 t0, COP2_CTRL_VCC
-	vcopy $v04, $v02.q0            # L0 L0 L2 L2 L4 L4 L6 L6
-	vcopy $v05, $v02.q1            # L1 L1 L3 L3 L5 L5 L7 L7
-	vmrg $v04, $v04, $v03.q0       # L0 R0 L2 R2 L4 R4 L6 R6
-	vmrg $v05, $v05, $v03.q1       # L1 R1 L3 R3 L5 R5 L7 R7
-
-	# $v04 has even pairs, $v05 odd pairs – store via slv like VADPCM deint,
-	# but we need A0 B0 A1 B1 order. Rebuild with a temp buffer instead
-	# (clearer and not too expensive for 8 samples).
-	ssv $v02.e0,  0,s0
-	ssv $v03.e0,  2,s0
-	ssv $v02.e1,  4,s0
-	ssv $v03.e1,  6,s0
-	ssv $v02.e2,  8,s0
-	ssv $v03.e2, 10,s0
-	ssv $v02.e3, 12,s0
-	ssv $v03.e3, 14,s0
-	ssv $v02.e4, 16,s0
-	ssv $v03.e4, 18,s0
-	ssv $v02.e5, 20,s0
-	ssv $v03.e5, 22,s0
-	ssv $v02.e6, 24,s0
-	ssv $v03.e6, 26,s0
-	ssv $v02.e7, 28,s0
-	ssv $v03.e7, 30,s0
-
-	lqv $v04, 0x00,s0
-	lqv $v05, 0x10,s0
 	lqv $v06, 0x00,acc_ptr
 	lqv $v07, 0x10,acc_ptr
-	vadd $v06, $v06, $v04
-	vadd $v07, $v07, $v05
+
+	# .q0/.q1 duplicate each sample into the L and R slot of one ACCUM
+	# entry, so the interleaved volume vector applies both gains at once.
+	vmudh $v06, $v06, k_one
+	vmacf $v06, v_xvol, $v01.q0
+	vmudh $v07, $v07, k_one
+	vmacf $v07, v_xvol, $v01.q1
+#if VOLUME_FILTER
+	vmudm v_xvol, v_xvol,  k_alpha
+	vmadm v_xvol, v_chvol, k_1malpha
+#endif
 	sqv $v06, 0x00,acc_ptr
 	sqv $v07, 0x10,acc_ptr
-
-#if VOLUME_FILTER
-	vmudm $v13, $v13, k_alpha
-	vmadm $v13, $v15, k_1malpha
-	vmudm $v14, $v14, k_alpha
-	vmadm $v14, $v16, k_1malpha
-#endif
 	jr ra2
-	nop
-	.endfunc
-
-
-###############################################################
-# MixBatch8bit – promote 8 signed bytes in DMEM_SCRATCH[0..7]
-# to (sample<<8) halfwords, then mix via MixBatch16bit.
-###############################################################
-
-	.func MixBatch8bit
-MixBatch8bit:
-	move t9, ra
-	li s0, %lo(DMEM_SCRATCH)
-	# lpv places each byte into bits 15..8 of a lane (= sample<<8),
-	# matching the legacy mixer which stored 8-bit samples as the high
-	# byte of a cleared halfword.
-	lpv $v01, 0,s0
-	sqv $v01, 0,s0
-	jal MixBatch16bit
-	nop
-	jr t9
 	nop
 	.endfunc
 
@@ -879,15 +1089,15 @@ MixBatch8bit:
 
 	.func MixOne
 MixOne:
-	vmulf $v02, $v01, $v13
-	vmulf $v03, $v01, $v14
-	lsv $v04.e0, 0,acc_ptr
-	lsv $v05.e0, 2,acc_ptr
-	vadd $v04, $v04, $v02
-	vadd $v05, $v05, $v03
+	lsv $v04.e0, 0,acc_ptr         # lane 0 = left, lane 1 = right
+	lsv $v04.e1, 2,acc_ptr
+	nop
+	nop
+	vmudh $v04, $v04, k_one
+	vmacf $v04, v_xvol, $v01.e0
 	ssv $v04.e0, 0,acc_ptr
 	jr ra
-	ssv $v05.e0, 2,acc_ptr
+	ssv $v04.e1, 2,acc_ptr
 	.endfunc
 
 
@@ -915,7 +1125,7 @@ MIX_FLUSH:
 	li s4, %lo(ACCUM)
 
 	li s4, %lo(ACCUM)
-	li t0, (MAX_SAMPLES_PER_ROUND * 4) / 64 - 1
+	li t0, ACCUM_CLEAR_BLOCKS - 1
 	vxor v_zero, v_zero, v_zero
 1:	sqv v_zero, 0x00,s4
 	sqv v_zero, 0x10,s4
