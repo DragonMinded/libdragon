@@ -68,7 +68,7 @@ int getentropy(void *buf, size_t len);
  * instead of an arbitrary buffer.
  *
  * @note This function is much, much slower than calling rand(). If you just
- *       just need random numbers for your game, use rand() instead.
+ *       need random numbers for your game, use rand() instead.
  * 
  * @return Unpredictable 64-bit random number
  */
@@ -81,7 +81,7 @@ int getentropy(void *buf, size_t len);
  * instead of an arbitrary buffer. Useful for instance to seed `srand()`.
  * 
  * @note This function is much, much slower than calling rand(). If you just
- *       just need random numbers for your game, use rand() instead.
+ *       need random numbers for your game, use rand() instead.
  *
  * @return Unpredictable 32-bit random number
  */
