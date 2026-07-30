@@ -137,8 +137,7 @@ typedef struct mixer_channel_s {
 
 /** @brief Overlay saved-state layout (must match rsp_mixer.S) */
 typedef struct {
-	uint16_t xvol_l[MIXER_MAX_CHANNELS];
-	uint16_t xvol_r[MIXER_MAX_CHANNELS];
+	uint32_t xvol[MIXER_MAX_CHANNELS];      ///< [left:16][right:16]
 	uint32_t codebook[MIXER_MAX_CHANNELS];
 	uint32_t state[MIXER_MAX_CHANNELS];
 	uint32_t loop_state[MIXER_MAX_CHANNELS];
