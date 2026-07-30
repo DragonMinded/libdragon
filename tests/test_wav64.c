@@ -103,6 +103,8 @@ static uint32_t my_rand(void) {
 
 #define CH_FLAGS_BPS_SHIFT   (3<<0)
 #define CH_FLAGS_16BIT       (1<<2)
+#define CH_FLAGS_STEREO      (1<<3)
+#define CH_FLAGS_STEREO_SUB  (1<<4)
 #define CH_FLAGS_VADPCM      (1<<5)
 #define CH_FLAGS_CLEAR_ACCUM (1<<7)
 #define MIXER_FX64_FRAC      12
@@ -119,12 +121,13 @@ static void emit_setchannel(int ch, void *codebook, void *state) {
         PhysicalAddr(codebook), PhysicalAddr(state), 0);
 }
 
-static void emit_channel(int ch, uint32_t flags, int16_t vol, uint32_t pos,
-    uint32_t step, uint32_t len, uint32_t loop_len, void *ptr, int nsamples)
+static void emit_channel_lr(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
+    uint32_t pos, uint32_t step, uint32_t len, uint32_t loop_len, void *ptr,
+    int nsamples)
 {
     rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 8);
     rspq_write_arg(&w, ((uint32_t)ch << 16) | ((flags & 0xFF) << 8));
-    rspq_write_arg(&w, ((uint32_t)(uint16_t)vol << 16) | (uint16_t)vol);
+    rspq_write_arg(&w, ((uint32_t)(uint16_t)lvol << 16) | (uint16_t)rvol);
     rspq_write_arg(&w, pos);
     rspq_write_arg(&w, step);
     rspq_write_arg(&w, len);
@@ -132,6 +135,12 @@ static void emit_channel(int ch, uint32_t flags, int16_t vol, uint32_t pos,
     rspq_write_arg(&w, PhysicalAddr(ptr));
     rspq_write_arg(&w, (uint32_t)nsamples);   // acc_offset 0
     rspq_write_end(&w);
+}
+
+static void emit_channel(int ch, uint32_t flags, int16_t vol, uint32_t pos,
+    uint32_t step, uint32_t len, uint32_t loop_len, void *ptr, int nsamples)
+{
+    emit_channel_lr(ch, flags, vol, vol, pos, step, len, loop_len, ptr, nsamples);
 }
 
 static void emit_flush(int nsamples, void *out) {
@@ -373,6 +382,89 @@ static bool test_pcm_resample(bool is16, uint32_t step, int nsamples, int seed)
     return ok;
 }
 
+// Stereo PCM: interleaved L/R in the waveform, two MIX_CHANNELs (owner=L,
+// STEREO_SUB=R) that share the Hermite loop with mono.
+static bool test_pcm_resample_stereo(bool is16, uint32_t step, int nsamples, int seed)
+{
+    my_srand(seed);
+
+    int bps = (is16 ? 1 : 0) + 1; // stereo
+    int nframes = 512;
+    int wave_bytes = (nframes << bps) + 256;
+    uint8_t *wave = malloc_uncached(wave_bytes);
+    memset(wave, 0, wave_bytes);
+    for (int i = 0; i < nframes * 2; i++) {
+        if (is16) ((int16_t*)wave)[i] = (int16_t)my_rand();
+        else      ((int8_t*)wave)[i]  = (int8_t)my_rand();
+    }
+
+    int32_t *out = malloc_uncached(nsamples * 4);
+    memset(out, 0, nsamples * 4);
+
+    int16_t vol = 0x7FFF;
+    uint32_t flags_l = CH_FLAGS_CLEAR_ACCUM | CH_FLAGS_STEREO |
+        (is16 ? (CH_FLAGS_16BIT | 2) : 1);
+    uint32_t flags_r = CH_FLAGS_STEREO | CH_FLAGS_STEREO_SUB |
+        (is16 ? (CH_FLAGS_16BIT | 2) : 1);
+    uint32_t len = (uint32_t)(nframes << bps) << MIXER_FX64_FRAC;
+
+    int32_t *warm = malloc_uncached(WARMUP_SAMPLES * 4);
+    for (int i = 0; i < 4; i++) {
+        rspq_highpri_begin();
+        emit_channel_lr(0, flags_l, vol, 0, 0, 0, len, 0, wave, WARMUP_SAMPLES);
+        emit_channel_lr(1, flags_r, 0, vol, 0, 0, len, 0, wave, WARMUP_SAMPLES);
+        emit_flush(WARMUP_SAMPLES, warm);
+        rspq_highpri_end();
+    }
+    rspq_wait();
+    free_uncached(warm);
+
+    rspq_highpri_begin();
+    emit_channel_lr(0, flags_l, vol, 0, 0, step, len, 0, wave, nsamples);
+    emit_channel_lr(1, flags_r, 0, vol, 0, step, len, 0, wave, nsamples);
+    emit_flush(nsamples, out);
+    rspq_highpri_end();
+    rspq_wait();
+
+    bool ok = true;
+    int16_t *stereo = (int16_t*)out;
+    int16_t settled = volume_settle(vol);
+    for (int i = 0; i < nsamples; i++) {
+        uint32_t pos = step * (uint32_t)i;
+        int fi = pos >> (MIXER_FX64_FRAC + bps);
+        uint16_t x = (uint16_t)(pos << (4 - bps));
+
+        int16_t yl[4], yr[4];
+        for (int t = 0; t < 4; t++) {
+            if (is16) {
+                yl[t] = ((int16_t*)wave)[(fi + t) * 2];
+                yr[t] = ((int16_t*)wave)[(fi + t) * 2 + 1];
+            } else {
+                yl[t] = (int16_t)(((int8_t*)wave)[(fi + t) * 2] << 8);
+                yr[t] = (int16_t)(((int8_t*)wave)[(fi + t) * 2 + 1] << 8);
+            }
+        }
+        int16_t res_l = hermite_ref(yl[0], yl[1], yl[2], yl[3], x);
+        int16_t res_r = hermite_ref(yr[0], yr[1], yr[2], yr[3], x);
+        int32_t vl = (int32_t)(((int64_t)res_l * settled * 2) >> 16);
+        int32_t vr = (int32_t)(((int64_t)res_r * settled * 2) >> 16);
+
+        int16_t l = stereo[i*2], r = stereo[i*2+1];
+        int d0 = l - vl, d1 = r - vr;
+        if (d0 < -2 || d0 > 2 || d1 < -2 || d1 > 2) {
+            printf("FAILED resample stereo %dbit step=%#lx: sample %d: L=%d/%ld R=%d/%ld\n",
+                is16 ? 16 : 8, step, i, l, vl, r, vr);
+            printf("  fi=%d x=%#x\n", fi, x);
+            ok = false;
+            break;
+        }
+    }
+
+    free_uncached(wave);
+    free_uncached(out);
+    return ok;
+}
+
 int main(void)
 {
     debug_init_emulog();
@@ -407,6 +499,19 @@ int main(void)
             uint32_t step = (uint32_t)(ratios[r] * (1 << (MIXER_FX64_FRAC + (is16 ? 1 : 0))));
             total++;
             if (!test_pcm_resample(is16, step, 96, r + 1))
+                failed++;
+        }
+    }
+
+    printf("Stereo PCM resampling tests\n");
+    fflush(stdout);
+    for (int b = 0; b < 2; b++) {
+        bool is16 = b != 0;
+        int bps = (is16 ? 1 : 0) + 1;
+        for (int r = 0; r < 7; r++) {
+            uint32_t step = (uint32_t)(ratios[r] * (1 << (MIXER_FX64_FRAC + bps)));
+            total++;
+            if (!test_pcm_resample_stereo(is16, step, 96, r + 10))
                 failed++;
         }
     }
