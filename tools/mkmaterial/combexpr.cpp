@@ -1059,7 +1059,7 @@ inline void printTree(const std::shared_ptr<Node>& node, int depth = 0) {
  * @param expr_rgb              The RGB combiner expression (eg: "tex0 * 0.5")
  * @param expr_alpha            The alpha combiner expression
  * @param error                 A pointer to a string that will be filled with the error message
- * @return CombinerExprFull     The combiner configuration
+ * @return                      The combiner configuration
  */
 inline CombinerExprFull parse(const std::string& expr_rgb, const std::string& expr_alpha, std::string *error)
 {

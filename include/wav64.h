@@ -175,7 +175,7 @@ double wav64_seek(wav64_t *wav, int ch, double time_sec);
  * @brief Get the (possibly compressed) bitrate of the WAV64 file.
  * 
  * @param wav 			Pointer to wav64_t structure
- * @return int 			Bitrate in bits per second
+ * @return     			Bitrate in bits per second
  */
 int wav64_get_bitrate(wav64_t *wav);
 

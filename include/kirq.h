@@ -44,42 +44,42 @@ typedef struct {
 /**
  * @brief Create an kirq wait object for SP interrupts
  * 
- * @return kirq_wait_t      The wait object
+ * @return The wait object
  */
 kirq_wait_t kirq_begin_wait_sp(void);
 
 /**
  * @brief Create an kirq wait object for DP interrupts
  * 
- * @return kirq_wait_t      The wait object
+ * @return The wait object
  */
 kirq_wait_t kirq_begin_wait_dp(void);
 
 /**
  * @brief Create an kirq wait object for SI interrupts
  * 
- * @return kirq_wait_t      The wait object
+ * @return The wait object
  */
 kirq_wait_t kirq_begin_wait_si(void);
 
 /**
  * @brief Create an kirq wait object for AI interrupts
  * 
- * @return kirq_wait_t      The wait object
+ * @return The wait object
  */
 kirq_wait_t kirq_begin_wait_ai(void);
 
 /**
  * @brief Create an kirq wait object for VI interrupts
  * 
- * @return kirq_wait_t      The wait object
+ * @return The wait object
  */
 kirq_wait_t kirq_begin_wait_vi(void);
 
 /**
  * @brief Create an kirq wait object for PI interrupts
  * 
- * @return kirq_wait_t      The wait object
+ * @return The wait object
  */
 kirq_wait_t kirq_begin_wait_pi(void);
 

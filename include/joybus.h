@@ -507,7 +507,7 @@ void joybus_detect_now(void);
  * 
  * @param[in]  port                  The Joybus port (0-4) to query.
  * @param[out] status                Optional pointer to a variable to store the device status.
- * @return joypad_identifier_t       The Joybus identifier for the specified port.
+ * @return                           The Joybus identifier for the specified port.
  */
 joybus_identifier_t joybus_get_identifier(int port, uint8_t *status);
 

@@ -77,7 +77,7 @@ typedef struct subtitle_cue_s {
  *
  *
  * @param fn                Filename to load (including filesystem prefix, eg: "rom:/subtitles.sub64")
- * @return subtitles_t*     Handle to the loaded subtitles
+ * @return                  Handle to the loaded subtitles
  */
 subtitles_t* subtitles_load(const char *fn);
 
@@ -112,7 +112,7 @@ void subtitles_next_frame(subtitles_t *sub);
  * @param max_cues            Maximum number of cues to store in the array. Since
  *                            sub64 supports up to 3 subtitles visible at the same time (one per region),
  *                            the max_cues parameter should be 3.
- * @return int                If cues is not NULL, the function will return the
+ * @return                    If cues is not NULL, the function will return the
  *                            number of cues stored in the array. Otherwise,
  *                            the function will return the number of cues available.
  */
@@ -178,14 +178,12 @@ typedef struct {
  * It is the most efficient way to render subtitles on top of videos.
  * 
  * @param parms              Parameters for the RDPQ renderer (fonts, background color, etc.)
- * @return subrenderer_t*    Handle to the created subtitle renderer
+ * @return                   Handle to the created subtitle renderer
  */
 subrenderer_t* subrenderer_create_rdpq(subrenderer_rdpq_parms_t *parms);
 
 /**
  * @brief Create an EIA-608 subtitle renderer.
- * 
- * @return subrenderer_t* 
  */
 subrenderer_t* subrenderer_create_eia608(void);
 

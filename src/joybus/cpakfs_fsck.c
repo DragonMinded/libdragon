@@ -164,7 +164,7 @@ static int fsck_fsid(fsck_ctx_t *ctx, cpakfs_id_t *id)
  * @param ctx           The fsck context containing the port and fix options
  * @param fsid          A known-valid ID sector
  * @param out_fat       Pointer to store the FAT data
- * @return int          0 on success, negative on error
+ * @return              0 on success, negative on error
  */
 static int fsck_fat(fsck_ctx_t *ctx, cpakfs_id_t* fsid, cpakfs_fat_entry_t **out_fat)
 {

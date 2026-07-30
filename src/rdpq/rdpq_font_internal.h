@@ -136,7 +136,7 @@ typedef struct rdpq_font_s {
  * 
  * @param font          Font to look up the glyph in
  * @param codepoint     Unicode codepoint of the glyph
- * @return int16_t      Index of the glyph in the font, or -1 if not found
+ * @return              Index of the glyph in the font, or -1 if not found
  */
 int16_t __rdpq_font_glyph(const rdpq_font_t *font, uint32_t codepoint);
 

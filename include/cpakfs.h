@@ -340,7 +340,7 @@ int cpakfs_fsck(joypad_port_t port, bool fix_errors,
  * 
  * @param port      The controller pak to format
  * @param erase     Whether to erase all content or just the metadata
- * @return int      0 on success, negative on error
+ * @return          0 on success, negative on error
  */
 int cpakfs_format(joypad_port_t port, bool erase);
 
@@ -443,7 +443,7 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
  * @param path                  Input path structure to format
  * @param utf8_fullname         Output buffer to receive the formatted full path (UTF-8 string)
  * @param buflen                Size of the output buffer (including space for null terminator)
- * @return int                  0 on success, -1 if the buffer was too small
+ * @return                      0 on success, -1 if the buffer was too small
  */
 int cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int buflen);
 

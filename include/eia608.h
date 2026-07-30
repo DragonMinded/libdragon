@@ -183,7 +183,7 @@ void eia608_stop(void);
  *                          If false, the data will be sent as-is and thus probably
  *                          be invalid if parity bits are not correct.
  * 
- * @return bool             True if the data was emitted, false if the buffer is full
+ * @return                  True if the data was emitted, false if the buffer is full
  */
 bool eia608_write_raw(uint16_t data, bool calc_parity);
 

@@ -232,7 +232,7 @@ void audio_write_end(void);
  * @param buffer        Buffer containing stereo samples to be played
  * @param nsamples      Number of stereo samples in the buffer
  * @param blocking      If true, wait until all samples have been pushed
- * @return int          Number of samples pushed into output
+ * @return              Number of samples pushed into output
  */
 int audio_push(const short *buffer, int nsamples, bool blocking);
 

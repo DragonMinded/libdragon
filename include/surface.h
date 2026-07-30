@@ -287,7 +287,7 @@ inline bool surface_has_owned_buffer(const surface_t *surface)
  * @param width     Width of the surface in pixels
  * @param height    Height of the surface in pixels
  * @param stride    Stride of the surface in bytes
- * @return surface_t    The initialized placeholder surface
+ * @return          The initialized placeholder surface
  * 
  * @see #surface_make_placeholder_linear
  * @see #rdpq_set_lookup_address
@@ -313,7 +313,7 @@ inline surface_t surface_make_placeholder(int index, tex_format_t format, uint16
  * @param format    Pixel format
  * @param width     Width of the surface in pixels
  * @param height    Height of the surface in pixels
- * @return surface_t    The initialized placeholder surface
+ * @return          The initialized placeholder surface
  * 
  * @see #surface_make_placeholder
  */
@@ -329,7 +329,7 @@ inline surface_t surface_make_placeholder_linear(int index, tex_format_t format,
  * Otherwise, if it is a normal surface, this function will return 0.
  * 
  * @param surface   Placeholder surface
- * @return int      The lookup index of the placeholder surface, or 0 if it is a normal surface
+ * @return          The lookup index of the placeholder surface, or 0 if it is a normal surface
  */
 inline int surface_get_placeholder_index(const surface_t *surface)
 {

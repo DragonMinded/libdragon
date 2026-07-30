@@ -152,7 +152,7 @@ static inline void rsp_vadpcm_copystate(wav64_vadpcm_vector_t *dst, wav64_vadpcm
  * @param wpos      Requested sample offset
  * @param nearest   If false, require an exact match (returns -1 if not found).
  *                  If true, return the index of the closest skip point.
- * @return int      Index in vhead->skip_points, or -1 if no skip points / not found.
+ * @return          Index in vhead->skip_points, or -1 if no skip points / not found.
  */
  static int wav64_vadpcm_find_skippoint(wav64_header_vadpcm_t *vhead, int wpos, bool nearest)
  {

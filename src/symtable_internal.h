@@ -90,7 +90,7 @@ int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *e
  * @param addr  Address being looked up (for special cases)
  * @param buf   Destination buffer
  * @param size  Size of the destination buffer
- * @return char*  Fetched string within the destination buffer
+ * @return      Fetched string within the destination buffer
  */
 char* symt_get_func_name(symtable_header_t *symt, symtable_entry_t *entry, uint32_t addr, char *buf, int size);
 
@@ -102,7 +102,7 @@ char* symt_get_func_name(symtable_header_t *symt, symtable_entry_t *entry, uint3
  * @param addr  Address being looked up
  * @param buf   Destination buffer
  * @param size  Size of the destination buffer
- * @return char*  Fetched string within the destination buffer
+ * @return      Fetched string within the destination buffer
  */
 char* symt_get_file_name(symtable_header_t *symt, symtable_entry_t *entry, uint32_t addr, char *buf, int size);
 

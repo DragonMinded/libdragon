@@ -58,7 +58,7 @@ static video_seektable_t *video_seektable_load(const char *fn)
  * @param frame_idx    Frame index to seek to. On return, it contains the actual
  *                     frame index found in the seek table (which might be
  *                     different from the requested one).
- * @return uint32_t    File offset of the keyframe
+ * @return             File offset of the keyframe
  */
 static uint32_t video_seektable_lookup(video_seektable_t *tbl, int *frame_idx)
 {
