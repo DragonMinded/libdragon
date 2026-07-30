@@ -124,7 +124,7 @@ static uint32_t myrand(void) {
 	} \
 })
 
-// ASSERT_EQUAL_FLAOT(a, b, msg): fail the test if a!=b (and log a/b as float values)
+// ASSERT_EQUAL_FLOAT(a, b, msg): fail the test if a!=b (and log a/b as float values)
 #define ASSERT_EQUAL_FLOAT(_a, _b, msg, ...) ({ \
 	float a = _a; float b = _b; \
 	if (a != b) { \

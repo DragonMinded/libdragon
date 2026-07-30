@@ -385,7 +385,7 @@ uint32_t rdpq_config_enable(uint32_t cfg_enable_bits);
 uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
 
 /**
- * @brief Low level function to set the green and blue components of the chroma key
+ * @brief Low level function to set the components of the chroma key
  */
 inline void rdpq_set_chromakey_parms(color_t color, 
     int edge_r, int edge_g, int edge_b,
