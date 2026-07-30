@@ -523,7 +523,7 @@ void vi_reset(void);
  * multi-register writes.
  * 
  * @param reg               Register to read
- * @return uint32_t         Current value of the register (or pending value if any)
+ * @return                  Current value of the register (or pending value if any)
  */
 inline uint32_t vi_read(volatile uint32_t *reg) {
     return __vi_cfg[reg - VI_REGISTERS];
@@ -718,7 +718,7 @@ void vi_set_timing_preset(const vi_timing_preset_t *preset);
  * exact. Moreover, this will also account for advanced VI configurations
  * affecting the refresh rate, like PAL60.
  * 
- * @return float        Refresh rate in Hz (frames per second)
+ * @return Refresh rate in Hz (frames per second)
  */
 float vi_get_refresh_rate(void);
 
@@ -795,7 +795,7 @@ void vi_get_output_bounds(int *x0, int *y0, int *x1, int *y1);
  * smaller than the default one, while negative values mean that the output
  * area is larger.
  * 
- * @return vi_borders_t         Size of the borders in the output area, with
+ * @return                      Size of the borders in the output area, with
  *                              respect to the default output area.
  */
 vi_borders_t vi_get_borders(void);
@@ -817,7 +817,7 @@ vi_borders_t vi_get_borders(void);
  * undefined (normally it is 0, but it's not guaranteed).
  * 
  * @param[out] field            Field number (0 or 1) in interlaced mode (undefined in progressive mode)
- * @return int                  Current scanline (always an even number)
+ * @return                      Current scanline (always an even number)
  */
 inline int vi_get_scanline(int *field) {
     uint32_t v_current = *VI_V_CURRENT;
@@ -867,7 +867,7 @@ void vi_set_origin(void *buffer, int pixel_stride, int bpp);
 /**
  * @brief Get the bit depth of the current framebuffer
  * 
- * @return int Bit depth of the current framebuffer (16 or 32), or 0 if VI is disabled
+ * @return Bit depth of the current framebuffer (16 or 32), or 0 if VI is disabled
  */
 int vi_get_bpp(void);
 
@@ -1089,7 +1089,7 @@ void vi_scroll_output(int deltax, int deltay);
  * @param overscan_margin   Margin to add to compensate for TV overscan. Use 0
  *                          to use full picture (eg: for emulators), and something
  *                          like #VI_CRT_MARGIN to get a good CRT default.
- * @return vi_borders_t The requested border settings
+ * @return                  The requested border settings
  */
 vi_borders_t vi_calc_borders(float aspect_ratio, float overscan_margin);
 
@@ -1099,7 +1099,7 @@ vi_borders_t vi_calc_borders(float aspect_ratio, float overscan_margin);
  * Recomputes the aspect ratio from the current VI output area (as returned
  * by the internal output rectangle) and the active timing preset dimensions.
  *
- * @return float The current display aspect ratio (e.g. 4.0f/3.0f, 16.0f/9.0f)
+ * @return The current display aspect ratio (e.g. 4.0f/3.0f, 16.0f/9.0f)
  */
 float vi_get_aspect_ratio(void);
 

@@ -431,7 +431,7 @@ int detach_filesystem_by_pointer( filesystem_t *filesystem )
  * 
  * @param handle        Filesystem handle
  * @param fs_index      Filesystem index
- * @return int          New fileno, or -1 if it cannot be allocated (errno will be set)
+ * @return              New fileno, or -1 if it cannot be allocated (errno will be set)
  */
 static int __allocate_fileno( void *handle, int fs_index )
 {
@@ -1447,7 +1447,7 @@ int write( int file, char *ptr, int len )
  * 
  * @param file      File handle
  * @param length    New length of the file
- * @return int      0 on success, -1 on failure (errno will be set)
+ * @return          0 on success, -1 on failure (errno will be set)
  */
 int ftruncate( int file, off_t length )
 {
@@ -1483,7 +1483,7 @@ int ftruncate( int file, off_t length )
  * 
  * @param path      Path to the file
  * @param length    New length of the file
- * @return int      0 on success, -1 on failure (errno will be set)
+ * @return          0 on success, -1 on failure (errno will be set)
  */
 int truncate( const char *path, off_t length )
 {
@@ -1558,7 +1558,7 @@ int dir_findnext( const char * const path, dir_t *dir )
  * 
  * @param path      Path of the directory to create, relative to the root of the filesystem
  * @param mode      Directory access mode
- * @return int      0 on success, -1 on failure (errno will be set)
+ * @return          0 on success, -1 on failure (errno will be set)
  */
 int mkdir( const char * path, mode_t mode )
 {
@@ -1589,7 +1589,7 @@ int mkdir( const char * path, mode_t mode )
  * 
  * @param path      Path to the file (with filesystem prefix)
  * @param times     New access and modification times. If NULL, use the current time.
- * @return int      0 on success, -1 on failure (errno will be set)
+ * @return          0 on success, -1 on failure (errno will be set)
  */
 int utimes(const char *path, const struct timeval times[2])
 {
@@ -1630,7 +1630,7 @@ int utimes(const char *path, const struct timeval times[2])
  * 
  * @param path      Path to the file (with filesystem prefix)
  * @param times     New access and modification times. If NULL, use the current time.
- * @return int      0 on success, -1 on failure (errno will be set)
+ * @return          0 on success, -1 on failure (errno will be set)
  */
 int utime(const char *path, const struct utimbuf *times)
 {

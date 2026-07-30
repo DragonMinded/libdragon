@@ -48,7 +48,7 @@ extern "C" {
  * @param buffer        Buffer to read the data into
  * @param len           Number of bytes to read. The caller must ensure that the length
  *                      does not exceed the bank size (0x8000).
- * @return int          Number of bytes read, or negative value in case of error
+ * @return              Number of bytes read, or negative value in case of error
  *                      (errno will be set).
  */
 int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, size_t len);
@@ -79,7 +79,7 @@ int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, 
  * @param buffer        Buffer to write the data from
  * @param len           Number of bytes to write. The caller must ensure that the length
  *                      does not exceed the bank size (0x8000).
- * @return int          Number of bytes written, or negative value in case of error
+ * @return              Number of bytes written, or negative value in case of error
  *                      (errno will be set).
  */
 int cpak_write(joypad_port_t port, uint8_t bank, uint16_t address, const void *buffer, size_t len);
@@ -125,7 +125,7 @@ bool cpak_supports_bankswitching(joypad_port_t port);
  *       filesystem will not be corrupted.
  * 
  * @param port      Joypad port to check
- * @return int      Number of banks found, or negative value in case of error
+ * @return          Number of banks found, or negative value in case of error
  */
 int cpak_probe_banks(joypad_port_t port);
 

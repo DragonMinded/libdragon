@@ -27,7 +27,7 @@ typedef struct {
  * @brief Retrieve the console unique ID
  * 
  * @param id        Will be filled with the console unique ID 
- * @return int      0 on success, negative on failure
+ * @return          0 on success, negative on failure
  */
 int skc_get_id(uint32_t *id);
 
@@ -35,7 +35,7 @@ int skc_get_id(uint32_t *id);
  * @brief Launch an application, performing some verifications
  * 
  * @param address   Entrypoint of the application in RDRAM
- * @return int      -1 on error, or if the application exits and returns.
+ * @return          -1 on error, or if the application exits and returns.
  */
 int skc_launch(void *address);
 
@@ -45,7 +45,7 @@ int skc_launch(void *address);
  * @param bundle            TBC
  * @param crls              TBC
  * @param recrypt_list      TBC
- * @return int              Negative numbers for errors, 0 on success
+ * @return                  Negative numbers for errors, 0 on success
  */
 int skc_launch_setup(bb_ticket_bundle_t *bundle, void *crls, void *recrypt_list);
 

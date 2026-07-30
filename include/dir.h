@@ -116,7 +116,7 @@ enum {
  * @param fn    The full absolute filename of the file or directory
  * @param dir   The directory entry structure with information about the file or directory
  * @param data  User data passed to #dir_walk
- * @return int  The return value determines the behavior of the directory walk (one of DIR_WALK constants)
+ * @return      The return value determines the behavior of the directory walk (one of DIR_WALK constants)
  */
 typedef int (*dir_walk_callback_t)(const char *fn, dir_t *dir, void *data);
 

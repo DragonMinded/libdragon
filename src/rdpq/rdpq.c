@@ -772,7 +772,7 @@ void __rdpq_block_next_buffer(void)
  * be put within the #rspq_block_t structure, so to be able to 
  * reference it in #__rdpq_block_run_with_rdp and #__rdpq_block_free.
  * 
- * @return rdpq_block_t*  The created block (first node)
+ * @return The created block (first node)
  * 
  * @see #rspq_block_end
  * @see #__rdpq_block_run_with_rdp

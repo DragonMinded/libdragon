@@ -159,7 +159,7 @@ extern "C" {
  * returned bitmask contains the supported features (see EMUX_FEAT_* defines).
  * 
  * @param subcode       Index of the detection bitmask to read
- * @return uint64_t     Bitmask of supported EMUX features (see EMUX_FEAT_*)
+ * @return              Bitmask of supported EMUX features (see EMUX_FEAT_*)
  */
 inline uint32_t emux_detect(int subcode)
 {
@@ -383,7 +383,7 @@ inline void emux_prof_reset(void)
  * 
  * @param slot          Profiler slot to read from
  * @param metric        Metric to read (see EMUX_PROF_* defines)
- * @return uint64_t     Value of the requested metric in the slot
+ * @return              Value of the requested metric in the slot
  */
 inline uint64_t emux_prof_read(int slot, uint32_t metric)
 {

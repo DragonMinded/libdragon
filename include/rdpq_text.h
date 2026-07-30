@@ -273,7 +273,7 @@ void rdpq_text_unregister_font(uint8_t font_id);
  * @brief Get a registered font by its ID.
  * 
  * @param font_id      Font ID
- * @return const rdpq_font_t*   Registered font or NULL
+ * @return             Registered font or NULL
  */
 const rdpq_font_t *rdpq_text_get_font(uint8_t font_id);
 
@@ -322,7 +322,7 @@ const rdpq_font_t *rdpq_text_get_font(uint8_t font_id);
  * @param utf8_text     Text to render, in UTF-8 encoding. Does not need to be
  *                      NULL terminated.
  * @param nbytes        Number of bytes in the text to render
- * @return int          Number of bytes printed
+ * @return              Number of bytes printed
  * 
  * @see #rdpq_text_printf
  * @see #rdpq_text_print
@@ -344,7 +344,7 @@ rdpq_textmetrics_t rdpq_text_printn(const rdpq_textparms_t *parms, uint8_t font_
  * @param x0            X coordinate where to start rendering the text
  * @param y0            Y coordinate where to start rendering the text
  * @param utf8_fmt      Format string, in UTF-8 encoding
- * @return int          Number of bytes printed
+ * @return              Number of bytes printed
  */
 __attribute__((format(printf, 5, 6)))
 rdpq_textmetrics_t rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
@@ -366,7 +366,7 @@ rdpq_textmetrics_t rdpq_text_printf(const rdpq_textparms_t *parms, uint8_t font_
  * @param y0            Y coordinate where to start rendering the text
  * @param utf8_fmt      Format string, in UTF-8 encoding
  * @param va            Argument list
- * @return rdpq_textmetrics_t   Metrics of the text
+ * @return              Metrics of the text
  */
 rdpq_textmetrics_t rdpq_text_vprintf(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
     const char *utf8_fmt, va_list va);
@@ -384,7 +384,7 @@ rdpq_textmetrics_t rdpq_text_vprintf(const rdpq_textparms_t *parms, uint8_t font
  * @param x0            X coordinate where to start rendering the text
  * @param y0            Y coordinate where to start rendering the text
  * @param utf8_text     Text to render, in UTF-8 encoding, NULL terminated.
- * @return int          Number of bytes printed
+ * @return              Number of bytes printed
  */
 inline rdpq_textmetrics_t rdpq_text_print(const rdpq_textparms_t *parms, uint8_t font_id, float x0, float y0, 
     const char *utf8_text)

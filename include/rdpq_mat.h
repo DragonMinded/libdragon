@@ -95,7 +95,7 @@ bool __rdpq_mat_ext_get_float(rdpq_mat_t *mat, uint32_t ext_key, float *value);
  * memory when the material database is large. 
  * 
  * @param filename              Path to the material database file
- * @return rdpq_matdb_t*        Pointer to the material database
+ * @return                      Pointer to the material database
  */
 rdpq_matdb_t* rdpq_matdb_open(const char *filename);
 
@@ -115,7 +115,7 @@ void rdpq_matdb_close(rdpq_matdb_t* mdb);
  * @param mdb               Material database
  * @param mat_name          Name of the material to retrieve. If NULL,
  *                          the first material in the database is returned.
- * @return rdpq_mat_t*      Pointer to the material, or NULL if not found
+ * @return                  Pointer to the material, or NULL if not found
  */
 rdpq_mat_t* rdpq_matdb_load(rdpq_matdb_t* mdb, const char *mat_name);
 

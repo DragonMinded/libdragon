@@ -102,7 +102,7 @@ typedef struct sprite_detail_s
  * 
  * @param fn           Filename of the sprite, including filesystem specifier.
  *                     For instance: "rom:/hero.sprite" to load from DFS.
- * @return sprite_t*   The loaded sprite
+ * @return             The loaded sprite
  */
 sprite_t *sprite_load(const char *fn);
 
@@ -120,7 +120,7 @@ sprite_t *sprite_load(const char *fn);
  *
  * @param buf           Pointer to the sprite file data
  * @param sz            Size of the sprite file buffer
- * @return sprite_t*    The loaded sprite
+ * @return              The loaded sprite
  */
 sprite_t *sprite_load_buf(void *buf, int sz);
 
@@ -167,7 +167,7 @@ surface_t sprite_get_pixels(sprite_t *sprite);
  * 
  * @param sprite        The sprite to access
  * @param num_level     The number of LOD level. 0 is the main sprite.
- * @return surface_t    The surface containing the data.
+ * @return              The surface containing the data.
  */
 surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
 
@@ -189,7 +189,7 @@ surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
  * @param sprite        The sprite to access
  * @param info          The detail information struct to fill if needed
  * @param infoparms     The detail texture sampling struct to fill if needed
- * @return surface_t    The surface containing the data.
+ * @return              The surface containing the data.
  */
 surface_t sprite_get_detail_pixels(sprite_t *sprite, sprite_detail_t *info, rdpq_texparms_t *infoparms);
 

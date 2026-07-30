@@ -29,7 +29,7 @@ typedef struct coroutine_s coroutine_t;
  * @param fn function to use for the coroutine
  * @param arg argument to pass into the function
  * @param stack_size stack size to be allocated
- * @return coroutine_t* created coroutine
+ * @return created coroutine
  */
 coroutine_t *coro_create(void (*fn)(void *), void *arg, size_t stack_size);
 
@@ -81,7 +81,7 @@ void coro_destroy(coroutine_t *co);
  * @brief Checks if a coroutine has finished execution.
  * 
  * @param co coroutine to check
- * @return bool true if finished
+ * @return true if finished
  */
 bool coro_finished(coroutine_t *co);
 
@@ -94,7 +94,7 @@ bool coro_finished(coroutine_t *co);
  * This can also be used to detect and change behaviour of a function
  * depending on if it's running in a coroutine or not.
  * 
- * @return coroutine_t* active coroutine, NULL if in main context
+ * @return active coroutine, NULL if in main context
  */
 coroutine_t* coro_get_current(void);
 

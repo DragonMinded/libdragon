@@ -84,7 +84,7 @@ void nand_init(void);
 /**
  * @brief Return the size of the installed NAND.
  * 
- * @return int  Size of the NAND in bytes (either 64 MiB or 128 MiB)
+ * @return      Size of the NAND in bytes (either 64 MiB or 128 MiB)
  */
 int nand_get_size(void);
 
@@ -212,7 +212,7 @@ void nand_mmap_begin(void);
  * @param pi_address    PI address to map the blocks to
  * @param blocks        Array of block numbers to map, terminated by -1
  * @param flags         Flags to control the mapping (#NAND_MMAP_ENCRYPTED)
- * @return int          0 if OK, or -1 in case of error. A possible error
+ * @return              0 if OK, or -1 in case of error. A possible error
  *                      is that there are not enough ATB entries available. In
  *                      this case, it is necessary to defragment the file on
  *                      the NAND (as a single ATB entry can map multiple

@@ -45,7 +45,7 @@ int __backtrace_from(void **buffer, int size, uint32_t *pc, uint32_t *sp, uint32
  * @param vaddr         Address to symbolize 
  * @param buf           Buffer where to store the result
  * @param size          Size of the buffer
- * @return char*        Pointer to the return string. This is within the provided
+ * @return              Pointer to the return string. This is within the provided
  *                      buffer, but not necessarily at the beginning because of DMA
  *                      alignment constraints.
  */

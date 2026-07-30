@@ -56,7 +56,7 @@
  * @param src_size      Size of the compressed data in bytes
  * @param dst           Pointer to destination buffer (decompressed data)
  * @param dst_size      Size of the destination buffer in bytes
- * @return int          Number of bytes decompressed, or -1 on error.
+ * @return              Number of bytes decompressed, or -1 on error.
  */
 int decompress_lz4_full_inplace(const uint8_t *src, size_t src_size, uint8_t *dst, size_t dst_size);
 

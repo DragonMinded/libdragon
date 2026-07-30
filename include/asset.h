@@ -124,7 +124,7 @@ extern void __asset_init_compression_lvl3(void);
  * 
  * @param fn        Filename to load (including filesystem prefix, eg: "rom:/foo.dat")
  * @param sz        If not NULL, this will be filed with the uncompressed size of the loaded file
- * @return void*    Pointer to the loaded file (must be freed with free() when done)
+ * @return          Pointer to the loaded file (must be freed with free() when done)
  */
 void *asset_load(const char *fn, int *sz);
 
@@ -149,7 +149,7 @@ void *asset_load(const char *fn, int *sz);
  * @param sz        size of input data (compressed or not). It will be filled
  *                  the uncompressed asset size, which is equal to the input value if the
  *                  asset is not compressed.
- * @return void*    Allocated buffer filled with the uncompressed asset content
+ * @return          Allocated buffer filled with the uncompressed asset content
  */
 void* asset_loadf(FILE *f, int *sz);
 
@@ -220,7 +220,7 @@ bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size);
  * 
  * @param fn        Filename to load (including filesystem prefix, eg: "rom:/foo.dat")
  * @param sz        If not NULL, this will be filed with the uncompressed size of the loaded file
- * @return FILE*    FILE pointer to use with standard C functions (fread, fclose)
+ * @return          FILE pointer to use with standard C functions (fread, fclose)
  */
 FILE *asset_fopen(const char *fn, int *sz);
 

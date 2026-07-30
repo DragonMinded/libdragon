@@ -42,7 +42,7 @@ typedef enum {
  * works as a RAII-like scope guard.
  * 
  * @param new_cat               New category to switch to
- * @return acct_category_t      Previous category
+ * @return                      Previous category
  */
 acct_category_t acct_switch(acct_category_t new_cat);
 

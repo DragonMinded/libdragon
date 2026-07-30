@@ -100,7 +100,7 @@ void* hashtable_lookup(hashtable_t *h, uint32_t key);
  *
  * @param h Pointer to a hashtable_t.
  * @param key 32-bit key to remove.
- * @return void* The value associated with the key before removal, or NULL
+ * @return The value associated with the key before removal, or NULL
  * if the key did not exist or its reference count did not reach zero.
  */
 void* hashtable_remove(hashtable_t *h, uint32_t key);
