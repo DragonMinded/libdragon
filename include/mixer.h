@@ -533,6 +533,19 @@ typedef void (*WaveformRead)(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen
  */
 typedef void (*WaveformStart)(void *ctx, samplebuffer_t *sbuf);
 
+/** @brief Waveform sample format (stored in #waveform_t::format). */
+typedef enum {
+	/** Interleaved PCM samples (8/16-bit). Default. */
+	WAVEFORM_FORMAT_PCM = 0,
+	/**
+	 * Mono or stereo VADPCM: the samplebuffer holds compressed 9-byte frames
+	 * (one plane per mixer channel); the mixer ucode decodes them in DMEM
+	 * during mixing. Stereo files are block-planar on disk and use two
+	 * consecutive mixer channels as independent mono VADPCM streams.
+	 */
+	WAVEFORM_FORMAT_VADPCM = 1,
+} waveform_format_t;
+
 /**
  * @brief A waveform that can be played back through the mixer.
  * 
@@ -552,32 +565,7 @@ typedef void (*WaveformStart)(void *ctx, samplebuffer_t *sbuf);
  * with #mixer_ch_play, they will use automatically two channels (the specified
  * one and the following).
  */
-/** @brief Waveform sample format (stored in #waveform_t::format). */
-typedef enum {
-	/** Interleaved PCM samples (8/16-bit). Default. */
-	WAVEFORM_FORMAT_PCM = 0,
-	/**
-	 * Mono or stereo VADPCM: the samplebuffer holds compressed 9-byte frames
-	 * (one plane per mixer channel); the mixer ucode decodes them in DMEM
-	 * during mixing. Stereo files are block-planar on disk and use two
-	 * consecutive mixer channels as independent mono VADPCM streams.
-	 */
-	WAVEFORM_FORMAT_VADPCM = 1,
-} waveform_format_t;
-
-/** @brief Codec side-data for #WAVEFORM_FORMAT_VADPCM waveforms. */
-typedef struct {
-	/** Predictor codebook in RDRAM (must stay valid for the waveform lifetime). */
-	void *codebook;
-	/**
-	 * Decoder state at the loop start (16-byte vector), or NULL if the
-	 * waveform does not loop / loop state is unknown. Used by the RSP on
-	 * cached-loop wraps.
-	 */
-	void *loop_state;
-} waveform_vadpcm_t;
-
-typedef struct waveform_s {
+ typedef struct waveform_s {
 	/** @brief Name of the waveform (for debugging purposes) */
 	const char *name;
 
@@ -684,15 +672,7 @@ typedef struct waveform_s {
       * of memory for the waveform, and make it available to the read
       * function via the "state" field of the #samplebuffer_t.
       */
-     int state_size;
-
-	/**
-	 * @brief Codec-specific data (format-dependent).
-	 *
-	 * For #WAVEFORM_FORMAT_VADPCM this points to a #waveform_vadpcm_t that
-	 * must outlive playback. NULL for PCM.
-	 */
-	void *codec;
+    int state_size;
 
 	/**
 	 * @brief Resident sample data in RDRAM, or NULL if streamed.
@@ -705,6 +685,8 @@ typedef struct waveform_s {
 	const void *mem;
 
      ///@cond
+	 /// Codec-specific runtime data (format-dependent)
+	 void *codec;
      ///  Mixer private state. Do not touch, initialize to zero
      uint32_t __uuid;
      ///@endcond

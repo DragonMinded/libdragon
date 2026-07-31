@@ -5,7 +5,7 @@
 #ifndef __LIBDRAGON_WAV64_INTERNAL_H
 #define __LIBDRAGON_WAV64_INTERNAL_H
 
-#include "mixer.h"
+#include "mixer_internal.h"
 
 #define WAV64_ID            "WV64"    ///< WAV64 file identifier
 #define WAV64_FORMAT_RAW    0         ///< Raw audio format
@@ -48,7 +48,7 @@ typedef struct wav64_state_s {
 	/** PI bus address of file start (0 if not a DFS file / async DMA unavailable). */
 	uint32_t rom_base;
 	uint8_t flags;           ///< Misc flags
-	/** Codec side-data for in-mixer VADPCM mono (#waveform_t::codec). */
+	/** Codec side-data for in-mixer VADPCM mono (will be stored in waveform_t::codec). */
 	waveform_vadpcm_t vadpcm;
 } wav64_state_t;
 

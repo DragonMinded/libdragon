@@ -84,10 +84,9 @@ DEFINE_RSP_UCODE(rsp_mixer);
 #define CH_FLAGS_LOOP_CACHED    (1<<10)  ///< Streamed loop pinned in the samplebuffer; RSP wraps
 #define CH_FLAGS_STEREO_ALLOC	(1<<9)   ///< The channel has a buffer sized for stereo (CPU-side only)
 
-/** @brief rspq command IDs for rsp_mixer.S */
-#define MIXER_CMD_CHANNEL     0x0
-#define MIXER_CMD_SETCHANNEL  0x1
-#define MIXER_CMD_FLUSH       0x2
+#define MIXER_CMD_CHANNEL     0x0        ///< rspq command ID for channel setup
+#define MIXER_CMD_SETCHANNEL  0x1        ///< rspq command ID for setting a channel
+#define MIXER_CMD_FLUSH       0x2        ///< rspq command ID for flushing the mixer
 
 /// @brief Fixed point value used in waveform position calculations.
 /// This is a signed 64-bit integer with the fractional part using

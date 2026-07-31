@@ -21,11 +21,13 @@
 /** @brief Set to 1 to activate debug logs */
 #define MIXER_TRACE   0
 
+///@cond
 #if MIXER_TRACE
 #define tracef(fmt, ...)  debugf(fmt, ##__VA_ARGS__)
 #else
 #define tracef(fmt, ...)  ({ })
 #endif
+///@endcond
 
 static inline uint8_t *samplebuffer_base(const samplebuffer_t *buf) {
 	return SAMPLES_PTR(buf);
