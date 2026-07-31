@@ -200,9 +200,8 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 				lseek(player->fd, samp->data8_offset, SEEK_SET);
 				samp->wave = wav64_loadfd(player->fd, filename, NULL);
 			} else {
-				wav64_loadparms_t parms = { .streaming_mode = WAV64_STREAMING_NONE };
 				sprintf(extfn, "%s/%08lx.wav64", xm64_extsampledir, samp->data8_offset);
-				samp->wave = wav64_load(strdup(extfn), &parms);
+				samp->wave = wav64_load(strdup(extfn), NULL);
 			}
 		}
 	}
