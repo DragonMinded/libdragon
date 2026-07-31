@@ -29,6 +29,18 @@ enum {
 	PS_MIXER_SEEK,      ///< mixer_ch_seek
 };
 
+/** @brief Codec side-data for #WAVEFORM_FORMAT_VADPCM waveforms. */
+typedef struct {
+	/** Predictor codebook in RDRAM (must stay valid for the waveform lifetime). */
+	void *codebook;
+	/**
+	 * Decoder state at the loop start (16-byte vector), or NULL if the
+	 * waveform does not loop / loop state is unknown. Used by the RSP on
+	 * cached-loop wraps.
+	 */
+	void *loop_state;
+} waveform_vadpcm_t;
+
 /** @brief Register mixer profile slots with #profile_init. */
 void __mixer_profile_init(void);
 
