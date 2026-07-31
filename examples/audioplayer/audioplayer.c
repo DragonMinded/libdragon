@@ -406,7 +406,6 @@ enum Page page_song(void) {
 int main(void) {
 	debug_init_emulog();
 	debug_init_usblog();
-	emux_ioctl_fast();
 	joypad_init();
 
 	display_init(RESOLUTION_512x240, DEPTH_16_BPP, 3, GAMMA_NONE, FILTERS_RESAMPLE);
