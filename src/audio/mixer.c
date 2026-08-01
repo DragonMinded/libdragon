@@ -1040,6 +1040,10 @@ static mixer_fx16_t mixer_global_volume(void) {
  * point the RSP would outrun what the CPU can hand it in a single piece.
  * Channels reading straight from RDRAM (resident, pinned loop, stereo sub)
  * have no such limit.
+ *
+ * VADPCM also reserves one frame for the ceiling in #mixer_channel_window:
+ * a span of N samples starting mid-frame covers ceil((pos%16+N)/16) frames,
+ * which is one more than N/16 when pos is not frame-aligned.
  */
 static void mixer_refresh_max_ns(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
@@ -1052,7 +1056,7 @@ static void mixer_refresh_max_ns(int ch) {
 	int bps_fx64 = (vadpcm ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
 	int ub = Mixer.ch_buf[ch].unit_bytes;
 	int overread = (MIXER_LOOP_OVERREAD + ub - 1) / ub;
-	int max_wlen = MAX(SAMPLEBUFFER_MARGIN_UNITS - overread, 1);
+	int max_wlen = MAX(SAMPLEBUFFER_MARGIN_UNITS - overread - (vadpcm ? 1 : 0), 1);
 	uint64_t units = vadpcm ? (uint64_t)max_wlen * 16 : (uint64_t)max_wlen;
 	int ns = (int)((units << bps_fx64) / c->step);
 	c->max_round_ns = MIN(MAX(ns, 1), MIXER_MAX_SAMPLES_PER_ROUND);
