@@ -1153,6 +1153,18 @@ static void mixer_rsp_bounds(mixer_channel_t *c, bool wrap, uint32_t *len, uint3
 	}
 }
 
+// Byte offset that the CPU folds into the pointer sent to the RSP. The ucode
+// only receives the low 31 bits of the position, so a streamed channel (whose
+// position grows with the stream instead of wrapping) must carry everything
+// above that bit in the base pointer. VADPCM positions count samples, and the
+// ucode addresses one 9-byte frame every 16 of them.
+static int32_t mixer_pos_fold(const mixer_channel_t *c) {
+	int64_t high = c->pos & ~(int64_t)0x7FFFFFFF;
+	if (c->flags & CH_FLAGS_VADPCM)
+		return (high >> (MIXER_FX64_FRAC+4)) * 9;
+	return high >> MIXER_FX64_FRAC;
+}
+
 // samplebuffer window that @p ns output samples read from a channel, in units
 // (VADPCM frames or PCM samples), including the overread the RSP does at loops.
 static void mixer_channel_window(int ch, int ns, int *wpos, int *wlen) {
@@ -1282,7 +1294,7 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 				flags = (owner->flags & (CH_FLAGS_BPS_SHIFT | CH_FLAGS_16BIT | CH_FLAGS_STEREO)) | CH_FLAGS_STEREO_SUB;
 				pos = (uint32_t)owner->pos & 0x7FFFFFFF;
 				step = (uint32_t)owner->step & 0x7FFFFFFF;
-				ptr = (uint8_t*)owner->ptr + ((owner->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC);
+				ptr = (uint8_t*)owner->ptr + mixer_pos_fold(owner);
 				mixer_rsp_bounds(owner, true, &len, &loop_len);
 			} else {
 				// Stereo VADPCM R: timing already synced in Phase A when streamed.
@@ -1293,9 +1305,12 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 				flags = CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
 				pos = (uint32_t)c->pos & 0x7FFFFFFF;
 				step = (uint32_t)c->step & 0x7FFFFFFF;
-				ptr = c->ptr;
-				if (owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED))
+				if (owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)) {
+					ptr = c->ptr;
 					mixer_rsp_bounds(c, true, &len, &loop_len);
+				} else {
+					ptr = (uint8_t*)c->ptr + mixer_pos_fold(c);
+				}
 			}
 		} else {
 			mixer_channel_volumes(ch, c->flags, false, gvol, &lvol, &rvol);
@@ -1306,8 +1321,7 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 				ptr = c->ptr;
 				mixer_rsp_bounds(c, true, &len, &loop_len);
 			} else {
-				ptr = (c->flags & CH_FLAGS_VADPCM) ? c->ptr :
-					(void*)((uint8_t*)c->ptr + ((c->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC));
+				ptr = (uint8_t*)c->ptr + mixer_pos_fold(c);
 				// Small loops are pinned by mixer_update_loops, large ones are
 				// wrapped by the CPU between rounds: either way the RSP is
 				// never allowed to wrap a streamed channel.
