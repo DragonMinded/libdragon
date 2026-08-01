@@ -194,6 +194,8 @@ enum {
     RDPQ_CMD_TRIANGLE                   = 0x1E,
     RDPQ_CMD_TRIANGLE_DATA              = 0x1F,
 
+    RDPQ_CMD_SET_FOG_COLOR_COMPONENT    = 0x20,
+    RDPQ_CMD_SET_BLEND_COLOR_COMPONENT  = 0x21,
     RDPQ_CMD_TEXTURE_RECTANGLE          = 0x24,
     RDPQ_CMD_TEXTURE_RECTANGLE_FLIP     = 0x25,
     RDPQ_CMD_SYNC_LOAD                  = 0x26,
@@ -932,6 +934,42 @@ inline void rdpq_set_fog_color(color_t color)
 }
 
 /**
+ * @brief Set the rgb portion of the RDP FOG blender register
+ * 
+ * This function is similar to #rdpq_set_fog_color, but will only modify
+ * the upper 24 bits of the FOG register. Internally, the full SET_FOG_COLOR 
+ * command is still issued, but the previous alpha value is preserved.
+ * 
+ * @param[in] color             Color to set the FOG register to (only rgb is used, alpha is ignored)
+ * 
+ * @see #rdpq_set_fog_color for more information about the FOG register.
+ */
+inline void rdpq_set_fog_color_rgb(color_t color)
+{
+    extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_FOG_COLOR_COMPONENT, 0, color_to_packed32(color) & 0xFFFFFF00,
+        AUTOSYNC_PIPE);
+}
+
+/**
+ * @brief Set the alpha portion of the RDP FOG blender register
+ * 
+ * This function is similar to #rdpq_set_fog_color, but will only modify
+ * the lower 8 bits of the FOG register. Internally, the full SET_FOG_COLOR 
+ * command is still issued, but the previous rgb value is preserved.
+ * 
+ * @param[in] alpha             Alpha to set in the FOG register
+ * 
+ * @see #rdpq_set_fog_color for more information about the FOG register.
+ */
+inline void rdpq_set_fog_color_alpha(uint8_t alpha)
+{
+    extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_FOG_COLOR_COMPONENT, 1, alpha,
+        AUTOSYNC_PIPE);
+}
+
+/**
  * @brief Set the RDP BLEND blender register
  * 
  * This function sets the internal RDP BLEND register, part of the blender unit.
@@ -956,6 +994,42 @@ inline void rdpq_set_blend_color(color_t color)
 {
     extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
     __rdpq_write8_syncchange(RDPQ_CMD_SET_BLEND_COLOR, 0, color_to_packed32(color),
+        AUTOSYNC_PIPE);
+}
+
+/**
+ * @brief Set the rgb portion of the RDP BLEND blender register
+ * 
+ * This function is similar to #rdpq_set_blend_color, but will only modify
+ * the upper 24 bits of the BLEND register. Internally, the full SET_BLEND_COLOR 
+ * command is still issued, but the previous alpha value is preserved.
+ * 
+ * @param[in] color             Color to set the BLEND register to (only rgb is used, alpha is ignored)
+ * 
+ * @see #rdpq_set_blend_color for more information about the BLEND register.
+ */
+inline void rdpq_set_blend_color_rgb(color_t color)
+{
+    extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_BLEND_COLOR_COMPONENT, 0, color_to_packed32(color) & 0xFFFFFF00,
+        AUTOSYNC_PIPE);
+}
+
+/**
+ * @brief Set the alpha portion of the RDP BLEND blender register
+ * 
+ * This function is similar to #rdpq_set_blend_color, but will only modify
+ * the lower 8 bits of the BLEND register. Internally, the full SET_BLEND_COLOR 
+ * command is still issued, but the previous rgb value is preserved.
+ * 
+ * @param[in] alpha             Alpha to set in the BLEND register
+ * 
+ * @see #rdpq_set_blend_color for more information about the BLEND register.
+ */
+inline void rdpq_set_blend_color_alpha(uint8_t alpha)
+{
+    extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_BLEND_COLOR_COMPONENT, 1, alpha,
         AUTOSYNC_PIPE);
 }
 

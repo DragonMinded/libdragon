@@ -346,6 +346,8 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_blender,               0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_blender_memory,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_fog,                   0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_fog_color,             0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_blend_color,           0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_antialias,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_alphacompare,     0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_mode_zmode,            0, TEST_FLAGS_NO_BENCHMARK),

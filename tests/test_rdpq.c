@@ -1638,6 +1638,145 @@ void test_rdpq_fog(TestContext *ctx) {
     ASSERT_SURFACE(&fb, { return RGBA32(255,0,0,FULL_CVG); });
 }
 
+void test_rdpq_fog_color(TestContext *ctx) {
+    #define FILL_AND_WAIT() ({ \
+        rdpq_triangle(&TRIFMT_FILL, \
+            (float[]){ 0,             0, }, \
+            (float[]){ FBWIDTH,       0, }, \
+            (float[]){ FBWIDTH, FBWIDTH, } \
+        ); \
+        rdpq_triangle(&TRIFMT_FILL, \
+            (float[]){ 0,             0, }, \
+            (float[]){ 0,       FBWIDTH, }, \
+            (float[]){ FBWIDTH, FBWIDTH, } \
+        ); \
+        rspq_wait(); \
+    })
+
+    RDPQ_INIT();
+
+    const int FULL_CVG = 7 << 5;   // full coverage
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+    surface_clear(&fb, 0);
+
+    // rgb
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,1),(0,0,0,1)));
+    rdpq_mode_blender(RDPQ_BLENDER((FOG_RGB,0,FOG_RGB,1)));
+
+    // set full register
+    rdpq_set_fog_color(RGBA32(0,255,0,0));
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(0,255,0,FULL_CVG); });
+
+    // set alpha only
+    rdpq_set_fog_color_alpha(255);
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(0,255,0,FULL_CVG); });
+
+    // set rgb only
+    rdpq_set_fog_color_rgb(RGBA32(255,0,0,0));
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,0,0,FULL_CVG); });
+
+    // alpha
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,1),(0,0,0,1)));
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB,FOG_ALPHA,IN_RGB,0)));
+
+    // set full register
+    rdpq_set_fog_color(RGBA32(0,0,0,255));
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
+
+    // set rgb only
+    rdpq_set_fog_color_rgb(RGBA32(0,0,255,0));
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
+
+    // set alpha only
+    rdpq_set_fog_color_alpha(127);
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(127,127,127,FULL_CVG); });
+
+    #undef FILL_AND_WAIT
+}
+
+void test_rdpq_blend_color(TestContext *ctx) {
+    #define FILL_AND_WAIT() ({ \
+        rdpq_triangle(&TRIFMT_FILL, \
+            (float[]){ 0,             0, }, \
+            (float[]){ FBWIDTH,       0, }, \
+            (float[]){ FBWIDTH, FBWIDTH, } \
+        ); \
+        rdpq_triangle(&TRIFMT_FILL, \
+            (float[]){ 0,             0, }, \
+            (float[]){ 0,       FBWIDTH, }, \
+            (float[]){ FBWIDTH, FBWIDTH, } \
+        ); \
+        rspq_wait(); \
+    })
+
+    RDPQ_INIT();
+
+    const int FULL_CVG = 7 << 5;   // full coverage
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    rdpq_set_color_image(&fb);
+    surface_clear(&fb, 0);
+
+    // rgb
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,1),(0,0,0,1)));
+    rdpq_mode_blender(RDPQ_BLENDER((BLEND_RGB,0,BLEND_RGB,1)));
+
+    // set full register
+    rdpq_set_blend_color(RGBA32(0,255,0,0));
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(0,255,0,FULL_CVG); });
+
+    // set alpha only
+    rdpq_set_blend_color_alpha(255);
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(0,255,0,FULL_CVG); });
+
+    // set rgb only
+    rdpq_set_blend_color_rgb(RGBA32(255,0,0,0));
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,0,0,FULL_CVG); });
+
+    // alpha
+    surface_clear(&fb, 0);
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER1((0,0,0,1),(0,0,0,PRIM)));
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB,0,IN_RGB,1)));
+    rdpq_mode_alphacompare(1);
+    rdpq_set_prim_color(RGBA32(255,255,255,127));
+
+    // set full register
+    rdpq_set_blend_color(RGBA32(0,0,0,255));
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(0,0,0,0); });
+    surface_clear(&fb, 0);
+
+    // set rgb only
+    rdpq_set_blend_color_rgb(RGBA32(0,0,0,0));
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(0,0,0,0); });
+    surface_clear(&fb, 0);
+
+    // set alpha only
+    rdpq_set_blend_color_alpha(1);
+    FILL_AND_WAIT();
+    ASSERT_SURFACE(&fb, { return RGBA32(255,255,255,FULL_CVG); });
+
+    #undef FILL_AND_WAIT
+}
+
 void test_rdpq_mode_antialias(TestContext *ctx) {
     RDPQ_INIT();
 
