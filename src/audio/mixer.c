@@ -410,8 +410,13 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 	int wave_len = wave->len;
 	int wave_loop = wave->loop_len;
 	if (wave->format == WAVEFORM_FORMAT_VADPCM) {
-		wave_len /= 16;
-		wave_loop /= 16;
+		// The last frame of a waveform is partial whenever its length is not a
+		// multiple of 16, and the loop point can sit anywhere inside a frame:
+		// both bounds have to become the frame the sample belongs to, or the
+		// samples living in those partial frames would never be fetched.
+		int loop_start = (wave_len - wave_loop) / 16;
+		wave_len = DIVIDE_CEIL(wave_len, 16);
+		wave_loop = wave_loop ? wave_len - loop_start : 0;
 	}
 	int ub = sbuf->unit_bytes;
 
@@ -690,7 +695,10 @@ void mixer_ch_play(int ch, waveform_t *wave)
 	// Restart from the beginning of the waveform
 	c->wave = wave;
 	if (resident && stereo_vadpcm) {
-		int nframes = wave->len / 16;
+		// Planes are laid out back to back, each holding every frame that
+		// carries a sample (the last one is partial if len is not a multiple
+		// of 16).
+		int nframes = DIVIDE_CEIL(wave->len, 16);
 		c->ptr = (void*)wave->mem;
 		Mixer.channels[ch+1].ptr = (uint8_t*)wave->mem + nframes * 9;
 		Mixer.channels[ch+1].pos = 0;
@@ -887,7 +895,7 @@ static bool mixer_wave_fits(int i) {
 	bool vadpcm = (ch->flags & CH_FLAGS_VADPCM) != 0;
 	int bps = vadpcm ? 0 : (ch->flags & CH_FLAGS_BPS_SHIFT);
 	int len = ch->len >> (bps + MIXER_FX64_FRAC);
-	int slen = vadpcm ? (len + 15) / 16 : len;
+	int slen = vadpcm ? DIVIDE_CEIL(len, 16) : len;
 	return slen > 0 &&
 		slen + (MIXER_LOOP_OVERREAD / (vadpcm ? 9 : (1<<bps)) + 1) <= sbuf->size;
 }
@@ -909,8 +917,11 @@ static void mixer_fill_loop_cache(int ch) {
 	bool whole = mixer_wave_fits(ch);
 	int cache_start = whole ? 0 : len - loop_len;
 	int cache_len = whole ? len : loop_len;
+	// In frames, the pinned region spans from the frame holding its first
+	// sample to the one holding its last: a loop point is not necessarily
+	// aligned to a frame, so this is not just the length rounded up.
 	int sloop_start = vadpcm ? cache_start / 16 : cache_start;
-	int sloop_len = vadpcm ? (cache_len + 15) / 16 : cache_len;
+	int sloop_len = vadpcm ? DIVIDE_CEIL(cache_start + cache_len, 16) - sloop_start : cache_len;
 	int overread = (MIXER_LOOP_OVERREAD + ub - 1) / ub;
 	int fill = sloop_len + overread;
 	assertf(fill <= sbuf->size, "ch:%d loop cache %x > samplebuffer %x", ch, fill, sbuf->size);
@@ -928,7 +939,10 @@ static void mixer_fill_loop_cache(int ch) {
 		sbuf_r->wnext = 0;
 		sbuf_r->head = 0;
 	}
-	wave->read(wave->ctx, sbuf, sloop_start, sloop_len + overread, true);
+	// Go through the wrapper: the overread past the loop end must be filled
+	// with the samples at the loop start, which is exactly what the RSP reads
+	// there once it starts wrapping the pinned copy on its own.
+	waveform_read(wave->ctx, sbuf, sloop_start, sloop_len + overread, true);
 	sbuf->wpos = sloop_start;
 	sbuf->wnext = sloop_start + sbuf->widx;
 	if (stereo_vadpcm) {
@@ -962,7 +976,7 @@ static bool mixer_loop_fits(int i) {
 	bool vadpcm = (ch->flags & CH_FLAGS_VADPCM) != 0;
 	int bps = vadpcm ? 0 : (ch->flags & CH_FLAGS_BPS_SHIFT);
 	int loop_len = ch->loop_len >> (bps + MIXER_FX64_FRAC);
-	int sloop = vadpcm ? loop_len / 16 : loop_len;
+	int sloop = vadpcm ? DIVIDE_CEIL(loop_len, 16) : loop_len;
 	return sloop > 0 &&
 		sloop + (MIXER_LOOP_OVERREAD / (vadpcm ? 9 : (1<<bps)) + 1) <= sbuf->size;
 }

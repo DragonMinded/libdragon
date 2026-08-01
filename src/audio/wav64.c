@@ -149,7 +149,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	// VADPCM preloads stay compressed (9 bytes/frame/channel), laid out fully
 	// planar in RDRAM for direct MIX_CHANNEL addressing.
 	bool preload_vadpcm = preload && head.format == WAV64_FORMAT_VADPCM;
-	int nframes = head.len / 16;
+	int nframes = WAV64_VADPCM_FRAMES(head.len);
 	int preload_size = preload_vadpcm
 		? ROUND_UP(nframes * 9 * head.channels, 16)
 		: ROUND_UP(head.len * head.channels * (head.nbits >> 3), 16);

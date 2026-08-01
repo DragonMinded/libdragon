@@ -155,7 +155,7 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 	wav64_state_vadpcm_t *vstate = sbuf->state;
 	assert(sbuf->state_size >= sizeof(wav64_state_vadpcm_t));
 	int channels = wav->wave.channels;
-	int nframes_total = wav->wave.len / 16;
+	int nframes_total = WAV64_VADPCM_FILE_FRAMES(wav->wave.len);
 	samplebuffer_t *sbuf_r = (channels == 2) ? sbuf + 1 : NULL;
 	(void)ctx;
 
@@ -303,8 +303,11 @@ void wav64_vadpcm_preload(wav64_t *wav, void *dst)
 {
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 	int channels = wav->wave.channels;
-	int nframes = wav->wave.len / 16;
-	int file_bytes = nframes * 9 * channels;
+	// The file is read whole, padding included, but only the frames that carry
+	// samples are laid out for the mixer.
+	int file_frames = WAV64_VADPCM_FILE_FRAMES(wav->wave.len);
+	int nframes = WAV64_VADPCM_FRAMES(wav->wave.len);
+	int file_bytes = file_frames * 9 * channels;
 	uint8_t *scratch = malloc(ROUND_UP(file_bytes, 16));
 	assertf(scratch, "Out of memory");
 
@@ -325,7 +328,7 @@ void wav64_vadpcm_preload(wav64_t *wav, void *dst)
 	for (int c = 0; c < channels; c++)
 		for (int f = 0; f < nframes; f++)
 			memcpy(out + (c * nframes + f) * 9,
-				scratch + vadpcm_file_index(f, c, nframes, channels) * 9, 9);
+				scratch + vadpcm_file_index(f, c, file_frames, channels) * 9, 9);
 	free(scratch);
 }
 
