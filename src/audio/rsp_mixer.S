@@ -993,10 +993,12 @@ VadpcmFillCache:
 	sub t0, t1
 	blez t0, VadpcmEpilog
 	li t2, VADPCM_WIN_FRAMES
-	# While more frames follow, only lanes with all four taps inside the
-	# decoded window are accepted (the rest are replayed after the next fill).
-	# At the end of the waveform there is nothing left to replay, so the taps
-	# past the last sample are taken from four zero samples appended below.
+	# Only lanes with all four taps inside the decoded window are accepted;
+	# the others are replayed after the next fill. The window that reaches the
+	# end of the waveform stops one sample past the last one instead: taps
+	# beyond it are filled in after the decode, and the lanes that would start
+	# there are given back to VadpcmWaveStart, which wraps the loop (or ends
+	# the waveform) before they are replayed.
 	slt t9, t2, t0
 	bnez t9, 1f
 	li t1, -3*2
@@ -1005,10 +1007,15 @@ VadpcmFillCache:
 1:	sh t2, %lo(CH_VNFRAMES)
 	sll t0, t2, 5                            # nframes * 16 samples * 2 bytes
 	addi t0, %lo(DMEM_SAMPLE_CACHE)
-	sw zero, 0(t0)                           # four zero samples past the end
-	sw zero, 4(t0)
+	bnez t9, 2f
 	add t1, t0
-	sh t1, %lo(CH_VLIMIT)
+	lw t1, %lo(ROUND_SCRATCH)                # start_frame
+	srl t0, wv_len, WAVEFORM_POS_FRAC_BITS
+	sll t1, 4
+	sub t0, t1                               # last sample, from the window start
+	sll t0, 1
+	addi t1, t0, %lo(DMEM_SAMPLE_CACHE)
+2:	sh t1, %lo(CH_VLIMIT)
 	sh ticks, %lo(CH_NSAMPLES)
 	sw wv_pos, %lo(CH_POS)
 
@@ -1073,7 +1080,27 @@ VadpcmAligned:
 	lqv v_const1, 0,t0
 	lh t1, %lo(CH_VLIMIT)
 	mtc2 t1, k_limit
-	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
+
+	# Hermite reads three taps past the sample it interpolates, and past the
+	# last sample of the waveform there is only the padding of its last frame:
+	# hold the last sample instead, so that a loop point does not decay
+	# towards silence on the few samples that straddle it.
+	lw t0, %lo(CH_VCUR_FRAME)
+	lh t1, %lo(CH_VNFRAMES)
+	srl s0, wv_len, WAVEFORM_POS_FRAC_BITS
+	sll t0, 4
+	sll t1, 4                                # samples in the window
+	sub s0, t0                               # last sample, from the window start
+	sltu s1, t1, s0
+	bnez s1, 1f                              # end of the waveform is further on
+	sll s0, 1
+	addi s0, %lo(DMEM_SAMPLE_CACHE)
+	lh t0, -2(s0)
+	sh t0, 0(s0)
+	sh t0, 2(s0)
+	sh t0, 4(s0)
+
+1:	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
 	andi s2, 15                              # offset of wv_pos in the cache
 	sll wv_step_8x, wv_step, 3
 	j MonoRefill
