@@ -254,6 +254,8 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 
 	if (buf->widx == 0 || wpos < buf->wpos || wpos > buf->wpos + buf->widx) {
 		tracef("samplebuffer_get: seek/flush wpos=%x (had %x+%x)\n", wpos, buf->wpos, buf->widx);
+		assertf(buf->wv_read, "samplebuffer_get: no reader to seek to %x (had %x+%x)",
+			wpos, buf->wpos, buf->widx);
 		bool seeking = (buf->wnext < 0) || (wpos != buf->wnext);
 		samplebuffer_flush(buf);
 		buf->wpos = wpos;
@@ -271,6 +273,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		int reuse = buf->wpos + buf->widx - wpos;
 		if (reuse < *wlen) {
 			tracef("samplebuffer_get: read missing: reuse=%x wpos=%x wlen=%x\n", reuse, wpos, *wlen);
+			assertf(buf->wv_read, "samplebuffer_get: no reader to extend to %x", wpos+reuse);
 			assertf(wpos+reuse == buf->wnext, "wpos:%x reuse:%x buf->wnext:%x", wpos, reuse, buf->wnext);
 			int missing = samplebuffer_align_len(buf, *wlen - reuse);
 			// Free space without discarding past the live read cursor.

@@ -171,7 +171,15 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 			memcpy(vstate->state, vhead->skip_states + idx * channels,
 				sizeof(vstate->state[0]) * channels);
 		}
-		if (sbuf_r) {
+		// The right plane has no reader of its own: it only ever receives what
+		// this function appends, so its ring must follow the left one. A seek
+		// that restarts the stream arrives with the left ring already flushed,
+		// and the right one restarts at wpos as well. An overread past the end
+		// also arrives as a seek (the decoder has to re-seed at the loop
+		// point), but there the left ring keeps its live window and just
+		// appends the loop-start frames after it: restarting the right ring
+		// would leave the two planes at different stream positions.
+		if (sbuf_r && sbuf->widx == 0) {
 			samplebuffer_flush(sbuf_r);
 			sbuf_r->wpos = wpos;
 			sbuf_r->head = 0;

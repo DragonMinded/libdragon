@@ -599,8 +599,13 @@ void mixer_ch_play(int ch, waveform_t *wave)
 
 	// Configure the waveform on this channel, if we have not already.
 	if (wave->__uuid != c->wave_uuid || (c->flags & CH_FLAGS_RESIDENT) != (resident ? CH_FLAGS_RESIDENT : 0)) {
-		if (!resident)
+		if (!resident) {
 			samplebuffer_flush(sbuf);
+			// Stereo VADPCM keeps a second ring on ch+1, which is reconfigured
+			// below as well: it must be emptied too.
+			if (stereo_vadpcm)
+				samplebuffer_flush(&Mixer.ch_buf[ch+1]);
+		}
 
 		// If this channel is playing something else, stop it
 		if (mixer_ch_playing(ch))
@@ -761,7 +766,13 @@ void mixer_ch_stop(int ch) {
 
 	bool stereo = (c->flags & CH_FLAGS_STEREO) != 0;
 	if (stereo) {
+		// Dropping STEREO_SUB releases ch+1, so it must be disarmed like the
+		// owner: a stereo VADPCM sub keeps its own ptr/pos, and would
+		// otherwise look like an independent channel and keep advancing and
+		// fetching from a samplebuffer that only its owner can fill.
 		c[1].flags &= ~CH_FLAGS_STEREO_SUB;
+		c[1].ptr = 0;
+		c[1].pos = 0;
 		c[1].silence_ns = MIXER_SILENCE_RAMP_SAMPLES;
 		Mixer.chtbl_dirty &= ~mixer_bit(ch+1);
 	}
