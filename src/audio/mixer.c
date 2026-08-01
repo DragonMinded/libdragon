@@ -834,6 +834,10 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	if (samplebuffer_is_inited(&Mixer.ch_buf[ch])) {
 		rspq_highpri_sync();
 		samplebuffer_close(&Mixer.ch_buf[ch]);
+		// The waveform that was playing has to be configured again on the new
+		// buffer, so forget it: mixer_ch_play skips that work when it sees the
+		// same waveform it already has.
+		Mixer.channels[ch].wave_uuid = 0;
 		Mixer.channels[ch].flags &= ~CH_FLAGS_STEREO_ALLOC;
 	}
 }
