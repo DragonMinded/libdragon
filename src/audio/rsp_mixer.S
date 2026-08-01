@@ -221,6 +221,12 @@ DMEM_ADDRS:               .dcb.b 16
 	.align 4
 DMEM_TRANSPOSE:           .dcb.b 128
 
+	# The VADPCM path borrows the head of the transpose scratch while it
+	# decodes the frame the loop starts on (see VadpcmTapsDone): every refill
+	# is followed by a priming pass that rewrites the whole of it before the
+	# resampler reads it back.
+#define DMEM_VSCRATCH     DMEM_TRANSPOSE
+
 	# Contiguous resample staging (stereo and VADPCM paths).
 	.align 4
 DMEM_SCRATCH:             .dcb.b DMEM_SCRATCH_SIZE
@@ -268,13 +274,15 @@ CH_VADPCM_RA:             .long  0
 # (they differ while the decoder is catching up to the start of the fill).
 CH_VNFRAMES:              .half  0
 CH_VDECN:                 .half  0
-# k_limit of the current fill, computed before the decode clobbers it.
+# k_limit of the current fill, computed before the decode clobbers it, and
+# whether that fill stops short of the end of the waveform (in which case the
+# limit is the end of the window instead of the end of the waveform).
 CH_VLIMIT:                .half  0
+CH_VATEND:                .half  0
 # Per-sample step of the mono resampler, split the same way as the position:
 # fraction as 0.16, plus whole samples.
 CH_STEPF:                 .half  0
 CH_STEPI:                 .half  0
-                          .half  0
                           .half  0
 
 
@@ -951,8 +959,26 @@ VadpcmSetup:
 	li t0, DMA_SIZE(128, 1)
 
 	# DMA decoder state. next_frame = floor(pos/16); the cache is empty.
+	#
+	# A round can end exactly on the loop point, and then it is the CPU that
+	# wraps the position, leaving behind the state of the end of the waveform
+	# instead of the one of the loop. So whenever a command starts on the frame
+	# the loop starts on, decode from the state saved for it — which is also
+	# the state the waveform reaches that frame with, so it holds for a channel
+	# that is still playing its attack.
 	lw s0, %lo(CH_STATE)
-	li s4, %lo(MIX_VADPCM_STATE)
+	lw s1, %lo(CH_LOOP_STATE)
+	beqz wv_loop_len, 1f
+	nop
+	beqz s1, 1f
+	sub t0, wv_len, wv_loop_len
+	srl t0, WAVEFORM_POS_FRAC_BITS + 4       # frame the loop starts on
+	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
+	srl s2, 4
+	bne t0, s2, 1f
+	nop
+	move s0, s1
+1:	li s4, %lo(MIX_VADPCM_STATE)
 	jal DMAIn
 	li t0, DMA_SIZE(16, 1)
 
@@ -999,23 +1025,31 @@ VadpcmFillCache:
 	# beyond it are filled in after the decode, and the lanes that would start
 	# there are given back to VadpcmWaveStart, which wraps the loop (or ends
 	# the waveform) before they are replayed.
-	slt t9, t2, t0
+	slt t9, t2, t0                           # more frames than the window holds
 	bnez t9, 1f
-	li t1, -3*2
-	move t2, t0
-	li t1, 0
-1:	sh t2, %lo(CH_VNFRAMES)
-	sll t0, t2, 5                            # nframes * 16 samples * 2 bytes
-	addi t0, %lo(DMEM_SAMPLE_CACHE)
-	bnez t9, 2f
-	add t1, t0
-	lw t1, %lo(ROUND_SCRATCH)                # start_frame
-	srl t0, wv_len, WAVEFORM_POS_FRAC_BITS
-	sll t1, 4
-	sub t0, t1                               # last sample, from the window start
-	sll t0, 1
-	addi t1, t0, %lo(DMEM_SAMPLE_CACHE)
-2:	sh t1, %lo(CH_VLIMIT)
+	nop
+	# The taps written past the last sample have to fit in the cache: on the
+	# rare window that is full and whose last frame is barely padded they do
+	# not, so keep the window-end limit and let the next fill, which starts
+	# further on, be the one that reaches the end.
+	lw s0, %lo(ROUND_SCRATCH)                # start_frame
+	srl s1, wv_len, WAVEFORM_POS_FRAC_BITS
+	sll s0, 4
+	sub s1, s0                               # samples up to the end
+	addi s0, s1, 3
+	slti s0, s0, SAMPLE_CACHE_SAMPLES + 1
+	beqz s0, 1f
+	move t2, t0                              # nframes = frames left
+	sll s1, 1
+	addi t1, s1, %lo(DMEM_SAMPLE_CACHE)      # limit: the end of the waveform
+	j 2f
+	sh zero, %lo(CH_VATEND)
+1:	li t9, 1
+	sll t1, t2, 5                            # nframes * 16 samples * 2 bytes
+	addi t1, %lo(DMEM_SAMPLE_CACHE) - 3*2    # limit: three taps before its end
+	sh t9, %lo(CH_VATEND)
+2:	sh t2, %lo(CH_VNFRAMES)
+	sh t1, %lo(CH_VLIMIT)
 	sh ticks, %lo(CH_NSAMPLES)
 	sw wv_pos, %lo(CH_POS)
 
@@ -1069,6 +1103,79 @@ VadpcmAligned:
 	jal VadpcmDecodeFrames
 	sh t0, %lo(CH_VDECN)
 
+	# Hermite reads three taps past the sample it interpolates, and past the
+	# last sample of the waveform those are the first three of the loop. They
+	# decode from the loop state rather than from the one the window ends on,
+	# so the frame that holds them is decoded on its own, over the head of the
+	# window, and only the three samples are kept: without them a loop point
+	# would be interpolated towards the padding of the last frame.
+	lh t9, %lo(CH_VATEND)
+	bnez t9, VadpcmTapsDone
+	lh s0, %lo(CH_VLIMIT)                    # one sample past the last one
+	lw t2, %lo(CH_LOOP_LEN)
+	lw t3, %lo(CH_LOOP_STATE)
+	beqz t2, VadpcmTapsHold
+	nop
+	beqz t3, VadpcmTapsHold
+	nop
+
+	# The window and the running state are put back afterwards: the samples of
+	# the loop start belong to a later round, and the state the decoder leaves
+	# behind is the one of the loop, not of the end of the window.
+	li s1, %lo(DMEM_SAMPLE_CACHE)
+	li s3, %lo(DMEM_VSCRATCH)
+	lqv $v01, 0x00,s1
+	lqv $v02, 0x10,s1
+	li s2, %lo(MIX_VADPCM_STATE)
+	lqv $v03, 0x00,s2
+	sqv $v01, 0x00,s3
+	sqv $v02, 0x10,s3
+	sqv $v03, 0x20,s3
+	lw s0, %lo(CH_LOOP_STATE)
+	li s4, %lo(MIX_VADPCM_STATE)
+	jal DMAIn
+	li t0, DMA_SIZE(16, 1)
+	lw t0, %lo(CH_LEN)
+	lw t1, %lo(CH_LOOP_LEN)
+	sub t0, t1
+	srl t0, WAVEFORM_POS_FRAC_BITS + 4       # frame the loop starts on
+	sw t0, %lo(CH_VNEXT_FRAME)
+	li t0, 1
+	jal VadpcmDecodeFrames
+	sh t0, %lo(CH_VDECN)
+
+	li s1, %lo(DMEM_SAMPLE_CACHE)
+	li s3, %lo(DMEM_VSCRATCH)
+	lh t0, 0x00(s1)
+	lh t1, 0x02(s1)
+	lh t2, 0x04(s1)
+	lqv $v01, 0x00,s3
+	lqv $v02, 0x10,s3
+	lqv $v03, 0x20,s3
+	sqv $v01, 0x00,s1
+	sqv $v02, 0x10,s1
+	li s2, %lo(MIX_VADPCM_STATE)
+	sqv $v03, 0x00,s2
+	lw s4, %lo(CH_VCUR_FRAME)
+	lh s5, %lo(CH_VNFRAMES)
+	lh s0, %lo(CH_VLIMIT)
+	add s4, s5
+	sw s4, %lo(CH_VNEXT_FRAME)
+	sh t0, 0x00(s0)
+	sh t1, 0x02(s0)
+	j VadpcmTapsDone
+	sh t2, 0x04(s0)
+
+VadpcmTapsHold:
+	# Nothing to interpolate towards: a waveform that does not loop, or one
+	# whose loop the CPU wraps by itself between rounds. Hold the last sample,
+	# which at least does not decay towards silence.
+	lh t0, -2(s0)
+	sh t0, 0x00(s0)
+	sh t0, 0x02(s0)
+	sh t0, 0x04(s0)
+VadpcmTapsDone:
+
 	# The decoder clobbers ticks/pos/len/loop_len/addr, k_ff, s2, $v01-$v23
 	# and $v31 (which it needs as the shift table of vsra8).
 	lh ticks, %lo(CH_NSAMPLES)
@@ -1081,33 +1188,26 @@ VadpcmAligned:
 	lh t1, %lo(CH_VLIMIT)
 	mtc2 t1, k_limit
 
-	# Hermite reads three taps past the sample it interpolates, and past the
-	# last sample of the waveform there is only the padding of its last frame:
-	# hold the last sample instead, so that a loop point does not decay
-	# towards silence on the few samples that straddle it.
-	lw t0, %lo(CH_VCUR_FRAME)
-	lh t1, %lo(CH_VNFRAMES)
-	srl s0, wv_len, WAVEFORM_POS_FRAC_BITS
-	sll t0, 4
-	sll t1, 4                                # samples in the window
-	sub s0, t0                               # last sample, from the window start
-	sltu s1, t1, s0
-	bnez s1, 1f                              # end of the waveform is further on
-	sll s0, 1
-	addi s0, %lo(DMEM_SAMPLE_CACHE)
-	lh t0, -2(s0)
-	sh t0, 0(s0)
-	sh t0, 2(s0)
-	sh t0, 4(s0)
-
-1:	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
+	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
 	andi s2, 15                              # offset of wv_pos in the cache
 	sll wv_step_8x, wv_step, 3
 	j MonoRefill
 	li k_ff, 0xFF
 
 VadpcmEpilog:
-	# The state that decodes frame F is just the eight samples before it, so
+	# The resampler mixes in whole groups of eight and can run up to seven
+	# samples past the end of the round (ACCUM_PAD absorbs them). The next
+	# command resumes from the position the CPU keeps, which is the one the
+	# round really ended on: rewind to it, or the state saved below would be
+	# the one of a later frame and the decode would restart from the wrong
+	# samples.
+	bgez ticks, 3f
+	nop
+1:	addi ticks, 1
+	bltz ticks, 1b
+	sub wv_pos, wv_step
+
+3:	# The state that decodes frame F is just the eight samples before it, so
 	# once the cache holds F it can be written back straight out of it. Only
 	# the two ends need the snapshots: nothing decoded yet (STATE, as loaded)
 	# or nothing consumed yet (STATE_BEFORE, taken at CH_VCUR_FRAME).
