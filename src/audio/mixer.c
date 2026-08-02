@@ -663,7 +663,7 @@ void mixer_ch_play(int ch, waveform_t *wave)
 			if (stereo_vadpcm) {
 				mixer_channel_t *r = &Mixer.channels[ch+1];
 				r->flags = (r->flags & CH_FLAGS_FORCE_MONO) | CH_FLAGS_STEREO_SUB | CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
-				r->codebook = (uint8_t*)vc->codebook + 128; // 8 vectors × 16 bytes
+				r->codebook = (uint8_t*)vc->codebook + VADPCM_CODEBOOK_STRIDE;
 				r->codec_state = (uint8_t*)c->codec_state + 16;
 				r->loop_state = vc->loop_state ? (uint8_t*)vc->loop_state + 16 : NULL;
 				r->len = c->len;

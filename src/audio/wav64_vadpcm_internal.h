@@ -67,7 +67,7 @@ typedef struct __attribute__((packed, aligned(8))) {
 	wav64_vadpcm_vector_t *skip_states;		///< Decompression states at the skip point
 	wav64_vadpcm_huffctx_t huff_ctx[3]; 	///< Huffman contexts
 	uint32_t padding2;						///< Padding
-	wav64_vadpcm_vector_t codebook[];		///< Codebook of the predictors
+	wav64_vadpcm_vector_t codebook[];		///< Per-channel codebook (#VADPCM_CODEBOOK_STRIDE bytes each)
 } wav64_header_vadpcm_t;
 
 _Static_assert(sizeof(wav64_header_vadpcm_t) == 96, "invalid wav64_header_vadpcm size");

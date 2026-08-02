@@ -29,6 +29,14 @@ enum {
 	PS_MIXER_SEEK,      ///< mixer_ch_seek
 };
 
+/**
+ * Bytes of VADPCM codebook data per channel: eight predictor vectors
+ * (128 bytes) followed by the first three samples decoded at the loop start
+ * (plus one halfword of padding). Must match the WAV64 on-disk layout and the
+ * mixer ucode DMA size.
+ */
+#define VADPCM_CODEBOOK_STRIDE  136
+
 /** @brief Codec side-data for #WAVEFORM_FORMAT_VADPCM waveforms. */
 typedef struct {
 	/** Predictor codebook in RDRAM (must stay valid for the waveform lifetime). */

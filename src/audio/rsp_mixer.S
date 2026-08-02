@@ -221,20 +221,15 @@ DMEM_ADDRS:               .dcb.b 16
 	.align 4
 DMEM_TRANSPOSE:           .dcb.b 128
 
-	# The VADPCM path borrows the head of the transpose scratch while it
-	# decodes the frame the loop starts on (see VadpcmTapsDone): every refill
-	# is followed by a priming pass that rewrites the whole of it before the
-	# resampler reads it back.
-#define DMEM_VSCRATCH     DMEM_TRANSPOSE
-
 	# Contiguous resample staging (stereo and VADPCM paths).
 	.align 4
 DMEM_SCRATCH:             .dcb.b DMEM_SCRATCH_SIZE
 
-	# In-mixer VADPCM staging (mono codebook = 8 vectors = 128 bytes).
-	# Stereo VADPCM uses two MIX_CHANNEL commands, each with its own half.
+	# In-mixer VADPCM staging: 8 predictor vectors (128 bytes) plus the three
+	# Hermite taps past a loop point (8 bytes with padding). Stereo VADPCM
+	# uses two MIX_CHANNEL commands, each with its own half.
 	.align 4
-MIX_VADPCM_CODEBOOK:      .space 128
+MIX_VADPCM_CODEBOOK:      .space 144
 	.align 4
 MIX_VADPCM_STATE:         .space 16
 	.align 4
@@ -952,11 +947,11 @@ MonoExit:
 ############################################################
 
 VadpcmSetup:
-	# DMA codebook once per command.
+	# DMA codebook once per command (predictors + Hermite loop taps).
 	lw s0, %lo(CH_CODEBOOK)
 	li s4, %lo(MIX_VADPCM_CODEBOOK)
 	jal DMAInAsync
-	li t0, DMA_SIZE(128, 1)
+	li t0, DMA_SIZE(136, 1)
 
 	# DMA decoder state. next_frame = floor(pos/16); the cache is empty.
 	#
@@ -1105,10 +1100,8 @@ VadpcmAligned:
 
 	# Hermite reads three taps past the sample it interpolates, and past the
 	# last sample of the waveform those are the first three of the loop. They
-	# decode from the loop state rather than from the one the window ends on,
-	# so the frame that holds them is decoded on its own, over the head of the
-	# window, and only the three samples are kept: without them a loop point
-	# would be interpolated towards the padding of the last frame.
+	# ride in with the codebook DMA (MIX_VADPCM_CODEBOOK+128); without them a
+	# loop point would be interpolated towards the padding of the last frame.
 	lh t9, %lo(CH_VATEND)
 	bnez t9, VadpcmTapsDone
 	lh s0, %lo(CH_VLIMIT)                    # one sample past the last one
@@ -1117,50 +1110,10 @@ VadpcmAligned:
 	beqz t2, VadpcmTapsHold
 	nop
 	beqz t3, VadpcmTapsHold
-	nop
-
-	# The window and the running state are put back afterwards: the samples of
-	# the loop start belong to a later round, and the state the decoder leaves
-	# behind is the one of the loop, not of the end of the window.
-	li s1, %lo(DMEM_SAMPLE_CACHE)
-	li s3, %lo(DMEM_VSCRATCH)
-	lqv $v01, 0x00,s1
-	lqv $v02, 0x10,s1
-	li s2, %lo(MIX_VADPCM_STATE)
-	lqv $v03, 0x00,s2
-	sqv $v01, 0x00,s3
-	sqv $v02, 0x10,s3
-	sqv $v03, 0x20,s3
-	lw s0, %lo(CH_LOOP_STATE)
-	li s4, %lo(MIX_VADPCM_STATE)
-	jal DMAIn
-	li t0, DMA_SIZE(16, 1)
-	lw t0, %lo(CH_LEN)
-	lw t1, %lo(CH_LOOP_LEN)
-	sub t0, t1
-	srl t0, WAVEFORM_POS_FRAC_BITS + 4       # frame the loop starts on
-	sw t0, %lo(CH_VNEXT_FRAME)
-	li t0, 1
-	jal VadpcmDecodeFrames
-	sh t0, %lo(CH_VDECN)
-
-	li s1, %lo(DMEM_SAMPLE_CACHE)
-	li s3, %lo(DMEM_VSCRATCH)
+	li s1, %lo(MIX_VADPCM_CODEBOOK+128)
 	lh t0, 0x00(s1)
 	lh t1, 0x02(s1)
 	lh t2, 0x04(s1)
-	lqv $v01, 0x00,s3
-	lqv $v02, 0x10,s3
-	lqv $v03, 0x20,s3
-	sqv $v01, 0x00,s1
-	sqv $v02, 0x10,s1
-	li s2, %lo(MIX_VADPCM_STATE)
-	sqv $v03, 0x00,s2
-	lw s4, %lo(CH_VCUR_FRAME)
-	lh s5, %lo(CH_VNFRAMES)
-	lh s0, %lo(CH_VLIMIT)
-	add s4, s5
-	sw s4, %lo(CH_VNEXT_FRAME)
 	sh t0, 0x00(s0)
 	sh t1, 0x02(s0)
 	j VadpcmTapsDone

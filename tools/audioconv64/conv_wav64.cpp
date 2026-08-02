@@ -278,7 +278,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	}
 
 	fwrite("WV64", 1, 4, out);
-	w8(out, 7); 				 			// version
+	w8(out, 8); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
 	w8(out, wav->bitsPerSample);			// bits
@@ -360,6 +360,14 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		std::vector<int> skip_bitpos(skip_points.size(), 0);
 		std::vector<std::array<vadpcm_vector, 2>> skip_state(skip_points.size());
+		// First three samples decoded at the loop start, stored after each
+		// channel's codebook so the mixer can Hermite across the loop point.
+		std::array<std::array<int16_t, 3>, 2> loop_head = {};
+		int loop_start_aligned = -1;
+		if (wav->looping) {
+			loop_start_aligned = (wav->loopOffset + kVADPCMFrameSampleCount - 1)
+				/ kVADPCMFrameSampleCount * kVADPCMFrameSampleCount;
+		}
 
 		int16_t *schan = (int16_t*)malloc(wav->cnt * sizeof(int16_t));
 		for (int i=0; i<wav->channels; i++) {
@@ -391,6 +399,21 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 					}
 
 					skip_state[j][i] = st;
+					// The loop taps are the first three samples of the frame the
+					// loop resumes on: decode that one frame on a copy of the
+					// state so the forward pass is not disturbed.
+					if (skip_points[j] == loop_start_aligned && target_frame < nframes) {
+						struct vadpcm_vector st_head = st;
+						int16_t head[kVADPCMFrameSampleCount];
+						vadpcm_error herr = vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
+							codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
+							&st_head, 1, head,
+							destchan + (size_t)target_frame * kVADPCMFrameByteSize);
+						assert(herr == kVADPCMErrNone);
+						loop_head[i][0] = head[0];
+						loop_head[i][1] = head[1];
+						loop_head[i][2] = head[2];
+					}
 					cur_frame = target_frame;
 				}
 			}
@@ -471,7 +494,9 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		uint8_t flags = 0;
 		if (flag_wav_compress_vadpcm_huffman) flags |= (1<<0);
 
-		const int CODEBOOK_SIZE = kPREDICTORS * kVADPCMEncodeOrder * wav->channels;
+		// Per channel: 8 predictor vectors (128 bytes) + 3 loop taps + pad.
+		const int CODEBOOK_STRIDE = kPREDICTORS * kVADPCMEncodeOrder * 16 + 8;
+		const int codebook_bytes = CODEBOOK_STRIDE * wav->channels;
 		struct vadpcm_vector state = {0};
 		w8(out, kPREDICTORS);
 		w8(out, kVADPCMEncodeOrder);
@@ -479,13 +504,19 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		w16(out, skip_points.size());
 		w16(out, 0); // padding
 		w32(out, 0); // huff_tbl_ptr
-		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 : 0); // skip_points_ptr
-		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 + skip_points.size()*8 : 0); // skip_states_ptr
+		w32(out, skip_points.size() > 0 ? codebook_bytes : 0); // skip_points_ptr
+		w32(out, skip_points.size() > 0 ? codebook_bytes + (int)skip_points.size()*8 : 0); // skip_states_ptr
 		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);					 // Huffman context
 		w32(out, 0); // padding
-		for (int i=0; i<CODEBOOK_SIZE; i++)    // codebook
-			for (int j=0; j<8; j++)
-				w16(out, codebook[i].v[j]);
+		for (int ch=0; ch<wav->channels; ch++) {
+			struct vadpcm_vector *cb = codebook + kPREDICTORS * kVADPCMEncodeOrder * ch;
+			for (int i=0; i<kPREDICTORS * kVADPCMEncodeOrder; i++)
+				for (int j=0; j<8; j++)
+					w16(out, cb[i].v[j]);
+			for (int j=0; j<3; j++)
+				w16(out, loop_head[ch][j]);
+			w16(out, 0); // padding
+		}
 		// Write the skip points
 		for (int i=0; i<skip_points.size(); i++) {
 			w32(out, skip_points[i]);
