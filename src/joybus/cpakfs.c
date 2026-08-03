@@ -244,7 +244,7 @@ static cpakfs_note_t* read_note(cpakfs_t *fs, int note_id)
  * @param fs        Mounted filesystem
  * @param path      Parsed path components to search for
  * @param note_id   Output pointer to store the found note ID
- * @return cpakfs_note_t* Pointer to the found note, or NULL if not found
+ * @return          Pointer to the found note, or NULL if not found
  */
 static cpakfs_note_t* find_note(cpakfs_t *fs, const cpakfs_path_t *path, int *note_id)
 {
@@ -445,7 +445,7 @@ static cpakfs_fat_entry_t allocate_page(cpakfs_t *fs, int bank, int page)
  * 
  * @param page_ptr          Pointer to the page that is the terminator
  * @param fs                Filesystem to allocate the page in
- * @return int              0 on success, -1 on error (ENOSPC)
+ * @return                  0 on success, -1 on error (ENOSPC)
  */
 static int allocate_next_page(cpakfs_fat_entry_t *page_ptr, cpakfs_t *fs)
 {

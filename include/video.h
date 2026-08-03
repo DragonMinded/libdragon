@@ -149,7 +149,7 @@ void video_register_codec(video_codec_t *codec);
  * 
  * @param fn            Path to the video file (including filesystem prefix)
  * @param parms         Optional parameter block (can be NULL)
- * @return video_t*     Handle to the opened video
+ * @return              Handle to the opened video
  */
 video_t* video_open(const char *fn, const video_parms_t *parms);
 
@@ -161,7 +161,7 @@ video_t* video_open(const char *fn, const video_parms_t *parms);
  * to configure the display subsystem before starting playback.
  * 
  * @param v                 Handle to the video
- * @return video_info_t     Information about the video
+ * @return                  Information about the video
  */
 video_info_t video_get_info(video_t *v);
 
@@ -186,7 +186,7 @@ bool video_next_frame(video_t *v);
  * frame on the screen via the yuv.h library.
  * 
  * @param v             Handle to the video
- * @return yuv_frame_t  The current decoded frame
+ * @return              The current decoded frame
  * 
  * @see #yuv_tex_blit
  * @see #yuv_blitter_new_fmv
@@ -246,7 +246,7 @@ void video_rewind(video_t *v);
  * 
  * @param v             Handle to the video
  * @param frame_idx     Index of the frame to seek to
- * @return int          Actual frame index seeked to, or -1 if the codec does not
+ * @return              Actual frame index seeked to, or -1 if the codec does not
  *                      support seeking (with or without the seektable).
  */
 int video_seek(video_t *v, int frame_idx);

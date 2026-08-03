@@ -297,7 +297,7 @@ typedef enum {
  * @param[out] cmd        Command byte read from the frame (optional, can be NULL)
  * @param[out] data       Pointer to the data buffer read from the frame (optional, can be NULL)
  * @param[out] data_len   Length of the data buffer read from the frame (optional, can be NULL)
- * @return joyframe_err_t   Negative values for errors, 0 or positive values for success
+ * @return                Negative values for errors, 0 or positive values for success
  */
 __attribute__ ((warn_unused_result))
 joyframe_err_t joyframe_read(joyframe_t pkt, uint8_t *cmd, uint8_t **data, int *data_len);

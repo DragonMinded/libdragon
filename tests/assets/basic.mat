@@ -17,6 +17,9 @@ rm.alpha_compare = 1
 
 [empty]
 
+[blender_none]
+blender.mode = none
+
 [blender_multiply]
 blender.mode = multiply
 

@@ -201,6 +201,7 @@ void profile_dump(void) {
 	DUMP_SYS(ACCT_CAT_RSPQ, "[sys] RSPQ wait");
 	DUMP_SYS(ACCT_CAT_VI, "[sys] VI wait");
 	DUMP_SYS(ACCT_CAT_JOYBUS, "[sys] Joybus wait");
+	DUMP_SYS(ACCT_CAT_PI, "[sys] PI wait");
 
 	debugf("------------------------------------------------------------------------\n");
 	debugf("Profiled frames:      %4d\n", frames);

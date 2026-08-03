@@ -243,7 +243,7 @@ int bbfs_init(void);
  * The list of block indices is terminated by a -1 value.
  * 
  * @param filename      Filename (*without* filesystem prefix)
- * @return int16_t*     Allocated array of block indices, or NULL 
+ * @return              Allocated array of block indices, or NULL 
  *                      if file doesn't exist or the filesystem is corrupted
  */
 int16_t* bbfs_get_file_blocks(const char *filename);

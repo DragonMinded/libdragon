@@ -56,7 +56,7 @@ extern "C" {
  * 
  * @param buf           Output buffer
  * @param len           Length of the output buffer
- * @return int          0 on success, -1 on failure. Currently, the function
+ * @return              0 on success, -1 on failure. Currently, the function
  *                      never returns -1.
  */
 int getentropy(void *buf, size_t len);
@@ -68,9 +68,9 @@ int getentropy(void *buf, size_t len);
  * instead of an arbitrary buffer.
  *
  * @note This function is much, much slower than calling rand(). If you just
- *       just need random numbers for your game, use rand() instead.
+ *       need random numbers for your game, use rand() instead.
  * 
- * @return uint32_t         Unpredictable 64-bit random number
+ * @return Unpredictable 64-bit random number
  */
  uint64_t getentropy64(void);
  
@@ -81,9 +81,9 @@ int getentropy(void *buf, size_t len);
  * instead of an arbitrary buffer. Useful for instance to seed `srand()`.
  * 
  * @note This function is much, much slower than calling rand(). If you just
- *       just need random numbers for your game, use rand() instead.
+ *       need random numbers for your game, use rand() instead.
  *
- * @return uint32_t         Unpredictable 32-bit random number
+ * @return Unpredictable 32-bit random number
  */
 uint32_t getentropy32(void);
 

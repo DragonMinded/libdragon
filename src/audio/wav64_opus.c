@@ -104,9 +104,8 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
     uint8_t alignas(16) buf[ext->max_cmp_frame_size + 1];
     int nframes = DIVIDE_CEIL(wlen + intra_skip, ext->frame_size);
 
-    // Make space for the decoded samples. Call samplebuffer_append once as we
-    // use RSP in background, and each call to the function might trigger a
-    // memmove of internal samples.
+    // Decode into one contiguous append (Opus frames are larger than the
+    // samplebuffer margin; samplebuffer_append relocates the live window if needed).
     int16_t *out = samplebuffer_append(sbuf, ext->frame_size*nframes);
 
     for (int i=0; i<nframes+preroll_frames; i++) {
@@ -163,6 +162,7 @@ void wav64_opus_init(wav64_t *wav, int state_size) {
 
     wav->wave.read = waveform_opus_read;
     wav->wave.start = waveform_opus_start;
+    wav->wave.append_units = ext->frame_size;
 }
 
 void wav64_opus_close(wav64_t *wav) {

@@ -56,7 +56,7 @@ void pifile_init(void);
  * @param[in] size      Size of the file
  * @param[in] flags     Flags to open the file with, for future use. Use 0.
  * 
- * @return FILE*        FILE pointer to use with standard C functions (fread, fclose)
+ * @return              FILE pointer to use with standard C functions (fread, fclose)
  */
 FILE *pifile_open(pi_addr_t base, size_t size, uint32_t flags);
 

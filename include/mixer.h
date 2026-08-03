@@ -378,8 +378,8 @@ void mixer_unthrottle(void);
  * A common pattern would be to call #audio_write_begin to obtain an audio
  * buffer's pointer, and pass it to mixer_poll.
  *
- * mixer_poll performs mixing using RSP. If RSP is busy, mixer_poll will
- * spin-wait until the RSP is free, to perform audio processing.
+ * mixer_poll performs mixing using RSP: it enqueues the mix commands in the
+ * high priority queue and waits for the RSP to execute them before returning.
  *
  * Since the N64 AI can only be fed with an even number of samples, mixer_poll
  * does not accept odd numbers.
@@ -533,6 +533,19 @@ typedef void (*WaveformRead)(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen
  */
 typedef void (*WaveformStart)(void *ctx, samplebuffer_t *sbuf);
 
+/** @brief Waveform sample format (stored in #waveform_t::format). */
+typedef enum {
+	/** Interleaved PCM samples (8/16-bit). Default. */
+	WAVEFORM_FORMAT_PCM = 0,
+	/**
+	 * Mono or stereo VADPCM: the samplebuffer holds compressed 9-byte frames
+	 * (one plane per mixer channel); the mixer ucode decodes them in DMEM
+	 * during mixing. Stereo files are block-planar on disk and use two
+	 * consecutive mixer channels as independent mono VADPCM streams.
+	 */
+	WAVEFORM_FORMAT_VADPCM = 1,
+} waveform_format_t;
+
 /**
  * @brief A waveform that can be played back through the mixer.
  * 
@@ -552,7 +565,7 @@ typedef void (*WaveformStart)(void *ctx, samplebuffer_t *sbuf);
  * with #mixer_ch_play, they will use automatically two channels (the specified
  * one and the following).
  */
-typedef struct waveform_s {
+ typedef struct waveform_s {
 	/** @brief Name of the waveform (for debugging purposes) */
 	const char *name;
 
@@ -560,6 +573,7 @@ typedef struct waveform_s {
      * @brief Width of a sample of this waveform, in bits.
      * 
      * Supported values are 8 or 16. Notice that samples must always be signed.
+     * For #WAVEFORM_FORMAT_VADPCM this is the decoded width (always 16).
      */
 	uint8_t bits;
 
@@ -570,6 +584,13 @@ typedef struct waveform_s {
      * a stereo waveform will use two consecutive mixer channels to be played back.
      */
 	uint8_t channels;
+
+	/**
+	 * @brief Sample format (see #waveform_format_t).
+	 *
+	 * Defaults to #WAVEFORM_FORMAT_PCM when zero-initialized.
+	 */
+	uint8_t format;
 
 	/** @brief Desired playback frequency (in samples per second, aka Hz). */
 	float frequency;
@@ -612,6 +633,34 @@ typedef struct waveform_s {
       */
 	void *ctx;
 
+	/**
+	 * @brief True if #read returns with its transfer still in flight.
+	 *
+	 * Set this when the samples are fetched with an asynchronous PI DMA
+	 * (see #samplebuffer_dma_wait). The mixer then fetches ahead of time
+	 * (#samplebuffer_prefetch), so that the transfer runs while the CPU does
+	 * something else. Leave it false for readers that produce the samples
+	 * synchronously (CPU decoding, filesystem reads): fetching those early
+	 * would just move the same work around, and waste it on a seek.
+	 */
+	bool async_read;
+
+	/**
+	 * @brief Granularity in units of the appends made by #read (0 if unknown).
+	 *
+	 * Set this when #read always appends a whole multiple of a fixed chunk
+	 * (a codec frame: 960 samples for Opus, one audioframe for YM64). The
+	 * samplebuffer then keeps its usable size a multiple of the chunk, so that
+	 * a chunk is never split by the wrap and the live window does not have to
+	 * be relocated to keep the append contiguous.
+	 *
+	 * Any value is allowed: the samplebuffer applies it only when it is worth
+	 * it (a chunk that fits the tail margin never needs a relocate anyway) and
+	 * only when the buffer is large enough to keep a couple of chunks after
+	 * the rounding. Leave it 0 if the appends have no fixed size.
+	 */
+	int append_units;
+
     /**
       * @brief State size required for this waveform to operate
       * 
@@ -623,9 +672,21 @@ typedef struct waveform_s {
       * of memory for the waveform, and make it available to the read
       * function via the "state" field of the #samplebuffer_t.
       */
-     int state_size;
+    int state_size;
+
+	/**
+	 * @brief Resident sample data in RDRAM, or NULL if streamed.
+	 *
+	 * When non-NULL, the mixer addresses these bytes directly (PCM samples
+	 * or compressed VADPCM frames) and does not allocate a samplebuffer for
+	 * this waveform. #read is still invoked for seeking side-effects when
+	 * #state_size is non-zero (e.g. VADPCM predictor state).
+	 */
+	const void *mem;
 
      ///@cond
+	 /// Codec-specific runtime data (format-dependent)
+	 void *codec;
      ///  Mixer private state. Do not touch, initialize to zero
      uint32_t __uuid;
      ///@endcond

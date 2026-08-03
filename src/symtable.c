@@ -603,7 +603,7 @@ static int huff_decode_symbol(huff_decoder_t *dec, bit_reader_t *br) {
  * @param buf   Destination buffer
  * @param size  Size of the destination buffer
  * @param is_func True if fetching a function name, false for file name
- * @return char*  Fetched string within the destination buffer
+ * @return      Fetched string within the destination buffer
  */
 static char* symt_get_string(symtable_header_t *symt, int idx, char *buf, int size, bool is_func)
 {

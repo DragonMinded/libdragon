@@ -209,7 +209,7 @@ kthread_t* kthread_new(const char *name, int stack_size, int8_t pri,
 /**
  * @brief Return a reference to the current running thread
  * 
- * @return kthread_t	Reference to the current thread
+ * @return Reference to the current thread
  */
 kthread_t* kthread_current(void);
 

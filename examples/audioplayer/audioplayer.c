@@ -4,6 +4,8 @@
 // We need to show lots of internal details of the module which are not
 // exposed via public API, so include the internal header file.
 #include "../../src/audio/libxm/xm_internal.h"
+#include "../../src/audio/mixer_internal.h"
+#include "../../src/accounting_internal.h"
 
 #define CLAMP(x, min, max) ((x) < (min) ? (min) : ((x) > (max) ? (max) : (x)))
 
@@ -169,7 +171,8 @@ enum Page page_menu(void) {
 
 enum Page page_song(void) {
 	char sbuf[1024];
-	int64_t tot_time = 0, tot_cpu = 0, tot_rsp = 0, tot_dma = 0;
+	int64_t tot_time = 0, tot_cpu = 0, tot_rsp = 0, tot_dma = 0, tot_frames = 0;
+	int64_t avg_time = 0, avg_cpu = 0, avg_rsp = 0, avg_dma = 0;
 	int screen_first_inst = 0;
 	enum SONG_TYPE { SONG_XM, SONG_YM };
 
@@ -262,18 +265,10 @@ enum Page page_song(void) {
 			graphics_draw_text(disp, 280, 50, sbuf);						
 		}
 
-		if (tot_time) {
-			float pcpu = (float)tot_cpu * 100.f / (float)tot_time;
-			float prsp = (float)tot_rsp * 100.f / (float)tot_time;
-			float pdma = (float)tot_dma * 100.f / (float)tot_time;
-
-			sprintf(sbuf, "CPU: %.2f%%  RSP: %.2f%%\n", pcpu, prsp);
-			graphics_draw_text(disp, 280, 60, sbuf);
-			sprintf(sbuf, "DMA: %.2f%%", pdma);
-			graphics_draw_text(disp, 280, 70, sbuf);
-
-			debugf("CPU: %.2f%%  RSP: %.2f%%  DMA: %.2f%%\n", pcpu, prsp, pdma);
-		}
+		sprintf(sbuf, "CPU: %lldus\n", avg_time);
+		graphics_draw_text(disp, 280, 60, sbuf);
+		sprintf(sbuf, "Wait: DMA: %lldus RSP: %lldus", avg_dma, avg_rsp);
+		graphics_draw_text(disp, 280, 70, sbuf);
 
 		for (int i=0; i<32; i++) {
 			if (i == song_channels) break;
@@ -313,36 +308,38 @@ enum Page page_song(void) {
 		}
 
 		display_show(disp);
-
-		tot_time = 0, tot_cpu = 0, tot_rsp = 0, tot_dma = 0;
+		profile_next_frame();
 
 		uint32_t start_play_loop = TICKS_READ();
-		bool first_loop = true;
-		int audiosz = audio_get_buffer_length();
-		while (TICKS_DISTANCE(start_play_loop, TICKS_READ()) < TICKS_PER_SECOND)
+		//int audiosz = audio_get_buffer_length();
+		//while (TICKS_DISTANCE(start_play_loop, TICKS_READ()) < TICKS_PER_SECOND)
+		do
 		{
-			extern int64_t __mixer_profile_rsp, __wav64_profile_dma;
-			__mixer_profile_rsp = __wav64_profile_dma = 0;
+			uint32_t t1t = get_ticks_us();
+			uint32_t t1u = get_user_ticks();
+			uint64_t t1rsp = acct_get_ticks(ACCT_CAT_RSP) + acct_get_ticks(ACCT_CAT_RSPQ);
+			uint64_t t1dma = acct_get_ticks(ACCT_CAT_PI);
 
-			uint32_t t0 = TICKS_READ();
+			mixer_try_play();
 
-			while (!audio_can_write()) {}
+			uint32_t t2t = get_ticks_us();
+			uint32_t t2u = get_user_ticks();
+			uint64_t t2rsp = acct_get_ticks(ACCT_CAT_RSP) + acct_get_ticks(ACCT_CAT_RSPQ);
+			uint64_t t2dma = acct_get_ticks(ACCT_CAT_PI);
 
-			uint32_t t1 = TICKS_READ();
-
-			int16_t *out = audio_write_begin();
-			mixer_poll(out, audiosz);
-			audio_write_end();
-
-			uint32_t t2 = TICKS_READ();
-
-			if (!first_loop) {
-				tot_dma += __wav64_profile_dma;	
-				tot_rsp += __mixer_profile_rsp;
-				tot_cpu += (t2-t1) - __mixer_profile_rsp - __wav64_profile_dma;
-				tot_time += t2-t0;
+			tot_dma += TICKS_TO_US(t2dma-t1dma);
+			tot_rsp += TICKS_TO_US(t2rsp-t1rsp);
+			tot_cpu += TICKS_TO_US(t2u-t1u);
+			tot_time += t2t-t1t;
+			tot_frames++;
+			if (tot_frames >= 60) {
+				avg_time = tot_time / tot_frames;
+				avg_cpu = tot_cpu / tot_frames;
+				avg_rsp = tot_rsp / tot_frames;
+				avg_dma = tot_dma / tot_frames;
+				tot_time = 0, tot_cpu = 0, tot_rsp = 0, tot_dma = 0, tot_frames = 0;
+				debugf("CPU: %lldus | Wait DMA: %lldus | Wait RSP: %lldus\n", avg_time, avg_dma, avg_rsp);
 			}
-			first_loop = false;
 
 			joypad_poll();
 			joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
@@ -402,7 +399,7 @@ enum Page page_song(void) {
 					ym64player_close(&ym);
 				return PAGE_MENU;
 			}
-		}
+		} while (0);
 	}
 }
 
@@ -432,13 +429,21 @@ int main(void) {
 		page = PAGE_INTRO_ERROR;
 
 #if 0
-	// Force immediately playback of a song
+	// Force immediately playback of a song (for mixer profiling).
 	page = PAGE_SONG;
-	cur_rom = "rom:/Claustrophobia.xm64";
+	cur_rom = "rom:/BUTTERFL.xm64";
 #endif
 
 	audio_init(44100, 4);
 	mixer_init(32);
+
+	profile_parms_t pparms = {
+		.num_slots = 32,
+		.dump_stderr_interval = 5.0f,
+	};
+	profile_init(&pparms);
+	__mixer_profile_init();
+	profile_set_target_fps(60.0f);
 
 	while(1) {
 		switch (page) {

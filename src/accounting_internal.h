@@ -25,6 +25,7 @@ typedef enum {
     ACCT_CAT_RSPQ         = 4,  ///< RSPQ time (various spinwaits)
     ACCT_CAT_VI           = 5,  ///< VI time (#vi_wait_vblank)
     ACCT_CAT_JOYBUS       = 6,  ///< Joybus time (#joybus_exec)
+    ACCT_CAT_PI           = 7,  ///< PI wait time (DMA and I/O)
 
     /** Keep this last. Buckets are addressed by index. */
     ACCT_CAT_MAX          = 8,
@@ -41,7 +42,7 @@ typedef enum {
  * works as a RAII-like scope guard.
  * 
  * @param new_cat               New category to switch to
- * @return acct_category_t      Previous category
+ * @return                      Previous category
  */
 acct_category_t acct_switch(acct_category_t new_cat);
 

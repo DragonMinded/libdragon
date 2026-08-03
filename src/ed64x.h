@@ -25,7 +25,7 @@ extern "C" {
  * as ED64 X7 does not support using the joybus RTC write commands.
  * 
  * @param buf        The encoded time to write (see #ed64_rtc_encode).
- * @return int       0 on success, -1 on failure.
+ * @return           0 on success, -1 on failure.
  * 
  * @see #ed64_rtc_encode
  * @see #ed64_rtc_write

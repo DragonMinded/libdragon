@@ -264,7 +264,7 @@ void joypad_accessory_xfer_async(
  *                      There is no alignment requirement for this address.
  * @param dst           Destination buffer to read accessory data into.
  * @param len           Number of bytes to read. Any number of bytes can be read.
- * @return joypad_accessory_error_t     Error code indicating the result of the read operation.
+ * @return              Error code indicating the result of the read operation.
  */
 joypad_accessory_error_t joypad_accessory_xfer(
     joypad_port_t port,
@@ -312,7 +312,7 @@ bool joypad_controller_pak_supports_bankswitching(joypad_port_t port);
  * 
  * @param port          Joypad port number (#joypad_port_t)
  * @param bank          Bank number to switch to.
- * @return joypad_accessory_error_t    Error code for the transfer operation. 
+ * @return              Error code for the transfer operation. 
  */
 joypad_accessory_error_t joypad_controller_pak_set_bank(joypad_port_t port, uint8_t bank);
 

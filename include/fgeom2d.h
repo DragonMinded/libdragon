@@ -340,7 +340,7 @@ constexpr fm_vec2_t operator*(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
 
 constexpr fm_vec2_t operator/(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
   return {lhs.x / rhs.x, lhs.y / rhs.y};
-} 
+}
 
 constexpr fm_vec2_t operator+(fm_vec2_t const& lhs, float rhs) {
   return {lhs.x + rhs, lhs.y + rhs};
@@ -408,6 +408,14 @@ constexpr fm_vec2_t& operator/=(fm_vec2_t &lhs, float rhs) {
   lhs.x /= rhs;
   lhs.y /= rhs;
   return lhs;
+}
+
+constexpr bool operator==(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return lhs.x == rhs.x && lhs.y == rhs.y;
+}
+
+constexpr bool operator!=(fm_vec2_t const& lhs, fm_vec2_t const& rhs) {
+  return lhs.x != rhs.x || lhs.y != rhs.y;
 }
 
 #endif

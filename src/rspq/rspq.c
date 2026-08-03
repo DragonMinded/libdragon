@@ -373,6 +373,7 @@ typedef struct rspq_queue_s {
 
 static rspq_ctx_t lowpri;               ///< Lowpri queue context
 static rspq_ctx_t highpri;              ///< Highpri queue context
+static int highpri_nesting;             ///< Nesting level of #rspq_highpri_begin
 
 rspq_ctx_t *rspq_ctx;                   ///< Current context
 volatile uint32_t *rspq_cur_pointer;    ///< Copy of the current write pointer (see #rspq_ctx_t)
@@ -794,6 +795,7 @@ void rspq_init(void)
     rspq_block = NULL;
     rspq_queue_recording = NULL;
     rspq_is_running = false;
+    highpri_nesting = 0;
 
     // Activate SP interrupt (used for syncpoints)
     register_SP_handler(rspq_sp_interrupt);
@@ -1198,9 +1200,13 @@ void rspq_flush(void)
 
 void rspq_highpri_begin(void)
 {
-    assertf(rspq_ctx != &highpri, "already in highpri mode");
     assertf(!rspq_block, "cannot switch to highpri mode while creating a block");
     assertf(!rspq_queue_recording, "cannot switch to highpri mode while recording a queue");
+
+    if (rspq_ctx == &highpri) {
+        highpri_nesting++;
+        return;
+    }
 
     rspq_switch_context(&highpri);
 
@@ -1238,16 +1244,31 @@ void rspq_highpri_begin(void)
     // add a command in case the previous epilog was skipped. Otherwise,
     // a dummy SIG_HIGHPRI_REQUESTED could stay on and eventually highpri
     // mode would enter once again.
-    rspq_append1(rspq_cur_pointer, RSPQ_CMD_WRITE_STATUS,
-        SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING);
+    // Set SIG_HIGHPRI_REQUESTED *before* writing the WRITE_STATUS command that
+    // clears it. If the RSP is already in highpri mode and caught up with the
+    // write cursor, it can execute the appended WRITE_STATUS within a few
+    // cycles of the append; with the old order (append first, then set), the
+    // clear could be consumed before the set landed, leaving a dangling
+    // REQUESTED that made the RSP re-enter highpri after the final epilog and
+    // park forever on the empty queue with SIG_HIGHPRI_RUNNING set (deadlocking
+    // rspq_highpri_sync). Setting the signal first closes the race: the RSP
+    // cannot execute the clear before it is written, which is after the set.
     MEMORY_BARRIER();
     *SP_STATUS = SP_WSTATUS_SET_SIG_HIGHPRI_REQUESTED;
+    MEMORY_BARRIER();
+    rspq_append1(rspq_cur_pointer, RSPQ_CMD_WRITE_STATUS,
+        SP_WSTATUS_CLEAR_SIG_HIGHPRI_REQUESTED | SP_WSTATUS_SET_SIG_HIGHPRI_RUNNING);
     rspq_flush_internal();
 }
 
 void rspq_highpri_end(void)
 {
     assertf(rspq_ctx == &highpri, "not in highpri mode");
+
+    if (highpri_nesting) {
+        highpri_nesting--;
+        return;
+    }
 
     // Write the highpri epilog. The epilog starts with a JUMP to the next
     // instruction because we want to force the RSP to reload the buffer
@@ -1263,10 +1284,29 @@ void rspq_highpri_end(void)
 
 void rspq_highpri_sync(void)
 {
-    assertf(rspq_ctx != &highpri, "this function can only be called outside of highpri mode");
-
     // Make sure the RSP is running, otherwise we might be blocking forever.
+    // This also clears HALT, so that the check below cannot be fooled by a
+    // halted state that predates the commands we are waiting for.
     rspq_flush_internal();
+
+    if (rspq_ctx == &highpri) {
+        // We are in the middle of building a highpri sequence, so its epilog
+        // (the only thing that clears SIG_HIGHPRI_RUNNING) has not been written
+        // yet and the wait below would never be satisfied. Wait on a different
+        // condition: an unterminated highpri queue simply ends at our write
+        // pointer, where the RSP finds the queue terminator and halts itself
+        // (see RSPQCmd_WaitNewInput in rsp_queue.inc). So the halt means that
+        // everything written so far has been executed. DMA status must be
+        // checked too: "break" also runs while an asynchronous transfer
+        // started by the last command is still in flight.
+        ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
+            uint32_t status = *SP_STATUS;
+            if ((status & SP_STATUS_HALTED) &&
+                !(status & (SP_STATUS_DMA_BUSY | SP_STATUS_DMA_FULL)))
+                break;
+        }
+        return;
+    }
 
     ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
         __rspq_deferred_poll();

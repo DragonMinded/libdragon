@@ -66,7 +66,7 @@
  * 
  * @param str 	Pointer to the UTF-8 string pointer. The pointer will be
  * 		      	advanced to the next character.
- * @return uint32_t The decoded Unicode codepoint
+ * @return      The decoded Unicode codepoint
  */
 uint32_t __utf8_decode(const char **str);
 

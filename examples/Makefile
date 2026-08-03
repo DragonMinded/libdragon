@@ -13,6 +13,7 @@ EXAMPLES += fontdemo
 EXAMPLES += fontgallery
 EXAMPLES += gldemo
 EXAMPLES += glmodeltest
+EXAMPLES += helloworld
 EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
 EXAMPLES += lossysprite

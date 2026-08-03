@@ -10,138 +10,15 @@
 #include "mixer.h"
 #include "mixer_internal.h"
 #include "samplebuffer.h"
+#include "dma.h"
 #include "utils.h"
 #include "n64types.h"
+#include "profile.h"
 #include <unistd.h>
-#include <limits.h>
 #include <string.h>
+#include <stdlib.h>
+#include <alloca.h>
 
-
-/** @brief Set to 1 to use the reference C decode for VADPCM */
-#define VADPCM_REFERENCE_DECODER     0
-
-#if VADPCM_REFERENCE_DECODER
-/** @brief VADPCM decoding errors */
-typedef enum {
-    // No error (success). Equal to 0.
-    kVADPCMErrNone,
-
-    // Invalid data.
-    kVADPCMErrInvalidData,
-
-    // Predictor order is too large.
-    kVADPCMErrLargeOrder,
-
-    // Predictor count is too large.
-    kVADPCMErrLargePredictorCount,
-
-    // Data uses an unsupported / unknown version of VADPCM.
-    kVADPCMErrUnknownVersion,
-
-    // Invalid encoding parameters.
-    kVADPCMErrInvalidParams,
-} vadpcm_error;
-
-// Extend the sign bit of a 4-bit integer.
-static int vadpcm_ext4(int x) {
-    return x > 7 ? x - 16 : x;
-}
-
-// Clamp an integer to a 16-bit range.
-static int vadpcm_clamp16(int x) {
-    if (x < -0x8000 || 0x7fff < x) {
-        return (x >> (sizeof(int) * CHAR_BIT - 1)) ^ 0x7fff;
-    }
-    return x;
-}
-
-__attribute__((unused))
-static vadpcm_error vadpcm_decode(int predictor_count, int order,
-                           const wav64_vadpcm_vector_t *restrict codebook,
-                           wav64_vadpcm_vector_t *restrict state,
-                           size_t frame_count, int16_t *restrict dest,
-                           const void *restrict src) {
-    const uint8_t *sptr = src;
-    for (size_t frame = 0; frame < frame_count; frame++) {
-        const uint8_t *fin = sptr + 9 * frame;
-
-        // Control byte: scaling & predictor index.
-        int control = fin[0];
-        int scaling = control >> 4;
-        int predictor_index = control & 15;
-        if (predictor_index >= predictor_count) {
-            return kVADPCMErrInvalidData;
-        }
-        const wav64_vadpcm_vector_t *predictor =
-            codebook + order * predictor_index;
-
-        // Decode each of the two vectors within the frame.
-        for (int vector = 0; vector < 2; vector++) {
-            int32_t accumulator[8];
-            for (int i = 0; i < 8; i++) {
-                accumulator[i] = 0;
-            }
-
-            // Accumulate the part of the predictor from the previous block.
-            for (int k = 0; k < order; k++) {
-                int sample = state->v[8 - order + k];
-                for (int i = 0; i < 8; i++) {
-                    accumulator[i] += sample * predictor[k].v[i];
-                }
-            }
-
-            // Decode the ADPCM residual.
-            int residuals[8];
-            for (int i = 0; i < 4; i++) {
-                int byte = fin[1 + 4 * vector + i];
-                residuals[2 * i] = vadpcm_ext4(byte >> 4);
-                residuals[2 * i + 1] = vadpcm_ext4(byte & 15);
-            }
-
-            // Accumulate the residual and predicted values.
-            const wav64_vadpcm_vector_t *v = &predictor[order - 1];
-            for (int k = 0; k < 8; k++) {
-                int residual = residuals[k] << scaling;
-                accumulator[k] += residual << 11;
-                for (int i = 0; i < 7 - k; i++) {
-                    accumulator[k + 1 + i] += residual * v->v[i];
-                }
-            }
-
-            // Discard fractional part and clamp to 16-bit range.
-            for (int i = 0; i < 8; i++) {
-                int sample = vadpcm_clamp16(accumulator[i] >> 11);
-                dest[16 * frame + 8 * vector + i] = sample;
-                state->v[i] = sample;
-            }
-        }
-    }
-    return 0;
-}
-#else
-
-static inline void rsp_vadpcm_decompress(void *input, int16_t *output, bool stereo, int nframes, 
-	wav64_vadpcm_vector_t *state, wav64_vadpcm_vector_t *codebook)
-{
-	assert(nframes > 0 && nframes <= 256);
-	rspq_write(__mixer_overlay_id, 0x1,
-		PhysicalAddr(input), 
-		PhysicalAddr(output) | (nframes-1) << 24,
-		PhysicalAddr(state)  | (stereo ? 1 : 0) << 31,
-		PhysicalAddr(codebook));
-}
-
-// Copy the VADPCM state. If src is NULL, the state is cleared.
-// This is basically a memcpy but performed by RSP, so it's in-order with the
-// other RSP operations.
-static inline void rsp_vadpcm_copystate(wav64_vadpcm_vector_t *dst, wav64_vadpcm_vector_t *src)
-{
-    rspq_write(__mixer_overlay_id, 0x2,
-        PhysicalAddr(dst),
-        PhysicalAddr(src));
-}
-
-#endif /* VADPCM_REFERENCE_DECODER */
 
 /**
  * @brief Find a VADPCM skip point index by sample offset.
@@ -152,7 +29,7 @@ static inline void rsp_vadpcm_copystate(wav64_vadpcm_vector_t *dst, wav64_vadpcm
  * @param wpos      Requested sample offset
  * @param nearest   If false, require an exact match (returns -1 if not found).
  *                  If true, return the index of the closest skip point.
- * @return int      Index in vhead->skip_points, or -1 if no skip points / not found.
+ * @return          Index in vhead->skip_points, or -1 if no skip points / not found.
  */
  static int wav64_vadpcm_find_skippoint(wav64_header_vadpcm_t *vhead, int wpos, bool nearest)
  {
@@ -186,7 +63,8 @@ static inline void rsp_vadpcm_copystate(wav64_vadpcm_vector_t *dst, wav64_vadpcm
      return (d_hi < d_lo) ? lo : (lo - 1);
 }
 
-static void huffv_decompress(int nframe, wav64_t *wav, wav64_state_vadpcm_t *vstate, uint8_t *dst, int len, uint8_t *scratch, int slen) {
+static void huffv_decompress(wav64_t *wav, wav64_state_vadpcm_t *vstate, uint8_t *dst, int len, uint8_t *scratch, int slen) {
+	PROFILE_SCOPE(PS_VADPCM_HUFF) {
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
 
     unsigned int bitpos = vstate->bitpos;
@@ -238,145 +116,220 @@ static void huffv_decompress(int nframe, wav64_t *wav, wav64_state_vadpcm_t *vst
             
             *dst++ = (val1 << 4) | val2;
         }
-
-        nframe++;
     }
 
     vstate->bitpos = bitpos;
     assertf((void*)src <= CachedAddr(scratch) + slen, "invalid read past end: %p vs %p", src, scratch + slen);
     data_cache_hit_invalidate(CachedAddr(scratch), slen);
+	}
+}
+
+/**
+ * File-frame index of channel `ch`'s frame `frame` in a block-planar VADPCM
+ * stream (`nframes` total frames per channel).
+ */
+static int vadpcm_file_index(int frame, int ch, int nframes, int channels) {
+	if (channels == 1) return frame;
+	int B = WAV64_VADPCM_BLOCK_FRAMES;
+	int block = frame / B;
+	int off = frame % B;
+	int nblocks = (nframes + B - 1) / B;
+	int bs = (block == nblocks - 1) ? (nframes - block * B) : B;
+	return block * B * channels + ch * bs + off;
+}
+
+/**
+ * @brief Fill samplebuffer(s) with plain 9-byte VADPCM frames.
+ *
+ * wpos/wlen are in frames. Mono writes into `sbuf`. Stereo also writes the
+ * right plane into `sbuf+1` (mixer allocates adjacent channel buffers).
+ * Huffman is expanded to plain frames on the CPU.
+ *
+ * Stereo always fills through the end of the current file block so Huffman
+ * can consume L-then-R contiguously and leave bitpos at the next block.
+ */
+static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
+	PROFILE_SCOPE(PS_VADPCM_READ) {
+	wav64_t *wav = (wav64_t*)sbuf->wave;
+	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
+	wav64_state_vadpcm_t *vstate = sbuf->state;
+	assert(sbuf->state_size >= sizeof(wav64_state_vadpcm_t));
+	int channels = wav->wave.channels;
+	int nframes_total = WAV64_VADPCM_FILE_FRAMES(wav->wave.len);
+	samplebuffer_t *sbuf_r = (channels == 2) ? sbuf + 1 : NULL;
+	(void)ctx;
+
+	if (seeking) {
+		int sample_pos = wpos * 16;
+		if (wpos == 0) {
+			memset(vstate->state, 0, sizeof(vstate->state));
+			vstate->bitpos = 0;
+		} else {
+			int idx = wav64_vadpcm_find_skippoint(vhead, sample_pos, false);
+			assertf(idx >= 0, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, sample_pos);
+			vstate->bitpos = vhead->skip_points[idx].bitpos;
+			memcpy(vstate->state, vhead->skip_states + idx * channels,
+				sizeof(vstate->state[0]) * channels);
+		}
+		// The right plane has no reader of its own: it only ever receives what
+		// this function appends, so its ring must follow the left one. A seek
+		// that restarts the stream arrives with the left ring already flushed,
+		// and the right one restarts at wpos as well. An overread past the end
+		// also arrives as a seek (the decoder has to re-seed at the loop
+		// point), but there the left ring keeps its live window and just
+		// appends the loop-start frames after it: restarting the right ring
+		// would leave the two planes at different stream positions.
+		if (sbuf_r && sbuf->widx == 0) {
+			samplebuffer_flush(sbuf_r);
+			sbuf_r->wpos = wpos;
+			sbuf_r->head = 0;
+		}
+	}
+
+	if (wlen <= 0) goto done;
+
+	while (wlen > 0) {
+		int n;
+		if (channels == 1) {
+			n = MIN(wlen, SAMPLEBUFFER_MARGIN_UNITS);
+		} else {
+			// Fill through end of block (may exceed wlen; allowed by WaveformRead).
+			int B = WAV64_VADPCM_BLOCK_FRAMES;
+			int block_end = (wpos / B + 1) * B;
+			if (block_end > nframes_total) block_end = nframes_total;
+			n = block_end - wpos;
+			assert(n > 0 && n <= B);
+		}
+
+		uint8_t *dest_l = samplebuffer_append(sbuf, n);
+		uint8_t *dest_r = sbuf_r ? samplebuffer_append(sbuf_r, n) : NULL;
+
+		if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
+			if (channels == 1) {
+				int nbytes = n * 9;
+				int scratch_size = ROUND_UP(nbytes * 2, 16);
+				// data_cache_hit_invalidate requires a 16-byte aligned address;
+				// alloca only guarantees the platform ABI alignment.
+				uint8_t *scratch = (uint8_t *)ROUND_UP((uintptr_t)alloca(scratch_size + 15), 16);
+				huffv_decompress(wav, vstate, dest_l, nbytes, scratch, scratch_size);
+			} else {
+				// From bitpos at L_wpos: stream is L_wpos..L_end, R_0..R_end of block.
+				int B = WAV64_VADPCM_BLOCK_FRAMES;
+				int block = wpos / B;
+				int off = wpos % B;
+				int nblocks = (nframes_total + B - 1) / B;
+				int bs = (block == nblocks - 1) ? (nframes_total - block * B) : B;
+				int n_l = bs - off;           // L frames still in this block
+				int n_r = bs;                 // full R plane of this block
+				assert(n_l == n);
+				int span = n_l + n_r;
+				int nbytes = span * 9;
+				int scratch_size = ROUND_UP(nbytes * 2, 16);
+				uint8_t *scratch = (uint8_t *)ROUND_UP((uintptr_t)alloca(scratch_size + 15), 16);
+				uint8_t *spanbuf = (uint8_t *)ROUND_UP((uintptr_t)alloca(nbytes + 15), 16);
+				huffv_decompress(wav, vstate, spanbuf, nbytes, scratch, scratch_size);
+				memcpy(dest_l, spanbuf, n * 9);
+				memcpy(dest_r, spanbuf + (n_l + off) * 9, n * 9);
+			}
+		} else {
+			PROFILE_SCOPE(PS_VADPCM_IO) {
+			for (int c = 0; c < channels; c++) {
+				uint8_t *dest = (c == 0) ? dest_l : dest_r;
+				samplebuffer_t *dstbuf = (c == 0) ? sbuf : sbuf_r;
+				int fidx = vadpcm_file_index(wpos, c, nframes_total, channels);
+				int nbytes = n * 9;
+				uint32_t pi_addr = wav->st->rom_base + wav->st->base_offset + fidx * 9;
+				if (wav->st->rom_base && !(((uint32_t)dest ^ pi_addr) & 1)) {
+					// A prior chunk of this same WaveformRead may still be in
+					// flight; wait before replacing the ticket.
+					samplebuffer_dma_wait(dstbuf);
+					dstbuf->dma_ticket = dma_read_async(dest, pi_addr, nbytes);
+				} else {
+					lseek(wav->st->current_fd, wav->st->base_offset + fidx * 9, SEEK_SET);
+					int read_bytes = read(wav->st->current_fd, CachedAddr(dest), nbytes);
+					assertf(nbytes == read_bytes, "invalid read past end: %d vs %d", nbytes, read_bytes);
+					data_cache_hit_writeback_invalidate(CachedAddr(dest), nbytes);
+				}
+			}
+			}
+		}
+
+		if (sbuf_r)
+			sbuf_r->wnext = sbuf_r->wpos + sbuf_r->widx;
+
+		wlen -= n;
+		if (wlen < 0) wlen = 0;
+		wpos += n;
+	}
+done: ;
+	}
+}
+
+/** @brief Seek VADPCM predictor state for a resident (preloaded) waveform. */
+static void waveform_vadpcm_seek_state(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
+	(void)ctx; (void)wlen;
+	if (!seeking) return;
+
+	wav64_t *wav = (wav64_t*)sbuf->wave;
+	wav64_state_vadpcm_t *vstate = sbuf->state;
+	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
+	int channels = wav->wave.channels;
+	int sample_pos = wpos * 16;
+	if (wpos == 0) {
+		memset(vstate->state, 0, sizeof(vstate->state[0]) * channels);
+	} else {
+		int idx = wav64_vadpcm_find_skippoint(vhead, sample_pos, false);
+		assertf(idx >= 0, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, sample_pos);
+		memcpy(vstate->state, vhead->skip_states + idx * channels,
+			sizeof(vstate->state[0]) * channels);
+	}
 }
 
 static void waveform_vadpcm_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	wav64_t *wav = (wav64_t*)sbuf->wave;
+	if (wav->wave.mem)
+		waveform_vadpcm_seek_state(ctx, sbuf, wpos, wlen, seeking);
+	else
+		waveform_vadpcm_read_compressed(ctx, sbuf, wpos, wlen, seeking);
+}
+
+/**
+ * @brief Load the whole VADPCM body into a fully-planar plain-frame buffer.
+ *
+ * File layout is block-planar (and possibly Huffman); `dst` receives
+ * [all L frames][all R frames] for direct MIX_CHANNEL addressing.
+ */
+void wav64_vadpcm_preload(wav64_t *wav, void *dst)
+{
 	wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
+	int channels = wav->wave.channels;
+	// The file is read whole, padding included, but only the frames that carry
+	// samples are laid out for the mixer.
+	int file_frames = WAV64_VADPCM_FILE_FRAMES(wav->wave.len);
+	int nframes = WAV64_VADPCM_FRAMES(wav->wave.len);
+	int file_bytes = file_frames * 9 * channels;
+	uint8_t *scratch = malloc(ROUND_UP(file_bytes, 16));
+	assertf(scratch, "Out of memory");
 
-    // Access the per-channel state
-    wav64_state_vadpcm_t *vstate = sbuf->state;
-    assert(sbuf->state_size >= sizeof(wav64_state_vadpcm_t));
-	bool highpri = false;
-
-	if (seeking) {
-        rspq_highpri_begin();
-		if (wpos == 0) {
-            rsp_vadpcm_copystate(vstate->state, NULL);
-			lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
-            vstate->bitpos = 0;
-		} else {
-			int idx = wav64_vadpcm_find_skippoint(vhead, wpos, false);
-            assertf(idx >= 0, "wav64: %s: invalid VADPCM seeking point: 0x%x", wav->wave.name, wpos);
-            vstate->bitpos = vhead->skip_points[idx].bitpos;
-            rsp_vadpcm_copystate(vstate->state, vhead->skip_states + idx*wav->wave.channels);
-            if ((vhead->flags & VADPCM_FLAG_HUFFMAN) == 0)
-                lseek(wav->st->current_fd, wav->st->base_offset + (wpos / 16) * 9 * wav->wave.channels, SEEK_SET);
-		}
-        rspq_highpri_end();
+	lseek(wav->st->current_fd, wav->st->base_offset, SEEK_SET);
+	if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
+		wav64_state_vadpcm_t st = {0};
+		int scratch2_size = ROUND_UP(file_bytes * 2, 16);
+		void *scratch2 = malloc(scratch2_size);
+		assertf(scratch2, "Out of memory");
+		huffv_decompress(wav, &st, scratch, file_bytes, scratch2, scratch2_size);
+		free(scratch2);
 	} else {
-        assert((wpos % 16) == 0);
-
-        // If not huffman compressed, seek here, once. Otherwise, the huffman
-        // decompressor will seek as needed.
-        if ((vhead->flags & VADPCM_FLAG_HUFFMAN) == 0)
-            lseek(wav->st->current_fd, wav->st->base_offset + (wpos / 16) * 9 * wav->wave.channels, SEEK_SET);
-    }
-
-	// Round up wlen to 32 because our RSP decompressor only supports multiples
-	// of 32 samples (2 frames) because of DMA alignment issues. audioconv64
-	// makes sure files are padded to that length, so this is valid also at the
-	// end of the file.
-	wlen = ROUND_UP(wlen, 32);
-	if (wlen == 0) return;
-
-	// Maximum number of VADPCM frames that can be decompressed in a single
-	// RSP call. Keep this in sync with rsp_mixer.S.
-	enum { MAX_VADPCM_FRAMES = 94 };
-
-	while (wlen > 0) {
-		// Calculate number of frames to decompress in this iteration
-		int max_vadpcm_frames = (wav->wave.channels == 1) ? MAX_VADPCM_FRAMES : MAX_VADPCM_FRAMES / 2;
-		int nframes = MIN(wlen / 16, max_vadpcm_frames);
-
-		// Acquire destination buffer from the sample buffer
-		int16_t *dest = (int16_t*)samplebuffer_append(sbuf, nframes*16);
-
-		// Calculate source pointer at the end of the destination buffer.
-		// VADPCM decoding can be safely made in-place, so no auxillary buffer
-		// is necessary.
-		int src_bytes = 9 * nframes * wav->wave.channels;
-		void *src = (void*)dest + ((nframes*16) << SAMPLES_BPS_SHIFT(sbuf)) - src_bytes;
-
-		// Fetch compressed data
-        if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
-            void *scratch = dest;
-            int scratch_size = ROUND_UP(((void*)src - (void*)dest) / 2, 16);
-            if ((uint32_t)scratch & 15)
-                scratch += 16 - ((uint32_t)scratch & 15);
-
-            // debugf("huffv_decompress: scratch:%p-%p src:%p-%p nframes:%d-%d\n", 
-            //     scratch, scratch + scratch_size, src, src + src_bytes, wpos/16, wpos/16 + nframes -1);
-            huffv_decompress(wpos/16, wav, vstate, src, src_bytes, scratch, scratch_size);
-        } else {
-            // FIXME: remove CachedAddr() when read() supports uncached addresses
-            int read_bytes = read(wav->st->current_fd, CachedAddr(src), src_bytes);
-            assertf(src_bytes == read_bytes, "invalid read past end: %d vs %d", src_bytes, read_bytes);
-        }
-
-		#if VADPCM_REFERENCE_DECODER
-		if (wav->wave.channels == 1) {
-			vadpcm_error err = vadpcm_decode(
-				vhead->npredictors, vhead->order, vhead->codebook, vstate->state,
-				nframes, dest, src);
-			assertf(err == 0, "VADPCM decoding error: %d\n", err);
-		} else {
-			assert(wav->wave.channels == 2);
-			int16_t uncomp[2][16];
-			int16_t *dst = dest;
-
-			for (int i=0; i<nframes; i++) {
-				for (int j=0; j<2; j++) {
-					vadpcm_error err = vadpcm_decode(
-						vhead->npredictors, vhead->order, vhead->codebook + 8*j, &vstate->state[j],
-						1, uncomp[j], src);
-					assertf(err == 0, "VADPCM decoding error: %d\n", err);
-					src += 9;
-				}
-				for (int j=0; j<16; j++) {
-					*dst++ = uncomp[0][j];
-					*dst++ = uncomp[1][j];
-				}
-			}
-		}
-		#else
-		// Switch to highpri as late as possible
-		if (!highpri) {
-			rspq_highpri_begin();
-			highpri = true;
-		}
-		rsp_vadpcm_decompress(src, dest, wav->wave.channels==2, nframes, vstate->state, vhead->codebook);
-		#endif
-
-		wlen -= 16*nframes;
-		wpos += 16*nframes;
+		int n = read(wav->st->current_fd, scratch, file_bytes);
+		assertf(n == file_bytes, "wav64: short VADPCM preload read");
 	}
 
-	if (highpri)
-		rspq_highpri_end();
-
-    if (wav->wave.loop_len && wpos > wav->wave.len) {
-        samplebuffer_undo(sbuf, wpos - wav->wave.len);
-
-        // We are forced to sync here. The reason is the following:
-        //  * We reached the end of a looping sample
-        //  * The code in waveform_read could now immediately decode another
-        //    chunk of samples at the beginning of the loop.
-        //  * This other read will call read() on the file to read the compressed
-        //    frames *into the output buffer*
-        //  * The bytes into which we load them could overlap with the bytes
-        //    that were just "undo'd". But on those bytes, the RSP is going to
-        //    write soon as part of the just-scheduled decoding.
-        //  This might cause a race condition.
-        rspq_highpri_sync();
-    }
+	uint8_t *out = dst;
+	for (int c = 0; c < channels; c++)
+		for (int f = 0; f < nframes; f++)
+			memcpy(out + (c * nframes + f) * 9,
+				scratch + vadpcm_file_index(f, c, file_frames, channels) * 9, 9);
+	free(scratch);
 }
 
 static void wav64_vadpcm_init_huffman(wav64_t *wav) {
@@ -416,15 +369,7 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
     assertf(state_size == sizeof(wav64_state_vadpcm_t), 
         "wav64: invalid state size for VADPCM: %d/%d\n", state_size, sizeof(wav64_state_vadpcm_t));
 
-    // Set wave callback functions
-	wav->wave.start = NULL;
-    wav->wave.read = waveform_vadpcm_read;
-
-    // Init huffman
     wav64_header_vadpcm_t *vhead = (wav64_header_vadpcm_t*)wav->st->ext;
-    if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
-        wav64_vadpcm_init_huffman(wav);
-    }
 
     // Decode the skip pointer table pointer. The table is stored after the codebook,
     // and the exact byte offset is stored in the pointer itself to simplify initialization.
@@ -436,6 +381,29 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
         data_cache_hit_writeback(vhead->skip_points, sizeof(wav64_vadpcm_skippoint_t) * vhead->num_skippoints);
         data_cache_hit_writeback(vhead->skip_states, sizeof(wav64_vadpcm_vector_t) * vhead->num_skippoints * wav->wave.channels);
     }
+
+    // Init huffman
+    assertf(vhead->huff_tbl == NULL, "huff_tbl must be NULL before initialization");
+    if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
+        wav64_vadpcm_init_huffman(wav);
+    }
+
+    wav->wave.start = NULL;
+    wav->wave.format = WAVEFORM_FORMAT_VADPCM;
+    wav->st->vadpcm.codebook = vhead->codebook;
+    wav->st->vadpcm.loop_state = NULL;
+    if (wav->wave.loop_len > 0 && vhead->num_skippoints > 0) {
+        int loop_start = wav->wave.len - wav->wave.loop_len;
+        int idx = wav64_vadpcm_find_skippoint(vhead, loop_start, false);
+        if (idx >= 0)
+            wav->st->vadpcm.loop_state = vhead->skip_states + idx * wav->wave.channels;
+    }
+    wav->wave.codec = &wav->st->vadpcm;
+    wav->wave.read = waveform_vadpcm_read;
+    // Plain frames stream from ROM with async PI DMA. Huffman frames must be
+    // decompressed by the CPU, and any other medium is read synchronously.
+    wav->wave.async_read = wav->st->rom_base != 0 &&
+        !(vhead->flags & VADPCM_FLAG_HUFFMAN);
 }
 
 void wav64_vadpcm_close(wav64_t *wav)

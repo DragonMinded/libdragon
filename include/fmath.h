@@ -115,7 +115,7 @@ static inline float fm_truncf(float x) {
 }
 
 /**
- * @brief Faster version of floorf
+ * @brief Faster version of ceilf
  * 
  * Optimized version using the MIPS ceil.w.s instruction.
  */

@@ -183,7 +183,7 @@ int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_
  * @param t0         Top-left Y coordinate of the rectangle to load
  * @param s1         Bottom-right *exclusive* X coordinate of the rectangle
  * @param t1         Bottom-right *exclusive* Y coordinate of the rectangle
- * @return int       Number of bytes used in TMEM for this texture
+ * @return           Number of bytes used in TMEM for this texture
  * 
  * @see #rdpq_tex_upload
  * @see #surface_make_sub
@@ -247,7 +247,7 @@ void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors);
  * @param t0         Top-left Y coordinate of the rectangle to reuse
  * @param s1         Bottom-right *exclusive* X coordinate of the rectangle
  * @param t1         Bottom-right *exclusive* Y coordinate of the rectangle
- * @return int       Number of bytes used in TMEM for this texture (always 0)
+ * @return           Number of bytes used in TMEM for this texture (always 0)
  */
 int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
 
@@ -266,7 +266,7 @@ int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, i
  * 
  * @param tile       Tile descriptor that will be initialized with reused texture
  * @param parms      All optional parameters on how to sample reused texture. Refer to #rdpq_texparms_t for more information.
- * @return int       Number of bytes used in TMEM for this texture (always 0)
+ * @return           Number of bytes used in TMEM for this texture (always 0)
  */
 int rdpq_tex_reuse(rdpq_tile_t tile, const rdpq_texparms_t *parms);
 

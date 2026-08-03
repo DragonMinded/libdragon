@@ -90,9 +90,21 @@ void test_rdpq_mat_blender(TestContext *ctx)
     rdpq_blender_t exp_multiply = get_expected_blender(RDPQ_BLENDER_MULTIPLY);
     rdpq_blender_t exp_multiply_const = get_expected_blender(RDPQ_BLENDER_MULTIPLY_CONST);
     rdpq_blender_t exp_additive = get_expected_blender(RDPQ_BLENDER_ADDITIVE);
-    rdpq_set_mode_standard();
     rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
     DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_set_mode_standard();
+    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+    rdpq_mat_t *blender_none = rdpq_matdb_load(mdb, "blender_none");
+    ASSERT(blender_none != NULL, "Failed to load material 'blender_none'");
+
+    ASSERT_MAT_SOM("<multiply>", SOM_BLEND_MASK, exp_multiply);
+    rdpq_mat_draw_begin(blender_none);
+    ASSERT_MAT_SOM("blender_none", SOM_BLEND_MASK, 0);
+    rdpq_mat_draw_end(blender_none);
+    ASSERT_MAT_SOM("<multiply>", SOM_BLEND_MASK, exp_multiply);
+
+    rdpq_set_mode_standard();
 
     rdpq_mat_t *blender_multiply = rdpq_matdb_load(mdb, "blender_multiply");
     ASSERT(blender_multiply != NULL, "Failed to load material 'blender_multiply'");

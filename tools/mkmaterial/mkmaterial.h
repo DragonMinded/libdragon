@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <utility>
+#include <cassert>
 #include "combexpr.cpp"
 
 extern char *flag_texdb_path;
@@ -38,7 +39,10 @@ struct MyEnum {
             throw std::runtime_error("invalid enum value: " + std::to_string(idx));        
     }
     operator int() const { return idx; }
-    std::string to_str() const { return values[idx]; }
+    std::string to_str() const {
+        assert(idx >= 0 && idx < (int)values.size());
+        return values[idx];
+    }
 
     void operator=(int i) {
         if (i < 0 || i >= (int)values.size())
@@ -101,7 +105,7 @@ typedef std::array<float, 4> Vec4;
 
 struct CombinerRegister {
     Vec4 value;
-    bool is_set;
+    bool is_set {false};
 
     void parse_float(std::string value);
     void parse_color(std::string value);
@@ -121,7 +125,7 @@ struct Combiner {
 };
 
 struct Blender {
-    MyEnum mode{0, {"none", "multiply", "multiply_const", "additive"}};
+    MyEnum mode{{"none", "multiply", "multiply_const", "additive"}};
     float constant{-1};
 
     void parse_attr(std::string key, std::string value);

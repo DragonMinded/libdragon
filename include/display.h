@@ -393,7 +393,7 @@ void display_show(surface_t* surf);
  * as Z-buffer for the current resolution. The surface is automatically freed
  * when the display is closed.
  *
- * @return surface_t    The Z-buffer surface
+ * @return The Z-buffer surface
  */
 surface_t* display_get_zbuf(void);
 
@@ -425,14 +425,14 @@ uint32_t display_get_num_buffers(void);
  * exact. Moreover, this will also account for advanced VI configurations
  * affecting the refresh rate, like PAL60.
  * 
- * @return float        Refresh rate in Hz (frames per second)
+ * @return Refresh rate in Hz (frames per second)
  */
 float display_get_refresh_rate(void);
 
 /**
  * @brief Get the current number of frames per second being rendered
  * 
- * @return float Frames per second
+ * @return Frames per second
  */
 float display_get_fps(void);
 
@@ -447,7 +447,7 @@ float display_get_fps(void);
  * @note Do not call this function more than once per frame. If needed, cache
  *       the result in a variable and use it multiple times.
  * 
- * @return float        Time elapsed since the last complete frame (in seconds)
+ * @return Time elapsed since the last complete frame (in seconds)
  */
 float display_get_delta_time(void);
 

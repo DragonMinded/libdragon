@@ -36,7 +36,7 @@ void ed64_rtc_encode( time_t time, uint8_t buf[7] );
  * as ED64 V3 does not support using the joybus RTC write commands.
  * 
  * @param buf        The encoded time to write (see #ed64_rtc_encode).
- * @return int       0 on success, -1 on failure.
+ * @return           0 on success, -1 on failure.
  * 
  * @see #ed64_rtc_encode
  * @see #ed64x_rtc_write

@@ -48,7 +48,7 @@ int sram_detect(void);
  * @param dst Destination buffer to store the read data.
  * @param offset Offset in SRAM to read from. Allowed range is 0 to 0x7FFF.
  * @param len Number of bytes to read.
- * @return int Number of bytes read, or negative value in case of error.
+ * @return Number of bytes read, or negative value in case of error.
  */
 int sram_read(void* dst, size_t offset, size_t len);
 
@@ -62,7 +62,7 @@ int sram_read(void* dst, size_t offset, size_t len);
  * @param src Source buffer containing the data to write.
  * @param offset Offset in SRAM to write to. Allowed range is 0 to 0x7FFF.
  * @param len Number of bytes to write.
- * @return int Number of bytes written, or negative value in case of error.
+ * @return Number of bytes written, or negative value in case of error.
  */
 int sram_write(const void* src, size_t offset, size_t len);
 

@@ -5,7 +5,16 @@
 #ifndef LIBDRAGON_AUDIO_VADPCM_INTERNAL_H
 #define LIBDRAGON_AUDIO_VADPCM_INTERNAL_H
 
+#include "../utils.h"
+
 #define VADPCM_FLAG_HUFFMAN      (1 << 0)	///< Huffman-encoded VADPCM
+
+/**
+ * Stereo VADPCM file layout: blocks of this many frames per channel, alternating
+ * L then R (mono is a single linear plane). Matches #SAMPLEBUFFER_MARGIN_UNITS
+ * so one samplebuffer fill is one file block.
+ */
+#define WAV64_VADPCM_BLOCK_FRAMES  128
 
 /** @brief A vector of audio samples */
 typedef struct __attribute__((aligned(8))) {
@@ -63,6 +72,25 @@ typedef struct __attribute__((packed, aligned(8))) {
 
 _Static_assert(sizeof(wav64_header_vadpcm_t) == 96, "invalid wav64_header_vadpcm size");
 
+/**
+ * @brief Frames the mixer can address in a waveform of `len` samples.
+ *
+ * The last frame is partial whenever the length is not a multiple of 16, but
+ * it still holds samples that have to be played.
+ */
+#define WAV64_VADPCM_FRAMES(len)       DIVIDE_CEIL(len, 16)
+
+/**
+ * @brief Frames actually stored in the file for a waveform of `len` samples.
+ *
+ * audioconv64 pads the waveform to a multiple of 32 samples before encoding,
+ * but writes the unpadded length in the header, so the file always holds a
+ * few frames more than #WAV64_VADPCM_FRAMES. The padding is part of the
+ * block-planar layout of stereo files, so it must be accounted for when
+ * addressing frames in the file.
+ */
+#define WAV64_VADPCM_FILE_FRAMES(len)  (DIVIDE_CEIL(len, 32) * 2)
+
 /** @brief Initialize VADPCM decoder for a WAV64 file */
 void wav64_vadpcm_init(wav64_t *wav, int state_size);
 /** @brief Close VADPCM decoder and free resources */
@@ -72,5 +100,8 @@ int wav64_vadpcm_get_bitrate(wav64_t *wav);
 
 /** @brief Adjust a requested seek position (samples) to a valid VADPCM skip point (samples). */
 int wav64_vadpcm_adjust_seek(wav64_t *wav, int wpos);
+
+/** @brief Preload VADPCM body into a fully-planar plain-frame buffer at `dst`. */
+void wav64_vadpcm_preload(wav64_t *wav, void *dst);
 
 #endif

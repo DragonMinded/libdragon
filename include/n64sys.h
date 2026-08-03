@@ -349,12 +349,12 @@ inline uint64_t get_system_ticks(void) {
 uint64_t get_ticks_us(void);
 
 /**
- * @brief Read the number of millisecounds since system startup
+ * @brief Read the number of milliseconds since system startup
  * 
  * This is similar to #get_ticks, but converts the result in integer
  * milliseconds for convenience.
  * 
- * @return The number of millisecounds since system startup
+ * @return The number of milliseconds since system startup
  */
 uint64_t get_ticks_ms(void);
 

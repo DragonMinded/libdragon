@@ -38,7 +38,7 @@ typedef struct {
  * format, as created by the mkfont tool.
  * 
  * @param fn                Filename to load (including filesystem prefix, eg: "rom:/arial.font64")
- * @return rdpq_font_t*     Loaded font
+ * @return                  Loaded font
  */
 rdpq_font_t* rdpq_font_load(const char *fn);
 
@@ -54,7 +54,7 @@ rdpq_font_t* rdpq_font_load(const char *fn);
  * 
  * @param buf               Buffer to load
  * @param sz                Size of the buffer
- * @return rdpq_font_t*     Loaded font
+ * @return                  Loaded font
  */
 rdpq_font_t* rdpq_font_load_buf(void *buf, int sz);
 
@@ -87,7 +87,7 @@ typedef enum {
  * 
  * @param font              Builtin font to load
  * 
- * @return rdpq_font_t*     Loaded font
+ * @return                  Loaded font
  */
 inline rdpq_font_t* rdpq_font_load_builtin(rdpq_font_builtin_t font) {
     switch (font) {
@@ -158,7 +158,7 @@ void rdpq_font_style(rdpq_font_t *font, uint8_t style_id, const rdpq_fontstyle_t
  * @param chars     Array of chars to render
  * @param x0        X coordinate of the start of the paragraph (baseline first char)
  * @param y0        Y coordinate of the start of the paragraph (baseline first char)
- * @return int      Number of chars rendered
+ * @return          Number of chars rendered
  */
 int rdpq_font_render_paragraph(const rdpq_font_t *fnt, const rdpq_paragraph_char_t *chars, float x0, float y0);
 
@@ -206,7 +206,7 @@ bool rdpq_font_get_glyph_ranges(const rdpq_font_t *fnt, int idx, uint32_t *start
  * 
  * @param fnt           Font to query
  * @param codepoint     Unicode codepoint of the glyph
- * @return int          Internal index of the glyph, or -1 if the glyph does not exist
+ * @return              Internal index of the glyph, or -1 if the glyph does not exist
  */
 int rdpq_font_get_glyph_index(const rdpq_font_t *fnt, uint32_t codepoint);
 
@@ -220,7 +220,7 @@ int rdpq_font_get_glyph_index(const rdpq_font_t *fnt, uint32_t codepoint);
  * @param fnt           Font to query
  * @param codepoint     Unicode codepoint of the glyph
  * @param metrics       Pointer to a structure to store the metrics
- * @return bool         true if the glyph was found, false otherwise
+ * @return              true if the glyph was found, false otherwise
  */
 bool rdpq_font_get_glyph_metrics(const rdpq_font_t *fnt, uint32_t codepoint, rdpq_font_gmetrics_t *metrics);
 

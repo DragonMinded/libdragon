@@ -16,6 +16,7 @@ extern "C" {
 
 /// @cond
 typedef struct wav64_state_s wav64_state_t;
+extern void __wav64_init_compression_lvl2(void);
 extern void __wav64_init_compression_lvl3(void);
 /// @endcond
 
@@ -51,9 +52,8 @@ typedef struct wav64_s {
  * for which no initialization is required. Level 0 (uncompressed) also
  * requires no initialization.
  * 
- * Currently, only level 3 requires initialization (level 2 does not exist yet).
- * If you have any wav64 compressed with level 3, you must call this function
- * before opening them.
+ * Levels 2 and 3 require initialization. If you have any wav64 compressed with 
+ * either level, you must call this function before opening them.
  * 
  * @code{.c}
  *      wav64_init_compression(3); 
@@ -70,6 +70,7 @@ typedef struct wav64_s {
     switch (level) { \
     case 0: break; \
     case 1: break; \
+    case 2: __wav64_init_compression_lvl2(); break; \
     case 3: __wav64_init_compression_lvl3(); break; \
     default: assertf(0, "Unsupported compression level: %d", level); \
     } \
@@ -174,7 +175,7 @@ double wav64_seek(wav64_t *wav, int ch, double time_sec);
  * @brief Get the (possibly compressed) bitrate of the WAV64 file.
  * 
  * @param wav 			Pointer to wav64_t structure
- * @return int 			Bitrate in bits per second
+ * @return     			Bitrate in bits per second
  */
 int wav64_get_bitrate(wav64_t *wav);
 

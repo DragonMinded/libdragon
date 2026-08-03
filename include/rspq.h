@@ -1101,6 +1101,11 @@ void rspq_highpri_end(void);
  * all high-priority queues. It is meant for debugging purposes or for situations
  * in which the high-priority queue is known to be very short and fast to run.
  * Also note that it is not possible to create syncpoints in the high-priority queue.
+ * 
+ * The function can either be called while a high-priority queue is being built
+ * (that is, between #rspq_highpri_begin and #rspq_highpri_end), or
+ * after the high-priority queue has been closed (that is, after
+ * #rspq_highpri_end).
  */
 void rspq_highpri_sync(void);
 

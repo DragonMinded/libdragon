@@ -103,7 +103,7 @@ void profile_register(int slot, const char *name, int nest_level);
  *
  * This is an optional function that can be called to communicate to the
  * profiler the target frame rate. When the profiler is aware of the target
- * frame rate, it will be to show stats related to the expected deadline for
+ * frame rate, it will be used to show stats related to the expected deadline for
  * each frame (eg: how much CPU percentage is used on average in each frame).
  +
  * @param fps 			Target frame rate in frames per second
@@ -250,11 +250,12 @@ inline void __profile_record(int slot, int32_t len) {
 	 * @see PROFILE_STOP
 	 */
 	#define PROFILE_SCOPE(slot) \
-		for (int64_t __prof_start_##slot = emux_prof_start(slot), TICKS_READ() - get_system_ticks() ; ) \
-			for (int __prof_once_##slot = ({ MEMORY_BARRIER(); 1; }); __prof_once_##slot; __prof_once_##slot = 0, \
-				({ MEMORY_BARRIER(); }), \
-				emux_prof_stop(slot), \
-				__profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot))
+		for (int64_t __prof_start_##slot = TICKS_READ() - get_system_ticks(), \
+			__prof_once_##slot = ({ emux_prof_start(slot); MEMORY_BARRIER(); (int64_t)1; }); \
+			__prof_once_##slot; \
+			__prof_once_##slot = 0, \
+			({ MEMORY_BARRIER(); emux_prof_stop(slot); \
+			   __profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot); }))
 #else
 	///@cond
 	#define PROFILE_START(slot, ...)  ((void)(false), false)
