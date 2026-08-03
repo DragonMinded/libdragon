@@ -355,8 +355,13 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 
 	int ub = buf->unit_bytes;
 	int ring = buf->size;
-	// PCM: dma_read / dfs need an even byte offset into the sample area.
-	assertf((ub & (ub - 1)) != 0 || ((buf->wpos * ub) % 2) == 0, "buf->wpos:%x", buf->wpos);
+	// PCM: the ring slot and the waveform position must keep the same byte
+	// phase, as dma_read only accepts source and destination of equal parity
+	// (see raw_waveform_read). head and wpos move together on a discard, so
+	// the phase is preserved even when both become odd; a seek resets head
+	// and has to fix wpos up (see samplebuffer_get).
+	assertf((ub & (ub - 1)) != 0 || (((buf->head - buf->wpos) * ub) & 1) == 0,
+		"buf->wpos:%x buf->head:%x", buf->wpos, buf->head);
 
 	// Make room by discarding the oldest units past the read cursor.
 	while (buf->widx + wlen > ring) {
