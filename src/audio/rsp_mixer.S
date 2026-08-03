@@ -76,8 +76,6 @@
 # Zero ACCUM before mixing (first MIX_CHANNEL of a round; ACCUM is in .bss).
 #define CH_FLAGS_CLEAR_ACCUM      (1<<7)
 
-# Resample staging (8 samples) for the stereo and VADPCM paths.
-#define DMEM_SCRATCH_SIZE         16
 
 # Sample DMA cache. A transfer may never end more than SAMPLE_CACHE_SIZE bytes
 # past the end of the RDRAM window (that is #MIXER_LOOP_OVERREAD in mixer.c,
@@ -128,6 +126,7 @@
 		RSPQ_DefineCommand MIX_CHANNEL,       32		# 0x0
 		RSPQ_DefineCommand MIX_SETCHANNEL,    16		# 0x1
 		RSPQ_DefineCommand MIX_FLUSH,          8		# 0x2
+		RSPQ_DefineCommand MIX_SETSTATE,      24		# 0x3
 	RSPQ_EndOverlayHeader
 
 ############################################################################
@@ -246,10 +245,6 @@ DMEM_SAMPLE_CACHE_ZERO:   .dcb.b 16
 DMEM_ADDRS:               .dcb.b 16
 	.align 4
 DMEM_TRANSPOSE:           .dcb.b 128
-
-	# Contiguous resample staging (stereo and VADPCM paths).
-	.align 4
-DMEM_SCRATCH:             .dcb.b DMEM_SCRATCH_SIZE
 
 	# In-mixer VADPCM staging: 8 predictor vectors (128 bytes) plus the three
 	# Hermite taps past a loop point (8 bytes with padding). Stereo VADPCM
@@ -474,7 +469,7 @@ MIX_CHANNEL_NoClear:
 	# Splat the current filtered volume and the target volume of this
 	# channel into [L,R,L,R,L,R,L,R] vectors. Both are stored as adjacent
 	# halfword pairs in DMEM, so one word replicated four times does it.
-	li s0, %lo(DMEM_SCRATCH)
+	li s0, %lo(RSPQ_SCRATCH_MEM)
 	lh ch_idx, %lo(CH_IDX)
 	sll t0, ch_idx, 2
 	lw t1, %lo(XVOL)(t0)
@@ -595,7 +590,7 @@ MonoSetup:
 	# Assemble the loop scalars in DMEM and splat them in one load. k_limit
 	# depends on the size of each transfer, so it is filled in by
 	# MonoDmaFetch before the loop ever runs.
-	li s0, %lo(DMEM_SCRATCH)
+	li s0, %lo(RSPQ_SCRATCH_MEM)
 	sh t1, 0x02(s0)                          # k_zaddr
 	srl cache_half, 1                        # byte address -> DMEM index
 	sll t2, wv_step, 3
@@ -1023,7 +1018,7 @@ VadpcmSetup:
 	# scalars from (which only writes lanes 0 to 3).
 	lh t9, %lo(CH_VBITS)
 	li t0, 1
-	li s1, %lo(DMEM_SCRATCH)
+	li s1, %lo(RSPQ_SCRATCH_MEM)
 	sllv t0, t0, t9
 	sh t0, 0x08(s1)
 
@@ -1349,6 +1344,40 @@ MIX_SETCHANNEL:
 	sw a2, %lo(CHTBL_STATE)(t0)
 	j RSPQ_Loop
 	sw a3, %lo(CHTBL_LOOP_STATE)(t0)
+	.endfunc
+
+
+###############################################################
+# MIX_SETSTATE – seed the VADPCM decoder state of one channel.
+#
+# Command words (24 bytes):
+#   a0: [ovl+cmd:8][pad:24]
+#   a1: state  (the buffer MIX_SETCHANNEL registered for the channel)
+#   a2: state word 0
+#   a3: state word 1
+#   +16: state word 2
+#   +20: state word 3
+#
+# The CPU re-seeds the decoder whenever it moves a channel somewhere the
+# stream does not reach on its own: a seek, or the wrap of a loop too large to
+# be pinned in the samplebuffer. Writing that state to RDRAM directly would
+# race with the epilog of every MIX_CHANNEL, which saves its own state to the
+# same buffer whenever the RSP gets to it — several rounds behind the CPU, and
+# at a different moment for each plane of a stereo pair. Carrying it through
+# the queue instead puts it after every round already enqueued and before the
+# one that has to decode from it.
+###############################################################
+
+	.func MIX_SETSTATE
+MIX_SETSTATE:
+	addi t0, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 0x10
+	li s4, %lo(RSPQ_SCRATCH_MEM)
+	lqv $v01, 0x00,t0
+	lrv $v01, 0x10,t0
+	move s0, a1
+	li t0, DMA_SIZE(16, 1)
+	j DMAOut
+	sqv $v01, 0x00,s4
 	.endfunc
 
 	#undef ticks

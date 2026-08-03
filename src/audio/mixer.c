@@ -87,6 +87,7 @@ DEFINE_RSP_UCODE(rsp_mixer);
 #define MIXER_CMD_CHANNEL     0x0        ///< rspq command ID for channel setup
 #define MIXER_CMD_SETCHANNEL  0x1        ///< rspq command ID for setting a channel
 #define MIXER_CMD_FLUSH       0x2        ///< rspq command ID for flushing the mixer
+#define MIXER_CMD_SETSTATE    0x3        ///< rspq command ID for seeding a VADPCM state
 
 /// @brief Fixed point value used in waveform position calculations.
 /// This is a signed 64-bit integer with the fractional part using
@@ -123,7 +124,7 @@ typedef struct mixer_channel_s {
 	mixer_fx64_t len;      ///< Waveform length (same units as pos)
 	mixer_fx64_t loop_len; ///< Loop length (same units as pos)
 	void *ptr;             ///< Waveform data base (PCM samples or VADPCM frames)
-	void *codec_state;     ///< Per-channel codec state (VADPCM decoder state)
+	void *codec_state;     ///< Per-channel codec state, CPU side (see #mixer_vstate)
 	void *codebook;        ///< VADPCM codebook (NULL for PCM)
 	void *loop_state;      ///< VADPCM state at loop start (NULL if none)
 	uint32_t flags;        ///< Misc flags (see CH_FLAGS_*)
@@ -191,6 +192,8 @@ static struct {
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
 
 	uint32_t chtbl_dirty;   ///< VADPCM channels whose SETCHANNEL is out of date
+	uint32_t vstate_dirty;  ///< VADPCM channels the CPU has re-seeded (see #mixer_vstate)
+	void *vstates;          ///< Decoder states owned by the RSP, 16 bytes per channel
 	int hi_ch;              ///< Exclusive upper bound of channels to scan
 
 } Mixer;
@@ -240,12 +243,32 @@ void mixer_init(int num_channels) {
 		mixer_ch_set_limits(ch, 16, Mixer.sample_rate, 0);
 	}
 
+	Mixer.vstates = malloc_uncached(num_channels * 16);
+	assertf(Mixer.vstates, "Out of memory");
+	memset(Mixer.vstates, 0, num_channels * 16);
+
 	rspq_init();
 	__mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
 
 	mixer_overlay_state_t *mixer_state = rspq_overlay_get_state(&rsp_mixer);
 	memset(mixer_state, 0, sizeof(*mixer_state));
 	data_cache_hit_writeback(mixer_state, sizeof(*mixer_state));
+}
+
+/**
+ * @brief The VADPCM decoder state the RSP owns for a channel (16 bytes).
+ *
+ * The ucode saves into it the state of the frame each round ended on, so that
+ * the next one resumes from there, and it does so whenever it gets to the
+ * command — which can be several rounds behind the CPU, and at a different
+ * moment for each plane of a stereo pair. That makes the buffer unusable for
+ * the seeds the CPU produces, so those live in a buffer of their own
+ * (#mixer_channel_t.codec_state, written by the codec) and reach the RSP
+ * through #mixer_emit_setstate, which orders them against those saves.
+ */
+static inline void *mixer_vstate(int ch)
+{
+	return (uint8_t*)Mixer.vstates + ch * 16;
 }
 
 /** @brief Compressed frame size of a VADPCM waveform, in bytes. */
@@ -314,6 +337,11 @@ void mixer_close(void) {
 		}
 		if (samplebuffer_is_inited(&Mixer.ch_buf[i]))
 			samplebuffer_close(&Mixer.ch_buf[i]);
+	}
+
+	if (Mixer.vstates) {
+		free_uncached(Mixer.vstates);
+		Mixer.vstates = NULL;
 	}
 
 	Mixer.num_channels = 0;
@@ -413,6 +441,19 @@ static int waveform_wrap_wpos(int wpos, int len, int loop_len) {
 // for looping waveforms — without forcing a seek on a contiguous wrap.
 static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
 	waveform_t *wave = sbuf->wave;
+	// A seek that restarts the ring is the CPU moving playback where the
+	// stream does not go on its own, so the state the codec writes for it has
+	// to reach the RSP (see #mixer_emit_setstate). The refill that follows the
+	// end of a looping waveform arrives as a seek too, but there the ring
+	// keeps its live window: the RSP is still decoding the frames before the
+	// loop, and the state of the loop start only becomes the one it needs once
+	// the CPU wraps the position.
+	if (seeking && sbuf->widx == 0 && wave->format == WAVEFORM_FORMAT_VADPCM) {
+		int ch = sbuf - Mixer.ch_buf;
+		Mixer.vstate_dirty |= mixer_bit(ch);
+		if (Mixer.channels[ch].flags & CH_FLAGS_STEREO)
+			Mixer.vstate_dirty |= mixer_bit(ch+1);
+	}
 	// Samplebuffer units: PCM samples, or VADPCM frames. Wave metadata is
 	// always in samples; convert bounds when the buffer stores frames.
 	int wave_len = wave->len;
@@ -482,8 +523,12 @@ static void mixer_vadpcm_seek(mixer_channel_t *c, int sample_pos) {
 	tmp[0].state_size = c->wave->state_size;
 	c->wave->read(c->wave->ctx, tmp, sample_pos / 16, 0, true);
 	c->vframe = sample_pos / 16;
-	if (c->flags & CH_FLAGS_STEREO)
+	int ch = c - Mixer.channels;
+	Mixer.vstate_dirty |= mixer_bit(ch);
+	if (c->flags & CH_FLAGS_STEREO) {
 		c[1].vframe = c->vframe;
+		Mixer.vstate_dirty |= mixer_bit(ch+1);
+	}
 }
 
 /**
@@ -740,12 +785,19 @@ void mixer_ch_play(int ch, waveform_t *wave)
 	}
 
 	mixer_touch_ch(ch);
-	if (c->flags & CH_FLAGS_VADPCM)
+	// The state buffer of a channel outlives the waveforms played on it, so a
+	// new one always has to seed it, even when it starts where the previous
+	// one happened to be.
+	if (c->flags & CH_FLAGS_VADPCM) {
 		Mixer.chtbl_dirty |= mixer_bit(ch);
+		Mixer.vstate_dirty |= mixer_bit(ch);
+	}
 	if (c->flags & CH_FLAGS_STEREO) {
 		mixer_touch_ch(ch+1);
-		if (c->flags & CH_FLAGS_VADPCM)
+		if (c->flags & CH_FLAGS_VADPCM) {
 			Mixer.chtbl_dirty |= mixer_bit(ch+1);
+			Mixer.vstate_dirty |= mixer_bit(ch+1);
+		}
 	}
 	mixer_refresh_max_ns(ch);
 }
@@ -794,12 +846,14 @@ void mixer_ch_stop(int ch) {
 		c[1].pos = 0;
 		c[1].silence_ns = MIXER_SILENCE_RAMP_SAMPLES;
 		Mixer.chtbl_dirty &= ~mixer_bit(ch+1);
+		Mixer.vstate_dirty &= ~mixer_bit(ch+1);
 	}
 
 	c->ptr = 0;
 	c->pos = 0;
 	c->silence_ns = MIXER_SILENCE_RAMP_SAMPLES;
 	Mixer.chtbl_dirty &= ~mixer_bit(ch);
+	Mixer.vstate_dirty &= ~mixer_bit(ch);
 
 	// Invalidate the wave pointer, as it might become dangling
 	// anyway, as the user can free the waveform memory at any time after stop.
@@ -902,6 +956,20 @@ static void mixer_emit_setchannel(int ch, void *codebook, void *state, void *loo
 		codebook ? PhysicalAddr(codebook) | (bits - 2) : 0,
 		state ? PhysicalAddr(state) : 0,
 		loop_state ? PhysicalAddr(loop_state) : 0);
+}
+
+/**
+ * @brief Hand a decoder state the CPU re-seeded over to the RSP.
+ *
+ * Sent as a command rather than written to #mixer_vstate directly, so that it
+ * lands after the rounds already enqueued (whose epilog writes that same
+ * buffer) and before the one that decodes from it.
+ */
+static void mixer_emit_setstate(int ch)
+{
+	const uint32_t *src = Mixer.channels[ch].codec_state;
+	rspq_write(__mixer_overlay_id, MIXER_CMD_SETSTATE, 0,
+		PhysicalAddr(mixer_vstate(ch)), src[0], src[1], src[2], src[3]);
 }
 
 // True if the whole waveform fits in the samplebuffer, so that it can be pinned
@@ -1062,8 +1130,9 @@ static void mixer_refresh_chtbl(void) {
 		Mixer.chtbl_dirty &= ~mixer_bit(ch);
 		if (!src->ptr || !(c->flags & CH_FLAGS_VADPCM))
 			continue;
-		*sh = (mixer_chtbl_t){ c->codebook, c->codec_state, c->loop_state };
-		mixer_emit_setchannel(ch, c->codebook, c->codec_state, c->loop_state, c->vbits);
+		void *state = mixer_vstate(ch);
+		*sh = (mixer_chtbl_t){ c->codebook, state, c->loop_state };
+		mixer_emit_setchannel(ch, c->codebook, state, c->loop_state, c->vbits);
 	}
 }
 
@@ -1369,6 +1438,14 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 
 		if (owner->ptr)
 			mixer_wait_channel_dma(ch);
+
+		// A state the CPU re-seeded rides with the first round that needs it,
+		// which is where it belongs in the queue.
+		if (Mixer.vstate_dirty & mixer_bit(ch)) {
+			Mixer.vstate_dirty &= ~mixer_bit(ch);
+			if ((c->flags & CH_FLAGS_VADPCM) && c->codec_state)
+				mixer_emit_setstate(ch);
+		}
 
 		if (clear_accum) {
 			flags |= CH_FLAGS_CLEAR_ACCUM;
