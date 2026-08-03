@@ -67,12 +67,18 @@
 # NOTE: This must be the same of MIXER_FX64_FRAC in mixer.c.
 #define WAVEFORM_POS_FRAC_BITS    12
 
+# Assert codes reported by the RSP crash handler (debug builds only).
+#define MIXER_ASSERT_VADPCM_AHEAD 0xA001
+
 # Waveform flags. Keep these in sync with mixer.c
 #define CH_FLAGS_BPS_SHIFT        (3<<0)
 #define CH_FLAGS_16BIT            (1<<2)
 #define CH_FLAGS_STEREO           (1<<3)
 #define CH_FLAGS_STEREO_SUB       (1<<4)
 #define CH_FLAGS_VADPCM           (1<<5)
+# Decode from the state saved for the loop start rather than the one the last
+# round left behind (see VadpcmSetup).
+#define CH_FLAGS_VLOOP_STATE      (1<<6)
 # Zero ACCUM before mixing (first MIX_CHANNEL of a round; ACCUM is in .bss).
 #define CH_FLAGS_CLEAR_ACCUM      (1<<7)
 
@@ -193,11 +199,17 @@ IDENTITY:  .half  1<<11,1<<11,1<<11,1<<11, 1<<11,1<<11,1<<11,1<<11
 	#
 	# The parity of j*bits has period 2 in j, so lanes 4 to 7 repeat the
 	# entry: VadpcmDecodeFrames loads it with two ldv.
-	.align 3
+	#
+	# The rest of an entry is what else depends on the width alone, so that
+	# VadpcmSetup can load it instead of deriving it: 2^bits, the multiplier
+	# of the sign extending shift, and the decomposition of the frame stride
+	# (see CH_VMULSH). The two of those sit as one word, in the order of the
+	# fields they are copied to.
+	.align 4
 VADPCM_K0:
-	.half 1,  16,  1,   16                   # 2 bits
-	.half 1,  64, 16, 1024                   # 3 bits
-	.half 1, 256,  1,  256                   # 4 bits
+	.half 1,  16,  1,   16;  .half 0,  4;  .half 2,  0    # 2 bits (stride 5)
+	.half 1,  64, 16, 1024;  .half 0,  8;  .half 3, -1    # 3 bits (stride 7)
+	.half 1, 256,  1,  256;  .half 0, 16;  .half 3,  0    # 4 bits (stride 9)
 
 	.bss
 
@@ -297,12 +309,19 @@ CH_VATEND:                .half  0
 # fraction as 0.16, plus whole samples.
 CH_STEPF:                 .half  0
 CH_STEPI:                 .half  0
-# Residual width of the VADPCM stream (2, 3 or 4 bits), and the decomposition
-# of the frame stride (2*bits+1 bytes) that turns a frame index into a byte
-# offset without a multiply:  n*stride = (n << CH_VMULSH) + ((n ^ neg) - neg)
-CH_VBITS:                 .half  0
+# Decomposition of the frame stride (2*bits+1 bytes) that turns a frame index
+# into a byte offset without a multiply:
+#   n*stride = (n << CH_VMULSH) + ((n ^ neg) - neg)
+# The two are adjacent and word aligned because they are copied together out
+# of VADPCM_K0. CH_VBITS is the residual width itself (2, 3 or 4 bits).
+	.align 2
 CH_VMULSH:                .half  0
 CH_VMULNEG:               .half  0
+CH_VBITS:                 .half  0
+# Frames the waveform covers, ceil(len/16). Every fill measures how many are
+# left against it, and it cannot change within a command.
+	.align 2
+CH_VNFRAMES_TOT:          .long  0
 
 
 	.text 1
@@ -987,50 +1006,41 @@ VadpcmSetup:
 	#
 	# A round can end exactly on the loop point, and then it is the CPU that
 	# wraps the position, leaving behind the state of the end of the waveform
-	# instead of the one of the loop. So whenever a command starts on the frame
-	# the loop starts on, decode from the state saved for it — which is also
-	# the state the waveform reaches that frame with, so it holds for a channel
-	# that is still playing its attack.
+	# instead of the one of the loop. The CPU marks the command that starts on
+	# the frame the loop starts on, which decodes from the state saved for it —
+	# also the state the waveform reaches that frame with, so it holds for a
+	# channel that is still playing its attack.
 	lw s0, %lo(CH_STATE)
-	lw s1, %lo(CH_LOOP_STATE)
-	beqz wv_loop_len, 1f
-	nop
-	beqz s1, 1f
-	sub t0, wv_len, wv_loop_len
-	srl t0, WAVEFORM_POS_FRAC_BITS + 4       # frame the loop starts on
-	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
-	srl s2, 4
-	bne t0, s2, 1f
-	nop
-	move s0, s1
-1:	li s4, %lo(MIX_VADPCM_STATE)
-	jal DMAIn
+	lh t0, %lo(CH_FLAGS)
+	andi t0, CH_FLAGS_VLOOP_STATE
+	beqz t0, 1f
+	li s4, %lo(MIX_VADPCM_STATE)
+	lw s0, %lo(CH_LOOP_STATE)
+1:	jal DMAIn
 	li t0, DMA_SIZE(16, 1)
 
-	# Residual unpacking constants of this stream. The per-lane multipliers
-	# only depend on the width, so they are a table (VADPCM_K0) the decoder
-	# indexes directly; what is left here is what has to reach it elsewhere.
+	# Residual unpacking constants of this stream. Everything that depends on
+	# the width alone is in VADPCM_K0: the decoder indexes it for the per-lane
+	# multipliers, and the rest is copied out of the same entry here.
 	#
 	# 2^bits is the multiplier of the sign extending shift. It reaches the
 	# decoder in v_kmono.e4, through the scratch MonoSetup splats the loop
-	# scalars from (which only writes lanes 0 to 3).
-	lh t9, %lo(CH_VBITS)
-	li t0, 1
+	# scalars from (which only writes lanes 0 to 3). The stride decomposition
+	# lands in the field pair it is stored as (see CH_VMULSH).
+	sll t0, t9, 4
+	addi t0, %lo(VADPCM_K0 - 32)             # entry of this width: (bits-2)*16
 	li s1, %lo(RSPQ_SCRATCH_MEM)
-	sllv t0, t0, t9
-	sh t0, 0x08(s1)
+	lh t1, 0x0A(t0)
+	lw t2, 0x0C(t0)
+	sh t1, 0x08(s1)
+	sw t2, %lo(CH_VMULSH)
 
-	# Frame stride, 2*bits+1 bytes: 9, 7 or 5, that is (1<<sh) ± 1 with
-	# sh = (bits+3)>>1. A frame index becomes a byte offset with
-	#   (n << sh) + ((n ^ neg) - neg)
-	# where neg is -1 for the one stride that subtracts (7, the odd width)
-	# and 0 otherwise.
-	addiu t1, t9, 3
-	srl t1, 1
-	sh t1, %lo(CH_VMULSH)
-	andi t0, t9, 1
-	sub t0, zero, t0
-	sh t0, %lo(CH_VMULNEG)
+	# Frames the waveform covers: hoisted here because every fill needs it and
+	# it only depends on the length, which the command fixes.
+	srl t0, wv_len, WAVEFORM_POS_FRAC_BITS
+	addi t0, 15
+	srl t0, 4
+	sw t0, %lo(CH_VNFRAMES_TOT)
 
 	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	srl t0, 4
@@ -1063,9 +1073,7 @@ VadpcmFillCache:
 	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	srl t1, t0, 4                            # start_frame
 	sw t1, %lo(ROUND_SCRATCH)
-	srl t0, wv_len, WAVEFORM_POS_FRAC_BITS
-	addi t0, 15
-	srl t0, 4                                # frames covered by the waveform
+	lw t0, %lo(CH_VNFRAMES_TOT)              # frames covered by the waveform
 	sub t0, t1
 	blez t0, VadpcmEpilog
 	li t2, VADPCM_WIN_FRAMES
@@ -1107,15 +1115,17 @@ VadpcmFillCache:
 	# Every fill but the first starts a few frames back, because the taps of
 	# the last samples of the previous window were rejected and replayed;
 	# rewinding is free, since the state of a frame is just the eight samples
-	# before it and those are still in the cache. Decoding forward is only
-	# needed when the position jumped past the window.
+	# before it and those are still in the cache.
+	#
+	# It can only ever be a rewind: the resampler stops at the end of the
+	# decoded window (k_limit), so the frame the next fill starts on is never
+	# past the one the decoder stopped at.
 VadpcmAlignState:
 	lw t2, %lo(CH_VNEXT_FRAME)
 	lw t1, %lo(ROUND_SCRATCH)
 	beq t2, t1, VadpcmAligned
 	lw t0, %lo(CH_VCUR_FRAME)
-	slt t9, t1, t2
-	beqz t9, VadpcmCatchUp
+	assert_lt t1, t2, MIXER_ASSERT_VADPCM_AHEAD
 	sub t9, t1, t0                           # frames of the window to keep
 	li s0, %lo(MIX_VADPCM_STATE_BEFORE)
 	beqz t9, 1f
@@ -1127,18 +1137,6 @@ VadpcmAlignState:
 	sqv $v01, 0,s1
 	j VadpcmAligned
 	sw t1, %lo(CH_VNEXT_FRAME)
-
-VadpcmCatchUp:
-	li t0, 1
-	sh t0, %lo(CH_VDECN)
-1:	lw t2, %lo(CH_VNEXT_FRAME)
-	lw t1, %lo(ROUND_SCRATCH)
-	beq t2, t1, VadpcmAligned
-	nop
-	jal VadpcmDecodeFrames
-	nop
-	j 1b
-	nop
 
 VadpcmAligned:
 	# Snapshot the state that decodes start_frame: the epilog needs it if the
@@ -1474,8 +1472,8 @@ VadpcmDecodeFrames:
 	lh t3, %lo(CH_VBITS)
 	lw t0, %lo(CH_VNEXT_FRAME)
 	lh t1, %lo(CH_VMULSH)
-	sll s0, t3, 3
-	addi s0, %lo(VADPCM_K0 - 16)          # entry of this width: (bits-2)*8
+	sll s0, t3, 4
+	addi s0, %lo(VADPCM_K0 - 32)          # entry of this width: (bits-2)*16
 	ldv vk0.e0, 0x00,s0
 	ldv vk0.e4, 0x00,s0
 	lh t2, %lo(CH_VMULNEG)

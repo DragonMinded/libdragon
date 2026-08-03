@@ -78,11 +78,12 @@ DEFINE_RSP_UCODE(rsp_mixer);
 #define CH_FLAGS_STEREO     	(1<<3)   ///< Set if the channel is stereo (left)
 #define CH_FLAGS_STEREO_SUB 	(1<<4)   ///< The channel is the second half of a stereo (right)
 #define CH_FLAGS_VADPCM     	(1<<5)   ///< In-mixer VADPCM mono (wire + CPU)
-#define CH_FLAGS_FORCE_MONO  	(1<<6)   ///< Fold this channel's output to both buses (mono downmix). CPU-side only; RSP ucode ignores this bit.
+#define CH_FLAGS_VLOOP_STATE 	(1<<6)   ///< VADPCM: decode from the loop-start state (wire only, see mixer_emit_channel)
 #define CH_FLAGS_CLEAR_ACCUM 	(1<<7)   ///< Zero ACCUM before mixing (first MIX_CHANNEL of a round)
 #define CH_FLAGS_RESIDENT       (1<<8)   ///< Channel plays from waveform->mem (no samplebuffer)
 #define CH_FLAGS_LOOP_CACHED    (1<<10)  ///< Streamed loop pinned in the samplebuffer; RSP wraps
 #define CH_FLAGS_STEREO_ALLOC	(1<<9)   ///< The channel has a buffer sized for stereo (CPU-side only)
+#define CH_FLAGS_FORCE_MONO  	(1<<11)  ///< Fold this channel's output to both buses (mono downmix). CPU-side only; RSP ucode ignores this bit.
 
 #define MIXER_CMD_CHANNEL     0x0        ///< rspq command ID for channel setup
 #define MIXER_CMD_SETCHANNEL  0x1        ///< rspq command ID for setting a channel
@@ -1446,6 +1447,15 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 			if ((c->flags & CH_FLAGS_VADPCM) && c->codec_state)
 				mixer_emit_setstate(ch);
 		}
+
+		// A command that starts on the frame the loop starts on must decode
+		// from the state saved for that frame: the one the stream left behind
+		// belongs to the end of the waveform, since it is the CPU that wraps
+		// the position between rounds. The ucode has no cheap way to tell,
+		// while here it is a comparison on values already at hand.
+		if ((flags & CH_FLAGS_VADPCM) && loop_len && Mixer.chtbl[ch].loop_state &&
+			(pos >> (MIXER_FX64_FRAC+4)) == ((len - loop_len) >> (MIXER_FX64_FRAC+4)))
+			flags |= CH_FLAGS_VLOOP_STATE;
 
 		if (clear_accum) {
 			flags |= CH_FLAGS_CLEAR_ACCUM;
