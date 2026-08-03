@@ -278,7 +278,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	}
 
 	fwrite("WV64", 1, 4, out);
-	w8(out, 8); 				 			// version
+	w8(out, 9); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
 	w8(out, wav->bitsPerSample);			// bits
