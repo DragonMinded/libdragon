@@ -87,10 +87,10 @@
 #define SAMPLE_CACHE_SIZE         64
 #define SAMPLE_CACHE_SAMPLES      128
 
-# In-mixer VADPCM: decode up to this many frames into DMEM_SAMPLE_CACHE
-# (16 samples each). 8 frames = SAMPLE_CACHE_SAMPLES.
-#define VADPCM_WIN_FRAMES         8
-#define VADPCM_WIN_SAMPLES        (VADPCM_WIN_FRAMES * 16)
+# In-mixer VADPCM: one fill decodes as many frames of 16 samples as the
+# window holds. It cannot hold more: their compressed form is staged in the
+# tail of that same window (see VadpcmDecodeFrames).
+#define VADPCM_WIN_FRAMES         (SAMPLE_CACHE_SAMPLES / 16)
 
 
 	################################
@@ -232,6 +232,9 @@ ACCUM_PAD:                .dcb.w (ACCUM_PAD_SAMPLES * 2)
 	# instead of needing a separate mask (MonoLoop). It is 16-byte aligned
 	# because it is written/read with sqv/lqv.
 	#
+	# The tail of the window also stages the compressed frames of a VADPCM
+	# fill, which are decoded into the window itself (see VadpcmDecodeFrames).
+	#
 	# The pipelined VADPCM decoder spills one stale vector 16 bytes below the
 	# window before its first real store: that lands in the tail of ACCUM_PAD,
 	# which is never DMA'd out.
@@ -255,11 +258,6 @@ MIX_VADPCM_CODEBOOK:      .space 144
 MIX_VADPCM_STATE:         .space 16
 	.align 4
 MIX_VADPCM_STATE_BEFORE:  .space 16
-	# Compressed frames of one fill, plus room for the 8-byte lookahead of
-	# the decoder priming and for the DMA rounding up to 8 bytes. Sized for
-	# the widest frame (4-bit residuals, 9 bytes).
-	.align 3
-MIX_VADPCM_COMP:          .space (VADPCM_WIN_FRAMES * 9 + 24)
 
 	# Frame index the current fill starts at.
 	.align 2
@@ -1502,7 +1500,19 @@ VadpcmDecodeFrames:
 	add t0, s1
 	move in_end, t0                       # kept across the DMA for the loop test
 	addi t0, 16
-	li s4, %lo(MIX_VADPCM_COMP)
+	# The compressed frames are staged in the tail of the very window they
+	# decode into, which costs no DMEM of its own: parked so that the fill
+	# ends where the window does, the decoder overtakes them just fast enough
+	# never to reach one it has not read yet. Storing the samples of frame k
+	# ends 32(k+1) bytes into the window, while the frames still to be read
+	# start at least (nframes-k-2)*stride bytes before its end: a frame is 32
+	# bytes of samples against 9 of residuals at its widest, so the samples
+	# stay behind for as long as there are frames left, whatever the width
+	# and however short the fill (a full one is exactly the window).
+	addi s1, t0, 7
+	andi s1, 0xFFF8                       # what the DMA writes, rounding included
+	li s4, %lo(DMEM_SAMPLE_CACHE_ZERO)
+	sub s4, s1
 	jal DMAIn
 	addi t0, -1                            # = DMA_SIZE(t0, 1)
 
@@ -1519,11 +1529,10 @@ VadpcmDecodeFrames:
 	vxor pred1b, pred1b;                  li dmem_state, %lo(MIX_VADPCM_STATE)
 	vxor pred1c, pred1c;                  li dmem_output, %lo(DMEM_SAMPLE_CACHE)
 	vxor pred1d, pred1d;                  lh t0, %lo(CH_VBITS)
-	vxor pred1e, pred1e;                  li in0, %lo(MIX_VADPCM_COMP)
-	vxor pred1f, pred1f;                  add in0, t9
-	vxor pred1g, pred1g;                  addiu in0, 1  # past the control byte
-	vxor pred1h, pred1h;                  srl t1, t0, 1
-	add in1, in0, t1
+	vxor pred1e, pred1e;                  add in0, s4, t9
+	vxor pred1f, pred1f;                  addiu in0, 1      # past the control byte
+	vxor pred1g, pred1g;                  srl t1, t0, 1
+	vxor pred1h, pred1h;                  add in1, in0, t1
 	ltv pred1a.e0, 0,s0
 	add in2, in0, t0                      # in2 is s0: only free once ltv is done
 	add in3, in2, t1
