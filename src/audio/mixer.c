@@ -1015,6 +1015,11 @@ static void mixer_fill_loop_cache(int ch) {
 	assertf(fill <= sbuf->size, "ch:%d loop cache %x > samplebuffer %x", ch, fill, sbuf->size);
 	assert(wave && wave->read);
 
+	// The pinned copy has to be one contiguous run, which only the top of the
+	// ring can guarantee: this is the one flush that cannot restart forward,
+	// so the rounds that are still reading the ring have to be drained first.
+	// It only happens when a channel starts looping.
+	rspq_highpri_sync();
 	samplebuffer_flush(sbuf);
 	sbuf->wpos = 0;
 	sbuf->wnext = 0;

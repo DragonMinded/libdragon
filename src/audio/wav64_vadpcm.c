@@ -185,7 +185,7 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 		if (sbuf_r && sbuf->widx == 0) {
 			samplebuffer_flush(sbuf_r);
 			sbuf_r->wpos = wpos;
-			sbuf_r->head = 0;
+			sbuf_r->head = sbuf->head;
 		}
 	}
 

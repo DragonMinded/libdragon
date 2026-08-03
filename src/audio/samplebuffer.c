@@ -140,6 +140,9 @@ static void samplebuffer_recalc_size(samplebuffer_t *buf) {
 	}
 
 	buf->size = n;
+	// The buffer is empty, but head is where the next stream restarts, and the
+	// ring it indexes just changed size.
+	buf->head %= n;
 }
 
 void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes) {
@@ -223,6 +226,11 @@ static void samplebuffer_relocate_live(samplebuffer_t *buf, int wlen) {
 		}
 		// Keep the margin mirror coherent with the new start of the sample area.
 		memcpy(base + ring * ub, base, SAMPLEBUFFER_MARGIN_UNITS * ub);
+	} else if (buf->head != dst) {
+		// Nothing live to move, but the write cursor still jumps backwards over
+		// a region that a round emitted before the last flush can be reading:
+		// this is the one case where restarting forward is not an option.
+		rspq_highpri_sync();
 	}
 
 	buf->wpos += buf->ridx;
@@ -259,10 +267,11 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		bool seeking = (buf->wnext < 0) || (wpos != buf->wnext);
 		samplebuffer_flush(buf);
 		buf->wpos = wpos;
-		buf->head = 0;
 		int len = round_len;
-		// 8-bit PCM + odd wpos: dma_read needs a 2-byte aligned start.
-		if (ub == 1 && (buf->wpos & 1)) {
+		// 8-bit PCM: dma_read only accepts a source and a destination of equal
+		// parity, so the ring slot the stream restarts on has to keep the phase
+		// of its waveform position (see samplebuffer_append).
+		if (ub == 1 && ((buf->head - buf->wpos) & 1)) {
 			buf->wpos--; len++;
 		}
 		buf->wv_read(buf->wave->ctx, buf, buf->wpos, len, seeking);
@@ -409,8 +418,16 @@ void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
 void samplebuffer_flush(samplebuffer_t *buf) {
 	samplebuffer_commit(buf);
 	samplebuffer_dma_wait(buf);
+	// Restart the ring where the last append left off, rather than rewinding it
+	// to the top. Rounds already emitted read from the window that was live
+	// here, and the RSP can still be behind them: the CPU is allowed to run
+	// that far ahead (#mixer_poll_async, and the events served in the middle of
+	// a poll). Refilling from the top would rewrite those samples under it,
+	// while writing forward leaves the refill the same distance from them that
+	// every append relies on — a whole turn of the ring.
+	if (buf->size > 0)
+		buf->head = (buf->head + buf->widx) % buf->size;
 	buf->wpos = buf->widx = buf->ridx = 0;
-	buf->head = 0;
 	buf->wnext = -1;
 	buf->pending_len = 0;
 }
