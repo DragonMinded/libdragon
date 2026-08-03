@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "vadpcm_pack.h"
+
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 	#define LE32_TO_HOST(i) __builtin_bswap32(i)
 	#define HOST_TO_LE32(i) __builtin_bswap32(i)
@@ -30,6 +32,7 @@ extern bool flag_verbose;
 extern bool flag_debug;
 
 extern int flag_wav_compress_vadpcm_huffman;
+extern int flag_wav_compress_vadpcm_bits;
 
 typedef struct {
 	int16_t *samples;			// Samples (always 16-bit signed)

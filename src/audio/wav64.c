@@ -11,6 +11,7 @@
 #include "wav64_opus_internal.h"
 #include "wav64_ulc_internal.h"
 #include "mixer.h"
+#include "mixer_internal.h"
 #include "dragonfs.h"
 #include "n64sys.h"
 #include "dma.h"
@@ -25,6 +26,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdalign.h>
+#include <stddef.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <malloc.h>
@@ -146,12 +148,22 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	int ext_size = head.start_offset - sizeof(wav64_header_t);
 	bool preload = parms->streaming_mode == WAV64_STREAMING_NONE;
-	// VADPCM preloads stay compressed (9 bytes/frame/channel), laid out fully
-	// planar in RDRAM for direct MIX_CHANNEL addressing.
+	// VADPCM preloads stay compressed, laid out fully planar in RDRAM for
+	// direct MIX_CHANNEL addressing. The frame size depends on the residual
+	// width, which lives in the extended header: that is only read into its
+	// final home further down, so peek at its prefix to size the buffer.
 	bool preload_vadpcm = preload && head.format == WAV64_FORMAT_VADPCM;
+	int vframe_bytes = 0;
+	if (head.format == WAV64_FORMAT_VADPCM) {
+		uint8_t prefix[offsetof(wav64_header_vadpcm_t, huff_tbl)];
+		read(file_handle, prefix, sizeof(prefix));
+		lseek(file_handle, -(int)sizeof(prefix), SEEK_CUR);
+		int bits = prefix[offsetof(wav64_header_vadpcm_t, residual_bits)];
+		vframe_bytes = VADPCM_FRAME_BYTES(VADPCM_RESIDUAL_BITS(bits));
+	}
 	int nframes = WAV64_VADPCM_FRAMES(head.len);
 	int preload_size = preload_vadpcm
-		? ROUND_UP(nframes * 9 * head.channels, 16)
+		? ROUND_UP(nframes * vframe_bytes * head.channels, 16)
 		: ROUND_UP(head.len * head.channels * (head.nbits >> 3), 16);
 	if (preload && !preload_vadpcm) {
 		int ub = head.channels * (head.nbits >> 3);

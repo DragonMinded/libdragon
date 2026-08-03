@@ -131,6 +131,7 @@ typedef struct mixer_channel_s {
 	uint32_t wave_uuid;    ///< UUID of last configured waveform (survives stop)
 	int silence_ns;        ///< Samples still to be emitted while silent (volume ramp)
 	int vframe;            ///< VADPCM frame the decoder state in RDRAM refers to
+	uint8_t vbits;         ///< VADPCM residual width (see #VADPCM_FRAME_BYTES)
 	int max_round_ns;      ///< Max round length from step + samplebuffer margin (streamed)
 } mixer_channel_t;
 
@@ -247,6 +248,13 @@ void mixer_init(int num_channels) {
 	data_cache_hit_writeback(mixer_state, sizeof(*mixer_state));
 }
 
+/** @brief Compressed frame size of a VADPCM waveform, in bytes. */
+static inline int mixer_vadpcm_frame_bytes(const waveform_t *wave)
+{
+	assert(wave->format == WAVEFORM_FORMAT_VADPCM && wave->codec);
+	return VADPCM_FRAME_BYTES(((const waveform_vadpcm_t*)wave->codec)->bits);
+}
+
 static int mixer_calc_buffer_size(int ch, waveform_t *wave)
 {
 	int64_t nsamples = Mixer.limits[ch].max_frequency;
@@ -259,7 +267,7 @@ static int mixer_calc_buffer_size(int ch, waveform_t *wave)
 		nframes = (nframes + 15) / 16;
 		if (nframes < SAMPLEBUFFER_MARGIN_UNITS * 2)
 			nframes = SAMPLEBUFFER_MARGIN_UNITS * 2;
-		size = ROUND_UP(nframes * 9, 8);
+		size = ROUND_UP(nframes * mixer_vadpcm_frame_bytes(wave), 8);
 	} else {
 		nsamples *= Mixer.limits[ch].max_bits / 8;
 		nsamples *= wave->channels;
@@ -273,7 +281,7 @@ static int mixer_calc_buffer_size(int ch, waveform_t *wave)
 		size = Mixer.limits[ch].max_buf_sz;
 
 	// samplebuffer needs ≥MARGIN units of usable space plus the mirrored tail.
-	int ub = (wave && wave->format == WAVEFORM_FORMAT_VADPCM) ? 9
+	int ub = (wave && wave->format == WAVEFORM_FORMAT_VADPCM) ? mixer_vadpcm_frame_bytes(wave)
 		: (Mixer.limits[ch].max_bits / 8) * (wave ? wave->channels : 1);
 	int min_bytes = SAMPLEBUFFER_MARGIN_UNITS * 2 * ub;
 	if (size < min_bytes)
@@ -584,7 +592,7 @@ void mixer_ch_play(int ch, waveform_t *wave)
 
 	if (!resident && !samplebuffer_is_inited(sbuf)) {
 		int size = ROUND_UP(mixer_calc_buffer_size(ch, wave), 16);
-		int ub = vadpcm ? 9 : ((wave->bits / 8) * (stereo_vadpcm ? 1 : wave->channels));
+		int ub = vadpcm ? mixer_vadpcm_frame_bytes(wave) : ((wave->bits / 8) * (stereo_vadpcm ? 1 : wave->channels));
 		size += SAMPLEBUFFER_MARGIN_UNITS * ub;
 		size = ROUND_UP(size, 16);
 		int state_size = ROUND_UP(wave->state_size, 16);
@@ -641,9 +649,9 @@ void mixer_ch_play(int ch, waveform_t *wave)
 			}
 		} else {
 			if (wave->format == WAVEFORM_FORMAT_VADPCM) {
-				samplebuffer_set_unit_bytes(sbuf, 9);
+				samplebuffer_set_unit_bytes(sbuf, mixer_vadpcm_frame_bytes(wave));
 				if (stereo_vadpcm)
-					samplebuffer_set_unit_bytes(&Mixer.ch_buf[ch+1], 9);
+					samplebuffer_set_unit_bytes(&Mixer.ch_buf[ch+1], mixer_vadpcm_frame_bytes(wave));
 			} else {
 				samplebuffer_set_bps(sbuf, wave->bits*wave->channels);
 			}
@@ -654,16 +662,19 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		if (wave->format == WAVEFORM_FORMAT_VADPCM) {
 			waveform_vadpcm_t *vc = wave->codec;
 			assertf(vc && vc->codebook, "waveform %s: VADPCM missing codec/codebook", wave->name);
+			assertf(vc->bits >= 2 && vc->bits <= 4, "waveform %s: invalid VADPCM residual width %d", wave->name, vc->bits);
 			c->flags |= CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
 			if (wave->channels == 2) c->flags |= CH_FLAGS_STEREO;
 			c->codebook = vc->codebook;
 			c->loop_state = vc->loop_state;
+			c->vbits = vc->bits;
 			c->len = MIXER_FX64((int64_t)wave->len);
 			c->loop_len = MIXER_FX64((int64_t)wave->loop_len);
 			if (stereo_vadpcm) {
 				mixer_channel_t *r = &Mixer.channels[ch+1];
 				r->flags = (r->flags & CH_FLAGS_FORCE_MONO) | CH_FLAGS_STEREO_SUB | CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
 				r->codebook = (uint8_t*)vc->codebook + VADPCM_CODEBOOK_STRIDE;
+				r->vbits = vc->bits;
 				r->codec_state = (uint8_t*)c->codec_state + 16;
 				r->loop_state = vc->loop_state ? (uint8_t*)vc->loop_state + 16 : NULL;
 				r->len = c->len;
@@ -700,7 +711,7 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		// of 16).
 		int nframes = DIVIDE_CEIL(wave->len, 16);
 		c->ptr = (void*)wave->mem;
-		Mixer.channels[ch+1].ptr = (uint8_t*)wave->mem + nframes * 9;
+		Mixer.channels[ch+1].ptr = (uint8_t*)wave->mem + nframes * mixer_vadpcm_frame_bytes(wave);
 		Mixer.channels[ch+1].pos = 0;
 	} else {
 		c->ptr = resident ? (void*)wave->mem : SAMPLES_PTR(sbuf);
@@ -876,11 +887,19 @@ static void mixer_emit_channel(int ch, uint32_t flags, mixer_fx15_t lvol, mixer_
 	rspq_write_end(&w);
 }
 
-/** @brief Record a channel's VADPCM pointers in the ucode channel table. */
-static void mixer_emit_setchannel(int ch, void *codebook, void *state, void *loop_state)
+/**
+ * @brief Record a channel's VADPCM pointers in the ucode channel table.
+ *
+ * The codebook is 8-byte aligned, so the residual width travels in its two low
+ * bits (as `bits-2`) instead of costing a command word: the ucode needs it to
+ * build the unpacking constants, and it never changes without the codebook
+ * changing too.
+ */
+static void mixer_emit_setchannel(int ch, void *codebook, void *state, void *loop_state, int bits)
 {
+	assert(!codebook || ((PhysicalAddr(codebook) & 7) == 0 && bits >= 2 && bits <= 4));
 	rspq_write(__mixer_overlay_id, MIXER_CMD_SETCHANNEL, (uint32_t)ch << 16,
-		codebook ? PhysicalAddr(codebook) : 0,
+		codebook ? PhysicalAddr(codebook) | (bits - 2) : 0,
 		state ? PhysicalAddr(state) : 0,
 		loop_state ? PhysicalAddr(loop_state) : 0);
 }
@@ -897,7 +916,7 @@ static bool mixer_wave_fits(int i) {
 	int len = ch->len >> (bps + MIXER_FX64_FRAC);
 	int slen = vadpcm ? DIVIDE_CEIL(len, 16) : len;
 	return slen > 0 &&
-		slen + (MIXER_LOOP_OVERREAD / (vadpcm ? 9 : (1<<bps)) + 1) <= sbuf->size;
+		slen + (MIXER_LOOP_OVERREAD / (vadpcm ? VADPCM_FRAME_BYTES(ch->vbits) : (1<<bps)) + 1) <= sbuf->size;
 }
 
 /** @brief Pin a streamed loop into the samplebuffer (one-shot). RSP wraps after. */
@@ -949,12 +968,12 @@ static void mixer_fill_loop_cache(int ch) {
 		samplebuffer_t *sbuf_r = &Mixer.ch_buf[ch+1];
 		sbuf_r->wpos = sloop_start;
 		sbuf_r->wnext = sloop_start + sbuf_r->widx;
-		Mixer.channels[ch+1].ptr = (uint8_t*)SAMPLES_PTR(sbuf_r) - sloop_start * 9;
+		Mixer.channels[ch+1].ptr = (uint8_t*)SAMPLES_PTR(sbuf_r) - sloop_start * VADPCM_FRAME_BYTES(c->vbits);
 		Mixer.channels[ch+1].flags |= CH_FLAGS_LOOP_CACHED;
 	}
 
 	if (vadpcm)
-		c->ptr = (uint8_t*)SAMPLES_PTR(sbuf) - sloop_start * 9;
+		c->ptr = (uint8_t*)SAMPLES_PTR(sbuf) - sloop_start * VADPCM_FRAME_BYTES(c->vbits);
 	else
 		c->ptr = (uint8_t*)SAMPLES_PTR(sbuf) - (cache_start << bps);
 	c->flags |= CH_FLAGS_LOOP_CACHED;
@@ -978,7 +997,7 @@ static bool mixer_loop_fits(int i) {
 	int loop_len = ch->loop_len >> (bps + MIXER_FX64_FRAC);
 	int sloop = vadpcm ? DIVIDE_CEIL(loop_len, 16) : loop_len;
 	return sloop > 0 &&
-		sloop + (MIXER_LOOP_OVERREAD / (vadpcm ? 9 : (1<<bps)) + 1) <= sbuf->size;
+		sloop + (MIXER_LOOP_OVERREAD / (vadpcm ? VADPCM_FRAME_BYTES(ch->vbits) : (1<<bps)) + 1) <= sbuf->size;
 }
 
 // Wrap a large loop: rebase the position within the loop and restart the
@@ -1044,7 +1063,7 @@ static void mixer_refresh_chtbl(void) {
 		if (!src->ptr || !(c->flags & CH_FLAGS_VADPCM))
 			continue;
 		*sh = (mixer_chtbl_t){ c->codebook, c->codec_state, c->loop_state };
-		mixer_emit_setchannel(ch, c->codebook, c->codec_state, c->loop_state);
+		mixer_emit_setchannel(ch, c->codebook, c->codec_state, c->loop_state, c->vbits);
 	}
 }
 
@@ -1175,11 +1194,11 @@ static void mixer_rsp_bounds(mixer_channel_t *c, bool wrap, uint32_t *len, uint3
 // only receives the low 31 bits of the position, so a streamed channel (whose
 // position grows with the stream instead of wrapping) must carry everything
 // above that bit in the base pointer. VADPCM positions count samples, and the
-// ucode addresses one 9-byte frame every 16 of them.
+// ucode addresses one compressed frame every 16 of them.
 static int32_t mixer_pos_fold(const mixer_channel_t *c) {
 	int64_t high = c->pos & ~(int64_t)0x7FFFFFFF;
 	if (c->flags & CH_FLAGS_VADPCM)
-		return (high >> (MIXER_FX64_FRAC+4)) * 9;
+		return (high >> (MIXER_FX64_FRAC+4)) * VADPCM_FRAME_BYTES(c->vbits);
 	return high >> MIXER_FX64_FRAC;
 }
 
@@ -1221,7 +1240,7 @@ static void mixer_fetch_window(int ch, int ns) {
 			c->vframe = wpos;
 		void *p = samplebuffer_get(sbuf, wpos, &wlen);
 		assert(p);
-		c->ptr = (uint8_t*)p - wpos * 9;
+		c->ptr = (uint8_t*)p - wpos * VADPCM_FRAME_BYTES(c->vbits);
 	} else {
 		void *p = samplebuffer_get(sbuf, wpos, &wlen);
 		assert(p);

@@ -16,6 +16,27 @@
  */
 #define WAV64_VADPCM_BLOCK_FRAMES  128
 
+/**
+ * @brief Bitstream layout of a VADPCM frame.
+ *
+ * A frame always codes 16 samples and starts with one control byte
+ * (`scaling << 4 | predictor`), followed by the 16 residuals packed at
+ * #wav64_header_vadpcm_t::residual_bits bits each, most significant bit first:
+ *
+ *     residual i occupies payload bits [i*bits, i*bits + bits)
+ *
+ * where payload bit 0 is the most significant bit of payload byte 0. For the
+ * classic 4-bit encoding this is exactly the usual nibble packing (residual i
+ * in nibble i), so 4-bit frames are bit-for-bit unchanged; 3-bit and 2-bit
+ * frames shrink the payload to 6 and 4 bytes respectively.
+ *
+ * The mixer ucode reads the payload as four halfwords, one per group of four
+ * consecutive residuals: group j lives entirely inside the halfword starting at
+ * payload byte #VADPCM_GROUP_OFFSET, which is why the packing has to be dense
+ * and MSB-first.
+ */
+#define VADPCM_GROUP_OFFSET(bits, j)   (((j) * (bits)) >> 1)
+
 /** @brief A vector of audio samples */
 typedef struct __attribute__((aligned(8))) {
 	int16_t v[8];						///< Samples
@@ -61,7 +82,8 @@ typedef struct __attribute__((packed, aligned(8))) {
 	int8_t order;							///< Order of the predictors
 	uint16_t flags;							///< VADPCM flags
 	int16_t num_skippoints;					///< Number of allowed skip points
-	uint16_t padding1;						///< Padding
+	uint8_t residual_bits;					///< Bits per residual (2, 3 or 4; 0 means 4)
+	uint8_t padding1;						///< Padding
 	wav64_vadpcm_hufftable_t *huff_tbl; 	///< Huffman tables (computed at load time)
 	wav64_vadpcm_skippoint_t *skip_points;	///< Information on the skip points (located after the codebook)
 	wav64_vadpcm_vector_t *skip_states;		///< Decompression states at the skip point
@@ -71,6 +93,14 @@ typedef struct __attribute__((packed, aligned(8))) {
 } wav64_header_vadpcm_t;
 
 _Static_assert(sizeof(wav64_header_vadpcm_t) == 96, "invalid wav64_header_vadpcm size");
+
+/**
+ * @brief Residual width of a VADPCM stream.
+ *
+ * Files written before native sub-nibble packing leave the field at zero,
+ * which means the classic 4-bit encoding.
+ */
+#define VADPCM_RESIDUAL_BITS(bits)   ((bits) ? (bits) : 4)
 
 /**
  * @brief Frames the mixer can address in a waveform of `len` samples.

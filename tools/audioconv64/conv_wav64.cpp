@@ -310,6 +310,16 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	} break;
 
 	case 1: { // vadpcm
+		// Sub-nibble residuals are packed natively in the bitstream, which
+		// leaves nothing for Huffman to exploit: it works on nibbles and both
+		// schemes squeeze the same redundancy.
+		if (flag_wav_compress_vadpcm_bits < 4 && flag_wav_compress_vadpcm_huffman) {
+			if (flag_verbose)
+				fprintf(stderr, "  %d-bit residuals are packed natively: disabling huffman\n",
+					flag_wav_compress_vadpcm_bits);
+			flag_wav_compress_vadpcm_huffman = 0;
+		}
+
 		// The state is 16+4+4 bytes per channel (see wav64_state_vadpcm_t), but the runtime code requires to
 		// always allocate both channels even for mono files.
 		placeholder_set_offset(out, 48, "%s/state_size", outfn);
@@ -502,7 +512,8 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		w8(out, kVADPCMEncodeOrder);
 		w16(out, flags);
 		w16(out, skip_points.size());
-		w16(out, 0); // padding
+		w8(out, flag_wav_compress_vadpcm_bits);
+		w8(out, 0); // padding
 		w32(out, 0); // huff_tbl_ptr
 		w32(out, skip_points.size() > 0 ? codebook_bytes : 0); // skip_points_ptr
 		w32(out, skip_points.size() > 0 ? codebook_bytes + (int)skip_points.size()*8 : 0); // skip_states_ptr
@@ -531,10 +542,20 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		// Start of samples data
 		placeholder_set_offset(out, ftell(out)-basepos, "%s/samples", outfn);
-		if (flag_wav_compress_vadpcm_huffman)
+		if (flag_wav_compress_vadpcm_huffman) {
 			fwrite(compbuf, 1, compbuflen, out);
-		else
+		} else if (flag_wav_compress_vadpcm_bits < 4) {
+			const int total_frames = nframes * wav->channels;
+			uint8_t *packed = (uint8_t*)malloc(total_frames * vadpcm_frame_bytes(flag_wav_compress_vadpcm_bits));
+			int packed_size = vadpcm_pack_frames(packed, dest, total_frames, flag_wav_compress_vadpcm_bits);
+			if (flag_verbose)
+				fprintf(stderr, "  packed %d bytes into %d bytes (ratio: %.1f%%)\n",
+					dest_size, packed_size, 100.0f * packed_size / dest_size);
+			fwrite(packed, 1, packed_size, out);
+			free(packed);
+		} else {
 			fwrite(dest, 1, nframes * kVADPCMFrameByteSize * wav->channels, out);
+		}
 
 		if (flag_debug) {
 			char* wav2fn = changeext(outfn, ".vadpcm.wav");

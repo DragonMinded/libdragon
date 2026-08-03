@@ -37,6 +37,14 @@ enum {
  */
 #define VADPCM_CODEBOOK_STRIDE  136
 
+/**
+ * @brief Size in bytes of a VADPCM frame with residuals of `bits` bits.
+ *
+ * One control byte plus 16 residuals: 9 bytes for the classic 4-bit encoding,
+ * 7 for 3-bit, 5 for 2-bit. Frames always hold 16 samples.
+ */
+#define VADPCM_FRAME_BYTES(bits)  (2*(bits) + 1)
+
 /** @brief Codec side-data for #WAVEFORM_FORMAT_VADPCM waveforms. */
 typedef struct {
 	/** Predictor codebook in RDRAM (must stay valid for the waveform lifetime). */
@@ -47,6 +55,12 @@ typedef struct {
 	 * cached-loop wraps.
 	 */
 	void *loop_state;
+	/**
+	 * Bits per residual in the bitstream: 2, 3 or 4. Framing, codebook, state
+	 * and predictor order do not change with it, only the payload packing
+	 * (see #VADPCM_GROUP_OFFSET) and thus #VADPCM_FRAME_BYTES.
+	 */
+	uint8_t bits;
 } waveform_vadpcm_t;
 
 /** @brief Register mixer profile slots with #profile_init. */

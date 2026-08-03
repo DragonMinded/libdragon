@@ -584,16 +584,20 @@ int xm_convert(const char *infn, const char *outfn) {
 
 					if (flag_xm_compress_samples > 0) {
 						// In-mixer VADPCM: the samplebuffer stores compressed
-						// 9-byte frames (16 samples each), not decoded PCM.
-						// Size the buffer in the compressed domain (~3.5x smaller).
+						// frames (16 samples each), not decoded PCM. Size the
+						// buffer in the compressed domain (~3.5x smaller at
+						// four bits, and less again at the narrower widths).
+						int fbytes = vadpcm_frame_bytes(flag_wav_compress_vadpcm_bits);
 						int nframes = (n + 15) / 16;
 						// Overread a few frames so resampling can run past the
 						// requested window without forcing an immediate refill.
-						nframes += (MIXER_LOOP_OVERREAD + 8) / 9;
+						// The mixer counts it in frames, so the narrower the
+						// residuals the more frames the same bytes take.
+						nframes += (MIXER_LOOP_OVERREAD + fbytes - 1) / fbytes;
 						nframes += 2;
 						if (ch->sample->loop_type)
 							nframes += 2;
-						n = nframes * 9;
+						n = nframes * fbytes;
 					} else {
 						if (ch->sample->bits == 16)
 							n *= 2;
