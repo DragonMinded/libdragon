@@ -7,6 +7,7 @@
 #define BITS(v, b, e)  ((unsigned int)((v) << (63-(e)) >> (63-(e)+(b)))) 
 
 static uint64_t rdp_stream[4096];
+static uint8_t rdp_stream_cmd_size[4096];
 static struct {
     int idx;
     int num_cmds;
@@ -25,6 +26,7 @@ static void debug_rdp_stream(void *ctx, uint64_t *cmd, int sz) {
         rdp_stream_ctx.last_cc = rdp_stream_ctx.idx;
         break;
     }
+    rdp_stream_cmd_size[rdp_stream_ctx.idx] = sz;
     memcpy(rdp_stream + rdp_stream_ctx.idx, cmd, sz*8);
     rdp_stream_ctx.idx += sz;
     rdp_stream_ctx.num_cmds++;
@@ -32,6 +34,7 @@ static void debug_rdp_stream(void *ctx, uint64_t *cmd, int sz) {
 
 static void debug_rdp_stream_reset(void) {
     memset(&rdp_stream_ctx, 0, sizeof(rdp_stream_ctx));
+    memset(rdp_stream_cmd_size, 0, sizeof(rdp_stream_cmd_size));
     rdp_stream_ctx.last_som = -1;
     rdp_stream_ctx.last_cc = -1;
 }
@@ -190,6 +193,713 @@ void test_rdpq_clear(TestContext *ctx)
     {
         ASSERT_EQUAL_HEX(framebuffer[i], color_to_packed16(fill_color),
             "Framebuffer was not cleared properly! Index: %lu", i);
+    }
+}
+
+void test_rdpq_blendfx(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    surface_t fb = surface_alloc(FMT_RGBA16, 64, 24);
+    surface_t source = surface_alloc(FMT_RGBA16, 16, 16);
+    DEFER(surface_free(&fb));
+    DEFER(surface_free(&source));
+
+    uint16_t background = color_to_packed16(RGBA32(64, 64, 64, 255));
+    uint16_t white = color_to_packed16(RGBA32(255, 255, 255, 255));
+    for (int i = 0; i < fb.width * fb.height; i++)
+        ((uint16_t *)fb.buffer)[i] = background;
+    for (int i = 0; i < source.width * source.height; i++)
+        ((uint16_t *)source.buffer)[i] = white;
+    uint16_t transparent_white = color_to_packed16(RGBA32(255, 255, 255, 0));
+    for (int y = 6; y < 10; y++)
+        for (int x = 6; x < 10; x++)
+            ((uint16_t *)source.buffer)[y * source.width + x] = transparent_white;
+
+    rdpq_attach(&fb, NULL);
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_set_blendfx_parms(RDPQ_BLENDFX_ADD,
+        &(rdpq_blendfx_parms_t){ .transparency = true });
+    rdpq_blendfx_blit(&source, 4, 4, &(rdpq_blitparms_t){
+        .filtering = true,
+    });
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_set_blendfx_parms(RDPQ_BLENDFX_SCREEN,
+        &(rdpq_blendfx_parms_t){ .transparency = true });
+    rdpq_blendfx_blit(&source, 24, 4, &(rdpq_blitparms_t){
+        .filtering = true,
+    });
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_set_blendfx_parms(RDPQ_BLENDFX_ADD, NULL);
+    rdpq_blendfx_blit_uv_scaled(&source, 52, 12, 0.8125f,
+        &(rdpq_blitparms_t){
+        .cx = 8, .cy = 8,
+        .theta = 0.3f,
+        .filtering = true,
+    });
+    rdpq_detach_wait();
+
+    uint16_t *pixels = fb.buffer;
+    ASSERT_EQUAL_HEX(pixels[0], background,
+        "BlendFX modified a pixel outside both draws");
+    ASSERT(pixels[8 * fb.width + 8] != background,
+        "axis-aligned BlendFX draw produced no effect");
+    ASSERT_EQUAL_HEX(pixels[12 * fb.width + 12], background,
+        "additive BlendFX changed a transparent source texel");
+    ASSERT(pixels[8 * fb.width + 28] != background,
+        "screen BlendFX draw produced no effect");
+    ASSERT_EQUAL_HEX(pixels[12 * fb.width + 32], background,
+        "screen BlendFX changed a transparent source texel");
+    ASSERT(pixels[8 * fb.width + 48] != background,
+        "rotated BlendFX draw produced no effect");
+}
+
+void test_rdpq_blendfx_formats_autosplit(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    surface_t fb = surface_alloc(FMT_RGBA16, 80, 48);
+    surface_t ia4 = surface_alloc(FMT_IA4, 16, 16);
+    surface_t large = surface_alloc(FMT_RGBA16, 64, 32);
+    DEFER(surface_free(&fb));
+    DEFER(surface_free(&ia4));
+    DEFER(surface_free(&large));
+
+    uint16_t background = color_to_packed16(RGBA32(64, 64, 64, 255));
+    uint16_t white = color_to_packed16(RGBA32(255, 255, 255, 255));
+    for (int i = 0; i < fb.width * fb.height; i++)
+        ((uint16_t *)fb.buffer)[i] = background;
+    memset(ia4.buffer, 0xFF, ia4.height * ia4.stride);
+    for (int i = 0; i < large.width * large.height; i++)
+        ((uint16_t *)large.buffer)[i] = white;
+
+    rdpq_attach(&fb, NULL);
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_set_blendfx_parms(RDPQ_BLENDFX_ADD, NULL);
+    rdpq_blendfx_blit(&ia4, 2, 2, &(rdpq_blitparms_t){
+        .filtering = true,
+    });
+    rdpq_blendfx_blit(&large, 40, 28, &(rdpq_blitparms_t){
+        .cx = 32, .cy = 16,
+        .scale_x = 0.5f, .scale_y = 0.5f,
+        .filtering = true,
+    });
+    rdpq_detach_wait();
+
+    uint16_t *pixels = fb.buffer;
+    ASSERT(pixels[8 * fb.width + 8] != background,
+        "IA4 BlendFX draw produced no effect");
+    ASSERT(pixels[28 * fb.width + 40] != background,
+        "scaled autosplit BlendFX draw produced no effect");
+}
+
+void test_rdpq_blendfx_source_rebind(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    /* Two 30-pixel cores generate two identical 31x30 filtered source loads.
+       Between them BlendFX points SET_TEXTURE_IMAGE at the framebuffer. A cached
+       tex_loader load mode must therefore rebind the source before core two. */
+    surface_t fb = surface_alloc(FMT_RGBA16, 68, 34);
+    surface_t source = surface_alloc(FMT_RGBA16, 60, 30);
+    DEFER(surface_free(&fb));
+    DEFER(surface_free(&source));
+
+    uint16_t background = color_to_packed16(RGBA32(16, 16, 16, 255));
+    uint16_t red = color_to_packed16(RGBA32(255, 0, 0, 255));
+    uint16_t blue = color_to_packed16(RGBA32(0, 0, 255, 255));
+    for (int i = 0; i < fb.width * fb.height; i++)
+        ((uint16_t *)fb.buffer)[i] = background;
+    for (int y = 0; y < source.height; y++) {
+        for (int x = 0; x < source.width; x++)
+            ((uint16_t *)source.buffer)[y * source.width + x] =
+                x < 30 ? red : blue;
+    }
+
+    rdpq_attach(&fb, NULL);
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_set_blendfx_parms(RDPQ_BLENDFX_ADD, NULL);
+    rdpq_blendfx_blit(&source, 4, 2,
+        &(rdpq_blitparms_t){ .filtering = true });
+    rdpq_detach_wait();
+
+    color_t left = color_from_packed16(((uint16_t *)fb.buffer)[10 * fb.width + 10]);
+    color_t right = color_from_packed16(((uint16_t *)fb.buffer)[10 * fb.width + 58]);
+    ASSERT(left.r > left.b,
+        "first BlendFX source chunk did not preserve its red source image");
+    ASSERT(right.b > right.r,
+        "second BlendFX source chunk loaded from stale framebuffer texture image");
+}
+
+void test_rdpq_blendfx_partial_feedback(TestContext *ctx)
+{
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+
+    /* A resident 20x20 source scaled to 40x40 produces destination cores
+       30x30, 10x30, 30x10 and 10x10. The partial cores must keep the same
+       LOAD_SYNC + LOAD_TILE + draw command count while reducing LOAD_TILE to
+       core+2 when the footprint does not touch a framebuffer edge. */
+    surface_t fb = surface_alloc(FMT_RGBA16, 80, 80);
+    surface_t source = surface_alloc(FMT_RGBA16, 20, 20);
+    DEFER(surface_free(&fb));
+    DEFER(surface_free(&source));
+
+    uint16_t background = color_to_packed16(RGBA32(16, 16, 16, 255));
+    uint16_t white = color_to_packed16(RGBA32(255, 255, 255, 255));
+    for (int i = 0; i < fb.width * fb.height; i++)
+        ((uint16_t *)fb.buffer)[i] = background;
+    for (int i = 0; i < source.width * source.height; i++)
+        ((uint16_t *)source.buffer)[i] = white;
+
+    rdpq_attach(&fb, NULL);
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_set_blendfx_parms(RDPQ_BLENDFX_ADD, NULL);
+    rdpq_blendfx_blit(&source, 10, 10, &(rdpq_blitparms_t){
+        .scale_x = 2.0f,
+        .scale_y = 2.0f,
+        .filtering = true,
+    });
+    rdpq_detach_wait();
+
+    uint16_t *pixels = fb.buffer;
+    ASSERT_EQUAL_HEX(pixels[5 * fb.width + 5], background,
+        "partial BlendFX test modified a pixel outside the draw");
+    ASSERT(pixels[15 * fb.width + 15] != background,
+        "BlendFX full chunk produced no effect");
+    ASSERT(pixels[15 * fb.width + 45] != background,
+        "BlendFX narrow partial chunk produced no effect");
+    ASSERT(pixels[45 * fb.width + 15] != background,
+        "BlendFX short partial chunk produced no effect");
+    ASSERT(pixels[45 * fb.width + 45] != background,
+        "BlendFX corner partial chunk produced no effect");
+
+    static const uint8_t expected_width[] = { 32, 12, 32, 12 };
+    static const uint8_t expected_height[] = { 32, 32, 12, 12 };
+    int load_idx = 0;
+    int sync_load_count = 0;
+    int rectangle_count = 0;
+    for (int i = 0; i < rdp_stream_ctx.idx; i += rdp_stream_cmd_size[i]) {
+        ASSERT(rdp_stream_cmd_size[i] > 0,
+            "invalid command boundary in captured RDP stream");
+        uint64_t cmd = rdp_stream[i];
+        uint8_t opcode = cmd >> 56;
+        if (opcode == RDPQ_CMD_SYNC_LOAD + 0xC0) {
+            sync_load_count++;
+            continue;
+        }
+        if (opcode == RDPQ_CMD_TEXTURE_RECTANGLE + 0xC0) {
+            rectangle_count++;
+            continue;
+        }
+        if (opcode != RDPQ_CMD_LOAD_TILE + 0xC0)
+            continue;
+
+        uint32_t hi = cmd >> 32;
+        uint32_t lo = cmd;
+        int s0 = (hi >> 12) & 0xFFF;
+        int t0 = hi & 0xFFF;
+        int s1 = ((lo >> 12) & 0xFFF) + 4;
+        int t1 = (lo & 0xFFF) + 4;
+        ASSERT(load_idx < 4, "BlendFX emitted too many feedback LOAD_TILE commands");
+        ASSERT_EQUAL_SIGNED((s1 - s0) / 4, expected_width[load_idx],
+            "invalid BlendFX feedback load width at chunk %d", load_idx);
+        ASSERT_EQUAL_SIGNED((t1 - t0) / 4, expected_height[load_idx],
+            "invalid BlendFX feedback load height at chunk %d", load_idx);
+        load_idx++;
+    }
+    ASSERT_EQUAL_SIGNED(load_idx, 4,
+        "BlendFX did not emit one feedback LOAD_TILE per 40x40 draw chunk");
+    ASSERT_EQUAL_SIGNED(sync_load_count, 4,
+        "partial BlendFX feedback loads changed the LOAD_SYNC count");
+    ASSERT_EQUAL_SIGNED(rectangle_count, 4,
+        "partial BlendFX feedback loads changed the draw command count");
+}
+
+void test_rdpq_blendfx_block(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    surface_t fb1 = surface_alloc(FMT_RGBA16, 48, 24);
+    surface_t fb2 = surface_alloc(FMT_RGBA16, 48, 24);
+    surface_t source = surface_alloc(FMT_RGBA16, 16, 16);
+    DEFER(surface_free(&fb1));
+    DEFER(surface_free(&fb2));
+    DEFER(surface_free(&source));
+
+    uint16_t background1 = color_to_packed16(RGBA32(32, 32, 32, 255));
+    uint16_t background2 = color_to_packed16(RGBA32(64, 32, 32, 255));
+    uint16_t white = color_to_packed16(RGBA32(255, 255, 255, 255));
+    for (int i = 0; i < fb1.width * fb1.height; i++) {
+        ((uint16_t *)fb1.buffer)[i] = background1;
+        ((uint16_t *)fb2.buffer)[i] = background2;
+    }
+    for (int i = 0; i < source.width * source.height; i++)
+        ((uint16_t *)source.buffer)[i] = white;
+
+    /* Record against fb1, then replay against two attachments. TEX1 must be
+       resolved from the color image active at playback, not captured here. */
+    rdpq_attach(&fb1, NULL);
+    rspq_block_begin();
+        rdpq_set_mode_standard();
+        rdpq_mode_filter(FILTER_BILINEAR);
+        rdpq_set_blendfx_parms(RDPQ_BLENDFX_ADD, NULL);
+        rdpq_blendfx_multi_begin();
+        rdpq_blendfx_blit(&source, 4, 4,
+            &(rdpq_blitparms_t){ .filtering = true });
+        rdpq_blendfx_blit_uv_scaled(&source, 32, 12, 0.8125f,
+            &(rdpq_blitparms_t){
+                .cx = 8, .cy = 8, .theta = 0.3f, .filtering = true,
+            });
+        rdpq_blendfx_multi_end();
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    rspq_block_run(block);
+    rdpq_detach_wait();
+    uint16_t fb1_result = ((uint16_t *)fb1.buffer)[8 * fb1.width + 8];
+    ASSERT(fb1_result != background1,
+        "recorded BlendFX block produced no effect on its first target");
+
+    rdpq_attach(&fb2, NULL);
+    rspq_block_run(block);
+    rdpq_detach_wait();
+    ASSERT(((uint16_t *)fb2.buffer)[8 * fb2.width + 8] != background2,
+        "recorded BlendFX block did not follow the active color image");
+    ASSERT_EQUAL_HEX(((uint16_t *)fb1.buffer)[8 * fb1.width + 8], fb1_result,
+        "replaying a BlendFX block modified its recording-time target");
+}
+
+
+typedef struct {
+    const char *name;
+    const surface_t *source;
+    float x, y;
+    rdpq_blitparms_t parms;
+} blendfx_blit_compare_case_t;
+
+static void blendfx_test_fill_framebuffer(surface_t *fb, uint16_t value)
+{
+    for (int y = 0; y < fb->height; y++) {
+        uint16_t *row = (uint16_t *)(fb->buffer + y * fb->stride);
+        for (int x = 0; x < fb->width; x++)
+            row[x] = value;
+    }
+}
+
+static void blendfx_test_fill_opaque_source(surface_t *source)
+{
+    const uint16_t border = color_to_packed16(RGBA16(3, 5, 7, 1));
+    for (int y = 0; y < source->height; y++) {
+        uint16_t *row = (uint16_t *)(source->buffer + y * source->stride);
+        for (int x = 0; x < source->width; x++) {
+            if (x < 2 || y < 2 || x >= source->width - 2 ||
+                y >= source->height - 2)
+            {
+                row[x] = border;
+                continue;
+            }
+
+            /* Asymmetric low-frequency blocks make chunk seams and accidental
+               source-image changes visible without external test assets. */
+            int bx = x >> 2;
+            int by = y >> 2;
+            row[x] = color_to_packed16(RGBA16(
+                (bx * 7 + by * 3 + 2) & 31,
+                (bx * 2 + by * 9 + 5) & 31,
+                (bx * 11 + by * 5 + 9) & 31,
+                1));
+        }
+    }
+}
+
+static void blendfx_test_set_opaque_mode(void)
+{
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_mode_combiner(RDPQ_COMBINER_TEX);
+    rdpq_mode_alphacompare(false);
+}
+
+static void blendfx_test_render(surface_t *fb, const surface_t *source,
+    float x, float y, const rdpq_blitparms_t *parms, bool blendfx)
+{
+    rdpq_attach(fb, NULL);
+    blendfx_test_set_opaque_mode();
+    if (blendfx)
+        rdpq_blendfx_blit(source, x, y, parms);
+    else
+        rdpq_tex_blit(source, x, y, parms);
+    rdpq_detach_wait();
+}
+
+static void blendfx_test_compare_exact(TestContext *ctx,
+    const surface_t *reference, const surface_t *actual,
+    const char *case_name)
+{
+    ASSERT_EQUAL_MEM(reference->buffer, actual->buffer,
+        reference->height * reference->stride,
+        "opaque BlendFX differs from rdpq_tex_blit in exact case '%s'",
+        case_name);
+}
+
+typedef struct {
+    int count;
+    int64_t sum_x, sum_y;
+} blendfx_marker_stats_t;
+
+static void blendfx_test_fill_marker_source(surface_t *source)
+{
+    const uint16_t neutral = color_to_packed16(RGBA16(4, 6, 8, 1));
+    blendfx_test_fill_framebuffer(source, neutral);
+
+    static const struct {
+        int x0, y0, x1, y1;
+    } markers[] = {
+        { 11, 11, 14, 14 },
+        { 19, 12, 22, 15 },
+        { 12, 19, 15, 22 },
+        { 18, 19, 21, 22 },
+    };
+    const uint16_t colors[] = {
+        color_to_packed16(RGBA16(31, 1, 1, 1)),
+        color_to_packed16(RGBA16(1, 31, 1, 1)),
+        color_to_packed16(RGBA16(1, 1, 31, 1)),
+        color_to_packed16(RGBA16(31, 31, 1, 1)),
+    };
+
+    for (unsigned i = 0; i < sizeof(markers) / sizeof(markers[0]); i++) {
+        for (int y = markers[i].y0; y < markers[i].y1; y++) {
+            uint16_t *row =
+                (uint16_t *)(source->buffer + y * source->stride);
+            for (int x = markers[i].x0; x < markers[i].x1; x++)
+                row[x] = colors[i];
+        }
+    }
+}
+
+static int blendfx_test_marker_class(uint16_t pixel)
+{
+    color_t c = color_from_packed16(pixel);
+    if (c.r > 160 && c.g < 112 && c.b < 112)
+        return 0;
+    if (c.g > 160 && c.r < 112 && c.b < 112)
+        return 1;
+    if (c.b > 160 && c.r < 112 && c.g < 112)
+        return 2;
+    if (c.r > 160 && c.g > 160 && c.b < 112)
+        return 3;
+    return -1;
+}
+
+static void blendfx_test_collect_markers(const surface_t *fb,
+    blendfx_marker_stats_t stats[4])
+{
+    memset(stats, 0, sizeof(blendfx_marker_stats_t) * 4);
+    for (int y = 0; y < fb->height; y++) {
+        const uint16_t *row =
+            (const uint16_t *)(fb->buffer + y * fb->stride);
+        for (int x = 0; x < fb->width; x++) {
+            int marker = blendfx_test_marker_class(row[x]);
+            if (marker < 0)
+                continue;
+            stats[marker].count++;
+            stats[marker].sum_x += x;
+            stats[marker].sum_y += y;
+        }
+    }
+}
+
+static void blendfx_test_compare_marker_centroids(TestContext *ctx,
+    const surface_t *reference, const surface_t *actual,
+    const char *case_name, int tolerance)
+{
+    blendfx_marker_stats_t ref_stats[4], actual_stats[4];
+    blendfx_test_collect_markers(reference, ref_stats);
+    blendfx_test_collect_markers(actual, actual_stats);
+
+    for (int marker = 0; marker < 4; marker++) {
+        ASSERT(ref_stats[marker].count > 0 && actual_stats[marker].count > 0,
+            "BlendFX differential case '%s' lost marker %d "
+            "(tex=%d, blendfx=%d)", case_name, marker,
+            ref_stats[marker].count, actual_stats[marker].count);
+
+        int count_difference = ABS(ref_stats[marker].count -
+            actual_stats[marker].count);
+        ASSERT(count_difference <= ref_stats[marker].count / 2 + 4,
+            "BlendFX differential case '%s' marker %d coverage differs too "
+            "much (tex=%d, blendfx=%d)", case_name, marker,
+            ref_stats[marker].count, actual_stats[marker].count);
+
+        /* Compare rational centroids without floating point. This ignores the
+           known one-pixel bilinear-edge difference between a clamped ordinary
+           tile and BlendFX's packed masked tile, while still catching reversed
+           rotation, flip/order mistakes, and hotspot translation errors. */
+        int64_t count_product =
+            (int64_t)ref_stats[marker].count * actual_stats[marker].count;
+        int64_t dx = ABS(ref_stats[marker].sum_x * actual_stats[marker].count -
+            actual_stats[marker].sum_x * ref_stats[marker].count);
+        int64_t dy = ABS(ref_stats[marker].sum_y * actual_stats[marker].count -
+            actual_stats[marker].sum_y * ref_stats[marker].count);
+        ASSERT(dx <= count_product * tolerance &&
+            dy <= count_product * tolerance,
+            "BlendFX differential case '%s' marker %d centroid differs by "
+            "more than %dpx", case_name, marker, tolerance);
+    }
+}
+
+/* Differential contract for the rdpq_tex_blit features BlendFX supports.
+   Exact cases verify identical pixels and source-chunk seams. Transformed cases
+   compare opaque asymmetric landmarks because the packed source tile cannot use
+   the ordinary blitter's independent clamp at the outer bilinear edge. */
+void test_rdpq_blendfx_blit_semantics(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    surface_t reference = surface_alloc(FMT_RGBA16, 112, 96);
+    surface_t actual = surface_alloc(FMT_RGBA16, 112, 96);
+    surface_t small = surface_alloc(FMT_RGBA16, 24, 20);
+    surface_t large = surface_alloc(FMT_RGBA16, 60, 44);
+    surface_t markers = surface_alloc(FMT_RGBA16, 32, 32);
+    DEFER(surface_free(&reference));
+    DEFER(surface_free(&actual));
+    DEFER(surface_free(&small));
+    DEFER(surface_free(&large));
+    DEFER(surface_free(&markers));
+
+    blendfx_test_fill_opaque_source(&small);
+    blendfx_test_fill_opaque_source(&large);
+    blendfx_test_fill_marker_source(&markers);
+    const uint16_t background = color_to_packed16(RGBA16(1, 2, 4, 1));
+
+    const blendfx_blit_compare_case_t exact_cases[] = {
+        {
+            .name = "defaults",
+            .source = &small, .x = 9, .y = 7,
+            .parms = { .filtering = true },
+        }, {
+            .name = "source subrectangle",
+            .source = &small, .x = 13, .y = 11,
+            .parms = {
+                .s0 = 3, .t0 = 2, .width = 15, .height = 12,
+                .filtering = true,
+            },
+        }, {
+            .name = "hotspot",
+            .source = &small, .x = 42, .y = 31,
+            .parms = { .cx = 7, .cy = 5, .filtering = true },
+        }, {
+            .name = "horizontal flip",
+            .source = &small, .x = 10, .y = 9,
+            .parms = { .flip_x = true, .filtering = true },
+        }, {
+            .name = "vertical flip",
+            .source = &small, .x = 10, .y = 9,
+            .parms = { .flip_y = true, .filtering = true },
+        }, {
+            .name = "subrectangle flips with hotspot",
+            .source = &small, .x = 44, .y = 34,
+            .parms = {
+                .s0 = 2, .t0 = 1, .width = 18, .height = 16,
+                .flip_x = true, .flip_y = true,
+                .cx = 6, .cy = 9,
+                .filtering = true,
+            },
+        }, {
+            .name = "nonzero tile",
+            .source = &small, .x = 18, .y = 17,
+            .parms = { .tile = TILE3, .filtering = true },
+        }, {
+            .name = "large source autosplit",
+            .source = &large, .x = 8, .y = 9,
+            .parms = { .filtering = true },
+        },
+    };
+
+    for (unsigned i = 0; i < sizeof(exact_cases) / sizeof(exact_cases[0]); i++) {
+        const blendfx_blit_compare_case_t *test = &exact_cases[i];
+        LOG("BlendFX exact differential case: %s\n", test->name);
+        blendfx_test_fill_framebuffer(&reference, background);
+        blendfx_test_fill_framebuffer(&actual, background);
+        blendfx_test_render(&reference, test->source, test->x, test->y,
+            &test->parms, false);
+        blendfx_test_render(&actual, test->source, test->x, test->y,
+            &test->parms, true);
+        blendfx_test_compare_exact(ctx, &reference, &actual, test->name);
+        if (ctx->result == TEST_FAILED)
+            return;
+    }
+
+    const blendfx_blit_compare_case_t transform_cases[] = {
+        {
+            .name = "integer scale",
+            .source = &markers, .x = 16, .y = 14,
+            .parms = { .scale_x = 2.0f, .scale_y = 2.0f,
+                .filtering = true },
+        }, {
+            .name = "independent zero scale default",
+            .source = &markers, .x = 22, .y = 12,
+            .parms = { .scale_y = 1.5f, .filtering = true },
+        }, {
+            .name = "horizontal flip",
+            .source = &markers, .x = 14, .y = 13,
+            .parms = { .flip_x = true, .filtering = true },
+        }, {
+            .name = "vertical flip",
+            .source = &markers, .x = 14, .y = 13,
+            .parms = { .flip_y = true, .filtering = true },
+        }, {
+            .name = "both flips with hotspot and scale",
+            .source = &markers, .x = 58, .y = 46,
+            .parms = {
+                .flip_x = true, .flip_y = true,
+                .cx = 9, .cy = 18,
+                .scale_x = 1.5f, .scale_y = 1.0f,
+                .filtering = true,
+            },
+        }, {
+            .name = "negative horizontal scale with off-center hotspot",
+            .source = &markers, .x = 58, .y = 42,
+            .parms = {
+                .cx = 9, .cy = 16,
+                .scale_x = -1.5f, .scale_y = 1.0f,
+                .filtering = true,
+            },
+        }, {
+            .name = "negative vertical scale with off-center hotspot",
+            .source = &markers, .x = 54, .y = 48,
+            .parms = {
+                .cx = 16, .cy = 10,
+                .scale_x = 1.0f, .scale_y = -1.5f,
+                .filtering = true,
+            },
+        }, {
+            .name = "flip composed with negative scale",
+            .source = &markers, .x = 56, .y = 45,
+            .parms = {
+                .flip_x = true, .flip_y = true,
+                .cx = 11, .cy = 8,
+                .scale_x = -1.25f, .scale_y = -1.5f,
+                .filtering = true,
+            },
+        }, {
+            .name = "fractional nonuniform scale",
+            .source = &markers, .x = 20, .y = 18,
+            .parms = {
+                .scale_x = 1.5f, .scale_y = 0.75f,
+                .filtering = true,
+            },
+        }, {
+            .name = "source subrect transform composition",
+            .source = &markers, .x = 58, .y = 43,
+            .parms = {
+                .s0 = 4, .t0 = 4, .width = 24, .height = 24,
+                .flip_x = true, .cx = 7, .cy = 13,
+                .scale_x = 1.25f, .scale_y = 1.5f,
+                .filtering = true,
+            },
+        },
+    };
+
+    for (unsigned i = 0;
+        i < sizeof(transform_cases) / sizeof(transform_cases[0]); i++)
+    {
+        const blendfx_blit_compare_case_t *test = &transform_cases[i];
+        LOG("BlendFX transform differential case: %s\n", test->name);
+        blendfx_test_fill_framebuffer(&reference, background);
+        blendfx_test_fill_framebuffer(&actual, background);
+        blendfx_test_render(&reference, test->source, test->x, test->y,
+            &test->parms, false);
+        blendfx_test_render(&actual, test->source, test->x, test->y,
+            &test->parms, true);
+        blendfx_test_compare_marker_centroids(ctx, &reference, &actual,
+            test->name, 2);
+        if (ctx->result == TEST_FAILED)
+            return;
+    }
+}
+
+void test_rdpq_blendfx_blit_rotation_semantics(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    surface_t reference = surface_alloc(FMT_RGBA16, 112, 96);
+    surface_t actual = surface_alloc(FMT_RGBA16, 112, 96);
+    surface_t source = surface_alloc(FMT_RGBA16, 32, 32);
+    DEFER(surface_free(&reference));
+    DEFER(surface_free(&actual));
+    DEFER(surface_free(&source));
+
+    blendfx_test_fill_marker_source(&source);
+    const uint16_t background = color_to_packed16(RGBA16(1, 2, 4, 1));
+
+    const struct {
+        const char *name;
+        rdpq_blitparms_t parms;
+    } cases[] = {
+        {
+            .name = "positive theta",
+            .parms = {
+                .cx = 16, .cy = 16,
+                .theta = 0.45f,
+                .filtering = true,
+            },
+        }, {
+            .name = "negative theta",
+            .parms = {
+                .cx = 16, .cy = 16,
+                .theta = -0.55f,
+                .filtering = true,
+            },
+        }, {
+            .name = "theta after flip and nonuniform scale",
+            .parms = {
+                .flip_x = true,
+                .cx = 13, .cy = 18,
+                .scale_x = 1.25f, .scale_y = 0.75f,
+                .theta = 0.35f,
+                .filtering = true,
+            },
+        }, {
+            .name = "theta with negative scale composition",
+            .parms = {
+                .flip_y = true,
+                .cx = 18, .cy = 14,
+                .scale_x = -1.0f, .scale_y = 1.25f,
+                .theta = -0.4f,
+                .filtering = true,
+            },
+        }, {
+            .name = "rotated source subrect composition",
+            .parms = {
+                .s0 = 4, .t0 = 4, .width = 24, .height = 24,
+                .flip_x = true,
+                .cx = 10, .cy = 13,
+                .scale_x = 1.0f, .scale_y = 1.25f,
+                .theta = 0.3f,
+                .filtering = true,
+            },
+        },
+    };
+
+    for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        LOG("BlendFX rotation differential case: %s\n", cases[i].name);
+        blendfx_test_fill_framebuffer(&reference, background);
+        blendfx_test_fill_framebuffer(&actual, background);
+        blendfx_test_render(&reference, &source, 56, 48,
+            &cases[i].parms, false);
+        blendfx_test_render(&actual, &source, 56, 48,
+            &cases[i].parms, true);
+        blendfx_test_compare_marker_centroids(ctx, &reference, &actual,
+            cases[i].name, 2);
+        if (ctx->result == TEST_FAILED)
+            return;
     }
 }
 

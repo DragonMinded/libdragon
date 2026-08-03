@@ -8,6 +8,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/rdpq/rdpq_mat.o \
 	$(BUILD_DIR)/rdpq/rdpq_sprite.o \
 	$(BUILD_DIR)/rdpq/rdpq_tex.o \
+	$(BUILD_DIR)/rdpq/rdpq_blendfx.o \
 	$(BUILD_DIR)/rdpq/rdpq_attach.o \
 	$(BUILD_DIR)/rdpq/rdpq_font.o \
 	$(BUILD_DIR)/rdpq/rdpq_text.o \

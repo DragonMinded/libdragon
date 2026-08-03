@@ -515,16 +515,15 @@ __attribute__((noinline))
 static void tex_xblit_norotate_noscale(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     rdpq_tile_t tile = parms->tile;
-    int src_width = parms->width ? parms->width : surf->width;
-    int src_height = parms->height ? parms->height : surf->height;
-    int os0 = parms->s0;
-    int ot0 = parms->t0;
-    int os1 = os0 + src_width;
-    int ot1 = ot0 + src_height;
+    rdpq_blit_plan_t plan = __rdpq_blit_plan(surf, parms);
+    int os0 = plan.s0;
+    int ot0 = plan.t0;
+    int os1 = plan.s1;
+    int ot1 = plan.t1;
     bool flip_x = parms->flip_x;
     bool flip_y = parms->flip_y;
-    x0 -= os0 + parms->cx;
-    y0 -= ot0 + parms->cy;
+    x0 -= plan.cx;
+    y0 -= plan.cy;
 
     void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
     {
@@ -543,16 +542,15 @@ __attribute__((noinline))
 static void tex_xblit_norotate(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     rdpq_tile_t tile = parms->tile;
-    int src_width = parms->width ? parms->width : surf->width;
-    int src_height = parms->height ? parms->height : surf->height;
-    int os0 = parms->s0;
-    int ot0 = parms->t0;
-    int os1 = os0 + src_width;
-    int ot1 = ot0 + src_height;
-    int cx = parms->cx + os0;
-    int cy = parms->cy + ot0;
-    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
-    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+    rdpq_blit_plan_t plan = __rdpq_blit_plan(surf, parms);
+    int os0 = plan.s0;
+    int ot0 = plan.t0;
+    int os1 = plan.s1;
+    int ot1 = plan.t1;
+    int cx = plan.cx;
+    int cy = plan.cy;
+    float scalex = plan.scale_x;
+    float scaley = plan.scale_y;
 
     float mtx[3][2] = {
         { scalex, 0 },
@@ -586,16 +584,15 @@ __attribute__((noinline))
 static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     rdpq_tile_t tile = parms->tile;
-    int src_width = parms->width ? parms->width : surf->width;
-    int src_height = parms->height ? parms->height : surf->height;
-    int os0 = parms->s0;
-    int ot0 = parms->t0;
-    int os1 = os0 + src_width;
-    int ot1 = ot0 + src_height;
-    int cx = parms->cx + os0;
-    int cy = parms->cy + ot0;
-    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
-    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+    rdpq_blit_plan_t plan = __rdpq_blit_plan(surf, parms);
+    int os0 = plan.s0;
+    int ot0 = plan.t0;
+    int os1 = plan.s1;
+    int ot1 = plan.t1;
+    int cx = plan.cx;
+    int cy = plan.cy;
+    float scalex = plan.scale_x;
+    float scaley = plan.scale_y;
     bool flip_x = parms->flip_x;
     bool flip_y = parms->flip_y;
 
@@ -643,19 +640,18 @@ __attribute__((noinline))
 static void tex_xblit_xform(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
 {
     rdpq_tile_t tile = parms->tile;
-    int src_width = parms->width ? parms->width : surf->width;
-    int src_height = parms->height ? parms->height : surf->height;
-    int os0 = parms->s0;
-    int ot0 = parms->t0;
-    int os1 = os0 + src_width;
-    int ot1 = ot0 + src_height;
+    rdpq_blit_plan_t plan = __rdpq_blit_plan(surf, parms);
+    int os0 = plan.s0;
+    int ot0 = plan.t0;
+    int os1 = plan.s1;
+    int ot1 = plan.t1;
     bool flip_x = parms->flip_x;
     bool flip_y = parms->flip_y;
-    float ofs_x = -(os0 + parms->cx);
-    float ofs_y = -(ot0 + parms->cy);
+    float ofs_x = -plan.cx;
+    float ofs_y = -plan.cy;
     
-    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
-    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+    float scalex = plan.scale_x;
+    float scaley = plan.scale_y;
     rdpq_xform_push();
     rdpq_xform_mult_srt(x0, y0, parms->theta, scalex, scaley);
     
