@@ -125,7 +125,7 @@ typedef struct mixer_channel_s {
 	mixer_fx64_t len;      ///< Waveform length (same units as pos)
 	mixer_fx64_t loop_len; ///< Loop length (same units as pos)
 	void *ptr;             ///< Waveform data base (PCM samples or VADPCM frames)
-	void *codec_state;     ///< Per-channel codec state, CPU side (see #mixer_vstate)
+	void *codec_state;     ///< Per-channel codec state, CPU side
 	void *codebook;        ///< VADPCM codebook (NULL for PCM)
 	void *loop_state;      ///< VADPCM state at loop start (NULL if none)
 	uint32_t flags;        ///< Misc flags (see CH_FLAGS_*)
