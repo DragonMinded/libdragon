@@ -49,6 +49,7 @@ double flag_wav_seek_interval_sec = 0.0;
 const char *flag_wav_seek_file = NULL;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
+const int ULC_BLOCK_SIZE = 1024;
 
 static bool read_wav(const char *infn, wav_data_t *out)
 {
@@ -255,11 +256,13 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			frame_align++;
 		}
 
-		// Move an embedded loop start to the next aligned frame. Preserve the
-		// complete loop by appending the skipped prefix to its end, effectively
-		// rotating it just like the VADPCM alignment adjustment above.
-		if (wav->looping && (wav->loopOffset % frame_align) != 0) {
-			const int ncopy = frame_align - (wav->loopOffset % frame_align);
+		// Move an embedded loop start to the next ULC block. The runtime can only
+		// restart decoding at 1024-frame boundaries, while frame_align only
+		// guarantees DMA-safe output addresses. Preserve the complete loop by
+		// appending the skipped prefix to its end, effectively rotating it just
+		// like the VADPCM alignment adjustment above.
+		if (wav->looping && (wav->loopOffset % ULC_BLOCK_SIZE) != 0) {
+			const int ncopy = ULC_BLOCK_SIZE - (wav->loopOffset % ULC_BLOCK_SIZE);
 			wav->samples = (int16_t*)realloc(wav->samples, (wav->cnt + ncopy) * wav->channels * sizeof(int16_t));
 			for (int i = 0; i < ncopy * wav->channels; i++) {
 				wav->samples[wav->cnt * wav->channels + i] = wav->samples[wav->loopOffset * wav->channels + i];
@@ -617,24 +620,23 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	} break;
 
 	case 2: { // ulc
-		const int block_size = 1024;
-		const int blocks_len = (wav->cnt + block_size - 1) / block_size + 2;
+		const int blocks_len = (wav->cnt + ULC_BLOCK_SIZE - 1) / ULC_BLOCK_SIZE + 2;
 		struct ULC_EncoderState_t enc = {};
 		enc.RateHz = wav->sampleRate;
 		enc.nChan = wav->channels;
-		enc.BlockSize = block_size;
+		enc.BlockSize = ULC_BLOCK_SIZE;
 		if (ULC_EncoderState_Init(&enc) <= 0) {
 			fprintf(stderr, "ERROR: %s: cannot initialize ULC encoder\n", infn);
 			failed = true;
 			break;
 		}
 
-		std::vector<float> block(block_size * wav->channels, 0.0f);
+		std::vector<float> block(ULC_BLOCK_SIZE * wav->channels, 0.0f);
 		auto load_block = [&](int block_idx) {
 			std::fill(block.begin(), block.end(), 0.0f);
-			const int first = block_idx * block_size;
+			const int first = block_idx * ULC_BLOCK_SIZE;
 			for (int ch = 0; ch < wav->channels; ch++)
-				for (int i = 0; i < block_size && first + i < wav->cnt; i++)
+				for (int i = 0; i < ULC_BLOCK_SIZE && first + i < wav->cnt; i++)
 					block[i * wav->channels + ch] = wav->samples[(first + i) * wav->channels + ch] / 32768.0f;
 		};
 
@@ -652,7 +654,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			enc = {};
 			enc.RateHz = wav->sampleRate;
 			enc.nChan = wav->channels;
-			enc.BlockSize = block_size;
+			enc.BlockSize = ULC_BLOCK_SIZE;
 			if (ULC_EncoderState_Init(&enc) <= 0) {
 				fprintf(stderr, "ERROR: %s: cannot initialize ULC ABR encoder\n", infn);
 				failed = true;
@@ -660,7 +662,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			}
 		}
 
-		w16(out, block_size);
+		w16(out, ULC_BLOCK_SIZE);
 		w16_placeholderf(out, "%s/ulc_max_block_size", outfn);
 		w32(out, blocks_len);
 		w32_placeholderf(out, "%s/ulc_bitrate", outfn);
@@ -681,8 +683,8 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		// overwrite coefficients directly in the output samplebuffer; normal
 		// stereo reuses the first bank as planar mid/side staging.
 		const int decoder_state_size = 24 /*sizeof(ulc_state_t)*/ + 63 +
-			sizeof(int16_t) * 2 * wav->channels * block_size +
-			sizeof(int16_t) * wav->channels * (block_size / 2);
+			sizeof(int16_t) * 2 * wav->channels * ULC_BLOCK_SIZE +
+			sizeof(int16_t) * wav->channels * (ULC_BLOCK_SIZE / 2);
 		placeholder_set_offset(out, decoder_state_size, "%s/state_size", outfn);
 
 		uint64_t total_bytes = 0;
@@ -720,7 +722,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		for (uint32_t offset : seek_offsets)
 			w32(out, offset);
 
-		const int actual_bitrate = (int)llround(total_bytes * 8.0 * wav->sampleRate / ((double)blocks_len * block_size));
+		const int actual_bitrate = (int)llround(total_bytes * 8.0 * wav->sampleRate / ((double)blocks_len * ULC_BLOCK_SIZE));
 		placeholder_set_offset(out, max_block_size, "%s/ulc_max_block_size", outfn);
 		placeholder_set_offset(out, actual_bitrate, "%s/ulc_bitrate", outfn);
 		if (flag_verbose)
@@ -735,16 +737,16 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 			struct ULC_DecoderState_t dec = {};
 			dec.nChan = wav->channels;
-			dec.BlockSize = block_size;
+			dec.BlockSize = ULC_BLOCK_SIZE;
 			if (ULC_DecoderState_Init(&dec) <= 0) {
 				fprintf(stderr, "ERROR: %s: cannot initialize ULC decoder\n", infn);
 				free(wav2fn);
 				failed = true;
 			} else {
-				int out_len = block_size * blocks_len;
+				int out_len = ULC_BLOCK_SIZE * blocks_len;
 				int out_pos = 0;
 				std::vector<int16_t> out_samples(out_len * wav->channels);
-				std::vector<float> decode_buffer(block_size * wav->channels);
+				std::vector<float> decode_buffer(ULC_BLOCK_SIZE * wav->channels);
 
 				for (int i = 0; i < blocks_len; i++) {
 					int bits = ULC_DecodeBlock(&dec, decode_buffer.data(), debug_blocks[i].data());
@@ -754,7 +756,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 						break;
 					}
 
-					for (int j = 0; j < block_size * wav->channels; j++) {
+					for (int j = 0; j < ULC_BLOCK_SIZE * wav->channels; j++) {
 						float v = decode_buffer[j] * 32768.0f;
 						if (v > 32767.0f) {
 							v = 32767.0f;
