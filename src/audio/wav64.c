@@ -152,7 +152,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	// direct MIX_CHANNEL addressing. The frame size depends on the residual
 	// width, which lives in the extended header: that is only read into its
 	// final home further down, so peek at its prefix to size the buffer.
-	bool preload_vadpcm = preload && head.format == WAV64_FORMAT_VADPCM;
+	bool preload_vadpcm = false;
 	int vframe_bytes = 0;
 	if (head.format == WAV64_FORMAT_VADPCM) {
 		uint8_t prefix[offsetof(wav64_header_vadpcm_t, huff_tbl)];
@@ -160,6 +160,11 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		lseek(file_handle, -(int)sizeof(prefix), SEEK_CUR);
 		int bits = prefix[offsetof(wav64_header_vadpcm_t, residual_bits)];
 		vframe_bytes = VADPCM_FRAME_BYTES(VADPCM_RESIDUAL_BITS(bits));
+		uint16_t vflags;
+		memcpy(&vflags, prefix + offsetof(wav64_header_vadpcm_t, flags), sizeof(vflags));
+		if (vflags & VADPCM_FLAG_RESIDENT)
+			preload = true;
+		preload_vadpcm = preload;
 	}
 	int nframes = WAV64_VADPCM_FRAMES(head.len);
 	int preload_size = preload_vadpcm
@@ -221,7 +226,8 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->st->format = head.format;
 	wav->st->current_fd = file_handle;
 	wav->st->base_offset = head.start_offset + start_offset;
-	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
+	wav->st->flags = (owned_fd ? WAV64_FLAG_OWNED_FD : 0) |
+	                 (preload  ? WAV64_FLAG_PRELOAD  : 0);
 	wav->st->rom_base = 0;
 	ioctl(file_handle, IODFS_GET_ROM_BASE, &wav->st->rom_base);
 

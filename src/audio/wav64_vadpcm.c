@@ -241,6 +241,20 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 				samplebuffer_t *dstbuf = (c == 0) ? sbuf : sbuf_r;
 				int fidx = vadpcm_file_index(wpos, c, nframes_total, channels);
 				int nbytes = n * fbytes;
+				// Serve the attack window from RDRAM: every note-on starts
+				// here, and the PI would otherwise serialize a cold DMA per
+				// channel on the same row.
+				int attack_n = wav->st->attack_n;
+				if (c == 0 && wav->st->attack && wpos < attack_n) {
+					int ncache = MIN(n, attack_n - wpos);
+					memcpy(dest, (uint8_t*)wav->st->attack + wpos * fbytes,
+						ncache * fbytes);
+					if (ncache == n)
+						continue;
+					dest += ncache * fbytes;
+					fidx = vadpcm_file_index(wpos + ncache, c, nframes_total, channels);
+					nbytes = (n - ncache) * fbytes;
+				}
 				uint32_t pi_addr = wav->st->rom_base + wav->st->base_offset + fidx * fbytes;
 				if (wav->st->rom_base && !(((uint32_t)dest ^ pi_addr) & 1)) {
 					// A prior chunk of this same WaveformRead may still be in
@@ -412,8 +426,27 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
     wav->wave.read = waveform_vadpcm_read;
     // Plain frames stream from ROM with async PI DMA. Huffman frames must be
     // decompressed by the CPU, and any other medium is read synchronously.
+    // A full preload also leaves nothing to overlap: the body lives in RDRAM.
     wav->wave.async_read = wav->st->rom_base != 0 &&
-        !(vhead->flags & VADPCM_FLAG_HUFFMAN);
+        !(vhead->flags & VADPCM_FLAG_HUFFMAN) &&
+        !(wav->st->flags & WAV64_FLAG_PRELOAD);
+
+	// Attack cache: audioconv64 sizes #attack_frames for samples whose
+	// note-ons would otherwise serialize cold PI DMAs. 0 means none.
+	wav->st->attack = NULL;
+	wav->st->attack_n = 0;
+	if (wav->wave.async_read && wav->wave.channels == 1 && vhead->attack_frames) {
+		int fbytes = VADPCM_FRAME_BYTES(wav->st->vadpcm.bits);
+		int n = MIN(vhead->attack_frames, WAV64_VADPCM_FRAMES(wav->wave.len));
+		int nbytes = ROUND_UP(n * fbytes, 16);
+		void *buf = malloc_uncached(nbytes);
+		assertf(buf, "wav64: %s: attack cache alloc failed (%d frames)", wav->wave.name, n);
+		uint32_t pi = wav->st->rom_base + wav->st->base_offset;
+		data_cache_hit_writeback_invalidate(CachedAddr(buf), nbytes);
+		dma_read(CachedAddr(buf), pi, nbytes);
+		wav->st->attack = UncachedAddr(buf);
+		wav->st->attack_n = n;
+	}
 }
 
 void wav64_vadpcm_close(wav64_t *wav)
@@ -423,6 +456,11 @@ void wav64_vadpcm_close(wav64_t *wav)
         free(vhead->huff_tbl);
         vhead->huff_tbl = NULL;
     }
+	if (wav->st->attack) {
+		free_uncached(wav->st->attack);
+		wav->st->attack = NULL;
+		wav->st->attack_n = 0;
+	}
 }
 
 int wav64_vadpcm_get_bitrate(wav64_t *wav)

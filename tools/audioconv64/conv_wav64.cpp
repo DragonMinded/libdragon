@@ -503,6 +503,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		uint8_t flags = 0;
 		if (flag_wav_compress_vadpcm_huffman) flags |= (1<<0);
+		if (wav->resident) flags |= (1<<1); // VADPCM_FLAG_RESIDENT
 
 		// Per channel: 8 predictor vectors (128 bytes) + 3 loop taps + pad.
 		const int CODEBOOK_STRIDE = kPREDICTORS * kVADPCMEncodeOrder * 16 + 8;
@@ -513,7 +514,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		w16(out, flags);
 		w16(out, skip_points.size());
 		w8(out, flag_wav_compress_vadpcm_bits);
-		w8(out, 0); // padding
+		w8(out, wav->attack_frames);
 		w32(out, 0); // huff_tbl_ptr
 		w32(out, skip_points.size() > 0 ? codebook_bytes : 0); // skip_points_ptr
 		w32(out, skip_points.size() > 0 ? codebook_bytes + (int)skip_points.size()*8 : 0); // skip_states_ptr

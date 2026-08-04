@@ -8,6 +8,7 @@
 #include "../utils.h"
 
 #define VADPCM_FLAG_HUFFMAN      (1 << 0)	///< Huffman-encoded VADPCM
+#define VADPCM_FLAG_RESIDENT     (1 << 1)	///< Preload whole body into RDRAM at open
 
 /**
  * Stereo VADPCM file layout: blocks of this many frames per channel, alternating
@@ -83,7 +84,7 @@ typedef struct __attribute__((packed, aligned(8))) {
 	uint16_t flags;							///< VADPCM flags
 	int16_t num_skippoints;					///< Number of allowed skip points
 	uint8_t residual_bits;					///< Bits per residual (2, 3 or 4; 0 means 4)
-	uint8_t padding1;						///< Padding
+	uint8_t attack_frames;					///< RDRAM attack cache size in frames (0 = none)
 	wav64_vadpcm_hufftable_t *huff_tbl; 	///< Huffman tables (computed at load time)
 	wav64_vadpcm_skippoint_t *skip_points;	///< Information on the skip points (located after the codebook)
 	wav64_vadpcm_vector_t *skip_states;		///< Decompression states at the skip point

@@ -43,6 +43,10 @@ typedef struct {
 	bool looping;
 	int loopOffset;				// Offset of the beginning of the loop in samples
 	std::vector<int> skipPoints;		// Skip points in the waveform
+	/** VADPCM: compressed frames to keep in RDRAM for note-on (0 = none). */
+	uint8_t attack_frames;
+	/** VADPCM: preload whole sample into RDRAM (no streaming). */
+	bool resident;
 } wav_data_t;
 
 void fatal(const char *str, ...);
