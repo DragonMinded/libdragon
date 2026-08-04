@@ -953,21 +953,27 @@ static inline mixer_fx15_t mixer_apply_gvol(mixer_fx15_t vol, mixer_fx16_t gvol_
 	return (mixer_fx15_t)v;
 }
 
-/** @brief Emit a MIX_CHANNEL rspq command for one channel. */
+/** @brief Emit a MIX_CHANNEL rspq command for one channel.
+ *
+ * @p nsamples is latched by the ucode into DMEM (same value for every channel
+ * of a round). It must be even and at most #MIXER_MAX_SAMPLES_PER_ROUND so that
+ * nsamples/2 fits the 9-bit field in a0.
+ */
 static void mixer_emit_channel(int ch, uint32_t flags, mixer_fx15_t lvol, mixer_fx15_t rvol,
 	uint32_t pos, uint32_t step, uint32_t len, uint32_t loop_len, void *ptr,
-	int nsamples, int acc_offset)
+	int nsamples)
 {
-	rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 8);
-	// a0 payload (24 bits): ch_idx<<16 | flags<<8
-	rspq_write_arg(&w, ((uint32_t)ch << 16) | ((flags & 0xFF) << 8));
+	assert(ch >= 0 && ch < MIXER_MAX_CHANNELS);
+	assert((nsamples & 1) == 0 && nsamples >= 0 && nsamples <= MIXER_MAX_SAMPLES_PER_ROUND);
+	rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 7);
+	// a0: ch<<19 | flags<<11 | (nsamples/2)   [5|8|9 bits in the 24-bit payload]
+	rspq_write_arg(&w, ((uint32_t)ch << 19) | ((flags & 0xFF) << 11) | ((uint32_t)nsamples >> 1));
 	rspq_write_arg(&w, ((uint32_t)(uint16_t)lvol << 16) | (uint16_t)rvol);
 	rspq_write_arg(&w, pos);
 	rspq_write_arg(&w, step);
 	rspq_write_arg(&w, len);
 	rspq_write_arg(&w, loop_len);
 	rspq_write_arg(&w, ptr ? PhysicalAddr(ptr) : 0);
-	rspq_write_arg(&w, ((uint32_t)(uint16_t)acc_offset << 16) | (uint16_t)nsamples);
 	rspq_write_end(&w);
 }
 
@@ -1523,13 +1529,13 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 			clear_accum = false;
 		}
 
-		mixer_emit_channel(ch, flags, lvol, rvol, pos, step, len, loop_len, ptr, ns, 0);
+		mixer_emit_channel(ch, flags, lvol, rvol, pos, step, len, loop_len, ptr, ns);
 	}
 
 	// All channels were silent: the accumulator must still be cleared before
 	// being flushed out.
 	if (clear_accum)
-		mixer_emit_channel(0, CH_FLAGS_CLEAR_ACCUM, 0, 0, 0, 0, 0, 0, NULL, ns, 0);
+		mixer_emit_channel(0, CH_FLAGS_CLEAR_ACCUM, 0, 0, 0, 0, 0, 0, NULL, ns);
 
 	rspq_write(__mixer_overlay_id, MIXER_CMD_FLUSH,
 		(uint32_t)ns, PhysicalAddr(out));

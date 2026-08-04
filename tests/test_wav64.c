@@ -131,15 +131,16 @@ static void emit_channel_lr(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
     uint32_t pos, uint32_t step, uint32_t len, uint32_t loop_len, void *ptr,
     int nsamples)
 {
-    rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 8);
-    rspq_write_arg(&w, ((uint32_t)ch << 16) | ((flags & 0xFF) << 8));
+    assert((nsamples & 1) == 0 && nsamples >= 0 && nsamples <= 512);
+    rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 7);
+    // a0: ch<<19 | flags<<11 | nsamples/2  (9 bits: nsamples up to 512)
+    rspq_write_arg(&w, ((uint32_t)ch << 19) | ((flags & 0xFF) << 11) | ((uint32_t)nsamples >> 1));
     rspq_write_arg(&w, ((uint32_t)(uint16_t)lvol << 16) | (uint16_t)rvol);
     rspq_write_arg(&w, pos);
     rspq_write_arg(&w, step);
     rspq_write_arg(&w, len);
     rspq_write_arg(&w, loop_len);
     rspq_write_arg(&w, PhysicalAddr(ptr));
-    rspq_write_arg(&w, (uint32_t)nsamples);   // acc_offset 0
     rspq_write_end(&w);
 }
 

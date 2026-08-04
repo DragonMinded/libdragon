@@ -91,7 +91,7 @@
 # time, whatever the PCM format: refilling costs about as much as mixing a
 # cacheful, so it is worth spending most of the spare DMEM on the window.
 #define SAMPLE_CACHE_SIZE         64
-#define SAMPLE_CACHE_SAMPLES      128
+#define SAMPLE_CACHE_SAMPLES      160
 
 # In-mixer VADPCM: one fill decodes as many frames of 16 samples as the
 # window holds. It cannot hold more: their compressed form is staged in the
@@ -129,7 +129,7 @@
 	.data
 
 	RSPQ_BeginOverlayHeader
-		RSPQ_DefineCommand MIX_CHANNEL,       32		# 0x0
+		RSPQ_DefineCommand MIX_CHANNEL,       28		# 0x0
 		RSPQ_DefineCommand MIX_SETCHANNEL,    16		# 0x1
 		RSPQ_DefineCommand MIX_FLUSH,          8		# 0x2
 		RSPQ_DefineCommand MIX_SETSTATE,      24		# 0x3
@@ -289,8 +289,13 @@ CH_FLAGS:                 .half  0
 CH_IDX:                   .half  0
 CH_LVOL:                  .half  0
 CH_RVOL:                  .half  0
-CH_NSAMPLES:              .half  0
-CH_ACC_OFF:               .half  0
+# Output samples of the current round. Latched by every MIX_CHANNEL from
+# a0's 9-bit nsamples/2 field; shared by every channel of the round.
+# Not a scratch: the VADPCM path spills the live tick count elsewhere.
+ROUND_NSAMPLES:           .half  0
+# Scratch for the live tick count across a VADPCM decode, which clobbers the
+# scalar registers that hold it.
+CH_TICKS:                 .half  0
 # First frame currently decoded into DMEM_SAMPLE_CACHE; -1 = none.
 CH_VCUR_FRAME:            .long  0
 # Frame index that MIX_VADPCM_STATE is ready to decode next.
@@ -329,15 +334,20 @@ CH_VNFRAMES_TOT:          .long  0
 ###############################################################
 # MIX_CHANNEL – resample one channel and accumulate into ACCUM.
 #
-# Command words (32 bytes):
-#   a0: [ovl+cmd:8][ch_idx:8][flags:8][pad:8]   (24-bit payload)
+# Command words (28 bytes):
+#   a0: [ovl+cmd:8][ch:5][flags:8][nsamples/2:9]
 #   a1: [lvol:16][rvol:16]
 #   a2: pos   (fixed point, WAVEFORM_POS_FRAC_BITS)
 #   a3: step
 #   +16: len
 #   +20: loop_len
 #   +24: ptr  (0 = silence: only ramp volume toward target)
-#   +28: [acc_offset:16][nsamples:16]
+#
+# nsamples is the same for every channel of a round and is always even
+# (see mixer_round_length), so every MIX_CHANNEL latches nsamples/2 from a0
+# into ROUND_NSAMPLES (9 bits: 0..256 covers MIXER_MAX_SAMPLES_PER_ROUND).
+# Accumulator writes always start at ACCUM: the old per-command acc_offset
+# was invariably 0.
 #
 # VADPCM codebook/state/loop_state come from the per-channel table filled by
 # MIX_SETCHANNEL.
@@ -431,11 +441,11 @@ CH_VNFRAMES_TOT:          .long  0
 	.func MIX_CHANNEL
 MIX_CHANNEL:
 	# Stash command parameters into DMEM.
-	# a0 bits[23:16]=ch_idx, bits[15:8]=flags (bits[31:24]=ovl+cmd).
-	srl t0, a0, 16
-	andi t0, 0xFF                  # ch_idx
+	# a0: bits[23:19]=ch_idx, bits[18:11]=flags, bits[8:0]=nsamples/2
+	srl t0, a0, 19
+	andi t0, 0x1F                  # ch_idx
 	sh t0, %lo(CH_IDX)
-	srl t0, a0, 8
+	srl t0, a0, 11
 	andi t0, 0xFF                  # flags
 	sh t0, %lo(CH_FLAGS)
 	srl t0, a1, 16                 # lvol
@@ -444,16 +454,12 @@ MIX_CHANNEL:
 	sh t0, %lo(CH_RVOL)
 	sw a2, %lo(CH_POS)
 	sw a3, %lo(CH_STEP)
-	lw t0, CMD_ADDR(0x10, 0x20)
+	lw t0, CMD_ADDR(0x10, 0x1C)
 	sw t0, %lo(CH_LEN)
-	lw t0, CMD_ADDR(0x14, 0x20)
+	lw t0, CMD_ADDR(0x14, 0x1C)
 	sw t0, %lo(CH_LOOP_LEN)
-	lw t0, CMD_ADDR(0x18, 0x20)
+	lw t0, CMD_ADDR(0x18, 0x1C)
 	sw t0, %lo(CH_PTR)
-	lw t0, CMD_ADDR(0x1C, 0x20)
-	sh t0, %lo(CH_NSAMPLES)
-	srl t0, 16
-	sh t0, %lo(CH_ACC_OFF)
 	# VADPCM pointers: fetch this channel's entry from the table.
 	lh t1, %lo(CH_IDX)
 	sll t1, 2
@@ -467,6 +473,12 @@ MIX_CHANNEL:
 	li t0, %lo(VCONST_1)
 	lqv v_const1, 0,t0
 	vxor v_zero, v_zero, v_zero
+
+	# Latch nsamples from a0. Same for every channel of a round; nsamples/2
+	# needs 9 bits because MIXER_MAX_SAMPLES_PER_ROUND is 512.
+	andi t1, a0, 0x1FF
+	sll t1, 1
+	sh t1, %lo(ROUND_NSAMPLES)
 
 	# Optionally clear ACCUM (first channel of a round).
 	lh t0, %lo(CH_FLAGS)
@@ -502,14 +514,10 @@ MIX_CHANNEL_NoClear:
 	sw t2, 0x0C(s0)
 	lqv v_chvol, 0x00,s0
 
-	lh ticks, %lo(CH_NSAMPLES)
+	lh ticks, %lo(ROUND_NSAMPLES)
 	beqz ticks, MIX_CHANNEL_Done
 
-	# Accumulator write pointer: ACCUM + acc_offset * sizeof(stereo int16)
 	li acc_ptr, %lo(ACCUM)
-	lh t0, %lo(CH_ACC_OFF)
-	sll t0, 2
-	add acc_ptr, t0
 
 	lw wv_addr, %lo(CH_PTR)
 	beqz wv_addr, MIX_CHANNEL_Silence
@@ -689,6 +697,7 @@ MonoDmaFetch:
 	# half of a lane, which is exactly the <<8 scaling the mixer expects.
 	# The first half is widened first, so that its source (which is the
 	# second half of the destination) is read before being overwritten.
+	# SAMPLE_CACHE_SAMPLES=160 → 80 source bytes per half, so 8+2 lpv/sqv.
 	lh t1, %lo(CH_FLAGS)
 	andi t1, CH_FLAGS_16BIT
 	bnez t1, MonoRefill
@@ -712,12 +721,16 @@ MonoDmaFetch:
 	sqv $v15, 0x70,s3
 	lpv $v08, 0x40,s1
 	lpv $v09, 0x48,s1
-	lpv $v10, 0x50,s1
-	lpv $v11, 0x58,s1
-	lpv $v12, 0x60,s1
-	lpv $v13, 0x68,s1
-	lpv $v14, 0x70,s1
-	lpv $v15, 0x78,s1
+	sqv $v08, 0x80,s3
+	sqv $v09, 0x90,s3
+	lpv $v08, 0x50,s1
+	lpv $v09, 0x58,s1
+	lpv $v10, 0x60,s1
+	lpv $v11, 0x68,s1
+	lpv $v12, 0x70,s1
+	lpv $v13, 0x78,s1
+	lpv $v14, 0x80,s1
+	lpv $v15, 0x88,s1
 	sqv $v08, 0x00,s1
 	sqv $v09, 0x10,s1
 	sqv $v10, 0x20,s1
@@ -726,6 +739,10 @@ MonoDmaFetch:
 	sqv $v13, 0x50,s1
 	sqv $v14, 0x60,s1
 	sqv $v15, 0x70,s1
+	lpv $v08, 0x90,s1
+	lpv $v09, 0x98,s1
+	sqv $v08, 0x80,s1
+	sqv $v09, 0x90,s1
 
 MonoRefill:
 	# Seed the eight lanes: lane k plays output sample PERM8[k], so it
@@ -1108,7 +1125,7 @@ VadpcmFillCache:
 	sh t9, %lo(CH_VATEND)
 2:	sh t2, %lo(CH_VNFRAMES)
 	sh t1, %lo(CH_VLIMIT)
-	sh ticks, %lo(CH_NSAMPLES)
+	sh ticks, %lo(CH_TICKS)
 	sw wv_pos, %lo(CH_POS)
 
 	# Bring MIX_VADPCM_STATE, which decodes CH_VNEXT_FRAME, to start_frame.
@@ -1184,7 +1201,7 @@ VadpcmTapsDone:
 
 	# The decoder clobbers ticks/pos/len/loop_len/addr, k_ff, s2, $v01-$v23
 	# and $v31 (which it needs as the shift table of vsra8).
-	lh ticks, %lo(CH_NSAMPLES)
+	lh ticks, %lo(CH_TICKS)
 	lw wv_pos, %lo(CH_POS)
 	lw wv_len, %lo(CH_LEN)
 	lw wv_loop_len, %lo(CH_LOOP_LEN)
