@@ -385,14 +385,21 @@ CH_VNFRAMES_TOT:          .long  0
 	#define v_frac         $v26
 	#define v_idx          $v27
 	#define v_kmono        $v29
-	# k_limit  first tap address that would read past the cache
-	# k_zaddr  address of the window of four zero samples
-	# k_step8f 8-sample step, fractional part
-	# k_step8i 8-sample step, whole samples
+	# k_limit   first tap address that would read past the cache
+	# k_zaddr   address of the window of four zero samples
+	# k_step8f  8-sample step, fractional part
+	# k_step8i  8-sample step, whole samples
+	# k_addrmul bytes per v_idx unit: 2 per sample (mono), 4 per frame (stereo)
+	# k_subofs  byte bias of the plane being mixed: 2 on the right channel of
+	#           an interleaved stereo waveform, whose samples start one
+	#           halfword later, and 0 everywhere else
+	# (e4 carries the VADPCM sign-extension multiplier, see kext.)
 	#define k_limit        v_kmono.e0
 	#define k_zaddr        v_kmono.e1
 	#define k_step8f       v_kmono.e2
 	#define k_step8i       v_kmono.e3
+	#define k_addrmul      v_kmono.e5
+	#define k_subofs       v_kmono.e6
 
 	# Registers of one MonoLoop iteration. The powers of x are the only
 	# values that must survive from one iteration to the next (they are
@@ -591,12 +598,15 @@ MonoSetup:
 	lh t0, %lo(CH_FLAGS)
 	andi bps, t0, CH_FLAGS_BPS_SHIFT
 	# A VADPCM command decodes one plane into an int16 cache, so its units are
-	# mono samples however the STEREO bit (which the owner still carries) reads.
-	andi stereo_shift, t0, CH_FLAGS_STEREO
+	# mono samples however the STEREO / STEREO_SUB bits (which the owner of a
+	# stereo pair still carries) read.
 	andi t1, t0, CH_FLAGS_VADPCM
 	srl t1, 2                                # VADPCM bit -> STEREO bit
+	sll t2, t1, 1                            #            -> STEREO_SUB bit
+	or t1, t2
 	nor t1, t1, zero
-	and stereo_shift, t1
+	and t0, t1
+	andi stereo_shift, t0, CH_FLAGS_STEREO
 	srl stereo_shift, 3                      # bit 3 → 0 or 1
 	li cache_half, %lo(DMEM_SAMPLE_CACHE)
 	li t1, %lo(DMEM_SAMPLE_CACHE_ZERO)
@@ -617,6 +627,15 @@ MonoSetup:
 	# MonoDmaFetch before the loop ever runs.
 	li s0, %lo(RSPQ_SCRATCH_MEM)
 	sh t1, 0x02(s0)                          # k_zaddr
+	# The resampler turns each lane of v_idx into a byte address with a single
+	# multiply, and biases it to the plane it is mixing with a single or, so
+	# that neither depends on a test inside the loop.
+	li t1, 2
+	sllv t1, t1, stereo_shift
+	sh t1, 0x0A(s0)                          # k_addrmul
+	andi t0, CH_FLAGS_STEREO_SUB
+	srl t0, 3                                # bit 4 → 2 bytes
+	sh t0, 0x0C(s0)                          # k_subofs
 	srl cache_half, 1                        # byte address -> DMEM index
 	sll t2, wv_step, 3
 	sllv t0, t2, frac_shift
@@ -784,35 +803,26 @@ MonoPrime:
 	# body, minus the transpose read-back, and it is lent the group of ACCUM
 	# slots that the loop advances past at its end. The zero taps make the
 	# pass it makes over them add nothing.
-	beqz  stereo_shift, 1f
+	vmudn v_addr, v_idx,  k_addrmul          # v_idx units → byte address
 	li    mask, 0xFF                         # nothing to give back yet
-	vsll  v_addr, v_idx, 2                   # stereo: frames → bytes
-	j     2f
 	addi  acc_ptr, -8*4
-1:	vsll  v_addr, v_idx, 1                   # mono: samples → bytes
-	addi  acc_ptr, -8*4
-2:	vlt   v_tmp,  v_addr, k_limit
+	vor   v_addr, v_addr, k_subofs           # → the plane being mixed
+	vlt   v_tmp,  v_addr, k_limit
 	vmrg  v_addr, v_addr, k_zaddr
 	j     MonoLoopGather
 	sqv   v_addr, 0x00,addr_ptr
 
 	.balign 8
 MonoLoop:
-	# Mono: ~50 cycles/iter (8 samples) → 6.3 cyc/sample including the
-	# stereo_shift test. Stereo: a few more for the lsv gather; a stereo
-	# waveform is two MIX_CHANNEL commands (owner=L, STEREO_SUB=R).
+	# Mono: ~66 cycles per group of eight output samples, that is 8.3 cycles
+	# per sample. Stereo: a few more for the lsv gather; a stereo waveform is
+	# two MIX_CHANNEL commands (owner=L, STEREO_SUB=R).
 	#
-	# v_idx is in samples (mono) or frames (stereo); byte address ×2 or ×4.
-	beqz  stereo_shift, MonoLoopMono
-	nop
-	vsll  v_addr, v_idx, 2
-	j     MonoLoopCommon
-	nop
-
-	.balign 8
-MonoLoopMono:
-	vsll  v_addr, v_idx, 1
-MonoLoopCommon:
+	# The byte addresses of the group being gathered were multiplied out of
+	# v_idx at the bottom of the previous iteration; biasing them to the
+	# plane this command owns is the one step left, and it is an or because
+	# a stereo frame is four bytes, so the halfword bit is always clear.
+	#
 	# Read back the taps gathered by the previous iteration, one tap of all
 	# eight output samples per register, while the DMEM addresses of the
 	# group gathered by this one are computed. Lanes whose 4-tap window is
@@ -823,7 +833,7 @@ MonoLoopCommon:
 	# The eight ltv leave the SU no room for anything else, so this is where
 	# the vector operations that depend on neither the taps nor the powers
 	# of x are parked.
-	                                         ltv $v16.e0, 0x00,tr_ptr
+	vor   v_addr, v_addr, k_subofs;          ltv $v16.e0, 0x00,tr_ptr
 	                                         ltv $v16.e7, 0x10,tr_ptr
 	                                         ltv $v16.e6, 0x20,tr_ptr
 	                                         ltv $v16.e5, 0x30,tr_ptr
@@ -895,12 +905,14 @@ MonoGatherMix:
 	vmacf v_acc1, v_xvol, v_res.q1;          stv $v08.e3, 0x30,tr_ptr
 	vmudl v_x305, v_x2,   v_x05;             stv $v08.e4, 0x40,tr_ptr   # x^3/2 = x^2 * (x/2)
 	vmudl v_x3,   v_x2,   v_frac;            stv $v08.e5, 0x50,tr_ptr   # x^3
-	vmudl v_x205, v_x2,   k_half;            stv $v08.e6, 0x60,tr_ptr   # x^2/2
-	                                         stv $v08.e7, 0x70,tr_ptr
-	                                         sqv v_acc0, 0x00,acc_ptr
-	vaddc v_frac, v_frac, k_step8f;          srv v_acc0, 0x10,acc_ptr   # advance the eight positions:
-	vadd  v_idx,  v_idx,  k_step8i;          sqv v_acc1, 0x10,acc_ptr   #   the carry crosses over
-	                                         srv v_acc1, 0x20,acc_ptr
+	vaddc v_frac, v_frac, k_step8f;          stv $v08.e6, 0x60,tr_ptr   # advance the eight positions:
+	vadd  v_idx,  v_idx,  k_step8i;          stv $v08.e7, 0x70,tr_ptr   #   the carry crosses over
+	vmudl v_x205, v_x2,   k_half;            sqv v_acc0, 0x00,acc_ptr   # x^2/2
+	                                         srv v_acc0, 0x10,acc_ptr
+	                                         sqv v_acc1, 0x10,acc_ptr
+	# Byte addresses of the group the next iteration gathers. v_addr shares
+	# its register with v_acc0, which the stores above have just drained.
+	vmudn v_addr, v_idx,  k_addrmul;         srv v_acc1, 0x20,acc_ptr
 
 	# VCC still holds the verdict of the vlt at the top: read it only now
 	# that "partial" has consumed the mask of the group just mixed. It is
@@ -914,22 +926,12 @@ MonoGatherMix:
 	j MonoExit
 	nop
 
+	.balign 8
 MonoGatherStereo:
 	# Build y0..y3 of this plane into e0..e3 of each gather register, matching
-	# the mono ldv layout. STEREO_SUB starts one halfword later (the R sample).
-	lh    t1, %lo(CH_FLAGS)
-	andi  t1, CH_FLAGS_STEREO_SUB
-	beqz  t1, 1f
-	nop
-	addi  s0, 2
-	addi  s1, 2
-	addi  s2, 2
-	addi  s3, 2
-	addi  s4, 2
-	addi  s6, 2
-	addi  s7, 2
-	addi  t0, 2
-1:	vmadm v_res, v_y1n, v_x2;                lsv $v08.e0, 0x00,s0
+	# the mono ldv layout. The addresses already point at the plane this
+	# command owns, since k_subofs biased the whole vector of them.
+	vmadm v_res, v_y1n, v_x2;                lsv $v08.e0, 0x00,s0
 	vmadm v_res, v_y1n, v_x2;                lsv $v08.e1, 0x04,s0
 	vmadm v_res, v_y1n, v_x205;              lsv $v08.e2, 0x08,s0
 	vmadm v_res, v_y2,  v_x2;                lsv $v08.e3, 0x0C,s0
@@ -1613,6 +1615,9 @@ VADPCM_Priming:
 
 	.balign 8
 VADPCM_DecodeLoop:
+	# One iteration decodes one frame, that is 16 samples, in ~37 cycles:
+	# 2.3 cycles per sample, against the 8.3 that the resampler above spends
+	# on each output sample it then interpolates from them.
 	vmudh vres1, next_vres1, vscale.e0; addu in3, vstride
 	vmudh v____,  pred1a, vres0.e0;    lsv vsrc.e0, 0x00,in0
 	vmadh v____,  pred1c, vres0.e1;    sqv vresult, 0,slot_ptr
