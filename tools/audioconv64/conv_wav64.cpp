@@ -336,7 +336,18 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		if (wav->cnt % VADPCM_ALIGN) {
 			int newcnt = (wav->cnt + VADPCM_ALIGN - 1) / VADPCM_ALIGN * VADPCM_ALIGN;
 			wav->samples = (int16_t*)realloc(wav->samples, newcnt * wav->channels * sizeof(int16_t));
-			memset(wav->samples + wav->cnt, 0, (newcnt - wav->cnt) * wav->channels * sizeof(int16_t));
+			// The padding shares a frame with real samples, and a frame carries
+			// a single scale factor: padding with silence would spend the whole
+			// residual range on the jump to zero and flatten the real samples
+			// next to it. Continue the waveform instead, with the samples that
+			// really play next (the loop start) or by holding the last one.
+			for (int i = wav->cnt; i < newcnt; i++) {
+				int src = loop_len > 0
+					? wav->loopOffset + (i - wav->cnt) % loop_len
+					: wav->cnt - 1;
+				for (int c = 0; c < wav->channels; c++)
+					wav->samples[i * wav->channels + c] = wav->samples[src * wav->channels + c];
+			}
 			wav->cnt = newcnt;
 		}
 

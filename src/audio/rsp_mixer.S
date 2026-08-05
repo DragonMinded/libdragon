@@ -1181,13 +1181,14 @@ VadpcmAligned:
 	# last sample of the waveform those are the first three of the loop. They
 	# ride in with the codebook DMA (MIX_VADPCM_CODEBOOK+128); without them a
 	# loop point would be interpolated towards the padding of the last frame.
+	#
+	# A loop state is only recorded for a waveform that loops, so it says the
+	# taps are meaningful even when the loop is one the CPU wraps by itself
+	# (which reaches the ucode as loop_len = 0).
 	lh t9, %lo(CH_VATEND)
 	bnez t9, VadpcmTapsDone
 	lh s0, %lo(CH_VLIMIT)                    # one sample past the last one
-	lw t2, %lo(CH_LOOP_LEN)
 	lw t3, %lo(CH_LOOP_STATE)
-	beqz t2, VadpcmTapsHold
-	nop
 	beqz t3, VadpcmTapsHold
 	li s1, %lo(MIX_VADPCM_CODEBOOK+128)
 	lh t0, 0x00(s1)
@@ -1199,9 +1200,8 @@ VadpcmAligned:
 	sh t2, 0x04(s0)
 
 VadpcmTapsHold:
-	# Nothing to interpolate towards: a waveform that does not loop, or one
-	# whose loop the CPU wraps by itself between rounds. Hold the last sample,
-	# which at least does not decay towards silence.
+	# Nothing to interpolate towards: a waveform that does not loop. Hold the
+	# last sample, which at least does not decay towards silence.
 	lh t0, -2(s0)
 	sh t0, 0x00(s0)
 	sh t0, 0x02(s0)
