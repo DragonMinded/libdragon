@@ -44,6 +44,66 @@ static int samplebuffer_align_len(const samplebuffer_t *buf, int len) {
 	return ((len + ((8 >> bps) - 1)) >> (3 - bps)) << (3 - bps);
 }
 
+/**
+ * Record that the round being emitted reads the window starting at relative
+ * index @p rel. The samples stay live until the RSP publishes that round, so
+ * a later append has to wait for it before writing over them.
+ */
+static void samplebuffer_track_round(samplebuffer_t *buf, int rel) {
+	uint32_t round = __mixer_round_current();
+	if (!round)
+		return;
+
+	if (buf->rounds_num == SAMPLEBUFFER_MAX_PENDING) {
+		// Out of slots: fold the two oldest into one covering both. Holding
+		// the older samples until the newer round has run is conservative,
+		// and it keeps this from ever waiting on a round not emitted yet.
+		int first = buf->rounds_first;
+		int second = (first + 1) % SAMPLEBUFFER_MAX_PENDING;
+		buf->rounds[second].start = buf->rounds[first].start;
+		buf->rounds_first = second;
+		buf->rounds_num--;
+	}
+
+	int slot = (buf->rounds_first + buf->rounds_num) % SAMPLEBUFFER_MAX_PENDING;
+	buf->rounds[slot].round = round;
+	buf->rounds[slot].start = buf->wtotal - (buf->widx - rel);
+	buf->rounds_num++;
+}
+
+/** Forget the recorded windows: their coordinates no longer mean anything. */
+static void samplebuffer_forget_rounds(samplebuffer_t *buf) {
+	buf->rounds_first = 0;
+	buf->rounds_num = 0;
+}
+
+/**
+ * Wait until the RSP has read the windows that an append of @p wlen units is
+ * about to overwrite.
+ *
+ * The ring is written forward, so an append lands on the oldest samples still
+ * in it, which are the ones the oldest rounds read: walking the recorded
+ * windows from the oldest one is enough, and it stops as soon as one of them
+ * starts past what is being overwritten.
+ */
+static void samplebuffer_wait_rounds(samplebuffer_t *buf, int wlen) {
+	if (!buf->rounds_num)
+		return;
+	// Nothing to overwrite until the write cursor has been round once.
+	if (buf->wtotal + (uint32_t)wlen <= (uint32_t)buf->size)
+		return;
+
+	uint32_t bound = buf->wtotal + wlen - buf->size;
+	while (buf->rounds_num) {
+		int first = buf->rounds_first;
+		if ((int32_t)(buf->rounds[first].start - bound) >= 0)
+			break;
+		__mixer_round_wait(buf->rounds[first].round);
+		buf->rounds_first = (first + 1) % SAMPLEBUFFER_MAX_PENDING;
+		buf->rounds_num--;
+	}
+}
+
 void samplebuffer_dma_wait(samplebuffer_t *buf) {
 	if (buf->dma_ticket) {
 		dma_wait_finished(buf->dma_ticket);
@@ -109,6 +169,15 @@ static int gcd(int a, int b) {
 static void samplebuffer_recalc_size(samplebuffer_t *buf) {
 	int ub = buf->unit_bytes;
 	assert(ub > 0);
+
+	// The ring is about to change modulus, which is what the recorded windows
+	// are expressed in: the rounds still reading them have to run first. The
+	// newest one is the last to run, so waiting for it covers them all.
+	if (buf->rounds_num) {
+		int last = (buf->rounds_first + buf->rounds_num - 1) % SAMPLEBUFFER_MAX_PENDING;
+		__mixer_round_wait(buf->rounds[last].round);
+		samplebuffer_forget_rounds(buf);
+	}
 	int usable = buf->capacity_bytes - SAMPLEBUFFER_MARGIN_UNITS * ub;
 	assertf(usable >= ub, "samplebuffer too small for margin");
 
@@ -209,6 +278,9 @@ static void samplebuffer_relocate_live(samplebuffer_t *buf, int wlen) {
 		// #waveform_t::append_units this path is rare (seek / undo that breaks
 		// the write phase), so a full highpri sync is acceptable.
 		rspq_highpri_sync();
+		// Everything has been read, and the move invalidates the positions
+		// the recorded windows were expressed in anyway.
+		samplebuffer_forget_rounds(buf);
 		int src = samplebuffer_slot(buf, buf->ridx);
 		if (src != dst) {
 			int nbytes = live * ub;
@@ -231,6 +303,7 @@ static void samplebuffer_relocate_live(samplebuffer_t *buf, int wlen) {
 		// a region that a round emitted before the last flush can be reading:
 		// this is the one case where restarting forward is not an option.
 		rspq_highpri_sync();
+		samplebuffer_forget_rounds(buf);
 	}
 
 	buf->wpos += buf->ridx;
@@ -238,9 +311,6 @@ static void samplebuffer_relocate_live(samplebuffer_t *buf, int wlen) {
 	buf->ridx = 0;
 	buf->head = dst;
 }
-
-/** @brief Units that #samplebuffer_prefetch keeps ready ahead of the mixer. */
-#define SAMPLEBUFFER_PREFETCH_UNITS      SAMPLEBUFFER_MARGIN_UNITS
 
 /** @brief Units left ahead that trigger a refill.
  *
@@ -307,6 +377,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 	assertf(*wlen <= SAMPLEBUFFER_MARGIN_UNITS || slot + *wlen <= ring,
 		"samplebuffer_get: window %x not contiguous (slot=%x size=%x)", *wlen, slot, ring);
 	ret = samplebuffer_base(buf) + slot * ub;
+	samplebuffer_track_round(buf, rel);
 	}
 	return ret;
 }
@@ -362,6 +433,11 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 		}
 	}
 
+	// Refills run a whole turn of the ring behind the windows the mixer is
+	// handing out, but the CPU is allowed to queue rounds ahead of the RSP:
+	// past what the ring spans, this is where it has to let the RSP catch up.
+	samplebuffer_wait_rounds(buf, wlen);
+
 	int ub = buf->unit_bytes;
 	int ring = buf->size;
 	// PCM: the ring slot and the waveform position must keep the same byte
@@ -403,6 +479,7 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 	buf->pending_slot = slot;
 	buf->pending_len = wlen;
 	buf->widx += wlen;
+	buf->wtotal += wlen;
 	return samplebuffer_base(buf) + slot * ub;
 }
 
@@ -411,6 +488,8 @@ void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
 	tracef("samplebuffer_undo: wlen=%x\n", wlen);
 	assertf(buf->widx >= wlen, "samplebuffer_undo: invalid wlen:%x widx:%x", wlen, buf->widx);
 	buf->widx -= wlen;
+	// The write cursor steps back over units no round can have seen yet.
+	buf->wtotal -= wlen;
 	if (buf->wnext >= 0)
 		buf->wnext = buf->wpos + buf->widx;
 }

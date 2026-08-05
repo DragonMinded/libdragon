@@ -37,6 +37,16 @@ typedef uint32_t sample_ptr_t;
  */
 #define SAMPLEBUFFER_MARGIN_UNITS  128
 
+/** @brief Units that #samplebuffer_prefetch keeps ready ahead of the mixer. */
+#define SAMPLEBUFFER_PREFETCH_UNITS      SAMPLEBUFFER_MARGIN_UNITS
+
+/**
+ * Windows handed to mix rounds that a buffer tracks at once. Going past this
+ * only costs precision: the two oldest entries are merged, so the samples of
+ * the older one are held until the newer round has run as well.
+ */
+#define SAMPLEBUFFER_MAX_PENDING   8
+
 /**
  * samplebuffer_t holds samples used by the mixer to feed the RSP.
  *
@@ -151,6 +161,27 @@ typedef struct samplebuffer_s {
      */
     int pending_slot;
     int pending_len;
+
+    /**
+     * Units ever appended to this buffer. Unlike #wpos it is never reset, not
+     * even by a flush or a seek, so it measures the distance the write cursor
+     * has travelled through the ring: that is what says whether an append is
+     * about to land on the windows recorded below.
+     */
+    uint32_t wtotal;
+
+    /**
+     * Windows handed out to mix rounds that the RSP may not have read yet, in
+     * the order they were given (see #samplebuffer_append). `start` is the
+     * first unit of the window in #wtotal coordinates; the window's length is
+     * not needed, as a refill always reaches the oldest units first.
+     */
+    struct {
+        uint32_t round;
+        uint32_t start;
+    } rounds[SAMPLEBUFFER_MAX_PENDING];
+    uint8_t rounds_first;   ///< Oldest entry in #rounds
+    uint8_t rounds_num;     ///< Entries in use in #rounds
 } samplebuffer_t;
 
 /**

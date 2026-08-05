@@ -280,7 +280,14 @@ struct xm_context_s {
 	uint32_t ctx_size_all_patterns;
 	uint32_t ctx_size_all_samples;
 	uint32_t ctx_size_stream_pattern_buf;
-	uint32_t ctx_size_stream_sample_buf[32];
+	/* Samplebuffer sizing of each channel, as computed by audioconv64. How far
+	 * the CPU may run ahead of the RSP is only known at playback time, so the
+	 * part of the ring that covers it is stored as a rate and turned into
+	 * bytes by #xm64player_play. */
+	uint32_t ctx_stream_buf_rate[32];  /* bytes of stream per second of playback */
+	uint32_t ctx_stream_buf_base[32];  /* bytes that do not depend on the queue */
+	uint32_t ctx_stream_buf_min[32];   /* floor: pinned loop, 0 if none */
+	uint32_t ctx_stream_buf_cap[32];   /* no sample on the channel needs more */
 
 	xm_module_t module;
 	uint32_t rate;

@@ -151,8 +151,14 @@ static void emit_channel(int ch, uint32_t flags, int16_t vol, uint32_t pos,
 }
 
 static void emit_flush(int nsamples, void *out) {
+    // MIX_FLUSH publishes the id of the round it ends (the mixer uses it to
+    // know what the RSP has read); these tests drive the ucode by hand and
+    // have nowhere to track it, so it goes to a scratch word.
+    static uint32_t *round_marker = NULL;
+    if (!round_marker)
+        round_marker = malloc_uncached(8);
     rspq_write(__mixer_overlay_id, MIXER_CMD_FLUSH, (uint32_t)nsamples,
-        PhysicalAddr(out));
+        PhysicalAddr(out), 0, PhysicalAddr(round_marker));
 }
 
 static void gen_codebook(wav64_vadpcm_vector_t *cb) {
@@ -718,6 +724,65 @@ static bool test_mixer_stream(float freq, int startsample)
         }
     }
     return true;
+}
+
+// Every mix round the CPU enqueues keeps its window of the samplebuffer live
+// until the RSP runs it, and the ring is only sized for the rounds of a couple
+// of polls: past that, refills have to wait for the RSP to catch up. Play the
+// same stream three times — syncing after every short chunk, in poll-sized
+// chunks, and finally queueing polls back-to-back without syncing, as
+// mixer_try_play does. All three must produce the same audio: a refill landing
+// on a window the RSP had still to read makes the runs diverge.
+extern void mixer_poll_async(int16_t *out, int nsamples);
+
+static bool test_mixer_queue_depth(float freq)
+{
+    int nsamples = 8192;
+    int16_t *ref = malloc(nsamples * 4);
+    int saved = sv_chunk;
+
+    sv_shift = 0;
+    sv_chunk = 64;
+    sv_start(&sv_wave, 0, freq);
+    sv_mix(nsamples);
+    memcpy(ref, sv_out, nsamples * 4);
+    bool ok = sv_check_lr("mixer queue depth (reference)", nsamples);
+
+    // Same tolerance as sv_check_lr: each run settles its volume ramps
+    // independently.
+    #define CHECK_AGAINST_REF(tag) ({ \
+        for (int i = 0; ok && i < nsamples * 2; i++) { \
+            int d = ref[i] - sv_out[i]; if (d < 0) d = -d; \
+            if (d > 32) { \
+                printf("FAILED %s: freq=%d: sample %d: %d/%d, expected %d/%d\n", \
+                    tag, (int)freq, i/2, sv_out[(i/2)*2], sv_out[(i/2)*2+1], \
+                    ref[(i/2)*2], ref[(i/2)*2+1]); \
+                ok = false; \
+            } \
+        } \
+    })
+
+    int blen = audio_get_buffer_length() & ~1;
+
+    sv_chunk = blen;
+    sv_start(&sv_wave, 0, freq);
+    sv_mix(nsamples);
+    ok = ok && sv_check_lr("mixer queue depth", nsamples);
+    CHECK_AGAINST_REF("mixer queue depth");
+
+    sv_start(&sv_wave, 0, freq);
+    for (int done = 0; done < nsamples; done += blen) {
+        int n = nsamples - done < blen ? nsamples - done : blen;
+        mixer_poll_async(sv_out + done * 2, n);
+    }
+    rspq_highpri_sync();
+    ok = ok && sv_check_lr("mixer queue depth (async)", nsamples);
+    CHECK_AGAINST_REF("mixer queue depth (async)");
+
+    #undef CHECK_AGAINST_REF
+    sv_chunk = saved;
+    free(ref);
+    return ok;
 }
 
 // The position the RSP receives is 31 bits wide, so past 2^31 the CPU has to
@@ -1647,6 +1712,11 @@ int main(void)
         }
     }
     sv_chunk = 1024;
+    for (int i = 0; i < 5; i++) {
+        total++;
+        if (!test_mixer_queue_depth(sv_freqs[i]))
+            failed++;
+    }
     total++; if (!test_mixer_posfold()) failed++;
     total++; if (!test_mixer_stop_releases_sub()) failed++;
     total++; if (!test_mixer_switch_waveform()) failed++;

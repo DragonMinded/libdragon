@@ -62,6 +62,7 @@ typedef struct xm64player_s {
 	xm_context_t *ctx;        ///< libxm context
 	int fd;                   ///< open handle of XM64 file
 	int first_ch;             ///< first channel used in the mixer
+	int stream_ramsz;         ///< RAM the mixer sample buffers take (set by #xm64player_play)
 	bool playing;             ///< playing flag
 	bool stop_requested;      ///< user requested stop playing
 	bool looping;             ///< true if the XM is configured to loop

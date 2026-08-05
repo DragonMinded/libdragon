@@ -66,4 +66,36 @@ typedef struct {
 /** @brief Register mixer profile slots with #profile_init. */
 void __mixer_profile_init(void);
 
+/**
+ * @brief Rounds: how the CPU knows what the RSP has already read.
+ *
+ * The CPU queues mix rounds without waiting for them, so the input windows it
+ * hands out stay live until the RSP gets to them. Each round carries an id
+ * that MIX_FLUSH writes back to RDRAM once the round is over, which is what
+ * lets a sample buffer tell whether the samples it is about to overwrite are
+ * still needed (see #samplebuffer_append). Ids start at 1, so 0 means "no
+ * round".
+ * @{
+ */
+
+/** @brief Id of the round being emitted right now, or 0 outside emission. */
+uint32_t __mixer_round_current(void);
+
+/** @brief True if the RSP has finished the given round. */
+bool __mixer_round_done(uint32_t id);
+
+/** @brief Wait for the RSP to finish the given round. */
+void __mixer_round_wait(uint32_t id);
+
+/** @} */
+
+/**
+ * @brief Output samples the CPU may mix without ever waiting for the RSP.
+ *
+ * The span sample buffers are sized for: mixing further ahead is allowed, but
+ * refills then wait for the RSP to free the ring (see #samplebuffer_append).
+ * Callers that size their own buffers (xm64) have to use the same figure.
+ */
+int __mixer_inflight_samples(void);
+
 #endif

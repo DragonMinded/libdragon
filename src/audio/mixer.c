@@ -46,6 +46,16 @@
  */
 #define MIXER_POLL_PER_SECOND   8
 
+/** @brief Polls the sample buffers are sized to hold at once.
+ *
+ * One is the minimum: a single #mixer_poll_async must never have to wait for
+ * the RSP, whatever the number of rounds it splits into. The second one is
+ * what keeps the CPU from waiting in practice, since by the time it starts a
+ * poll the RSP is normally done with the one before the last (see
+ * #__mixer_inflight_samples).
+ */
+#define MIXER_POLL_LOOKAHEAD    2
+
 /**
  * RSP mixer ucode (rsp_mixer.S)
  */
@@ -197,6 +207,12 @@ static struct {
 	void *vstates;          ///< Decoder states owned by the RSP, 16 bytes per channel
 	int hi_ch;              ///< Exclusive upper bound of channels to scan
 
+	uint32_t round_id;      ///< Id of the last round emitted
+	uint32_t round_cur;     ///< Round being emitted right now (0 = none)
+	volatile uint32_t *round_done;  ///< Last round the RSP finished, written by MIX_FLUSH
+	uint32_t poll_round[MIXER_POLL_LOOKAHEAD];  ///< Last round of each recent poll
+	uint32_t poll_count;    ///< Polls done so far (indexes #poll_round)
+
 } Mixer;
 
 uint32_t __mixer_overlay_id;
@@ -248,6 +264,13 @@ void mixer_init(int num_channels) {
 	assertf(Mixer.vstates, "Out of memory");
 	memset(Mixer.vstates, 0, num_channels * 16);
 
+	// Where the RSP publishes the last round it has run (see MIX_FLUSH). Two
+	// words because that is the smallest transfer the RSP can do.
+	Mixer.round_done = malloc_uncached(8);
+	assertf(Mixer.round_done, "Out of memory");
+	Mixer.round_done[0] = 0;
+	Mixer.round_done[1] = 0;
+
 	rspq_init();
 	__mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
 
@@ -279,23 +302,67 @@ static inline int mixer_vadpcm_frame_bytes(const waveform_t *wave)
 	return VADPCM_FRAME_BYTES(((const waveform_vadpcm_t*)wave->codec)->bits);
 }
 
+/**
+ * @brief Output samples the CPU may mix without ever waiting for the RSP.
+ *
+ * A poll enqueues its rounds and returns, so the input windows it handed out
+ * stay live until the RSP gets to them: sample buffers are sized to span that
+ * much input (#MIXER_POLL_LOOKAHEAD polls of it), or an append would have to
+ * overwrite samples that are still to be read. Past that the CPU does wait,
+ * one round at a time, for the RSP to free the space (#samplebuffer_append).
+ */
+int __mixer_inflight_samples(void)
+{
+	int blen = audio_get_buffer_length();
+	if (blen > 0)
+		return blen * MIXER_POLL_LOOKAHEAD;
+	int rate = Mixer.sample_rate ? (int)Mixer.sample_rate : audio_get_frequency();
+	return rate / MIXER_POLL_PER_SECOND;
+}
+
+uint32_t __mixer_round_current(void)
+{
+	return Mixer.round_cur;
+}
+
+bool __mixer_round_done(uint32_t id)
+{
+	if (!Mixer.round_done)
+		return true;
+	return (int32_t)(*Mixer.round_done - id) >= 0;
+}
+
+void __mixer_round_wait(uint32_t id)
+{
+	if (__mixer_round_done(id))
+		return;
+	// The round being emitted has no MIX_FLUSH yet, so its id will never be
+	// published and this would spin forever. That only happens when a single
+	// round does not fit the sample buffer, which is a sizing error.
+	assertf(id != Mixer.round_cur,
+		"sample buffer too small: a single mix round does not fit in it");
+	rspq_flush();
+	ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
+		if (__mixer_round_done(id))
+			break;
+	}
+}
+
+/** True if starting another poll would have the CPU wait for the RSP. */
+static bool mixer_poll_would_wait(void)
+{
+	if (Mixer.poll_count < MIXER_POLL_LOOKAHEAD)
+		return false;
+	return !__mixer_round_done(Mixer.poll_round[Mixer.poll_count % MIXER_POLL_LOOKAHEAD]);
+}
+
 static int mixer_calc_buffer_size(int ch, waveform_t *wave)
 {
 	bool vadpcm = wave->format == WAVEFORM_FORMAT_VADPCM;
 	int ub = vadpcm ? mixer_vadpcm_frame_bytes(wave)
 		: (Mixer.limits[ch].max_bits / 8) * wave->channels;
 
-	// How far #mixer_try_play can run ahead of the RSP. It enqueues the MIX
-	// commands of a whole AI buffer at a time and never syncs, so every buffer
-	// still queued may be one the RSP has not mixed yet, and its input window
-	// is still live in the samplebuffer. The ring has to span that much, or a
-	// later append overwrites samples that are about to be read (heard as
-	// pops and cracks).
-	int nbuf = audio_get_num_buffers();
-	int blen = audio_get_buffer_length();
-	int64_t out_samples = (nbuf > 0 && blen > 0)
-		? (int64_t)nbuf * blen
-		: (int64_t)Mixer.sample_rate / MIXER_POLL_PER_SECOND;
+	int64_t out_samples = __mixer_inflight_samples();
 	int64_t nsamples = (int64_t)ceilf((float)out_samples *
 		(Mixer.limits[ch].max_frequency / (float)Mixer.sample_rate));
 
@@ -362,6 +429,11 @@ void mixer_close(void) {
 	if (Mixer.vstates) {
 		free_uncached(Mixer.vstates);
 		Mixer.vstates = NULL;
+	}
+
+	if (Mixer.round_done) {
+		free_uncached((void*)Mixer.round_done);
+		Mixer.round_done = NULL;
 	}
 
 	Mixer.num_channels = 0;
@@ -1372,6 +1444,32 @@ static void mixer_fetch_window(int ch, int ns) {
 	int wpos, wlen;
 	mixer_channel_window(ch, ns, &wpos, &wlen);
 
+#ifndef NDEBUG
+	// Every window handed to a round stays live until the RSP runs it, so a
+	// ring that does not span a whole poll makes one of its own refills wait
+	// for a round enqueued moments earlier: correct (see
+	// #samplebuffer_append) but a stall in the middle of a call that promises
+	// not to have any. Waveforms that end up entirely in the ring never
+	// refill: exempt.
+	if (!mixer_wave_fits(ch) && !mixer_loop_fits(ch)) {
+		int poll_ns = __mixer_inflight_samples() / MIXER_POLL_LOOKAHEAD;
+		bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
+		int bps_fx64 = (vadpcm ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+		uint64_t span = ((uint64_t)poll_ns * c->step) >> bps_fx64;
+		int need = (vadpcm ? (int)DIVIDE_CEIL(span, 16) : (int)span)
+			+ SAMPLEBUFFER_PREFETCH_UNITS
+			+ DIVIDE_CEIL(MIXER_LOOP_OVERREAD, sbuf->unit_bytes)
+			+ sbuf->append_units;
+		assertf(sbuf->size >= need,
+			"ch%d: sample buffer holds %d units, %d needed to play at %.0f Hz "
+			"for the %d samples of a poll; raise max_buf_sz in "
+			"mixer_ch_set_limits (or convert the asset again)",
+			ch, sbuf->size, need,
+			(double)c->step * Mixer.sample_rate / (double)(1ull << bps_fx64),
+			poll_ns);
+	}
+#endif
+
 	if (c->flags & CH_FLAGS_VADPCM) {
 		if (sbuf->widx == 0 || wpos < sbuf->wpos || wpos > sbuf->wpos + sbuf->widx)
 			c->vframe = wpos;
@@ -1425,6 +1523,10 @@ static void mixer_wait_channel_dma(int ch) {
 // Phase B waits for each channel's DMA only when about to emit its command.
 static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 	bool clear_accum = true;
+
+	// The windows fetched below belong to this round, and stay live until the
+	// RSP publishes its id back (see #__mixer_round_current).
+	Mixer.round_cur = ++Mixer.round_id;
 
 	// Phase A: enqueue all PI DMAs back-to-back.
 	for (int ch = 0; ch < Mixer.hi_ch; ch++) {
@@ -1538,7 +1640,10 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 		mixer_emit_channel(0, CH_FLAGS_CLEAR_ACCUM, 0, 0, 0, 0, 0, 0, NULL, ns);
 
 	rspq_write(__mixer_overlay_id, MIXER_CMD_FLUSH,
-		(uint32_t)ns, PhysicalAddr(out));
+		(uint32_t)ns, PhysicalAddr(out), Mixer.round_cur,
+		PhysicalAddr((void*)Mixer.round_done));
+
+	Mixer.round_cur = 0;
 }
 
 // Advance all channels by the samples just mixed, wrapping the loops that the
@@ -1633,7 +1738,7 @@ void mixer_unthrottle(void) {
 	Mixer.throttled = false;
 }
 
-static void mixer_poll_async(int16_t *out16, int num_samples) {
+void mixer_poll_async(int16_t *out16, int num_samples) {
 	int32_t *out = (int32_t*)out16;
 
 	// Since the AI can only play an even number of samples,
@@ -1648,6 +1753,15 @@ static void mixer_poll_async(int16_t *out16, int num_samples) {
 	// #mixer_round_length guarantee.
 	assertf(((uint32_t)out16 & 7) == 0,
 		"mixer output buffer must be 8-byte aligned: %p", out16);
+
+	// Nothing here syncs, and a call is not allowed to wait for the RSP in the
+	// middle of itself: the sample buffers must span the whole of it (see
+	// #__mixer_inflight_samples). Asking for more works, but the refills would
+	// stall on the rounds just enqueued: use #mixer_poll, which syncs along
+	// the way.
+	assertf(num_samples <= __mixer_inflight_samples(),
+		"cannot mix %d samples in one go: sample buffers are sized for %d",
+		num_samples, __mixer_inflight_samples());
 
 	// Check if the mixer is throttled. If so, do not produce more
 	// than the allowance (with a small extra equal to a full audio buffer,
@@ -1685,9 +1799,25 @@ static void mixer_poll_async(int16_t *out16, int num_samples) {
 				mixer_remove_event(e->cb, e->ctx);
 		}
 	}
+
+	// Remember where this poll ended, so that #mixer_poll_would_wait can tell
+	// whether the ring space of the polls before it has been freed.
+	Mixer.poll_round[Mixer.poll_count % MIXER_POLL_LOOKAHEAD] = Mixer.round_id;
+	Mixer.poll_count++;
 }
 
 void mixer_poll(int16_t *out16, int num_samples) {
+	// Sample buffers only span what a poll can queue (see
+	// #__mixer_inflight_samples), so a caller asking for more than that in one
+	// go would have the refills wait on the rounds enqueued a moment before.
+	// Sync along the way instead, which costs nothing for the usual sizes.
+	int budget = __mixer_inflight_samples() & ~1;
+	while (num_samples > budget) {
+		mixer_poll_async(out16, budget);
+		rspq_highpri_sync();
+		out16 += budget * 2;
+		num_samples -= budget;
+	}
 	mixer_poll_async(out16, num_samples);
 	// Preserve the synchronous contract for direct callers (user-owned
 	// buffer / legacy audio_set_buffer_callback). One sync per poll instead
@@ -1705,11 +1835,20 @@ void mixer_try_play(void)
 	if (free_buffers <= 0)
 		goto done;
 
+	int queued = audio_get_queued_buffers();
 	int buffers_to_fill = MAX(free_buffers - 1, 1);
 	while (buffers_to_fill-- > 0) {
+		// Filling one more buffer now would mean waiting for the RSP to free
+		// the ring space of an older poll. There is already mixed audio
+		// queued, so leave the rest for the next frame rather than spending
+		// it here. With nothing queued the wait is unavoidable: the AI needs
+		// samples now.
+		if (queued > 0 && mixer_poll_would_wait())
+			break;
 		short *buf = audio_write_begin();
 		mixer_poll_async(buf, audio_get_buffer_length());
 		audio_write_end();
+		queued++;
 	}
 	rspq_flush();
 done: ;

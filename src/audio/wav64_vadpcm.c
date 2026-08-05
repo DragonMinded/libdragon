@@ -262,6 +262,12 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 					samplebuffer_dma_wait(dstbuf);
 					dstbuf->dma_ticket = dma_read_async(dest, pi_addr, nbytes);
 				} else {
+					// This fills the ring through the cache, and a cached write
+					// carries whole lines: the bytes it shares with the chunk
+					// before it are read now and written back later, so a DMA
+					// still filling them would be undone. Frames are 9 bytes,
+					// so that neighbour is almost always there.
+					samplebuffer_dma_wait(dstbuf);
 					lseek(wav->st->current_fd, wav->st->base_offset + fidx * fbytes, SEEK_SET);
 					int read_bytes = read(wav->st->current_fd, CachedAddr(dest), nbytes);
 					assertf(nbytes == read_bytes, "invalid read past end: %d vs %d", nbytes, read_bytes);

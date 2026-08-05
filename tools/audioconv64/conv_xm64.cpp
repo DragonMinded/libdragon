@@ -32,6 +32,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include "mixer.h"
+#include "samplebuffer.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -217,7 +218,8 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	// 10: added sample position memory to xm_channel_context_t
 	// 11: change sample_position to double
 	// 12: extra sample-buffer headroom for syncless mixer in-flight rounds
-	const uint8_t version = 12;
+	// 13: sample-buffer sizing as a rate, scaled at playback by the queue depth
+	const uint8_t version = 13;
 	wa(xm64, "XM64", 4);
 	w8(xm64, version);
 	w32_placeholderf(xm64, "metadata_offset");
@@ -245,7 +247,10 @@ static void xm_context_save(xm_context_t* ctx, FILE* xm64, const char *outfn) {
 	w32(meta, ctx->ctx_size_all_patterns);
 	w32(meta, ctx->ctx_size_all_samples);
 	w32_placeholderf(meta, "ctx_size_stream_pattern_buf");
-	for (int i=0; i<32; i++) w32(meta, ctx->ctx_size_stream_sample_buf[i]);
+	for (int i=0; i<32; i++) w32(meta, ctx->ctx_stream_buf_rate[i]);
+	for (int i=0; i<32; i++) w32(meta, ctx->ctx_stream_buf_base[i]);
+	for (int i=0; i<32; i++) w32(meta, ctx->ctx_stream_buf_min[i]);
+	for (int i=0; i<32; i++) w32(meta, ctx->ctx_stream_buf_cap[i]);
 
 	w16(meta, ctx->module.tempo);
 	w16(meta, ctx->module.bpm);
@@ -439,12 +444,47 @@ static int xm_sample_resident_bytes(xm_sample_t *s)
 }
 
 /**
+ * Per-channel samplebuffer sizing.
+ *
+ * The ring has to span everything the RSP may still have to read, which is
+ * what the mixer lets the CPU enqueue before waiting for it: that span is
+ * only known at playback time, so it is kept as a rate here and turned into
+ * bytes by #xm64player_play.
+ */
+struct ch_sizing_t {
+	double rate;   ///< Stream bytes consumed per second of playback, at the top pitch
+	int base;      ///< Bytes that do not scale with the queue (prefetch, overread)
+	int cap;       ///< Bytes of the longest sample: nothing on the channel needs more
+	int pin;       ///< Floor to hold a pinned loop, 0 if none
+};
+
+/** Reference queue depth for the pin budget: two AI buffers at 44100 Hz,
+ *  which is what the mixer lets the CPU run ahead (MIXER_POLL_LOOKAHEAD). */
+#define XM_REF_INFLIGHT_SAMPLES  3528
+#define XM_REF_OUTPUT_RATE       44100
+
+/**
+ * Bytes this sizing asks for when the CPU can run @p inflight output samples
+ * ahead, mixing at @p out_rate. The stream is consumed in wall-clock time, so
+ * the output rate of the game is what turns that queue into a duration.
+ */
+static int xm_sizing_bytes(const ch_sizing_t &s, int inflight, int out_rate)
+{
+	if (s.rate <= 0 && !s.pin)
+		return 0;
+	int n = s.base + (int)ceil(s.rate * inflight / out_rate);
+	if (s.cap && n > s.cap) n = s.cap;
+	if (n < s.pin) n = s.pin;
+	return (n + 7) / 8 * 8;
+}
+
+/**
  * Dry-run the whole module (every pattern order) to collect sizing inputs:
- * per-channel streaming windows (@p ch_buf), max pitch of each looping sample
+ * per-channel streaming rates (@p ch_sz), max pitch of each looping sample
  * on each channel (@p ch_loop_freq), note-ons from offset 0 and their same-tick
  * burst size, 9xx skip points, and which instrument samples are used.
  */
-static void xm_dry_run(xm_context_t *ctx, int ch_buf[32],
+static void xm_dry_run(xm_context_t *ctx, ch_sizing_t ch_sz[32],
 	std::map<xm_sample_t*, float> ch_loop_freq[32],
 	std::map<xm_sample_t*, int> &noteons_from0,
 	std::map<xm_sample_t*, int> &cold_burst,
@@ -475,26 +515,33 @@ static void xm_dry_run(xm_context_t *ctx, int ch_buf[32],
 				if (smp_idx >= 0 && smp_idx < ch->instrument->num_samples)
 					used_samp_inst[smp_idx] = true;
 
-				int n = ceilf(ch->step * nsamples);
-				if (n > ch->sample->length)
-					n = ch->sample->length;
-
+				// Bytes of stream per output sample at this pitch, and the
+				// bytes on top of that which the queue depth does not change:
+				// what #samplebuffer_prefetch keeps ready, the RSP overread
+				// past a loop, and the framing slack of a block codec.
+				double bps;      // bytes per source sample
+				int ub, extra;   // samplebuffer unit, fixed bytes
 				if (flag_xm_compress_samples > 0) {
 					int fbytes = vadpcm_frame_bytes(flag_wav_compress_vadpcm_bits);
-					int nframes = (n + 15) / 16;
-					nframes += (MIXER_LOOP_OVERREAD + fbytes - 1) / fbytes;
-					nframes += 2;
+					ub = fbytes;
+					bps = fbytes / 16.0;
+					int nframes = (MIXER_LOOP_OVERREAD + fbytes - 1) / fbytes + 2;
 					if (ch->sample->loop_type)
 						nframes += 2;
-					n = nframes * fbytes;
+					extra = nframes * fbytes;
 				} else {
-					if (ch->sample->bits == 16)
-						n *= 2;
-					n += MIXER_LOOP_OVERREAD;
+					ub = ch->sample->bits == 16 ? 2 : 1;
+					bps = ub;
+					extra = MIXER_LOOP_OVERREAD;
 				}
+				extra += SAMPLEBUFFER_MARGIN_UNITS * ub;
 
-				if (ch_buf[i] < n)
-					ch_buf[i] = n;
+				ch_sizing_t &sz = ch_sz[i];
+				double rate = ch->step * bps * ctx->rate;
+				if (sz.rate < rate) sz.rate = rate;
+				if (sz.base < extra) sz.base = extra;
+				int cap = (int)ceil(ch->sample->length * bps) + extra;
+				if (sz.cap < cap) sz.cap = cap;
 
 				if (ch->sample->loop_type && ch->sample->loop_length > 0) {
 					float &f = ch_loop_freq[i][ch->sample];
@@ -546,22 +593,23 @@ static void xm_dry_run(xm_context_t *ctx, int ch_buf[32],
  * prefer one resident copy of the body if that is cheaper than growing the
  * channel buffers — never against a pin that would not fit the budget.
  *
- * Writes ctx->ctx_size_stream_sample_buf[] and sample_resident_by_hash.
+ * Writes ctx->ctx_stream_buf_*[] and sample_resident_by_hash.
  * @return total samplebuffer bytes; *@p res_bytes is resident RDRAM.
  */
-static int xm_size_loop_buffers(xm_context_t *ctx, int ch_buf[32],
+static int xm_size_loop_buffers(xm_context_t *ctx, ch_sizing_t ch_sz[32],
 	std::map<xm_sample_t*, float> ch_loop_freq[32], int *res_bytes_out)
 {
 	const float PIN_LOOP_HORIZON_SEC = 1.0f;
 
-	// Baseline streaming size per channel: dry-run window + 5% margin, then
-	// doubled because the syncless mixer may keep one window in flight while
-	// the CPU appends the next. Cap the later pin budget at this total so pin
-	// RAM cannot exceed what streaming already spends.
+	// Baseline streaming size per channel, at a reference queue depth: the
+	// real one is a playback-time choice, but the pin decisions below only
+	// need the two costs to be comparable. Cap the pin budget at this total
+	// so pin RAM cannot exceed what streaming already spends.
 	int stream_sz[32] = {0};
 	int stream_total = 0;
 	for (int i = 0; i < ctx->module.num_channels; i++) {
-		stream_sz[i] = ((int)(ch_buf[i] * 1.05)) * 2;
+		ch_sz[i].rate *= 1.05;
+		stream_sz[i] = xm_sizing_bytes(ch_sz[i], XM_REF_INFLIGHT_SAMPLES, XM_REF_OUTPUT_RATE);
 		stream_total += stream_sz[i];
 	}
 
@@ -660,12 +708,18 @@ static int xm_size_loop_buffers(xm_context_t *ctx, int ch_buf[32],
 				info.s->loop_length, cost, (int)info.chs.size(), info.score);
 	}
 
-	// Commit final samplebuffer sizes (8-byte aligned) into the XM context.
+	// Commit the sizing into the XM context. A channel grown to hold a pinned
+	// loop carries that as a floor; the rest is recomputed at playback time
+	// from the queue depth in use.
 	int sam_size = 0;
 	for (int i = 0; i < ctx->module.num_channels; i++) {
-		ch_buf[i] = ((grown[i] + 7) / 8) * 8;
-		ctx->ctx_size_stream_sample_buf[i] = ch_buf[i];
-		sam_size += ch_buf[i];
+		if (grown[i] > stream_sz[i])
+			ch_sz[i].pin = ((grown[i] + 7) / 8) * 8;
+		ctx->ctx_stream_buf_rate[i] = (uint32_t)ceil(ch_sz[i].rate);
+		ctx->ctx_stream_buf_base[i] = ch_sz[i].base;
+		ctx->ctx_stream_buf_min[i] = ch_sz[i].pin;
+		ctx->ctx_stream_buf_cap[i] = ch_sz[i].cap;
+		sam_size += xm_sizing_bytes(ch_sz[i], XM_REF_INFLIGHT_SAMPLES, XM_REF_OUTPUT_RATE);
 	}
 	if (flag_verbose) {
 		if (res_n)
@@ -856,7 +910,7 @@ int xm_convert(const char *infn, const char *outfn) {
 	}
 
 	// Analyze playback, then size streaming / pin / attack RAM.
-	int ch_buf[32] = {0};
+	ch_sizing_t ch_sz[32] = {};
 	std::map<xm_sample_t*, float> ch_loop_freq[32];
 	std::map<xm_sample_t*, int> sample_noteons_from0;
 	std::map<xm_sample_t*, int> sample_cold_burst;
@@ -870,10 +924,10 @@ int xm_convert(const char *infn, const char *outfn) {
 	sample_attack_by_hash.clear();
 	sample_resident_by_hash.clear();
 
-	xm_dry_run(ctx, ch_buf, ch_loop_freq, sample_noteons_from0, sample_cold_burst, used_samples);
+	xm_dry_run(ctx, ch_sz, ch_loop_freq, sample_noteons_from0, sample_cold_burst, used_samples);
 
 	int res_bytes = 0;
-	int sam_size = xm_size_loop_buffers(ctx, ch_buf, ch_loop_freq, &res_bytes);
+	int sam_size = xm_size_loop_buffers(ctx, ch_sz, ch_loop_freq, &res_bytes);
 	xm_select_attack_cache(sample_noteons_from0, sample_cold_burst, sam_size);
 
 	// Free unused samples, to save ROM space. We only remove the last unused samples
@@ -910,12 +964,22 @@ int xm_convert(const char *infn, const char *outfn) {
 			sam_size / 1024,
 			res_bytes / 1024
 		);
-		fprintf(stderr, "  * Samples RAM per channel: [");
+		fprintf(stderr, "  * Samples RAM per channel (at %d queued samples): [", XM_REF_INFLIGHT_SAMPLES);
 		for (int i=0;i<ctx->module.num_channels;i++) {
 			if (i!=0) fprintf(stderr, ", ");
-			fprintf(stderr, "%d", ch_buf[i]);
+			fprintf(stderr, "%d", xm_sizing_bytes(ch_sz[i], XM_REF_INFLIGHT_SAMPLES, XM_REF_OUTPUT_RATE));
 		}
 		fprintf(stderr, "]\n");
+		// Only the queued part follows the audio buffer chain of the game, so
+		// break the sizing down: it is what an app trades away by polling in
+		// smaller steps.
+		for (int i=0;i<ctx->module.num_channels;i++)
+			fprintf(stderr, "    ch%-2d %6d B = %d fixed + %.2f B/sample x %d%s%s\n",
+				i, xm_sizing_bytes(ch_sz[i], XM_REF_INFLIGHT_SAMPLES, XM_REF_OUTPUT_RATE),
+				ch_sz[i].base, ch_sz[i].rate / XM_REF_OUTPUT_RATE, XM_REF_INFLIGHT_SAMPLES,
+				ch_sz[i].pin ? " [loop pin]" : "",
+				ch_sz[i].cap && ch_sz[i].base + ch_sz[i].rate * XM_REF_INFLIGHT_SAMPLES / XM_REF_OUTPUT_RATE > ch_sz[i].cap
+					? " [capped by sample length]" : "");
 	}
 
 	return 0;

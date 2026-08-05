@@ -131,7 +131,7 @@
 	RSPQ_BeginOverlayHeader
 		RSPQ_DefineCommand MIX_CHANNEL,       28		# 0x0
 		RSPQ_DefineCommand MIX_SETCHANNEL,    16		# 0x1
-		RSPQ_DefineCommand MIX_FLUSH,          8		# 0x2
+		RSPQ_DefineCommand MIX_FLUSH,         16		# 0x2
 		RSPQ_DefineCommand MIX_SETSTATE,      24		# 0x3
 	RSPQ_EndOverlayHeader
 
@@ -274,6 +274,13 @@ MIX_VADPCM_STATE_BEFORE:  .space 16
 	# Frame index the current fill starts at.
 	.align 2
 ROUND_SCRATCH:            .long  0
+
+	# Staging for the round marker MIX_FLUSH sends back to RDRAM, telling the
+	# CPU which windows the RSP is done reading (see MIX_FLUSH). A DMA moves
+	# 8 bytes at a time, so the id is stored twice rather than paired with
+	# garbage.
+	.align 3
+ROUND_MARKER:             .long  0, 0
 
 	# Stashed MIX_CHANNEL parameters (command buffer may be overwritten).
 	.align 2
@@ -1302,21 +1309,28 @@ MIX_CHANNEL_Done:
 
 
 ###############################################################
-# MIX_FLUSH – DMA ACCUM to RDRAM and clear ACCUM.
+# MIX_FLUSH – DMA ACCUM to RDRAM, clear ACCUM, mark the round as done.
 #
 # a0: [nsamples:16][pad:16]
 # a1: output RDRAM pointer (physical, 8-byte aligned)
+# a2: round id
+# a3: RDRAM pointer where the id of the last round done is published
 #
 # The DMA engine ignores the low 3 bits of both addresses, so ACCUM can only
 # be sent as-is to an 8-byte aligned pointer. The CPU guarantees that: the
 # output buffer is aligned and every round mixes an even number of stereo
 # samples (see mixer_round_length).
+#
+# The marker is what lets the CPU know how far behind the RSP is. Every
+# MIX_CHANNEL of the round has read its input window by the time we get here,
+# and transfers run in order, so a CPU that sees the id knows those windows
+# are free and can refill them (see samplebuffer_append).
 ###############################################################
 
 	.func MIX_FLUSH
 MIX_FLUSH:
 	andi t4, a0, 0xFFFF            # nsamples
-	beqz t4, RSPQ_Loop
+	beqz t4, MIX_FLUSH_Mark
 	move s0, a1                    # output rdram
 
 	sll t0, t4, 2
@@ -1334,6 +1348,14 @@ MIX_FLUSH:
 	addi s4, 64
 	bnez t0, 1b
 	addi t0, -1
+
+MIX_FLUSH_Mark:
+	sw a2, %lo(ROUND_MARKER) + 0
+	sw a2, %lo(ROUND_MARKER) + 4
+	move s0, a3
+	li s4, %lo(ROUND_MARKER)
+	jal DMAOut
+	li t0, DMA_SIZE(8, 1)
 
 	j RSPQ_Loop
 	nop

@@ -17,6 +17,7 @@
 #include "wav64_internal.h"
 #include "asset_internal.h"
 #include "profile.h"
+#include "utils.h"
 #include "libxm/xm.h"
 #include "libxm/xm_internal.h"
 #include <stdbool.h>
@@ -157,8 +158,9 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 		}
 		assertf(0, "cannot load XM64 file: %s\nFile corrupted", fn);
 	}
-	assertf(header.version == 11 || header.version == 12,
-		"cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
+	assertf(header.version == 13,
+		"cannot load XM64 file: %s\nVersion %d not supported, please convert again with audioconv64",
+		fn, header.version);
 
 	// Seek to the beginning of the metadata, that are asset-compressed. We need
 	// to read the metadata in small chunks, so we use asset_fopen() for this.
@@ -222,17 +224,34 @@ void xm64player_play(xm64player_t *player, int first_ch) {
 	assert(first_ch + xm_get_number_of_channels(player->ctx) <= MIXER_MAX_CHANNELS);
 
 	if (!player->playing) {
-		// XM64 header contains the optimal size for sample buffers on each
-		// channel, to minimize memory consumption. To configure it, bump
-		// the frequency of each channel to an unreasonably high value (we don't
-		// know how much we need, so shoot high), but then limit the buffer size
-		// to the optimal value.
+		// XM64 stores the optimal sample buffer size of each channel, to
+		// minimize memory consumption. Part of it covers the rounds the mixer
+		// lets the CPU enqueue before the RSP has mixed them, whose input
+		// windows must stay untouched in the ring: how many those are depends
+		// on the audio configuration, so audioconv64 stores that part as a
+		// rate in bytes per second of playback.
+		//
+		// To configure the size, bump the frequency of each channel to an
+		// unreasonably high value (we don't know how much we need, so shoot
+		// high), but then limit the buffer size to the optimal value.
+		int sample_rate = audio_get_frequency();
+		int inflight = __mixer_inflight_samples();
 		for (int i=0; i<player->ctx->module.num_channels; i++) {
-			// If the value is 0, the channel is not used. We don't have a way
-			// to convey this (0 would be interpreted as "no limit"), so just
+			uint32_t rate = player->ctx->ctx_stream_buf_rate[i];
+			uint32_t min = player->ctx->ctx_stream_buf_min[i];
+			// If both are 0, the channel is not used. We don't have a way to
+			// convey this (0 would be interpreted as "no limit"), so just
 			// avoid calling the limit function altogether.
-			if (player->ctx->ctx_size_stream_sample_buf[i] != 0)
-				mixer_ch_set_limits(first_ch+i, 0, 1e9, player->ctx->ctx_size_stream_sample_buf[i]);
+			if (!rate && !min)
+				continue;
+			uint32_t sz = player->ctx->ctx_stream_buf_base[i] +
+				(uint32_t)((uint64_t)rate * inflight / sample_rate);
+			uint32_t cap = player->ctx->ctx_stream_buf_cap[i];
+			if (cap && sz > cap) sz = cap;
+			if (sz < min) sz = min;
+			sz = ROUND_UP(sz, 8);
+			player->stream_ramsz += sz;
+			mixer_ch_set_limits(first_ch+i, 0, 1e9, sz);
 		}
 
 		mixer_add_event(0, tick, player);
