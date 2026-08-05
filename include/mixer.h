@@ -650,7 +650,7 @@ typedef enum {
 	 *
 	 * Set this when the bytes #samplebuffer_append returns are filled by RSP
 	 * commands still in the queue (e.g. ULC). The samplebuffer then mirrors
-	 * those bytes through the same queue (#MIX_COPY) so the copy lands after
+	 * those bytes through the same queue (MIX_COPY) so the copy lands after
 	 * the decode. Leave it false for CPU or PI producers.
 	 */
 	bool rsp_written;

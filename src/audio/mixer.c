@@ -1759,6 +1759,7 @@ void mixer_unthrottle(void) {
 	Mixer.throttled = false;
 }
 
+/** @brief Poll the mixer asynchronously. */
 void mixer_poll_async(int16_t *out16, int num_samples) {
 	int32_t *out = (int32_t*)out16;
 

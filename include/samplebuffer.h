@@ -257,7 +257,7 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen);
  * @brief Append samples into the buffer (zero-copy).
  *
  * Returns a contiguous uncached pointer where the caller must write `wlen`
- * units. `wlen` must not exceed #margin_units when the write would wrap past
+ * units. `wlen` must not exceed #samplebuffer_t::margin_units when the write would wrap past
  * the usable end (declare large chunks in #waveform_t::append_units so the
  * margin covers them).
  */
