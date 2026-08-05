@@ -646,18 +646,25 @@ typedef enum {
 	bool async_read;
 
 	/**
+	 * @brief True if #read produces samples through an RSP overlay.
+	 *
+	 * Set this when the bytes #samplebuffer_append returns are filled by RSP
+	 * commands still in the queue (e.g. ULC). The samplebuffer then mirrors
+	 * those bytes through the same queue (#MIX_COPY) so the copy lands after
+	 * the decode. Leave it false for CPU or PI producers.
+	 */
+	bool rsp_written;
+
+	/**
 	 * @brief Granularity in units of the appends made by #read (0 if unknown).
 	 *
 	 * Set this when #read always appends a whole multiple of a fixed chunk
-	 * (a codec frame: 960 samples for Opus, one audioframe for YM64). The
-	 * samplebuffer then keeps its usable size a multiple of the chunk, so that
-	 * a chunk is never split by the wrap and the live window does not have to
-	 * be relocated to keep the append contiguous.
+	 * (a codec frame: 1024 samples for ULC, one audioframe for YM64). The
+	 * samplebuffer sizes its mirrored tail to MAX(#SAMPLEBUFFER_MARGIN_UNITS,
+	 * this), so a single append of that size stays contiguous across the wrap.
 	 *
-	 * Any value is allowed: the samplebuffer applies it only when it is worth
-	 * it (a chunk that fits the tail margin never needs a relocate anyway) and
-	 * only when the buffer is large enough to keep a couple of chunks after
-	 * the rounding. Leave it 0 if the appends have no fixed size.
+	 * Leave it 0 if the appends have no fixed size (or always fit the default
+	 * margin of #SAMPLEBUFFER_MARGIN_UNITS).
 	 */
 	int append_units;
 

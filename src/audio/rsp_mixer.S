@@ -133,6 +133,7 @@
 		RSPQ_DefineCommand MIX_SETCHANNEL,    16		# 0x1
 		RSPQ_DefineCommand MIX_FLUSH,         16		# 0x2
 		RSPQ_DefineCommand MIX_SETSTATE,      24		# 0x3
+		RSPQ_DefineCommand MIX_COPY,          12		# 0x4
 	RSPQ_EndOverlayHeader
 
 ############################################################################
@@ -1415,6 +1416,42 @@ MIX_SETSTATE:
 	li t0, DMA_SIZE(16, 1)
 	j DMAOut
 	sqv $v01, 0x00,s4
+	.endfunc
+
+
+###############################################################
+# MIX_COPY – copy a block of RDRAM onto another one.
+#
+# Command words (12 bytes):
+#   a0: [ovl+cmd:8][pad:8][nbytes:16]
+#   a1: destination (physical, 8-byte aligned)
+#   a2: source      (physical, 8-byte aligned)
+#
+# The samplebuffers use it to refresh the copy of their first samples that
+# sits past the end of the ring (see samplebuffer_commit), when those samples
+# are written by the RSP itself (any codec that decodes with an overlay): the
+# copy has to travel through the queue to land after them.
+#
+# nbytes may not exceed the sample cache this stages the copy through, which
+# is scratch to every other command.
+###############################################################
+
+	.func MIX_COPY
+MIX_COPY:
+	andi t0, a0, 0xFFFF
+	move s0, a2
+	addi t0, -1
+	jal DMAIn
+	li s4, %lo(DMEM_SAMPLE_CACHE)
+
+	andi t0, a0, 0xFFFF
+	move s0, a1
+	addi t0, -1
+	jal DMAOut
+	li s4, %lo(DMEM_SAMPLE_CACHE)
+
+	j RSPQ_Loop
+	nop
 	.endfunc
 
 	#undef ticks

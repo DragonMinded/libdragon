@@ -99,6 +99,7 @@ DEFINE_RSP_UCODE(rsp_mixer);
 #define MIXER_CMD_SETCHANNEL  0x1        ///< rspq command ID for setting a channel
 #define MIXER_CMD_FLUSH       0x2        ///< rspq command ID for flushing the mixer
 #define MIXER_CMD_SETSTATE    0x3        ///< rspq command ID for seeding a VADPCM state
+#define MIXER_CMD_COPY        0x4        ///< rspq command ID for an RDRAM to RDRAM copy
 
 /// @brief Fixed point value used in waveform position calculations.
 /// This is a signed 64-bit integer with the fractional part using
@@ -208,7 +209,6 @@ static struct {
 	int hi_ch;              ///< Exclusive upper bound of channels to scan
 
 	uint32_t round_id;      ///< Id of the last round emitted
-	uint32_t round_cur;     ///< Round being emitted right now (0 = none)
 	volatile uint32_t *round_done;  ///< Last round the RSP finished, written by MIX_FLUSH
 	uint32_t poll_round[MIXER_POLL_LOOKAHEAD];  ///< Last round of each recent poll
 	uint32_t poll_count;    ///< Polls done so far (indexes #poll_round)
@@ -276,7 +276,7 @@ void mixer_init(int num_channels) {
 
 	mixer_overlay_state_t *mixer_state = rspq_overlay_get_state(&rsp_mixer);
 	memset(mixer_state, 0, sizeof(*mixer_state));
-	data_cache_hit_writeback(mixer_state, sizeof(*mixer_state));
+	data_cache_hit_writeback_invalidate(mixer_state, sizeof(*mixer_state));
 }
 
 /**
@@ -307,9 +307,8 @@ static inline int mixer_vadpcm_frame_bytes(const waveform_t *wave)
  *
  * A poll enqueues its rounds and returns, so the input windows it handed out
  * stay live until the RSP gets to them: sample buffers are sized to span that
- * much input (#MIXER_POLL_LOOKAHEAD polls of it), or an append would have to
- * overwrite samples that are still to be read. Past that the CPU does wait,
- * one round at a time, for the RSP to free the space (#samplebuffer_append).
+ * much input (#MIXER_POLL_LOOKAHEAD polls of it). The next poll waits for the
+ * oldest of those before starting (see #mixer_poll_async).
  */
 int __mixer_inflight_samples(void)
 {
@@ -318,11 +317,6 @@ int __mixer_inflight_samples(void)
 		return blen * MIXER_POLL_LOOKAHEAD;
 	int rate = Mixer.sample_rate ? (int)Mixer.sample_rate : audio_get_frequency();
 	return rate / MIXER_POLL_PER_SECOND;
-}
-
-uint32_t __mixer_round_current(void)
-{
-	return Mixer.round_cur;
 }
 
 bool __mixer_round_done(uint32_t id)
@@ -336,11 +330,6 @@ void __mixer_round_wait(uint32_t id)
 {
 	if (__mixer_round_done(id))
 		return;
-	// The round being emitted has no MIX_FLUSH yet, so its id will never be
-	// published and this would spin forever. That only happens when a single
-	// round does not fit the sample buffer, which is a sizing error.
-	assertf(id != Mixer.round_cur,
-		"sample buffer too small: a single mix round does not fit in it");
 	rspq_flush();
 	ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
 		if (__mixer_round_done(id))
@@ -354,6 +343,14 @@ static bool mixer_poll_would_wait(void)
 	if (Mixer.poll_count < MIXER_POLL_LOOKAHEAD)
 		return false;
 	return !__mixer_round_done(Mixer.poll_round[Mixer.poll_count % MIXER_POLL_LOOKAHEAD]);
+}
+
+/** Wait until starting another poll would not overwrite live sample windows. */
+static void mixer_poll_barrier(void)
+{
+	if (Mixer.poll_count < MIXER_POLL_LOOKAHEAD)
+		return;
+	__mixer_round_wait(Mixer.poll_round[Mixer.poll_count % MIXER_POLL_LOOKAHEAD]);
 }
 
 static int mixer_calc_buffer_size(int ch, waveform_t *wave)
@@ -376,12 +373,12 @@ static int mixer_calc_buffer_size(int ch, waveform_t *wave)
 
 	// Block codecs (Opus, ULC) append one whole frame at a time, however few
 	// samples were asked for, so the ring needs room for one more of those on
-	// top of everything above. #samplebuffer_recalc_size also floors the
-	// usable size to a multiple of the frame, so round up here instead of
-	// letting that floor eat into the span computed above.
+	// top of everything above. The mirrored tail is also enlarged to cover a
+	// whole frame (see #samplebuffer_t::margin_units); that extra is allocated
+	// by the caller (#mixer_ch_play), not here.
 	int f = wave->append_units;
 	if (f > SAMPLEBUFFER_MARGIN_UNITS)
-		nunits = ROUND_UP(nunits + f, f);
+		nunits += f;
 
 	if (nunits < SAMPLEBUFFER_MARGIN_UNITS * 2)
 		nunits = SAMPLEBUFFER_MARGIN_UNITS * 2;
@@ -401,6 +398,12 @@ static int mixer_calc_buffer_size(int ch, waveform_t *wave)
 	assert((int32_t)size == size);
 
 	return size;
+}
+
+/** Mirrored-tail size in bytes for a waveform (see #samplebuffer_t::margin_units). */
+static int mixer_margin_bytes(waveform_t *wave, int ub)
+{
+	return samplebuffer_margin_units(wave->append_units) * ub;
 }
 
 void mixer_set_vol(float vol) {
@@ -728,7 +731,7 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		int need = ROUND_UP(mixer_calc_buffer_size(ch, wave), 16);
 		int ub = vadpcm ? mixer_vadpcm_frame_bytes(wave)
 			: ((wave->bits / 8) * (stereo_vadpcm ? 1 : wave->channels));
-		need += SAMPLEBUFFER_MARGIN_UNITS * ub;
+		need += mixer_margin_bytes(wave, ub);
 		need = ROUND_UP(need, 16);
 		if (sbuf->capacity_bytes < need || sbuf->state_size < wave->state_size) {
 			rspq_highpri_sync();
@@ -740,7 +743,7 @@ void mixer_ch_play(int ch, waveform_t *wave)
 	if (!resident && !samplebuffer_is_inited(sbuf)) {
 		int size = ROUND_UP(mixer_calc_buffer_size(ch, wave), 16);
 		int ub = vadpcm ? mixer_vadpcm_frame_bytes(wave) : ((wave->bits / 8) * (stereo_vadpcm ? 1 : wave->channels));
-		size += SAMPLEBUFFER_MARGIN_UNITS * ub;
+		size += mixer_margin_bytes(wave, ub);
 		size = ROUND_UP(size, 16);
 		int state_size = ROUND_UP(wave->state_size, 16);
 		void *ptr = malloc_uncached(size + state_size);
@@ -1078,6 +1081,28 @@ static void mixer_emit_setstate(int ch)
 	const uint32_t *src = Mixer.channels[ch].codec_state;
 	rspq_write(__mixer_overlay_id, MIXER_CMD_SETSTATE, 0,
 		PhysicalAddr(mixer_vstate(ch)), src[0], src[1], src[2], src[3]);
+}
+
+/** @brief Largest block MIX_COPY can move at once (the ucode's sample cache). */
+#define MIXER_COPY_MAX_BYTES  320
+
+bool __mixer_rdram_copy(void *dst, void *src, int nbytes)
+{
+	if (!__mixer_overlay_id)
+		return false;
+	assert(((PhysicalAddr(dst) | PhysicalAddr(src) | nbytes) & 7) == 0);
+
+	rspq_highpri_begin();
+	while (nbytes > 0) {
+		int n = MIN(nbytes, MIXER_COPY_MAX_BYTES);
+		rspq_write(__mixer_overlay_id, MIXER_CMD_COPY, n,
+			PhysicalAddr(dst), PhysicalAddr(src));
+		dst = (uint8_t*)dst + n;
+		src = (uint8_t*)src + n;
+		nbytes -= n;
+	}
+	rspq_highpri_end();
+	return true;
 }
 
 // Ring space, in units, that pinning a region of "units" samples actually
@@ -1445,12 +1470,10 @@ static void mixer_fetch_window(int ch, int ns) {
 	mixer_channel_window(ch, ns, &wpos, &wlen);
 
 #ifndef NDEBUG
-	// Every window handed to a round stays live until the RSP runs it, so a
-	// ring that does not span a whole poll makes one of its own refills wait
-	// for a round enqueued moments earlier: correct (see
-	// #samplebuffer_append) but a stall in the middle of a call that promises
-	// not to have any. Waveforms that end up entirely in the ring never
-	// refill: exempt.
+	// Every window handed to a round stays live until the RSP runs it. A ring
+	// that does not span a whole poll would overwrite its own windows: the
+	// poll barrier (see #mixer_poll_barrier) only frees space from older polls.
+	// Waveforms that end up entirely in the ring never refill: exempt.
 	if (!mixer_wave_fits(ch) && !mixer_loop_fits(ch)) {
 		int poll_ns = __mixer_inflight_samples() / MIXER_POLL_LOOKAHEAD;
 		bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
@@ -1525,8 +1548,8 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 	bool clear_accum = true;
 
 	// The windows fetched below belong to this round, and stay live until the
-	// RSP publishes its id back (see #__mixer_round_current).
-	Mixer.round_cur = ++Mixer.round_id;
+	// RSP publishes its id back (see MIX_FLUSH / #__mixer_round_done).
+	uint32_t round_id = ++Mixer.round_id;
 
 	// Phase A: enqueue all PI DMAs back-to-back.
 	for (int ch = 0; ch < Mixer.hi_ch; ch++) {
@@ -1640,10 +1663,8 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol) {
 		mixer_emit_channel(0, CH_FLAGS_CLEAR_ACCUM, 0, 0, 0, 0, 0, 0, NULL, ns);
 
 	rspq_write(__mixer_overlay_id, MIXER_CMD_FLUSH,
-		(uint32_t)ns, PhysicalAddr(out), Mixer.round_cur,
+		(uint32_t)ns, PhysicalAddr(out), round_id,
 		PhysicalAddr((void*)Mixer.round_done));
-
-	Mixer.round_cur = 0;
 }
 
 // Advance all channels by the samples just mixed, wrapping the loops that the
@@ -1754,11 +1775,11 @@ void mixer_poll_async(int16_t *out16, int num_samples) {
 	assertf(((uint32_t)out16 & 7) == 0,
 		"mixer output buffer must be 8-byte aligned: %p", out16);
 
-	// Nothing here syncs, and a call is not allowed to wait for the RSP in the
-	// middle of itself: the sample buffers must span the whole of it (see
-	// #__mixer_inflight_samples). Asking for more works, but the refills would
-	// stall on the rounds just enqueued: use #mixer_poll, which syncs along
-	// the way.
+	// Sample buffers span #MIXER_POLL_LOOKAHEAD polls. Wait for the oldest
+	// still-live one before starting, so a refill cannot overwrite windows
+	// the RSP has not read yet. The first LOOKAHEAD polls never wait.
+	mixer_poll_barrier();
+
 	assertf(num_samples <= __mixer_inflight_samples(),
 		"cannot mix %d samples in one go: sample buffers are sized for %d",
 		num_samples, __mixer_inflight_samples());
@@ -1800,8 +1821,9 @@ void mixer_poll_async(int16_t *out16, int num_samples) {
 		}
 	}
 
-	// Remember where this poll ended, so that #mixer_poll_would_wait can tell
-	// whether the ring space of the polls before it has been freed.
+	// Remember where this poll ended, so that #mixer_poll_would_wait /
+	// #mixer_poll_barrier can tell whether the ring space of the polls
+	// before it has been freed.
 	Mixer.poll_round[Mixer.poll_count % MIXER_POLL_LOOKAHEAD] = Mixer.round_id;
 	Mixer.poll_count++;
 }
@@ -1809,7 +1831,7 @@ void mixer_poll_async(int16_t *out16, int num_samples) {
 void mixer_poll(int16_t *out16, int num_samples) {
 	// Sample buffers only span what a poll can queue (see
 	// #__mixer_inflight_samples), so a caller asking for more than that in one
-	// go would have the refills wait on the rounds enqueued a moment before.
+	// go would wrap onto windows still live from earlier in the same call.
 	// Sync along the way instead, which costs nothing for the usual sizes.
 	int budget = __mixer_inflight_samples() & ~1;
 	while (num_samples > budget) {
@@ -1843,7 +1865,7 @@ void mixer_try_play(void)
 		// queued, so leave the rest for the next frame rather than spending
 		// it here. With nothing queued the wait is unavoidable: the AI needs
 		// samples now.
-		if (queued > 0 && mixer_poll_would_wait())
+		if (queued > 1 && mixer_poll_would_wait())
 			break;
 		short *buf = audio_write_begin();
 		mixer_poll_async(buf, audio_get_buffer_length());

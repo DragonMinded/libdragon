@@ -728,11 +728,11 @@ static bool test_mixer_stream(float freq, int startsample)
 
 // Every mix round the CPU enqueues keeps its window of the samplebuffer live
 // until the RSP runs it, and the ring is only sized for the rounds of a couple
-// of polls: past that, refills have to wait for the RSP to catch up. Play the
-// same stream three times — syncing after every short chunk, in poll-sized
-// chunks, and finally queueing polls back-to-back without syncing, as
-// mixer_try_play does. All three must produce the same audio: a refill landing
-// on a window the RSP had still to read makes the runs diverge.
+// of polls: past that, mixer_poll_async waits for the oldest poll before
+// starting. Play the same stream three times — syncing after every short
+// chunk, in poll-sized chunks, and finally queueing polls back-to-back without
+// syncing, as mixer_try_play does. All three must produce the same audio: a
+// refill landing on a window the RSP had still to read makes the runs diverge.
 extern void mixer_poll_async(int16_t *out, int nsamples);
 
 static bool test_mixer_queue_depth(float freq)
