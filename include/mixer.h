@@ -239,6 +239,22 @@ void mixer_ch_play(int ch, waveform_t *wave);
  */
 void mixer_ch_set_freq(int ch, float frequency);
 
+/**
+ * @brief Enable or disable the sustain loop on a mixer channel.
+ *
+ * The loop bounds come from the waveform (`#waveform_t::loop_len` /
+ * `#waveform_t::loop_end`). Disabling does not seek: playback continues from
+ * the current position through to `#waveform_t::len` (the release tail, when
+ * present) and then stops. Enabling again restores looping at the waveform's
+ * loop region.
+ *
+ * Must be called while the channel is playing a waveform that defines a loop.
+ *
+ * @param[in]   ch              Channel index
+ * @param[in]   enable          True to loop, false to play through to the end
+ */
+void mixer_ch_set_loop(int ch, bool enable);
+
 /** 
  * @brief Change the current playback position within a waveform. 
  * 
@@ -603,14 +619,34 @@ typedef enum {
 	int len;
 
 	/**
-     * @brief Length of the loop of the waveform (from the end).
-     * 
-     * This value describes how many samples of the tail of the waveform needs
-     * to be played in a loop. For instance, if len==1200 and loop_len=500, the
-     * waveform will be played once, and then the last 700 samples will be
-     * repeated in loop.
-     */
+	 * @brief Length of the loop, in samples.
+	 *
+	 * The loop occupies `[loop_end - loop_len, loop_end)`. With the default
+	 * `#loop_end` of zero (meaning `#len`), this is a terminal loop: e.g.
+	 * `len==1200` and `loop_len==500` repeats the last 500 samples.
+	 *
+	 * Loop will be enabled by default during playback if configured here, but
+	 * can still be toggled using #mixer_ch_set_loop.
+	 */
 	int loop_len;
+
+	/**
+	 * @brief Exclusive end of the loop, in samples.
+	 *
+	 * The loop occupies `[loop_end - loop_len, loop_end)`. With the default 
+	 * value of zero, this is a terminal loop: e.g. `len==1200`, `loop_len==500`,
+	 * and `loop_end==0`, repeats the last 500 samples.
+	 *
+	 * Otherwise, set it to create a non-terminal loop. For example, `len==1200`,
+	 * `loop_len==500`, and `loop_end==1000`, creates a loop that repeats the
+	 * samples from 500 to 1000.
+	 *
+	 * You can toggle the loop at runtime with #mixer_ch_set_loop, including
+	 * during playback. For instance, if you disable a loop while it was
+	 * already playing, the playback will continue until the end of the 
+	 * waveform is reached (thus going through the post-loop tail).
+	 */
+	int loop_end;
 
      /** 
      * @brief Callback to notify the start of playback of the waveform.

@@ -133,8 +133,8 @@ typedef int32_t mixer_fx16_t;
 typedef struct mixer_channel_s {
 	mixer_fx64_t pos;      ///< Position (bytes for PCM, samples for VADPCM)
 	mixer_fx64_t step;     ///< Step per output sample (same units as pos)
-	mixer_fx64_t len;      ///< Waveform length (same units as pos)
-	mixer_fx64_t loop_len; ///< Loop length (same units as pos)
+	mixer_fx64_t len;      ///< Active end: loop end while looping, waveform length otherwise
+	mixer_fx64_t loop_len; ///< Loop length, 0 if not looping (see #mixer_ch_set_loop)
 	void *ptr;             ///< Waveform data base (PCM samples or VADPCM frames)
 	void *codec_state;     ///< Per-channel codec state, CPU side
 	void *codebook;        ///< VADPCM codebook (NULL for PCM)
@@ -525,6 +525,30 @@ static int waveform_wrap_wpos(int wpos, int len, int loop_len) {
 	return ((wpos - len) % loop_len) + (len - loop_len);
 }
 
+/** Exclusive end of the loop region of a waveform (0 means terminal loop). */
+static int waveform_loop_end(const waveform_t *wave) {
+	return wave->loop_end ? wave->loop_end : wave->len;
+}
+
+/**
+ * @brief Set the bounds a channel plays within: the loop region, or all of it.
+ *
+ * While looping, the channel ends at the loop end and wraps back by loop_len;
+ * otherwise it runs to the physical end of the waveform (which includes the
+ * release tail of a waveform whose loop ends before it).
+ */
+static void mixer_ch_bounds(mixer_channel_t *c, const waveform_t *wave, bool loop) {
+	int bps = (c->flags & CH_FLAGS_VADPCM) ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT);
+	loop = loop && wave->loop_len;
+	c->len = MIXER_FX64((int64_t)(loop ? waveform_loop_end(wave) : wave->len)) << bps;
+	c->loop_len = loop ? MIXER_FX64((int64_t)wave->loop_len) << bps : 0;
+	// The secondary channel of a stereo pair is played with the same bounds.
+	if (c->flags & CH_FLAGS_STEREO) {
+		c[1].len = c->len;
+		c[1].loop_len = c->loop_len;
+	}
+}
+
 // Clamp a WaveformRead so codecs only ever see positions in [0, len).
 //
 // Samplebuffers and codecs are not loop-aware. The mixer stops rounds at
@@ -549,10 +573,17 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		if (Mixer.channels[ch].flags & CH_FLAGS_STEREO)
 			Mixer.vstate_dirty |= mixer_bit(ch+1);
 	}
+
+	// Bounds come from the channel, not from the waveform: they follow its
+	// loop state (see #mixer_ch_set_loop), so a voice in release reads through
+	// to the sample end while another one on the same waveform still loops.
+	mixer_channel_t *c = &Mixer.channels[sbuf - Mixer.ch_buf];
+	int bps_fx64 = ((c->flags & CH_FLAGS_VADPCM) ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+	int wave_len = c->len >> bps_fx64;
+	int wave_loop = c->loop_len >> bps_fx64;
+
 	// Samplebuffer units: PCM samples, or VADPCM frames. Wave metadata is
 	// always in samples; convert bounds when the buffer stores frames.
-	int wave_len = wave->len;
-	int wave_loop = wave->loop_len;
 	if (wave->format == WAVEFORM_FORMAT_VADPCM) {
 		// The last frame of a waveform is partial whenever its length is not a
 		// multiple of 16, and the loop point can sit anywhere inside a frame:
@@ -563,11 +594,21 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		wave_loop = wave_loop ? wave_len - loop_start : 0;
 	}
 	int ub = sbuf->unit_bytes;
+	// Silence past the end: the codec read fills both VADPCM planes, so the
+	// padding must too (and at the same wpos), or the right ring falls short
+	// / misaligns and samplebuffer_get tries to extend it without a reader.
+	bool stereo_vadpcm = (c->flags & (CH_FLAGS_VADPCM | CH_FLAGS_STEREO))
+		== (CH_FLAGS_VADPCM | CH_FLAGS_STEREO);
 
 	if (wpos >= wave_len) {
 		if (!wave_loop) {
-			void *dest = samplebuffer_append(sbuf, wlen);
-			memset(dest, 0, wlen * ub);
+			memset(samplebuffer_append(sbuf, wlen), 0, wlen * ub);
+			if (stereo_vadpcm) {
+				samplebuffer_t *r = sbuf + 1;
+				if (r->widx == 0) r->wpos = sbuf->wpos;
+				memset(samplebuffer_append(r, wlen), 0, wlen * ub);
+				r->wnext = r->wpos + r->widx;
+			}
 			return;
 		}
 		// Keep seeking as-is: a contiguous fetch past len is still sequential
@@ -589,8 +630,13 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		return;
 
 	if (!wave_loop) {
-		void *dest = samplebuffer_append(sbuf, len2);
-		memset(dest, 0, len2 * ub);
+		memset(samplebuffer_append(sbuf, len2), 0, len2 * ub);
+		if (stereo_vadpcm) {
+			samplebuffer_t *r = sbuf + 1;
+			if (r->widx == 0) r->wpos = sbuf->wpos;
+			memset(samplebuffer_append(r, len2), 0, len2 * ub);
+			r->wnext = r->wpos + r->widx;
+		}
 		return;
 	}
 
@@ -605,6 +651,25 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 }
 
 static bool mixer_wave_fits(int ch);
+
+/**
+ * @brief Go back to streaming a loop that was pinned in the samplebuffer.
+ *
+ * The pinned copy is addressed relative to the loop region and is wrapped by
+ * the RSP, so it only survives while playback stays inside it. Dropping it
+ * empties the ring, which makes the next fetch a seek: that is also what
+ * re-seeds the decoder state.
+ */
+static void mixer_ch_unpin_loop(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	c->flags &= ~CH_FLAGS_LOOP_CACHED;
+	if ((c->flags & CH_FLAGS_VADPCM) && (c->flags & CH_FLAGS_STEREO)) {
+		Mixer.channels[ch+1].flags &= ~CH_FLAGS_LOOP_CACHED;
+		samplebuffer_flush(&Mixer.ch_buf[ch+1]);
+	}
+	samplebuffer_flush(&Mixer.ch_buf[ch]);
+	mixer_refresh_max_ns(ch);
+}
 
 /** @brief Apply a VADPCM seek to the channel's codec state via WaveformRead. */
 static void mixer_vadpcm_seek(mixer_channel_t *c, int sample_pos) {
@@ -666,13 +731,7 @@ static void mixer_ch_seek(int ch) {
 		}
 		// Seeking before the pinned region: go back to streaming, and let the
 		// next round pin the loop again (re-seeding the decoder while at it).
-		c->flags &= ~CH_FLAGS_LOOP_CACHED;
-		if (vadpcm && (c->flags & CH_FLAGS_STEREO)) {
-			Mixer.channels[ch+1].flags &= ~CH_FLAGS_LOOP_CACHED;
-			samplebuffer_flush(&Mixer.ch_buf[ch+1]);
-		}
-		samplebuffer_flush(sbuf);
-		mixer_refresh_max_ns(ch);
+		mixer_ch_unpin_loop(ch);
 		return;
 	}
 
@@ -784,6 +843,9 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		assert(wave->bits == 8 || wave->bits == 16);
 		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
 		assertf(wave->len != WAVEFORM_UNKNOWN_LEN || wave->loop_len == 0, "waveform %s with unknown length cannot loop", wave->name);
+		assertf(wave->loop_len >= 0 && wave->loop_len <= waveform_loop_end(wave) && waveform_loop_end(wave) <= wave->len,
+			"waveform %s: invalid loop of %d samples ending at %d (len %d)",
+			wave->name, wave->loop_len, waveform_loop_end(wave), wave->len);
 
 		c->flags &= ~(CH_FLAGS_BPS_SHIFT | CH_FLAGS_16BIT | CH_FLAGS_STEREO | CH_FLAGS_VADPCM | CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED);
 		c->codebook = NULL;
@@ -818,8 +880,6 @@ void mixer_ch_play(int ch, waveform_t *wave)
 			c->codebook = vc->codebook;
 			c->loop_state = vc->loop_state;
 			c->vbits = vc->bits;
-			c->len = MIXER_FX64((int64_t)wave->len);
-			c->loop_len = MIXER_FX64((int64_t)wave->loop_len);
 			if (stereo_vadpcm) {
 				mixer_channel_t *r = &Mixer.channels[ch+1];
 				r->flags = (r->flags & CH_FLAGS_FORCE_MONO) | CH_FLAGS_STEREO_SUB | CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
@@ -827,16 +887,12 @@ void mixer_ch_play(int ch, waveform_t *wave)
 				r->vbits = vc->bits;
 				r->codec_state = (uint8_t*)c->codec_state + 16;
 				r->loop_state = vc->loop_state ? (uint8_t*)vc->loop_state + 16 : NULL;
-				r->len = c->len;
-				r->loop_len = c->loop_len;
 				r->wave = wave;
 				r->wave_uuid = wave->__uuid;
 			}
 		} else {
 			int bps = (wave->bits == 16 ? 1 : 0) + (wave->channels == 2 ? 1 : 0);
 			c->flags |= bps | (wave->channels == 2 ? CH_FLAGS_STEREO : 0) | (wave->bits == 16 ? CH_FLAGS_16BIT : 0);
-			c->len = MIXER_FX64((int64_t)wave->len) << bps;
-			c->loop_len = MIXER_FX64((int64_t)wave->loop_len) << bps;
 		}
 		mixer_ch_set_freq(ch, wave->frequency);
 
@@ -853,8 +909,10 @@ void mixer_ch_play(int ch, waveform_t *wave)
 			wave->name, wave->__uuid, sbuf->wave, wave);
 	}
 
-	// Restart from the beginning of the waveform
+	// Restart from the beginning of the waveform, with the loop armed again:
+	// a #mixer_ch_set_loop only applies to the note that was playing.
 	c->wave = wave;
+	mixer_ch_bounds(c, wave, true);
 	if (resident && stereo_vadpcm) {
 		// Planes are laid out back to back, each holding every frame that
 		// carries a sample (the last one is partial if len is not a multiple
@@ -918,6 +976,23 @@ void mixer_ch_set_pos(int ch, double pos) {
 	mixer_ch_seek(ch);
 	PROFILE_STOP(PS_MIXER_SEEK);
 	tracef("mixer_ch_set_pos: ch=%d pos=%.32g(%llx)\n", ch, pos, c->pos);
+}
+
+void mixer_ch_set_loop(int ch, bool enable) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_loop: cannot call on secondary stereo channel %d", ch);
+	assertf(c->wave, "mixer_ch_set_loop: channel %d is not playing", ch);
+	assertf(!enable || c->wave->loop_len, "mixer_ch_set_loop: waveform %s does not loop", c->wave->name);
+	if (enable == (c->loop_len != 0))
+		return;
+
+	mixer_ch_bounds(c, c->wave, enable);
+	// The ring holds the loop unrolled: whatever it cached past the loop end
+	// was taken from the loop start, and a pinned loop is not even addressed
+	// linearly. Drop it and resume streaming from the current position.
+	if (!(c->flags & CH_FLAGS_RESIDENT))
+		mixer_ch_unpin_loop(ch);
+	tracef("mixer_ch_set_loop: ch=%d enable=%d len=%llx\n", ch, enable, (uint64_t)c->len);
 }
 
 double mixer_ch_get_pos(int ch) {

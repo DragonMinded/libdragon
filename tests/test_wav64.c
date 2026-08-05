@@ -1619,58 +1619,103 @@ static bool test_mixer_loop_cache(waveform_t *wave, float freq)
 }
 
 //////////////////////////////////////////////////////////////////////////////
-// Baseline mixer scenarios
+// Baseline mixer scenarios + mixer_ch_set_loop matrix
 //
-// The suites above already cover one-shot and looping PCM/VADPCM, small loops
-// pinned in the samplebuffer, and large loops wrapped by seek. What was still
-// missing:
-//
-//  - resident waveforms (wave->mem, no samplebuffer)
-//  - mid-playback frequency change
-//  - stop while still inside the waveform
-//
-// Synthetic asset: rising-ramp intro + square-wave terminal loop.
+// Synthetic asset: rising-ramp intro + square-wave loop + descending release.
+// Variants cover PCM/VADPCM × resident/streamed × mono/stereo × cached/tiny,
+// and note-off before / inside / near loop_end / just after a wrap.
 //////////////////////////////////////////////////////////////////////////////
 
 // Longer than sv_start's volume-ramp warmup (2048), so a oneshot is still
 // playing when the measured capture begins.
 #define BL_INTRO     2048
 #define BL_LOOP      512
-#define BL_LEN       (BL_INTRO + BL_LOOP)
+#define BL_RELEASE   256             // shorter than MIXER_MAX_SAMPLES_PER_ROUND
+#define BL_LOOP_END  (BL_INTRO + BL_LOOP)
+#define BL_LEN       (BL_LOOP_END + BL_RELEASE)
+#define BL_TINY_LOOP 32              // shorter than MIXER_LOOP_OVERREAD
+#define BL_PIN_INTRO 200
+#define BL_PIN_LOOP  100             // whole waveform pins in the samplebuffer
+#define BL_PIN_REL   80
+#define BL_PIN_END   (BL_PIN_INTRO + BL_PIN_LOOP)
+#define BL_PIN_LEN   (BL_PIN_END + BL_PIN_REL)
 #define BL_AMP       16000
 #define BL_SQ        16
 #define BL_FREQ      44100
 
-static int16_t *bl_mem;
-
-static int16_t bl_sample(int pos)
+static int16_t bl_sample_geom(int pos, int intro, int loop, int release)
 {
-    if (pos < BL_INTRO)
-        return (int16_t)(-BL_AMP + (int32_t)(2 * BL_AMP) * pos / BL_INTRO);
-    int i = (pos - BL_INTRO) % BL_LOOP;
-    return (i % BL_SQ < BL_SQ / 2) ? BL_AMP : (int16_t)-BL_AMP;
+    int loop_end = intro + loop, len = loop_end + release;
+    if (pos < intro)
+        return (int16_t)(-BL_AMP + (int32_t)(2 * BL_AMP) * pos / intro);
+    if (pos < loop_end) {
+        int i = pos - intro;
+        return (i % BL_SQ < BL_SQ / 2) ? BL_AMP : (int16_t)-BL_AMP;
+    }
+    if (pos < len) {
+        int i = pos - loop_end;
+        return (int16_t)(BL_AMP - (int32_t)(2 * BL_AMP) * i / release);
+    }
+    return 0;
 }
 
-static int bl_play(int pos, int len, int loop_len)
+static int16_t bl_sample(int pos) {
+    return bl_sample_geom(pos, BL_INTRO, BL_LOOP, BL_RELEASE);
+}
+static int16_t bl_tiny_sample(int pos) {
+    return bl_sample_geom(pos, BL_INTRO, BL_TINY_LOOP, BL_RELEASE);
+}
+static int16_t bl_pin_sample(int pos) {
+    return bl_sample_geom(pos, BL_PIN_INTRO, BL_PIN_LOOP, BL_PIN_REL);
+}
+
+static int bl_play(int pos, int loop_end, int loop_len)
 {
     // Hermite with a null fraction returns the second tap, one past pos.
     pos++;
-    if (loop_len && pos >= len)
-        pos = len - loop_len + (pos - len) % loop_len;
+    if (loop_len && pos >= loop_end)
+        pos = loop_end - loop_len + (pos - loop_end) % loop_len;
     return pos;
+}
+
+static void bl_read_with(samplebuffer_t *sbuf, int wpos, int wlen,
+    int16_t (*sample)(int), int ch)
+{
+    while (wlen > 0) {
+        int n = wlen < SAMPLEBUFFER_MARGIN_UNITS ? wlen : SAMPLEBUFFER_MARGIN_UNITS;
+        int16_t *dst = samplebuffer_append(sbuf, n);
+        for (int i = 0; i < n; i++) {
+            int16_t s = sample(wpos + i);
+            if (ch == 2) dst[2*i] = dst[2*i+1] = s;
+            else         dst[i] = s;
+        }
+        wlen -= n;
+        wpos += n;
+    }
 }
 
 static void bl_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
 {
     (void)ctx; (void)seeking;
-    while (wlen > 0) {
-        int n = wlen < SAMPLEBUFFER_MARGIN_UNITS ? wlen : SAMPLEBUFFER_MARGIN_UNITS;
-        int16_t *dst = samplebuffer_append(sbuf, n);
-        for (int i = 0; i < n; i++)
-            dst[i] = bl_sample(wpos + i);
-        wlen -= n;
-        wpos += n;
-    }
+    bl_read_with(sbuf, wpos, wlen, bl_sample, 1);
+}
+
+static void bl_tiny_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    bl_read_with(sbuf, wpos, wlen, bl_tiny_sample, 1);
+}
+
+static void bl_read_stereo(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    bl_read_with(sbuf, wpos, wlen, bl_sample, 2);
+}
+
+static void bl_pin_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    bl_read_with(sbuf, wpos, wlen, bl_pin_sample, 1);
 }
 
 static waveform_t bl_wave_oneshot_res = {
@@ -1678,9 +1723,19 @@ static waveform_t bl_wave_oneshot_res = {
     .len = BL_LEN,
 };
 
+// Terminal loop (loop_end == 0 ⇒ len). Resident overread past len is padded
+// with loop-start samples, as wav64 preload does.
 static waveform_t bl_wave_loop_res = {
     .name = "bl-loop-res", .bits = 16, .channels = 1, .frequency = BL_FREQ,
-    .len = BL_LEN, .loop_len = BL_LOOP,
+    .len = BL_LOOP_END, .loop_len = BL_LOOP,
+};
+
+// Resident sustain + release. Overread past loop_end bleeds into the release
+// while looping (WAV64 preload of the rotated prefix is a later PR); this
+// asset is only used for a mid-loop note-off that never wraps after disable.
+static waveform_t bl_wave_loop_res_rel = {
+    .name = "bl-loop-res-rel", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN, .loop_len = BL_LOOP, .loop_end = BL_LOOP_END,
 };
 
 static waveform_t bl_wave_oneshot_stream = {
@@ -1688,38 +1743,68 @@ static waveform_t bl_wave_oneshot_stream = {
     .len = BL_LEN, .read = bl_read,
 };
 
+// Sustain loop + release tail (streamed): loop_end < len. Loop is large enough
+// that the mixer keeps streaming it (non-cached).
 static waveform_t bl_wave_loop_stream = {
     .name = "bl-loop-stream", .bits = 16, .channels = 1, .frequency = BL_FREQ,
-    .len = BL_LEN, .loop_len = BL_LOOP, .read = bl_read,
+    .len = BL_LEN, .loop_len = BL_LOOP, .loop_end = BL_LOOP_END, .read = bl_read,
 };
+
+static waveform_t bl_wave_loop_stereo = {
+    .name = "bl-loop-stereo", .bits = 16, .channels = 2, .frequency = BL_FREQ,
+    .len = BL_LEN, .loop_len = BL_LOOP, .loop_end = BL_LOOP_END, .read = bl_read_stereo,
+};
+
+// Loop shorter than MIXER_LOOP_OVERREAD: overread refill wraps the tiny loop
+// more than once per fetch.
+static waveform_t bl_wave_tiny = {
+    .name = "bl-tiny-loop", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_INTRO + BL_TINY_LOOP + BL_RELEASE,
+    .loop_len = BL_TINY_LOOP, .loop_end = BL_INTRO + BL_TINY_LOOP, .read = bl_tiny_read,
+};
+
+// Short enough that the mixer pins the whole waveform in the samplebuffer.
+static waveform_t bl_wave_pin = {
+    .name = "bl-pin-loop", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_PIN_LEN, .loop_len = BL_PIN_LOOP, .loop_end = BL_PIN_END,
+    .read = bl_pin_read,
+};
+
+// Resident copy of the first @p len samples. The RSP overreads
+// MIXER_LOOP_OVERREAD past the end, and for a looping waveform those samples
+// must be the ones at the loop start, as a wav64 preload lays them out.
+static int16_t *bl_resident(int len, int loop_len)
+{
+    int16_t *mem = malloc_uncached((len + MIXER_LOOP_OVERREAD) * 2);
+    for (int i = 0; i < len + MIXER_LOOP_OVERREAD; i++)
+        mem[i] = bl_sample(i < len || !loop_len ? i
+            : len - loop_len + (i - len) % loop_len);
+    return mem;
+}
 
 static void bl_init(void)
 {
-    if (bl_mem)
+    if (bl_wave_oneshot_res.mem)
         return;
-    // Resident loops are wrapped by the RSP, which still DMAs MIXER_LOOP_OVERREAD
-    // past len: those bytes must be the loop start, as wav64 preload provides.
-    int nbytes = (BL_LEN + MIXER_LOOP_OVERREAD) * 2;
-    bl_mem = malloc_uncached(nbytes);
-    memset(bl_mem, 0, nbytes);
-    for (int i = 0; i < BL_LEN; i++)
-        bl_mem[i] = bl_sample(i);
-    for (int i = 0; i < MIXER_LOOP_OVERREAD; i++)
-        bl_mem[BL_LEN + i] = bl_sample(BL_INTRO + i % BL_LOOP);
-    bl_wave_oneshot_res.mem = bl_mem;
-    bl_wave_loop_res.mem = bl_mem;
+    bl_wave_oneshot_res.mem = bl_resident(BL_LEN, 0);
+    bl_wave_loop_res.mem = bl_resident(BL_LOOP_END, BL_LOOP);
+    // Full asset including release; no loop-start pad at loop_end (see above).
+    bl_wave_loop_res_rel.mem = bl_resident(BL_LEN, 0);
 }
 
 // Sample-by-sample check at the output rate: Hermite is an identity there.
+// @p loop_end doubles as the physical end when there is no loop.
+// @p sample is NULL for the default bl_sample shape.
 static bool bl_check_exact(const char *tag, int start_pos, int nsamples,
-    int len, int loop_len)
+    int loop_end, int loop_len, int16_t (*sample)(int))
 {
+    if (!sample) sample = bl_sample;
     int nbad = 0, first = -1, maxdiff = 0, peak = 0;
     for (int i = 0; i < nsamples; i++) {
-        int p = bl_play(start_pos + i, len, loop_len);
-        if (!loop_len && p >= len)
+        int p = bl_play(start_pos + i, loop_end, loop_len);
+        if (!loop_len && p >= loop_end)
             break;
-        int want = bl_sample(p) / 2;
+        int want = sample(p) / 2;
         int got = sv_out[i * 2];
         int d = got - want; if (d < 0) d = -d;
         if (d > 64) {
@@ -1735,8 +1820,9 @@ static bool bl_check_exact(const char *tag, int start_pos, int nsamples,
             tag, nbad, nsamples, maxdiff, first);
         for (int i = first; i < first + 6 && i < nsamples; i++)
             printf("   [%d] play=%d got %d want %d\n", i,
-                bl_play(start_pos + i, len, loop_len),
-                sv_out[i * 2], bl_sample(bl_play(start_pos + i, len, loop_len)) / 2);
+                bl_play(start_pos + i, loop_end, loop_len),
+                sv_out[i * 2],
+                sample(bl_play(start_pos + i, loop_end, loop_len)) / 2);
         return false;
     }
     if (peak < 4096) {
@@ -1744,6 +1830,10 @@ static bool bl_check_exact(const char *tag, int start_pos, int nsamples,
         return false;
     }
     return true;
+}
+
+static int bl_wave_loop_end(const waveform_t *wave) {
+    return wave->loop_end ? wave->loop_end : wave->len;
 }
 
 static bool test_mixer_baseline_pcm(waveform_t *wave, int startsample, int nsamples)
@@ -1754,7 +1844,277 @@ static bool test_mixer_baseline_pcm(waveform_t *wave, int startsample, int nsamp
     sv_start(wave, startsample, BL_FREQ);
     int pos = (int)mixer_ch_get_pos(SV_CHANNEL);
     sv_mix(nsamples);
-    return bl_check_exact(wave->name, pos, nsamples, wave->len, wave->loop_len);
+    return bl_check_exact(wave->name, pos, nsamples,
+        bl_wave_loop_end(wave), wave->loop_len, NULL);
+}
+
+// Where the note-off (#mixer_ch_set_loop false) lands relative to the loop.
+typedef enum {
+    SL_BEFORE,       // still in the intro
+    SL_INSIDE,       // mid-loop
+    SL_NEAR_END,     // a few samples before loop_end
+    SL_AFTER_WRAP,   // just after wrapping back to loop_start
+} sl_when_t;
+
+// Disable the sustain loop at @p when, then verify a seamless one-shot through
+// the release tail and a silent stop. PCM exact match when @p sample is set;
+// otherwise only L/R identity + audible + idle (VADPCM / stereo stress).
+static bool test_mixer_set_loop(waveform_t *wave, sl_when_t when,
+    int16_t (*sample)(int))
+{
+    int loop_end = bl_wave_loop_end(wave);
+    int loop_start = loop_end - wave->loop_len;
+    int start, target;
+    char tag[64];
+    const char *wname[] = { "before", "inside", "near_end", "after_wrap" };
+
+    switch (when) {
+    case SL_BEFORE:
+        start = loop_start > 64 ? loop_start - 64 : 0;
+        target = start + 16;
+        break;
+    case SL_INSIDE:
+        start = loop_start + 8;
+        target = loop_start + wave->loop_len / 2;
+        break;
+    case SL_NEAR_END:
+        // Land a few samples before loop_end; mix in steps of 2 so a round
+        // cannot jump past the window and wrap.
+        start = loop_end - 8;
+        if (start < loop_start) start = loop_start;
+        target = loop_end - 4;
+        break;
+    case SL_AFTER_WRAP:
+        start = loop_end - 6;
+        if (start < loop_start) start = loop_start;
+        target = loop_start + 16;   // after the wrap
+        break;
+    }
+    snprintf(tag, sizeof(tag), "set_loop %s/%s", wave->name, wname[when]);
+
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    // Settle the volume ramp at step 0 so the playhead stays on @p start
+    // (sv_start's 2048-sample warmup would walk past the intro / near-end).
+    mixer_ch_play(SV_CHANNEL, wave);
+    mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+    mixer_ch_set_pos(SV_CHANNEL, start);
+    mixer_ch_set_freq(SV_CHANNEL, 0);
+    sv_mix(2048);
+    mixer_ch_set_freq(SV_CHANNEL, BL_FREQ);
+
+    int prev = start;
+    for (int guard = 0; guard < 256; guard++) {
+        int pos = (int)mixer_ch_get_pos(SV_CHANNEL);
+        if (when == SL_AFTER_WRAP) {
+            if (pos < prev && pos >= loop_start && pos < loop_start + 64)
+                break;
+        } else if (when == SL_NEAR_END) {
+            if (pos >= target && pos < loop_end) break;
+        } else if (when == SL_BEFORE) {
+            break; // already parked in the intro
+        } else if (pos >= target && pos < loop_end) {
+            break;
+        }
+        prev = pos;
+        // Steps of 2: mixer_poll requires an even count, and near loop_end a
+        // larger step would wrap past the NEAR_END window.
+        sv_mix(when == SL_INSIDE ? 32 : 2);
+    }
+
+    int pos = (int)mixer_ch_get_pos(SV_CHANNEL);
+    if (when == SL_BEFORE && !(pos < loop_start)) {
+        printf("FAILED %s: pos %d not in intro [0,%d)\n", tag, pos, loop_start);
+        return false;
+    }
+    if (when == SL_INSIDE && !(pos >= loop_start && pos < loop_end)) {
+        printf("FAILED %s: pos %d not inside the loop\n", tag, pos);
+        return false;
+    }
+    if (when == SL_NEAR_END && !(pos >= loop_end - 16 && pos < loop_end)) {
+        printf("FAILED %s: pos %d not near loop_end=%d\n", tag, pos, loop_end);
+        return false;
+    }
+    if (when == SL_AFTER_WRAP && !(pos >= loop_start && pos < loop_start + 64)) {
+        printf("FAILED %s: pos %d not just after wrap (loop_start=%d)\n",
+            tag, pos, loop_start);
+        return false;
+    }
+
+    mixer_ch_set_loop(SV_CHANNEL, false);
+    pos = (int)mixer_ch_get_pos(SV_CHANNEL);
+    int remain = wave->len - pos;
+    if (remain < 8) {
+        printf("FAILED %s: only %d samples left after disable\n", tag, remain);
+        return false;
+    }
+    // mixer_poll rejects odd counts; a release of 37 samples is the point.
+    sv_mix((remain + 65) & ~1);
+
+    if (sample) {
+        char rtag[80];
+        snprintf(rtag, sizeof(rtag), "%s (release)", tag);
+        int ncheck = remain < 4096 ? remain : 4096;
+        if (!bl_check_exact(rtag, pos, ncheck, wave->len, 0, sample))
+            return false;
+    } else {
+        // Audible release; stereo planes must stay together.
+        int peak = 0, n = remain < 512 ? remain : 512;
+        for (int i = 0; i < n * 2; i++) {
+            int a = sv_out[i] < 0 ? -sv_out[i] : sv_out[i];
+            if (a > peak) peak = a;
+        }
+        if (peak < 1024) {
+            printf("FAILED %s: silent release (peak %d)\n", tag, peak);
+            return false;
+        }
+    }
+    if (wave->channels == 2) {
+        // Skip the last overread past sample_end: silence padding of the two
+        // VADPCM planes can settle one sample apart there.
+        int n = remain < 512 ? remain : 512;
+        if (n > 8) n -= 8;
+        if (!sv_check_lr(tag, n))
+            return false;
+    }
+
+    sv_mix(2048);
+    if (mixer_ch_playing(SV_CHANNEL)) {
+        printf("FAILED %s: still playing after release (pos=%.1f len=%d)\n",
+            tag, mixer_ch_get_pos(SV_CHANNEL), wave->len);
+        return false;
+    }
+    return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// VADPCM sustain + release (streamed / resident)
+//
+// Release length is deliberately not a multiple of 16, so the last frame is
+// partial — the case WAV64 v10 has to get right at sample_end.
+//////////////////////////////////////////////////////////////////////////////
+
+#define SLV_INTRO     128
+#define SLV_LOOP      64
+#define SLV_RELEASE   37
+#define SLV_LOOP_END  (SLV_INTRO + SLV_LOOP)
+#define SLV_LEN       (SLV_LOOP_END + SLV_RELEASE)
+#define SLV_FRAMES    ((SLV_LEN + 15) / 16)
+
+static uint8_t *slv_frames;
+static int16_t *slv_ref;
+static wav64_vadpcm_vector_t *slv_codebook;
+static wav64_vadpcm_vector_t *slv_loop_state;
+static waveform_vadpcm_t slv_codec;
+static waveform_vadpcm_t slv_codec_stereo;
+
+static void slv_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx;
+    if (seeking) {
+        wav64_state_vadpcm_t *st = sbuf->state;
+        for (int i = 0; i < 8; i++) {
+            int p = wpos * 16 - 8 + i;
+            st->state[0].v[i] = p >= 0 ? slv_ref[p] : 0;
+        }
+    }
+    int fb = VADPCM_FRAME_BYTES(4);
+    while (wlen > 0) {
+        int n = wlen < SAMPLEBUFFER_MARGIN_UNITS ? wlen : SAMPLEBUFFER_MARGIN_UNITS;
+        memcpy(samplebuffer_append(sbuf, n), slv_frames + wpos * fb, n * fb);
+        wlen -= n;
+        wpos += n;
+    }
+}
+
+// Stereo VADPCM with identical planes: L/R must stay together across a note-off.
+static void slv_read_stereo(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    samplebuffer_t *sbuf_r = sbuf + 1;
+    (void)ctx;
+    if (seeking && sbuf->widx == 0) {
+        wav64_state_vadpcm_t *st = sbuf->state;
+        for (int i = 0; i < 8; i++) {
+            int p = wpos * 16 - 8 + i;
+            st->state[0].v[i] = st->state[1].v[i] = p >= 0 ? slv_ref[p] : 0;
+        }
+        samplebuffer_flush(sbuf_r);
+        sbuf_r->wpos = wpos;
+        sbuf_r->head = sbuf->head;
+    }
+    int fb = VADPCM_FRAME_BYTES(4);
+    while (wlen > 0) {
+        int n = wlen < SAMPLEBUFFER_MARGIN_UNITS ? wlen : SAMPLEBUFFER_MARGIN_UNITS;
+        uint8_t *dl = samplebuffer_append(sbuf, n);
+        uint8_t *dr = samplebuffer_append(sbuf_r, n);
+        memcpy(dl, slv_frames + wpos * fb, n * fb);
+        memcpy(dr, dl, n * fb);
+        sbuf_r->wnext = sbuf_r->wpos + sbuf_r->widx;
+        wlen -= n;
+        wpos += n;
+    }
+}
+
+static waveform_t slv_wave_stream = {
+    .name = "slv-stream", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = SLV_LEN, .loop_len = SLV_LOOP, .loop_end = SLV_LOOP_END,
+    .read = slv_read, .format = WAVEFORM_FORMAT_VADPCM,
+    .codec = &slv_codec, .state_size = sizeof(wav64_state_vadpcm_t),
+};
+
+static waveform_t slv_wave_stereo = {
+    .name = "slv-stereo", .bits = 16, .channels = 2, .frequency = BL_FREQ,
+    .len = SLV_LEN, .loop_len = SLV_LOOP, .loop_end = SLV_LOOP_END,
+    .read = slv_read_stereo, .format = WAVEFORM_FORMAT_VADPCM,
+    .codec = &slv_codec_stereo, .state_size = sizeof(wav64_state_vadpcm_t),
+};
+
+static waveform_t slv_wave_res;
+static uint8_t *slv_mem_res;
+
+static void slv_init(void)
+{
+    if (slv_frames)
+        return;
+    int fb = VADPCM_FRAME_BYTES(4);
+    slv_codebook = malloc_uncached(2 * VADPCM_CODEBOOK_STRIDE);
+    memset(slv_codebook, 0, 2 * VADPCM_CODEBOOK_STRIDE);
+    gen_codebook(slv_codebook);
+    memcpy((uint8_t *)slv_codebook + VADPCM_CODEBOOK_STRIDE, slv_codebook,
+        8 * sizeof(wav64_vadpcm_vector_t));
+    slv_frames = malloc(SLV_FRAMES * fb);
+    for (int f = 0; f < SLV_FRAMES; f++)
+        sv_gen_frame(slv_frames + f * fb, f + 9000, 4);
+    slv_ref = malloc(SLV_FRAMES * 16 * 2);
+    wav64_vadpcm_vector_t state = {0};
+    vadpcm_decode(NPREDICTORS, ORDER, slv_codebook, &state,
+        SLV_FRAMES, slv_ref, slv_frames, 4);
+    slv_loop_state = malloc_uncached(2 * sizeof(*slv_loop_state));
+    for (int i = 0; i < 8; i++)
+        slv_loop_state[0].v[i] = slv_loop_state[1].v[i] = slv_ref[SLV_INTRO - 8 + i];
+    int16_t *taps = (int16_t *)((uint8_t *)slv_codebook + 128);
+    taps[0] = slv_ref[SLV_INTRO + 0];
+    taps[1] = slv_ref[SLV_INTRO + 1];
+    taps[2] = slv_ref[SLV_INTRO + 2];
+    memcpy((uint8_t *)slv_codebook + VADPCM_CODEBOOK_STRIDE + 128, taps, 6);
+    slv_codec.codebook = slv_codebook;
+    slv_codec.loop_state = slv_loop_state;
+    slv_codec.bits = 4;
+    slv_codec_stereo = slv_codec;
+
+    slv_mem_res = malloc_uncached(SLV_FRAMES * fb + 64);
+    memcpy(slv_mem_res, slv_frames, SLV_FRAMES * fb);
+    slv_wave_res = slv_wave_stream;
+    slv_wave_res.name = "slv-res";
+    slv_wave_res.mem = slv_mem_res;
+    slv_wave_res.__uuid = 0;
+}
+
+static int16_t slv_sample(int pos)
+{
+    if (pos < 0 || pos >= SLV_FRAMES * 16) return 0;
+    return slv_ref[pos];
 }
 
 // Switch the playback rate mid-note: the playhead must advance at the rate
@@ -2051,9 +2411,7 @@ int main(void)
         }
     }
 
-    // Resident / frequency-change / mid-stop coverage. One-shot and looping
-    // PCM/VADPCM, small pinned loops and large seek-wrap loops are already
-    // exercised above.
+    // Resident / frequency-change / mid-stop / set_loop matrix.
     printf("Baseline mixer scenarios\n");
     fflush(stdout);
     bl_init();
@@ -2062,6 +2420,39 @@ int main(void)
     total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_res, BL_INTRO - 32, 1024)) failed++;
     total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_stream, BL_INTRO - 32, 1024)) failed++;
     total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_res, BL_INTRO + 8, 1024)) failed++;
+
+    printf("mixer_ch_set_loop matrix\n");
+    fflush(stdout);
+    #define SL_RUN(w, when, s) do { \
+        total++; if (!test_mixer_set_loop((w), (when), (s))) failed++; \
+    } while (0)
+    // PCM streamed mono: every note-off placement, including the fundamentals
+    // near loop_end and just after a wrap. Release is shorter than a round.
+    SL_RUN(&bl_wave_loop_stream, SL_BEFORE, bl_sample);
+    SL_RUN(&bl_wave_loop_stream, SL_INSIDE, bl_sample);
+    SL_RUN(&bl_wave_loop_stream, SL_NEAR_END, bl_sample);
+    SL_RUN(&bl_wave_loop_stream, SL_AFTER_WRAP, bl_sample);
+    // PCM resident with release (mid-loop only: wraps would Hermite into release).
+    SL_RUN(&bl_wave_loop_res_rel, SL_INSIDE, bl_sample);
+    // PCM stereo streamed.
+    SL_RUN(&bl_wave_loop_stereo, SL_INSIDE, bl_sample);
+    // Loop shorter than MIXER_LOOP_OVERREAD.
+    SL_RUN(&bl_wave_tiny, SL_INSIDE, bl_tiny_sample);
+    SL_RUN(&bl_wave_tiny, SL_NEAR_END, bl_tiny_sample);
+    // Loop pinned in the samplebuffer.
+    SL_RUN(&bl_wave_pin, SL_INSIDE, bl_pin_sample);
+    SL_RUN(&bl_wave_pin, SL_AFTER_WRAP, bl_pin_sample);
+
+    slv_init();
+    // VADPCM streamed/resident; release length not a multiple of 16.
+    SL_RUN(&slv_wave_stream, SL_INSIDE, slv_sample);
+    SL_RUN(&slv_wave_stream, SL_NEAR_END, slv_sample);
+    SL_RUN(&slv_wave_stream, SL_AFTER_WRAP, slv_sample);
+    SL_RUN(&slv_wave_res, SL_INSIDE, slv_sample);
+    // VADPCM stereo: exact left + L/R identity across unpin + release.
+    SL_RUN(&slv_wave_stereo, SL_INSIDE, slv_sample);
+    #undef SL_RUN
+
     total++; if (!test_mixer_freq_change()) failed++;
     total++; if (!test_mixer_stop_mid()) failed++;
     rf_init(4);
