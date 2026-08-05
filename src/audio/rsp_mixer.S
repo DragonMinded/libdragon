@@ -67,17 +67,21 @@
 # NOTE: This must be the same of MIXER_FX64_FRAC in mixer.c.
 #define WAVEFORM_POS_FRAC_BITS    12
 
+# Assert codes reported by the RSP crash handler (debug builds only).
+#define MIXER_ASSERT_VADPCM_AHEAD 0xA001
+
 # Waveform flags. Keep these in sync with mixer.c
 #define CH_FLAGS_BPS_SHIFT        (3<<0)
 #define CH_FLAGS_16BIT            (1<<2)
 #define CH_FLAGS_STEREO           (1<<3)
 #define CH_FLAGS_STEREO_SUB       (1<<4)
 #define CH_FLAGS_VADPCM           (1<<5)
+# Decode from the state saved for the loop start rather than the one the last
+# round left behind (see VadpcmSetup).
+#define CH_FLAGS_VLOOP_STATE      (1<<6)
 # Zero ACCUM before mixing (first MIX_CHANNEL of a round; ACCUM is in .bss).
 #define CH_FLAGS_CLEAR_ACCUM      (1<<7)
 
-# Resample staging (8 samples) for the stereo and VADPCM paths.
-#define DMEM_SCRATCH_SIZE         16
 
 # Sample DMA cache. A transfer may never end more than SAMPLE_CACHE_SIZE bytes
 # past the end of the RDRAM window (that is #MIXER_LOOP_OVERREAD in mixer.c,
@@ -89,10 +93,10 @@
 #define SAMPLE_CACHE_SIZE         64
 #define SAMPLE_CACHE_SAMPLES      128
 
-# In-mixer VADPCM: decode up to this many frames into DMEM_SAMPLE_CACHE
-# (16 samples each). 8 frames = SAMPLE_CACHE_SAMPLES.
-#define VADPCM_WIN_FRAMES         8
-#define VADPCM_WIN_SAMPLES        (VADPCM_WIN_FRAMES * 16)
+# In-mixer VADPCM: one fill decodes as many frames of 16 samples as the
+# window holds. It cannot hold more: their compressed form is staged in the
+# tail of that same window (see VadpcmDecodeFrames).
+#define VADPCM_WIN_FRAMES         (SAMPLE_CACHE_SAMPLES / 16)
 
 
 	################################
@@ -128,6 +132,7 @@
 		RSPQ_DefineCommand MIX_CHANNEL,       32		# 0x0
 		RSPQ_DefineCommand MIX_SETCHANNEL,    16		# 0x1
 		RSPQ_DefineCommand MIX_FLUSH,          8		# 0x2
+		RSPQ_DefineCommand MIX_SETSTATE,      24		# 0x3
 	RSPQ_EndOverlayHeader
 
 ############################################################################
@@ -174,6 +179,38 @@ CHTBL_LOOP_STATE:         .dcb.l MAX_CHANNELS
 	.align 4
 IDENTITY:  .half  1<<11,1<<11,1<<11,1<<11, 1<<11,1<<11,1<<11,1<<11
 
+	# Per-lane multipliers that bring each residual of a VADPCM frame to the
+	# top of its 16-bit lane, one entry of four halfwords per residual width.
+	#
+	# A frame is a control byte followed by 16 residuals of `bits` bits each,
+	# packed MSB first: residual i occupies payload bits [i*bits, (i+1)*bits).
+	# The decoder reads the payload as four halfwords, one per group of four
+	# consecutive residuals, and isolates a residual with two multiplies: one
+	# that shifts it up to bit 15 of its lane (the low 16 bits of the product,
+	# so everything above it drops out) and one that shifts it back down by
+	# 16-bits, which sign extends it.
+	#
+	# Group j starts at payload byte (j*bits)>>1, at bit d = 4 if j*bits is
+	# odd and 0 otherwise. Within the group, residual 4j+k is k*bits further
+	# down. The .q0 swizzle feeds each halfword to a pair of lanes, which take
+	# the even residual (multiplier K0) and the odd one (K0 << bits), so:
+	#
+	#   K0 = [2^0, 2^2b, 2^d, 2^(d+2b)] with b = bits
+	#
+	# The parity of j*bits has period 2 in j, so lanes 4 to 7 repeat the
+	# entry: VadpcmDecodeFrames loads it with two ldv.
+	#
+	# The rest of an entry is what else depends on the width alone, so that
+	# VadpcmSetup can load it instead of deriving it: 2^bits, the multiplier
+	# of the sign extending shift, and the decomposition of the frame stride
+	# (see CH_VMULSH). The two of those sit as one word, in the order of the
+	# fields they are copied to.
+	.align 4
+VADPCM_K0:
+	.half 1,  16,  1,   16;  .half 0,  4;  .half 2,  0    # 2 bits (stride 5)
+	.half 1,  64, 16, 1024;  .half 0,  8;  .half 3, -1    # 3 bits (stride 7)
+	.half 1, 256,  1,  256;  .half 0, 16;  .half 3,  0    # 4 bits (stride 9)
+
 	.bss
 
 	# Stereo int16 accumulator for one mix round (LRLR...). Lives in .bss
@@ -207,6 +244,9 @@ ACCUM_PAD:                .dcb.w (ACCUM_PAD_SAMPLES * 2)
 	# instead of needing a separate mask (MonoLoop). It is 16-byte aligned
 	# because it is written/read with sqv/lqv.
 	#
+	# The tail of the window also stages the compressed frames of a VADPCM
+	# fill, which are decoded into the window itself (see VadpcmDecodeFrames).
+	#
 	# The pipelined VADPCM decoder spills one stale vector 16 bytes below the
 	# window before its first real store: that lands in the tail of ACCUM_PAD,
 	# which is never DMA'd out.
@@ -221,33 +261,19 @@ DMEM_ADDRS:               .dcb.b 16
 	.align 4
 DMEM_TRANSPOSE:           .dcb.b 128
 
-	# The VADPCM path borrows the head of the transpose scratch while it
-	# decodes the frame the loop starts on (see VadpcmTapsDone): every refill
-	# is followed by a priming pass that rewrites the whole of it before the
-	# resampler reads it back.
-#define DMEM_VSCRATCH     DMEM_TRANSPOSE
-
-	# Contiguous resample staging (stereo and VADPCM paths).
+	# In-mixer VADPCM staging: 8 predictor vectors (128 bytes) plus the three
+	# Hermite taps past a loop point (8 bytes with padding). Stereo VADPCM
+	# uses two MIX_CHANNEL commands, each with its own half.
 	.align 4
-DMEM_SCRATCH:             .dcb.b DMEM_SCRATCH_SIZE
-
-	# In-mixer VADPCM staging (mono codebook = 8 vectors = 128 bytes).
-	# Stereo VADPCM uses two MIX_CHANNEL commands, each with its own half.
-	.align 4
-MIX_VADPCM_CODEBOOK:      .space 128
+MIX_VADPCM_CODEBOOK:      .space 144
 	.align 4
 MIX_VADPCM_STATE:         .space 16
 	.align 4
 MIX_VADPCM_STATE_BEFORE:  .space 16
-	# Compressed frames of one fill, plus room for the 8-byte lookahead of
-	# the decoder priming and for the DMA rounding up to 8 bytes.
-	.align 3
-MIX_VADPCM_COMP:          .space (VADPCM_WIN_FRAMES * 9 + 24)
 
 	# Frame index the current fill starts at.
-	.align 3
+	.align 2
 ROUND_SCRATCH:            .long  0
-	                      .long  0
 
 	# Stashed MIX_CHANNEL parameters (command buffer may be overwritten).
 	.align 2
@@ -283,7 +309,19 @@ CH_VATEND:                .half  0
 # fraction as 0.16, plus whole samples.
 CH_STEPF:                 .half  0
 CH_STEPI:                 .half  0
-                          .half  0
+# Decomposition of the frame stride (2*bits+1 bytes) that turns a frame index
+# into a byte offset without a multiply:
+#   n*stride = (n << CH_VMULSH) + ((n ^ neg) - neg)
+# The two are adjacent and word aligned because they are copied together out
+# of VADPCM_K0. CH_VBITS is the residual width itself (2, 3 or 4 bits).
+	.align 2
+CH_VMULSH:                .half  0
+CH_VMULNEG:               .half  0
+CH_VBITS:                 .half  0
+# Frames the waveform covers, ceil(len/16). Every fill measures how many are
+# left against it, and it cannot change within a command.
+	.align 2
+CH_VNFRAMES_TOT:          .long  0
 
 
 	.text 1
@@ -448,7 +486,7 @@ MIX_CHANNEL_NoClear:
 	# Splat the current filtered volume and the target volume of this
 	# channel into [L,R,L,R,L,R,L,R] vectors. Both are stored as adjacent
 	# halfword pairs in DMEM, so one word replicated four times does it.
-	li s0, %lo(DMEM_SCRATCH)
+	li s0, %lo(RSPQ_SCRATCH_MEM)
 	lh ch_idx, %lo(CH_IDX)
 	sll t0, ch_idx, 2
 	lw t1, %lo(XVOL)(t0)
@@ -569,7 +607,7 @@ MonoSetup:
 	# Assemble the loop scalars in DMEM and splat them in one load. k_limit
 	# depends on the size of each transfer, so it is filled in by
 	# MonoDmaFetch before the loop ever runs.
-	li s0, %lo(DMEM_SCRATCH)
+	li s0, %lo(RSPQ_SCRATCH_MEM)
 	sh t1, 0x02(s0)                          # k_zaddr
 	srl cache_half, 1                        # byte address -> DMEM index
 	sll t2, wv_step, 3
@@ -952,35 +990,57 @@ MonoExit:
 ############################################################
 
 VadpcmSetup:
-	# DMA codebook once per command.
+	# DMA codebook once per command (predictors + Hermite loop taps). The
+	# codebook is 8-byte aligned, so MIX_SETCHANNEL packs the residual width
+	# of the stream into the two low bits of its pointer, as bits-2.
 	lw s0, %lo(CH_CODEBOOK)
+	andi t9, s0, 3
+	sub s0, t9
+	addi t9, 2                               # residual width: 2, 3 or 4
 	li s4, %lo(MIX_VADPCM_CODEBOOK)
+	sh t9, %lo(CH_VBITS)
 	jal DMAInAsync
-	li t0, DMA_SIZE(128, 1)
+	li t0, DMA_SIZE(136, 1)
 
 	# DMA decoder state. next_frame = floor(pos/16); the cache is empty.
 	#
 	# A round can end exactly on the loop point, and then it is the CPU that
 	# wraps the position, leaving behind the state of the end of the waveform
-	# instead of the one of the loop. So whenever a command starts on the frame
-	# the loop starts on, decode from the state saved for it — which is also
-	# the state the waveform reaches that frame with, so it holds for a channel
-	# that is still playing its attack.
+	# instead of the one of the loop. The CPU marks the command that starts on
+	# the frame the loop starts on, which decodes from the state saved for it —
+	# also the state the waveform reaches that frame with, so it holds for a
+	# channel that is still playing its attack.
 	lw s0, %lo(CH_STATE)
-	lw s1, %lo(CH_LOOP_STATE)
-	beqz wv_loop_len, 1f
-	nop
-	beqz s1, 1f
-	sub t0, wv_len, wv_loop_len
-	srl t0, WAVEFORM_POS_FRAC_BITS + 4       # frame the loop starts on
-	srl s2, wv_pos, WAVEFORM_POS_FRAC_BITS
-	srl s2, 4
-	bne t0, s2, 1f
-	nop
-	move s0, s1
-1:	li s4, %lo(MIX_VADPCM_STATE)
-	jal DMAIn
+	lh t0, %lo(CH_FLAGS)
+	andi t0, CH_FLAGS_VLOOP_STATE
+	beqz t0, 1f
+	li s4, %lo(MIX_VADPCM_STATE)
+	lw s0, %lo(CH_LOOP_STATE)
+1:	jal DMAIn
 	li t0, DMA_SIZE(16, 1)
+
+	# Residual unpacking constants of this stream. Everything that depends on
+	# the width alone is in VADPCM_K0: the decoder indexes it for the per-lane
+	# multipliers, and the rest is copied out of the same entry here.
+	#
+	# 2^bits is the multiplier of the sign extending shift. It reaches the
+	# decoder in v_kmono.e4, through the scratch MonoSetup splats the loop
+	# scalars from (which only writes lanes 0 to 3). The stride decomposition
+	# lands in the field pair it is stored as (see CH_VMULSH).
+	sll t0, t9, 4
+	addi t0, %lo(VADPCM_K0 - 32)             # entry of this width: (bits-2)*16
+	li s1, %lo(RSPQ_SCRATCH_MEM)
+	lh t1, 0x0A(t0)
+	lw t2, 0x0C(t0)
+	sh t1, 0x08(s1)
+	sw t2, %lo(CH_VMULSH)
+
+	# Frames the waveform covers: hoisted here because every fill needs it and
+	# it only depends on the length, which the command fixes.
+	srl t0, wv_len, WAVEFORM_POS_FRAC_BITS
+	addi t0, 15
+	srl t0, 4
+	sw t0, %lo(CH_VNFRAMES_TOT)
 
 	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	srl t0, 4
@@ -1013,9 +1073,7 @@ VadpcmFillCache:
 	srl t0, wv_pos, WAVEFORM_POS_FRAC_BITS
 	srl t1, t0, 4                            # start_frame
 	sw t1, %lo(ROUND_SCRATCH)
-	srl t0, wv_len, WAVEFORM_POS_FRAC_BITS
-	addi t0, 15
-	srl t0, 4                                # frames covered by the waveform
+	lw t0, %lo(CH_VNFRAMES_TOT)              # frames covered by the waveform
 	sub t0, t1
 	blez t0, VadpcmEpilog
 	li t2, VADPCM_WIN_FRAMES
@@ -1057,15 +1115,17 @@ VadpcmFillCache:
 	# Every fill but the first starts a few frames back, because the taps of
 	# the last samples of the previous window were rejected and replayed;
 	# rewinding is free, since the state of a frame is just the eight samples
-	# before it and those are still in the cache. Decoding forward is only
-	# needed when the position jumped past the window.
+	# before it and those are still in the cache.
+	#
+	# It can only ever be a rewind: the resampler stops at the end of the
+	# decoded window (k_limit), so the frame the next fill starts on is never
+	# past the one the decoder stopped at.
 VadpcmAlignState:
 	lw t2, %lo(CH_VNEXT_FRAME)
 	lw t1, %lo(ROUND_SCRATCH)
 	beq t2, t1, VadpcmAligned
 	lw t0, %lo(CH_VCUR_FRAME)
-	slt t9, t1, t2
-	beqz t9, VadpcmCatchUp
+	assert_lt t1, t2, MIXER_ASSERT_VADPCM_AHEAD
 	sub t9, t1, t0                           # frames of the window to keep
 	li s0, %lo(MIX_VADPCM_STATE_BEFORE)
 	beqz t9, 1f
@@ -1077,18 +1137,6 @@ VadpcmAlignState:
 	sqv $v01, 0,s1
 	j VadpcmAligned
 	sw t1, %lo(CH_VNEXT_FRAME)
-
-VadpcmCatchUp:
-	li t0, 1
-	sh t0, %lo(CH_VDECN)
-1:	lw t2, %lo(CH_VNEXT_FRAME)
-	lw t1, %lo(ROUND_SCRATCH)
-	beq t2, t1, VadpcmAligned
-	nop
-	jal VadpcmDecodeFrames
-	nop
-	j 1b
-	nop
 
 VadpcmAligned:
 	# Snapshot the state that decodes start_frame: the epilog needs it if the
@@ -1105,10 +1153,8 @@ VadpcmAligned:
 
 	# Hermite reads three taps past the sample it interpolates, and past the
 	# last sample of the waveform those are the first three of the loop. They
-	# decode from the loop state rather than from the one the window ends on,
-	# so the frame that holds them is decoded on its own, over the head of the
-	# window, and only the three samples are kept: without them a loop point
-	# would be interpolated towards the padding of the last frame.
+	# ride in with the codebook DMA (MIX_VADPCM_CODEBOOK+128); without them a
+	# loop point would be interpolated towards the padding of the last frame.
 	lh t9, %lo(CH_VATEND)
 	bnez t9, VadpcmTapsDone
 	lh s0, %lo(CH_VLIMIT)                    # one sample past the last one
@@ -1117,50 +1163,10 @@ VadpcmAligned:
 	beqz t2, VadpcmTapsHold
 	nop
 	beqz t3, VadpcmTapsHold
-	nop
-
-	# The window and the running state are put back afterwards: the samples of
-	# the loop start belong to a later round, and the state the decoder leaves
-	# behind is the one of the loop, not of the end of the window.
-	li s1, %lo(DMEM_SAMPLE_CACHE)
-	li s3, %lo(DMEM_VSCRATCH)
-	lqv $v01, 0x00,s1
-	lqv $v02, 0x10,s1
-	li s2, %lo(MIX_VADPCM_STATE)
-	lqv $v03, 0x00,s2
-	sqv $v01, 0x00,s3
-	sqv $v02, 0x10,s3
-	sqv $v03, 0x20,s3
-	lw s0, %lo(CH_LOOP_STATE)
-	li s4, %lo(MIX_VADPCM_STATE)
-	jal DMAIn
-	li t0, DMA_SIZE(16, 1)
-	lw t0, %lo(CH_LEN)
-	lw t1, %lo(CH_LOOP_LEN)
-	sub t0, t1
-	srl t0, WAVEFORM_POS_FRAC_BITS + 4       # frame the loop starts on
-	sw t0, %lo(CH_VNEXT_FRAME)
-	li t0, 1
-	jal VadpcmDecodeFrames
-	sh t0, %lo(CH_VDECN)
-
-	li s1, %lo(DMEM_SAMPLE_CACHE)
-	li s3, %lo(DMEM_VSCRATCH)
+	li s1, %lo(MIX_VADPCM_CODEBOOK+128)
 	lh t0, 0x00(s1)
 	lh t1, 0x02(s1)
 	lh t2, 0x04(s1)
-	lqv $v01, 0x00,s3
-	lqv $v02, 0x10,s3
-	lqv $v03, 0x20,s3
-	sqv $v01, 0x00,s1
-	sqv $v02, 0x10,s1
-	li s2, %lo(MIX_VADPCM_STATE)
-	sqv $v03, 0x00,s2
-	lw s4, %lo(CH_VCUR_FRAME)
-	lh s5, %lo(CH_VNFRAMES)
-	lh s0, %lo(CH_VLIMIT)
-	add s4, s5
-	sw s4, %lo(CH_VNEXT_FRAME)
 	sh t0, 0x00(s0)
 	sh t1, 0x02(s0)
 	j VadpcmTapsDone
@@ -1336,6 +1342,40 @@ MIX_SETCHANNEL:
 	sw a3, %lo(CHTBL_LOOP_STATE)(t0)
 	.endfunc
 
+
+###############################################################
+# MIX_SETSTATE – seed the VADPCM decoder state of one channel.
+#
+# Command words (24 bytes):
+#   a0: [ovl+cmd:8][pad:24]
+#   a1: state  (the buffer MIX_SETCHANNEL registered for the channel)
+#   a2: state word 0
+#   a3: state word 1
+#   +16: state word 2
+#   +20: state word 3
+#
+# The CPU re-seeds the decoder whenever it moves a channel somewhere the
+# stream does not reach on its own: a seek, or the wrap of a loop too large to
+# be pinned in the samplebuffer. Writing that state to RDRAM directly would
+# race with the epilog of every MIX_CHANNEL, which saves its own state to the
+# same buffer whenever the RSP gets to it — several rounds behind the CPU, and
+# at a different moment for each plane of a stereo pair. Carrying it through
+# the queue instead puts it after every round already enqueued and before the
+# one that has to decode from it.
+###############################################################
+
+	.func MIX_SETSTATE
+MIX_SETSTATE:
+	addi t0, rspq_dmem_buf_ptr, %lo(RSPQ_DMEM_BUFFER) - 0x10
+	li s4, %lo(RSPQ_SCRATCH_MEM)
+	lqv $v01, 0x00,t0
+	lrv $v01, 0x10,t0
+	move s0, a1
+	li t0, DMA_SIZE(16, 1)
+	j DMAOut
+	sqv $v01, 0x00,s4
+	.endfunc
+
 	#undef ticks
 	#undef wv_pos
 	#undef wv_step
@@ -1362,9 +1402,16 @@ MIX_SETCHANNEL:
 #define dmem_state          s1
 #define dmem_codebook       s2
 #define dmem_output         s3
-#define dmem_input          s5
-#define cb_xor              t2
-#define slot_xor            t3
+# One base pointer per payload window of the frame being decoded (see the
+# unpack in VADPCM_DecodeLoop). in0 also carries the control byte, at -1.
+#define in0                 s5
+#define in1                 t9
+#define in2                 s0
+#define in3                 s4
+#define vstride             t2
+# Value in3 reaches once the last frame of the fill has been read, which is
+# what ends the loop (no separate frame counter).
+#define in_end              t3
 #define slot_ptr            t4
 
 #define vscale  $v01
@@ -1390,124 +1437,185 @@ MIX_SETCHANNEL:
 #define vresult $v03
 # Destination of the vmudh/vmadh whose result is only wanted in the
 # accumulator. It must not be $v00: the mixer needs that one to stay zero
-# across the decode. $v04/$v05 are the two the decoder does not otherwise use,
-# and the mixer only keeps powers of x there, which it recomputes every group.
+# across the decode. $v04 is one the decoder does not otherwise use, and the
+# mixer only keeps powers of x there, which it recomputes every group.
 #define v____   $v04
+# The four payload halfwords of a frame, one per lane pair.
+#define vsrc    $v05
+# Unpack multipliers, in the two registers MonoRefill rebuilds from scratch
+# after every fill (v_frac and v_idx), plus 2^bits in a lane of v_kmono.
+#define vk0     $v26
+#define vk1     $v27
+#define kext    v_kmono.e4
 
 	# Decode CH_VDECN frames starting at CH_VNEXT_FRAME into
 	# DMEM_SAMPLE_CACHE. Advances CH_VNEXT_FRAME by CH_VDECN.
-	# Clobbers t2, t3, t4, t6, t7, t8, t9, s0-s5 and $v01-$v23, $v31 ($v30 is
-	# rewritten with the shift table it already held). $v00 is deliberately
-	# left alone, see v____.
+	# Clobbers t2, t3, t4, t6, t7, t8, t9, s0-s5 and $v01-$v23, $v26, $v27,
+	# $v31 ($v30 is rewritten with the shift table it already held). $v00 is
+	# deliberately left alone, see v____.
 	.func VadpcmDecodeFrames
 VadpcmDecodeFrames:
 	sw ra, %lo(CH_VADPCM_RA)
 
 	# MIX_CHANNEL keeps volume-filter constants in $v31 (v_const1), but
-	# vsra8 needs the RSPQ shift table in vshift8 ($v31). Restore it the
-	# same way RSPQ_Loop does before each command; caller reloads VCONST_1.
+	# the decoder needs the RSPQ shift table in vshift8 ($v31). Restore it
+	# the same way RSPQ_Loop does before each command; caller reloads
+	# VCONST_1.
 	lpv vshift8, 0x00,zero
 	vsrl vshift, vshift8, 8
 
-	# RDRAM address of first compressed frame: ptr + next_frame*9
+	# Unpack multipliers of this stream, the entry of VADPCM_K0 for its
+	# residual width. They are reloaded on every call because the registers
+	# they live in are two MonoRefill rebuilds after each fill. K1 serves the
+	# odd residual of each lane pair, which sits exactly `bits` bits further
+	# into the halfword.
+	lh t3, %lo(CH_VBITS)
 	lw t0, %lo(CH_VNEXT_FRAME)
-	sll t1, t0, 3
-	add t1, t0
+	lh t1, %lo(CH_VMULSH)
+	sll s0, t3, 4
+	addi s0, %lo(VADPCM_K0 - 32)          # entry of this width: (bits-2)*16
+	ldv vk0.e0, 0x00,s0
+	ldv vk0.e4, 0x00,s0
+	lh t2, %lo(CH_VMULNEG)
 	lw s0, %lo(CH_PTR)
-	add s0, t1
+	vmudn vk1, vk0, kext
+
+	# RDRAM address of the first compressed frame: ptr + next_frame*stride,
+	# with the stride multiply decomposed as in VadpcmSetup.
+	sllv s1, t0, t1
+	xor s2, t0, t2
+	sub s2, t2
+	add s1, s2
+	add s0, s1
 	andi t9, s0, 7                        # misalignment (survives DMAIn)
 	sub s0, t9
 	lh nframes, %lo(CH_VDECN)
-	# nframes*9 bytes, plus the 8-byte lookahead and the misalignment that
-	# DMAIn folds into s4.
-	sll t0, nframes, 3
-	add t0, nframes
+	# nframes*stride bytes, plus the 8-byte lookahead and the misalignment
+	# that DMAIn folds into s4.
+	sllv t0, nframes, t1
+	xor s1, nframes, t2
+	sub s1, t2
+	add t0, s1
+	move in_end, t0                       # kept across the DMA for the loop test
 	addi t0, 16
-	li s4, %lo(MIX_VADPCM_COMP)
+	# The compressed frames are staged in the tail of the very window they
+	# decode into, which costs no DMEM of its own: parked so that the fill
+	# ends where the window does, the decoder overtakes them just fast enough
+	# never to reach one it has not read yet. Storing the samples of frame k
+	# ends 32(k+1) bytes into the window, while the frames still to be read
+	# start at least (nframes-k-2)*stride bytes before its end: a frame is 32
+	# bytes of samples against 9 of residuals at its widest, so the samples
+	# stay behind for as long as there are frames left, whatever the width
+	# and however short the fill (a full one is exactly the window).
+	addi s1, t0, 7
+	andi s1, 0xFFF8                       # what the DMA writes, rounding included
+	li s4, %lo(DMEM_SAMPLE_CACHE_ZERO)
+	sub s4, s1
 	jal DMAIn
 	addi t0, -1                            # = DMA_SIZE(t0, 1)
 
-	li dmem_codebook, %lo(MIX_VADPCM_CODEBOOK)
-	li dmem_state, %lo(MIX_VADPCM_STATE)
-	li dmem_output, %lo(DMEM_SAMPLE_CACHE)
-	li dmem_input, %lo(MIX_VADPCM_COMP)
-	add dmem_input, t9
-	addiu dmem_input, 1
+	# The eight registers of the predictor matrix keep the identity on their
+	# diagonal, which ltv writes here: every frame only rewrites the column
+	# the codebook provides (see the priming below). s0 is free of the DMA
+	# address only at this point.
+	#
+	# The rest builds the payload window of each group of four residuals:
+	# group j starts at byte (j*bits)>>1 of the payload, that is at 0,
+	# bits>>1, bits and bits + (bits>>1).
+	li s0, %lo(IDENTITY)
+	vxor pred1a, pred1a;                  li dmem_codebook, %lo(MIX_VADPCM_CODEBOOK)
+	vxor pred1b, pred1b;                  li dmem_state, %lo(MIX_VADPCM_STATE)
+	vxor pred1c, pred1c;                  li dmem_output, %lo(DMEM_SAMPLE_CACHE)
+	vxor pred1d, pred1d;                  lh t0, %lo(CH_VBITS)
+	vxor pred1e, pred1e;                  add in0, s4, t9
+	vxor pred1f, pred1f;                  addiu in0, 1      # past the control byte
+	vxor pred1g, pred1g;                  srl t1, t0, 1
+	vxor pred1h, pred1h;                  add in1, in0, t1
+	ltv pred1a.e0, 0,s0
+	add in2, in0, t0                      # in2 is s0: only free once ltv is done
+	add in3, in2, t1
+	add in_end, in3                       # in3 after the last frame of the fill
+	sll vstride, t0, 1
+	addiu vstride, 1                      # frame stride: 2*bits + 1
 
-	jal VADPCM_LoadIdentity
-	nop
-
-	lh nframes, %lo(CH_VDECN)
 	lqv vstate1, 0x00,dmem_state
 	li t1, 1
-	j VADPCM_Priming
-	nop
-	.endfunc
 
-	.func VADPCM_LoadIdentity
-VADPCM_LoadIdentity:
-	vxor pred1a, pred1a
-	vxor pred1b, pred1b
-	vxor pred1c, pred1c
-	vxor pred1d, pred1d
-	vxor pred1e, pred1e
-	vxor pred1f, pred1f
-	vxor pred1g, pred1g
-	vxor pred1h, pred1h
-	li s0, %lo(IDENTITY)
-	jr ra
-	ltv pred1a.e0, 0,s0
-	.endfunc
+	# Residual unpacking, shared by the priming below and the decode loop.
+	#
+	# The 16 residuals of a frame are read as four halfwords, one per group of
+	# four consecutive residuals, and .q0 hands each halfword to the lane pair
+	# that holds the group: lanes 2j and 2j+1 of vres0 take residuals 4j and
+	# 4j+2, the same lanes of vres1 take 4j+1 and 4j+3.
+	#
+	# A lane isolates its residual in two steps. The vmudn keeps the low 16
+	# bits of halfword * K, with K the power of two that brings the top of the
+	# residual to bit 15: everything before the residual falls off the top.
+	# The vmudm then multiplies by 2^bits and keeps bits 31..16 of the result,
+	# which is an arithmetic shift right by 16-bits: it drops everything after
+	# the residual and replicates its sign. Both leave a value in the 15.0
+	# range that the frame scale then shifts up.
+	#
+	# In:  in0..in3, one per group; vk0 (even residuals), vk1 (odd ones)
+	# Out: next_vres0 (even residuals), next_vres1 (odd ones), sign extended
 
 VADPCM_Priming:
-	lbu t0, -1(dmem_input)
-	lpv next_vres0, 0,dmem_input
-	lpv next_vres1, 0,dmem_input
+	lbu t0, -1(in0)
+	lsv vsrc.e0, 0x00,in0
+	lsv vsrc.e2, 0x00,in1
+	lsv vsrc.e4, 0x00,in2
+	lsv vsrc.e6, 0x00,in3
 	srl scaling, t0, 4
 	andi predictor, t0, 0xF
 	sllv scaling, t1, scaling
-	mtc2 scaling, vscale.e0;					vsra8 next_vres0, next_vres0, 12
-	sll predictor, VADPCM_ORDER_SHIFT + 4;      vsll  next_vres1, next_vres1, 4
-	add predictor, dmem_codebook;				vsra8 next_vres1, next_vres1, 12
-
-	lqv pred0.e0,  0x00,predictor
+	sll predictor, VADPCM_ORDER_SHIFT + 4
+	add predictor, dmem_codebook
+	mtc2 scaling, vscale.e0;                    vmudn next_vres0, vk0, vsrc.q0
+	lqv pred0.e0,  0x00,predictor;              vmudn next_vres1, vk1, vsrc.q0
 	lqv pred1.e0,  0x10,predictor
 	lqv pred1a.e1, 0x10,predictor
-	lqv pred1b.e2, 0x10,predictor
-	lqv pred1c.e3, 0x10,predictor
+	lqv pred1b.e2, 0x10,predictor;              vmudm next_vres0, next_vres0, kext
+	lqv pred1c.e3, 0x10,predictor;              vmudm next_vres1, next_vres1, kext
 	lqv pred1d.e4, 0x10,predictor
 	lqv pred1e.e5, 0x10,predictor
 	lqv pred1f.e6, 0x10,predictor
 	lqv pred1g.e7, 0x10,predictor
+	# vres1 of this first frame is computed by the top of the loop.
 	vmudh vres0, next_vres0, vscale.e0
-	vmudh vres1, next_vres1, vscale.e0
+	lqv vresult, 0x00,dmem_state
+
+	# The loop advances in0..in2 at its bottom and in3 at its top, so that
+	# each of them has the whole body between the advance and the load it
+	# feeds. Leave the first three on the frame the loop reads first.
+	addu in0, vstride
+	addu in1, vstride
+	addu in2, vstride
 
 	li slot_ptr, %lo(RSPQ_SCRATCH_MEM)
-	lqv vresult, 0x00,dmem_state
-	li slot_xor, 0
-	li cb_xor, 0
+	vnop
 
 	.balign 8
 VADPCM_DecodeLoop:
-	vmudh v____,  pred1a, vres0.e0;    sqv vresult, 0,slot_ptr
-	vmadh v____,  pred1c, vres0.e1;    xor slot_ptr, slot_xor
-	vmadh v____,  pred1e, vres0.e2;    sqv vresult, -16,dmem_output
-	vmadh v____,  pred1g, vres0.e3;    lqv vstate1, 0,slot_ptr
-	vmadh v____,  pred1b, vres1.e0;    srv vresult, 0x00,dmem_output
-	vmadh v____,  pred1d, vres1.e1;    addiu dmem_input, 9
-	vmadh v____,  pred1f, vres1.e2;    lbu t0, -1(dmem_input)
-	vmadh v____,  pred1h, vres1.e3;    lpv next_vres0, 0,dmem_input
-	vmadh v____,  pred0,  vstate1.e6;  lpv next_vres1, 0,dmem_input
-	vmadh v____,  pred1,  vstate1.e7;  addiu nframes, -1
+	vmudh vres1, next_vres1, vscale.e0; addu in3, vstride
+	vmudh v____,  pred1a, vres0.e0;    lsv vsrc.e0, 0x00,in0
+	vmadh v____,  pred1c, vres0.e1;    sqv vresult, 0,slot_ptr
+	vmadh v____,  pred1e, vres0.e2;    lsv vsrc.e2, 0x00,in1
+	vmadh v____,  pred1g, vres0.e3;    sqv vresult, -16,dmem_output
+	vmadh v____,  pred1b, vres1.e0;    lqv vstate1, 0,slot_ptr
+	vmadh v____,  pred1d, vres1.e1;    srv vresult, 0x00,dmem_output
+	vmadh v____,  pred1f, vres1.e2;    lsv vsrc.e4, 0x00,in2
+	vmadh v____,  pred1h, vres1.e3;    lbu t0, -1(in0)
+	vmadh v____,  pred0,  vstate1.e6;  lsv vsrc.e6, 0x00,in3
+	vmadh v____,  pred1,  vstate1.e7
 
 	vsar  vstatef, COP2_ACC_MD;        srl scaling, t0, 4
 	vsar  vstate0, COP2_ACC_HI;        andi predictor, t0, 0xF
-	vsra8 next_vres0, next_vres0, 12;  xor dmem_codebook, cb_xor
-	vsll  next_vres1, next_vres1, 4;   sll predictor, VADPCM_ORDER_SHIFT + 4
+	vmudn next_vres0, vk0, vsrc.q0;    sllv scaling, t1, scaling
+	vmudn next_vres1, vk1, vsrc.q0;    sll predictor, VADPCM_ORDER_SHIFT + 4
 	vmudn v____, vstatef, vshift.e2;   add predictor, dmem_codebook
-	vmadh vstate0, vstate0, vshift.e2; sllv scaling, t1, scaling
+	vmadh vstate0, vstate0, vshift.e2; mtc2 scaling, vscale.e0
 
-	vmudh v____,  pred1a, vres0.e4;    mtc2 scaling, vscale.e0
+	vmudh v____,  pred1a, vres0.e4;    addu in0, vstride
 	vmadh v____,  pred1b, vres1.e4;    lqv pred1a.e1, 0x10,predictor
 	vmadh v____,  pred1c, vres0.e5;    lqv pred1b.e2, 0x10,predictor
 	vmadh v____,  pred1d, vres1.e5;    lqv pred1c.e3, 0x10,predictor
@@ -1515,30 +1623,27 @@ VADPCM_DecodeLoop:
 	vmadh v____,  pred1f, vres1.e6;    lqv pred1e.e5, 0x10,predictor
 	vmadh v____,  pred1g, vres0.e7;    lqv pred1f.e6, 0x10,predictor
 	vmadh v____,  pred1h, vres1.e7;    lqv pred1g.e7, 0x10,predictor
-	vmadh v____,  pred0,  vstate0.e6
-	vmadh v____,  pred1,  vstate0.e7
+	vmadh v____,  pred0,  vstate0.e6;  addu in1, vstride
+	vmadh v____,  pred1,  vstate0.e7;  addu in2, vstride
 
 	vsar  vstatef, COP2_ACC_MD;         sqv vstate0, 0x00,dmem_output
 	vsar  vresult, COP2_ACC_HI;         srv vstate0, 0x10,dmem_output
-	vsra8 next_vres1, next_vres1, 12;   lqv pred0.e0, 0x00,predictor
-	vmudh vres0, next_vres0, vscale.e0; lqv pred1.e0, 0x10,predictor
+	vmudm next_vres0, next_vres0, kext; lqv pred0.e0, 0x00,predictor
+	vmudm next_vres1, next_vres1, kext; lqv pred1.e0, 0x10,predictor
 	vmudn v____, vstatef, vshift.e2;    addiu dmem_output, 32
-	vmadh vresult, vresult, vshift.e2;  bgtz nframes, VADPCM_DecodeLoop
-	 vmudh vres1, next_vres1, vscale.e0
+	vmadh vresult, vresult, vshift.e2;  bne in3, in_end, VADPCM_DecodeLoop
+	 vmudh vres0, next_vres0, vscale.e0
 
 	sqv vresult, -16,dmem_output
 	srv vresult, 0x00,dmem_output
 	sqv vresult, 0,slot_ptr
-
-	li slot_ptr, %lo(RSPQ_SCRATCH_MEM)
 	lqv vstate1, 0,slot_ptr
 
-VADPCM_SaveState:
-	sqv vstate1, 0x00,dmem_state
 	lw t0, %lo(CH_VNEXT_FRAME)
 	lh t1, %lo(CH_VDECN)
-	add t0, t1
-	sw t0, %lo(CH_VNEXT_FRAME)
 	lw ra, %lo(CH_VADPCM_RA)
+	add t0, t1
+	sqv vstate1, 0x00,dmem_state
 	jr ra
-	nop
+	sw t0, %lo(CH_VNEXT_FRAME)
+	.endfunc

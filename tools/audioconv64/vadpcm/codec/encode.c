@@ -60,6 +60,7 @@ void vadpcm_make_codebook(size_t frame_count, int predictor_count,
         if (count[i] > 0) {
             double coeff[2];
             vadpcm_solve(pcorr[i], coeff);
+            vadpcm_stabilize(coeff);
             vadpcm_make_vectors(coeff, codebook + 2 * i);
         } else {
             memset(codebook + 2 * i, 0, sizeof(struct vadpcm_vector) * 2);

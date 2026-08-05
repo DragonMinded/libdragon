@@ -73,6 +73,79 @@ static bool sb_check_window(const int16_t *p, int pos, int len)
 	return true;
 }
 
+// 8-bit PCM: unit_bytes is 1, so an odd-length append leaves widx odd and the
+// next discard can make wpos odd. The ring slot and the waveform position must
+// keep the same byte parity for dma_read; both becoming odd is fine, and used
+// to trip a too-strict assert that required wpos itself to be even.
+static int8_t sb8_expected(int pos) {
+	return (int8_t)(pos * 17 + 3);
+}
+
+static void sb8_prod_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+	(void)ctx; (void)seeking;
+	// Odd chunks so the write cursor spends most of its life on an odd index.
+	while (wlen > 0) {
+		int n = wlen > 17 ? 17 : wlen;
+		int8_t *out = samplebuffer_append(sbuf, n);
+		for (int i = 0; i < n; i++)
+			out[i] = sb8_expected(wpos + i);
+		wlen -= n;
+		wpos += n;
+	}
+}
+
+static waveform_t sb8_wave = {
+	.name = "fake8", .bits = 8, .channels = 1, .frequency = 22050,
+	.len = 1 << 30, .read = sb8_prod_read,
+};
+
+static bool sb8_stress(const char *tag, int nbytes, int niter)
+{
+	sb_nwindows = 0;
+
+	void *mem = malloc_uncached(nbytes);
+	assertf(mem != NULL, "malloc_uncached(%d) failed", nbytes);
+
+	samplebuffer_t sb = {0};
+	samplebuffer_init(&sb, mem, nbytes, 0);
+	samplebuffer_set_bps(&sb, 8);
+	samplebuffer_set_waveform(&sb, &sb8_wave, sb8_prod_read);
+
+	uint32_t rng = 424242;
+	int pos = 0;
+	bool ok = true;
+	for (int i = 0; i < niter && ok; i++) {
+		rng = rng * 1103515245 + 12345;
+		int want = 1 + (int)((rng >> 9) % 100);
+		int len = want;
+		int8_t *p = samplebuffer_get(&sb, pos, &len);
+		assertf(len > 0, "samplebuffer_get returned nothing");
+		sb_nwindows++;
+		for (int j = 0; j < len; j++) {
+			if (p[j] != sb8_expected(pos + j)) {
+				printf("  FAIL 8bit mismatch at pos=%d (+%d): got %02x, expected %02x\n",
+					pos, j, (uint8_t)p[j], (uint8_t)sb8_expected(pos + j));
+				ok = false;
+				break;
+			}
+		}
+		// Consume an odd count often enough that the next discard leaves an
+		// odd wpos: that is the state the old assert rejected.
+		pos += 1 + (int)((rng >> 17) % len);
+	}
+
+	char line[96];
+	snprintf(line, sizeof(line), "  %-22s %s  size=%5d windows=%5d\n",
+		tag, ok ? "PASS" : "FAIL", sb.size, sb_nwindows);
+	printf("%s", line);
+	debugf("%s", line);
+
+	memset(&sb, 0, sizeof(sb));
+	free_uncached(mem);
+	return ok;
+}
+
 // Drive a samplebuffer of `nbytes` for `niter` windows, seeking every
 // `seek_every` iterations, and verify all the data handed out.
 static bool sb_stress(const char *tag, int nbytes,
@@ -160,6 +233,15 @@ int main(void)
 		RUN(T("drift-odd"),   odd,   6000, 0,   333, true);
 		#undef RUN
 		#undef T
+	}
+
+	// 8-bit PCM with odd appends: wraps the ring with an odd wpos. The usable
+	// size is a few margins so that a discard happens many times over the run.
+	{
+		int nbytes = (SAMPLEBUFFER_MARGIN_UNITS * 4 + SAMPLEBUFFER_MARGIN_UNITS) * 1;
+		total++;
+		if (!sb8_stress("pcm8/odd-wrap", nbytes, 8000))
+			sb_failed++;
 	}
 
 	if (sb_failed) {

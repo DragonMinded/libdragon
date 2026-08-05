@@ -661,6 +661,24 @@ typedef enum {
 	 */
 	int append_units;
 
+	/**
+	 * @brief True if #read can only restart a loop exactly on its start.
+	 *
+	 * Set this for transform codecs, which resume a stream only on one of
+	 * their seek points: the loop start is the only position that a looping
+	 * waveform guarantees to be one. When a loop is too large to be pinned in
+	 * the samplebuffer, the mixer then wraps it exactly there, replaying the
+	 * few samples that a round may have mixed past the loop point rather than
+	 * restarting on them.
+	 *
+	 * Leave it false for readers that can restart anywhere (PCM, VADPCM):
+	 * those resume right where the round stopped, with nothing replayed. That
+	 * matters for the very short loops of tracker instruments, where even a
+	 * single repeated sample per iteration lengthens the loop period enough
+	 * to detune the note.
+	 */
+	bool loop_restart_only;
+
     /**
       * @brief State size required for this waveform to operate
       * 

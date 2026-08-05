@@ -49,6 +49,7 @@ double flag_wav_seek_interval_sec = 0.0;
 const char *flag_wav_seek_file = NULL;
 bool flag_wav_mono = false;
 const int OPUS_SAMPLE_RATE = 48000;
+const int ULC_BLOCK_SIZE = 1024;
 
 static bool read_wav(const char *infn, wav_data_t *out)
 {
@@ -255,11 +256,13 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			frame_align++;
 		}
 
-		// Move an embedded loop start to the next aligned frame. Preserve the
-		// complete loop by appending the skipped prefix to its end, effectively
-		// rotating it just like the VADPCM alignment adjustment above.
-		if (wav->looping && (wav->loopOffset % frame_align) != 0) {
-			const int ncopy = frame_align - (wav->loopOffset % frame_align);
+		// Move an embedded loop start to the next ULC block. The runtime can only
+		// restart decoding at 1024-frame boundaries, while frame_align only
+		// guarantees DMA-safe output addresses. Preserve the complete loop by
+		// appending the skipped prefix to its end, effectively rotating it just
+		// like the VADPCM alignment adjustment above.
+		if (wav->looping && (wav->loopOffset % ULC_BLOCK_SIZE) != 0) {
+			const int ncopy = ULC_BLOCK_SIZE - (wav->loopOffset % ULC_BLOCK_SIZE);
 			wav->samples = (int16_t*)realloc(wav->samples, (wav->cnt + ncopy) * wav->channels * sizeof(int16_t));
 			for (int i = 0; i < ncopy * wav->channels; i++) {
 				wav->samples[wav->cnt * wav->channels + i] = wav->samples[wav->loopOffset * wav->channels + i];
@@ -278,7 +281,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	}
 
 	fwrite("WV64", 1, 4, out);
-	w8(out, 7); 				 			// version
+	w8(out, 9); 				 			// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
 	w8(out, wav->bitsPerSample);			// bits
@@ -310,6 +313,16 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	} break;
 
 	case 1: { // vadpcm
+		// Sub-nibble residuals are packed natively in the bitstream, which
+		// leaves nothing for Huffman to exploit: it works on nibbles and both
+		// schemes squeeze the same redundancy.
+		if (flag_wav_compress_vadpcm_bits < 4 && flag_wav_compress_vadpcm_huffman) {
+			if (flag_verbose)
+				fprintf(stderr, "  %d-bit residuals are packed natively: disabling huffman\n",
+					flag_wav_compress_vadpcm_bits);
+			flag_wav_compress_vadpcm_huffman = 0;
+		}
+
 		// The state is 16+4+4 bytes per channel (see wav64_state_vadpcm_t), but the runtime code requires to
 		// always allocate both channels even for mono files.
 		placeholder_set_offset(out, 48, "%s/state_size", outfn);
@@ -360,6 +373,14 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		std::vector<int> skip_bitpos(skip_points.size(), 0);
 		std::vector<std::array<vadpcm_vector, 2>> skip_state(skip_points.size());
+		// First three samples decoded at the loop start, stored after each
+		// channel's codebook so the mixer can Hermite across the loop point.
+		std::array<std::array<int16_t, 3>, 2> loop_head = {};
+		int loop_start_aligned = -1;
+		if (wav->looping) {
+			loop_start_aligned = (wav->loopOffset + kVADPCMFrameSampleCount - 1)
+				/ kVADPCMFrameSampleCount * kVADPCMFrameSampleCount;
+		}
 
 		int16_t *schan = (int16_t*)malloc(wav->cnt * sizeof(int16_t));
 		for (int i=0; i<wav->channels; i++) {
@@ -391,6 +412,21 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 					}
 
 					skip_state[j][i] = st;
+					// The loop taps are the first three samples of the frame the
+					// loop resumes on: decode that one frame on a copy of the
+					// state so the forward pass is not disturbed.
+					if (skip_points[j] == loop_start_aligned && target_frame < nframes) {
+						struct vadpcm_vector st_head = st;
+						int16_t head[kVADPCMFrameSampleCount];
+						vadpcm_error herr = vadpcm_decode(kPREDICTORS, kVADPCMEncodeOrder,
+							codebook + kPREDICTORS * kVADPCMEncodeOrder * i,
+							&st_head, 1, head,
+							destchan + (size_t)target_frame * kVADPCMFrameByteSize);
+						assert(herr == kVADPCMErrNone);
+						loop_head[i][0] = head[0];
+						loop_head[i][1] = head[1];
+						loop_head[i][2] = head[2];
+					}
 					cur_frame = target_frame;
 				}
 			}
@@ -470,22 +506,32 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		uint8_t flags = 0;
 		if (flag_wav_compress_vadpcm_huffman) flags |= (1<<0);
+		if (wav->resident) flags |= (1<<1); // VADPCM_FLAG_RESIDENT
 
-		const int CODEBOOK_SIZE = kPREDICTORS * kVADPCMEncodeOrder * wav->channels;
+		// Per channel: 8 predictor vectors (128 bytes) + 3 loop taps + pad.
+		const int CODEBOOK_STRIDE = kPREDICTORS * kVADPCMEncodeOrder * 16 + 8;
+		const int codebook_bytes = CODEBOOK_STRIDE * wav->channels;
 		struct vadpcm_vector state = {0};
 		w8(out, kPREDICTORS);
 		w8(out, kVADPCMEncodeOrder);
 		w16(out, flags);
 		w16(out, skip_points.size());
-		w16(out, 0); // padding
+		w8(out, flag_wav_compress_vadpcm_bits);
+		w8(out, wav->attack_frames);
 		w32(out, 0); // huff_tbl_ptr
-		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 : 0); // skip_points_ptr
-		w32(out, skip_points.size() > 0 ? CODEBOOK_SIZE*16 + skip_points.size()*8 : 0); // skip_states_ptr
+		w32(out, skip_points.size() > 0 ? codebook_bytes : 0); // skip_points_ptr
+		w32(out, skip_points.size() > 0 ? codebook_bytes + (int)skip_points.size()*8 : 0); // skip_states_ptr
 		fwrite(ctxbuf, 1, HUFF_CONTEXT_LEN, out);					 // Huffman context
 		w32(out, 0); // padding
-		for (int i=0; i<CODEBOOK_SIZE; i++)    // codebook
-			for (int j=0; j<8; j++)
-				w16(out, codebook[i].v[j]);
+		for (int ch=0; ch<wav->channels; ch++) {
+			struct vadpcm_vector *cb = codebook + kPREDICTORS * kVADPCMEncodeOrder * ch;
+			for (int i=0; i<kPREDICTORS * kVADPCMEncodeOrder; i++)
+				for (int j=0; j<8; j++)
+					w16(out, cb[i].v[j]);
+			for (int j=0; j<3; j++)
+				w16(out, loop_head[ch][j]);
+			w16(out, 0); // padding
+		}
 		// Write the skip points
 		for (int i=0; i<skip_points.size(); i++) {
 			w32(out, skip_points[i]);
@@ -500,10 +546,20 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 		// Start of samples data
 		placeholder_set_offset(out, ftell(out)-basepos, "%s/samples", outfn);
-		if (flag_wav_compress_vadpcm_huffman)
+		if (flag_wav_compress_vadpcm_huffman) {
 			fwrite(compbuf, 1, compbuflen, out);
-		else
+		} else if (flag_wav_compress_vadpcm_bits < 4) {
+			const int total_frames = nframes * wav->channels;
+			uint8_t *packed = (uint8_t*)malloc(total_frames * vadpcm_frame_bytes(flag_wav_compress_vadpcm_bits));
+			int packed_size = vadpcm_pack_frames(packed, dest, total_frames, flag_wav_compress_vadpcm_bits);
+			if (flag_verbose)
+				fprintf(stderr, "  packed %d bytes into %d bytes (ratio: %.1f%%)\n",
+					dest_size, packed_size, 100.0f * packed_size / dest_size);
+			fwrite(packed, 1, packed_size, out);
+			free(packed);
+		} else {
 			fwrite(dest, 1, nframes * kVADPCMFrameByteSize * wav->channels, out);
+		}
 
 		if (flag_debug) {
 			char* wav2fn = changeext(outfn, ".vadpcm.wav");
@@ -564,24 +620,23 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 	} break;
 
 	case 2: { // ulc
-		const int block_size = 1024;
-		const int blocks_len = (wav->cnt + block_size - 1) / block_size + 2;
+		const int blocks_len = (wav->cnt + ULC_BLOCK_SIZE - 1) / ULC_BLOCK_SIZE + 2;
 		struct ULC_EncoderState_t enc = {};
 		enc.RateHz = wav->sampleRate;
 		enc.nChan = wav->channels;
-		enc.BlockSize = block_size;
+		enc.BlockSize = ULC_BLOCK_SIZE;
 		if (ULC_EncoderState_Init(&enc) <= 0) {
 			fprintf(stderr, "ERROR: %s: cannot initialize ULC encoder\n", infn);
 			failed = true;
 			break;
 		}
 
-		std::vector<float> block(block_size * wav->channels, 0.0f);
+		std::vector<float> block(ULC_BLOCK_SIZE * wav->channels, 0.0f);
 		auto load_block = [&](int block_idx) {
 			std::fill(block.begin(), block.end(), 0.0f);
-			const int first = block_idx * block_size;
+			const int first = block_idx * ULC_BLOCK_SIZE;
 			for (int ch = 0; ch < wav->channels; ch++)
-				for (int i = 0; i < block_size && first + i < wav->cnt; i++)
+				for (int i = 0; i < ULC_BLOCK_SIZE && first + i < wav->cnt; i++)
 					block[i * wav->channels + ch] = wav->samples[(first + i) * wav->channels + ch] / 32768.0f;
 		};
 
@@ -599,7 +654,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			enc = {};
 			enc.RateHz = wav->sampleRate;
 			enc.nChan = wav->channels;
-			enc.BlockSize = block_size;
+			enc.BlockSize = ULC_BLOCK_SIZE;
 			if (ULC_EncoderState_Init(&enc) <= 0) {
 				fprintf(stderr, "ERROR: %s: cannot initialize ULC ABR encoder\n", infn);
 				failed = true;
@@ -607,7 +662,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			}
 		}
 
-		w16(out, block_size);
+		w16(out, ULC_BLOCK_SIZE);
 		w16_placeholderf(out, "%s/ulc_max_block_size", outfn);
 		w32(out, blocks_len);
 		w32_placeholderf(out, "%s/ulc_bitrate", outfn);
@@ -628,8 +683,8 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		// overwrite coefficients directly in the output samplebuffer; normal
 		// stereo reuses the first bank as planar mid/side staging.
 		const int decoder_state_size = 24 /*sizeof(ulc_state_t)*/ + 63 +
-			sizeof(int16_t) * 2 * wav->channels * block_size +
-			sizeof(int16_t) * wav->channels * (block_size / 2);
+			sizeof(int16_t) * 2 * wav->channels * ULC_BLOCK_SIZE +
+			sizeof(int16_t) * wav->channels * (ULC_BLOCK_SIZE / 2);
 		placeholder_set_offset(out, decoder_state_size, "%s/state_size", outfn);
 
 		uint64_t total_bytes = 0;
@@ -667,7 +722,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		for (uint32_t offset : seek_offsets)
 			w32(out, offset);
 
-		const int actual_bitrate = (int)llround(total_bytes * 8.0 * wav->sampleRate / ((double)blocks_len * block_size));
+		const int actual_bitrate = (int)llround(total_bytes * 8.0 * wav->sampleRate / ((double)blocks_len * ULC_BLOCK_SIZE));
 		placeholder_set_offset(out, max_block_size, "%s/ulc_max_block_size", outfn);
 		placeholder_set_offset(out, actual_bitrate, "%s/ulc_bitrate", outfn);
 		if (flag_verbose)
@@ -682,16 +737,16 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 
 			struct ULC_DecoderState_t dec = {};
 			dec.nChan = wav->channels;
-			dec.BlockSize = block_size;
+			dec.BlockSize = ULC_BLOCK_SIZE;
 			if (ULC_DecoderState_Init(&dec) <= 0) {
 				fprintf(stderr, "ERROR: %s: cannot initialize ULC decoder\n", infn);
 				free(wav2fn);
 				failed = true;
 			} else {
-				int out_len = block_size * blocks_len;
+				int out_len = ULC_BLOCK_SIZE * blocks_len;
 				int out_pos = 0;
 				std::vector<int16_t> out_samples(out_len * wav->channels);
-				std::vector<float> decode_buffer(block_size * wav->channels);
+				std::vector<float> decode_buffer(ULC_BLOCK_SIZE * wav->channels);
 
 				for (int i = 0; i < blocks_len; i++) {
 					int bits = ULC_DecodeBlock(&dec, decode_buffer.data(), debug_blocks[i].data());
@@ -701,7 +756,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 						break;
 					}
 
-					for (int j = 0; j < block_size * wav->channels; j++) {
+					for (int j = 0; j < ULC_BLOCK_SIZE * wav->channels; j++) {
 						float v = decode_buffer[j] * 32768.0f;
 						if (v > 32767.0f) {
 							v = 32767.0f;

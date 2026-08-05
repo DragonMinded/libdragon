@@ -15,6 +15,7 @@
 #define WAV64_NUM_FORMATS   4         ///< Number of supported formats
 
 #define WAV64_FLAG_OWNED_FD (1 << 0)  ///< Flag indicating the file descriptor is owned by the wav64 structure
+#define WAV64_FLAG_PRELOAD  (1 << 1)  ///< Waveform will be fully preloaded in RDRAM
 
 /// @cond
 typedef struct wav64_s wav64_t;
@@ -48,6 +49,13 @@ typedef struct wav64_state_s {
 	/** PI bus address of file start (0 if not a DFS file / async DMA unavailable). */
 	uint32_t rom_base;
 	uint8_t flags;           ///< Misc flags
+	/**
+	 * First N compressed VADPCM frames kept in RDRAM so a note-on from the
+	 * start of the waveform does not wait on the PI. NULL when unused
+	 * (Huffman, full preload, or non-ROM source). #attack_n is the frame count.
+	 */
+	void *attack;
+	uint16_t attack_n;
 	/** Codec side-data for in-mixer VADPCM mono (will be stored in waveform_t::codec). */
 	waveform_vadpcm_t vadpcm;
 } wav64_state_t;

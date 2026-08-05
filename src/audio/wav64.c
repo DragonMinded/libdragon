@@ -11,6 +11,7 @@
 #include "wav64_opus_internal.h"
 #include "wav64_ulc_internal.h"
 #include "mixer.h"
+#include "mixer_internal.h"
 #include "dragonfs.h"
 #include "n64sys.h"
 #include "dma.h"
@@ -25,6 +26,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <stdalign.h>
+#include <stddef.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <malloc.h>
@@ -138,7 +140,7 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		assertf(0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
 			file_name, head.id[0], head.id[1], head.id[2], head.id[3]);
 	}
-	assertf(head.version == 7, "wav64 %s: invalid version: %02x\n",
+	assertf(head.version == 9, "wav64 %s: invalid version: %02x\n",
 		file_name, head.version);
 	assertf(head.format < WAV64_NUM_FORMATS, "Unknown wav64 compression format %d; corrupted file?", head.format);
 	assertf(head.format < WAV64_NUM_FORMATS && algos[head.format].init != NULL,
@@ -146,12 +148,27 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 
 	int ext_size = head.start_offset - sizeof(wav64_header_t);
 	bool preload = parms->streaming_mode == WAV64_STREAMING_NONE;
-	// VADPCM preloads stay compressed (9 bytes/frame/channel), laid out fully
-	// planar in RDRAM for direct MIX_CHANNEL addressing.
-	bool preload_vadpcm = preload && head.format == WAV64_FORMAT_VADPCM;
+	// VADPCM preloads stay compressed, laid out fully planar in RDRAM for
+	// direct MIX_CHANNEL addressing. The frame size depends on the residual
+	// width, which lives in the extended header: that is only read into its
+	// final home further down, so peek at its prefix to size the buffer.
+	bool preload_vadpcm = false;
+	int vframe_bytes = 0;
+	if (head.format == WAV64_FORMAT_VADPCM) {
+		uint8_t prefix[offsetof(wav64_header_vadpcm_t, huff_tbl)];
+		read(file_handle, prefix, sizeof(prefix));
+		lseek(file_handle, -(int)sizeof(prefix), SEEK_CUR);
+		int bits = prefix[offsetof(wav64_header_vadpcm_t, residual_bits)];
+		vframe_bytes = VADPCM_FRAME_BYTES(VADPCM_RESIDUAL_BITS(bits));
+		uint16_t vflags;
+		memcpy(&vflags, prefix + offsetof(wav64_header_vadpcm_t, flags), sizeof(vflags));
+		if (vflags & VADPCM_FLAG_RESIDENT)
+			preload = true;
+		preload_vadpcm = preload;
+	}
 	int nframes = WAV64_VADPCM_FRAMES(head.len);
 	int preload_size = preload_vadpcm
-		? ROUND_UP(nframes * 9 * head.channels, 16)
+		? ROUND_UP(nframes * vframe_bytes * head.channels, 16)
 		: ROUND_UP(head.len * head.channels * (head.nbits >> 3), 16);
 	if (preload && !preload_vadpcm) {
 		int ub = head.channels * (head.nbits >> 3);
@@ -209,7 +226,8 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->st->format = head.format;
 	wav->st->current_fd = file_handle;
 	wav->st->base_offset = head.start_offset + start_offset;
-	wav->st->flags = owned_fd ? WAV64_FLAG_OWNED_FD : 0;
+	wav->st->flags = (owned_fd ? WAV64_FLAG_OWNED_FD : 0) |
+	                 (preload  ? WAV64_FLAG_PRELOAD  : 0);
 	wav->st->rom_base = 0;
 	ioctl(file_handle, IODFS_GET_ROM_BASE, &wav->st->rom_base);
 

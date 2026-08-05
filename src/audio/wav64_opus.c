@@ -163,6 +163,7 @@ void wav64_opus_init(wav64_t *wav, int state_size) {
     wav->wave.read = waveform_opus_read;
     wav->wave.start = waveform_opus_start;
     wav->wave.append_units = ext->frame_size;
+    wav->wave.loop_restart_only = true;
 }
 
 void wav64_opus_close(wav64_t *wav) {
