@@ -1618,6 +1618,264 @@ static bool test_mixer_loop_cache(waveform_t *wave, float freq)
     return ok;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// Baseline mixer scenarios
+//
+// The suites above already cover one-shot and looping PCM/VADPCM, small loops
+// pinned in the samplebuffer, and large loops wrapped by seek. What was still
+// missing:
+//
+//  - resident waveforms (wave->mem, no samplebuffer)
+//  - mid-playback frequency change
+//  - stop while still inside the waveform
+//
+// Synthetic asset: rising-ramp intro + square-wave terminal loop.
+//////////////////////////////////////////////////////////////////////////////
+
+// Longer than sv_start's volume-ramp warmup (2048), so a oneshot is still
+// playing when the measured capture begins.
+#define BL_INTRO     2048
+#define BL_LOOP      512
+#define BL_LEN       (BL_INTRO + BL_LOOP)
+#define BL_AMP       16000
+#define BL_SQ        16
+#define BL_FREQ      44100
+
+static int16_t *bl_mem;
+
+static int16_t bl_sample(int pos)
+{
+    if (pos < BL_INTRO)
+        return (int16_t)(-BL_AMP + (int32_t)(2 * BL_AMP) * pos / BL_INTRO);
+    int i = (pos - BL_INTRO) % BL_LOOP;
+    return (i % BL_SQ < BL_SQ / 2) ? BL_AMP : (int16_t)-BL_AMP;
+}
+
+static int bl_play(int pos, int len, int loop_len)
+{
+    // Hermite with a null fraction returns the second tap, one past pos.
+    pos++;
+    if (loop_len && pos >= len)
+        pos = len - loop_len + (pos - len) % loop_len;
+    return pos;
+}
+
+static void bl_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    while (wlen > 0) {
+        int n = wlen < SAMPLEBUFFER_MARGIN_UNITS ? wlen : SAMPLEBUFFER_MARGIN_UNITS;
+        int16_t *dst = samplebuffer_append(sbuf, n);
+        for (int i = 0; i < n; i++)
+            dst[i] = bl_sample(wpos + i);
+        wlen -= n;
+        wpos += n;
+    }
+}
+
+static waveform_t bl_wave_oneshot_res = {
+    .name = "bl-oneshot-res", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN,
+};
+
+static waveform_t bl_wave_loop_res = {
+    .name = "bl-loop-res", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN, .loop_len = BL_LOOP,
+};
+
+static waveform_t bl_wave_oneshot_stream = {
+    .name = "bl-oneshot-stream", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN, .read = bl_read,
+};
+
+static waveform_t bl_wave_loop_stream = {
+    .name = "bl-loop-stream", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN, .loop_len = BL_LOOP, .read = bl_read,
+};
+
+static void bl_init(void)
+{
+    if (bl_mem)
+        return;
+    // Resident loops are wrapped by the RSP, which still DMAs MIXER_LOOP_OVERREAD
+    // past len: those bytes must be the loop start, as wav64 preload provides.
+    int nbytes = (BL_LEN + MIXER_LOOP_OVERREAD) * 2;
+    bl_mem = malloc_uncached(nbytes);
+    memset(bl_mem, 0, nbytes);
+    for (int i = 0; i < BL_LEN; i++)
+        bl_mem[i] = bl_sample(i);
+    for (int i = 0; i < MIXER_LOOP_OVERREAD; i++)
+        bl_mem[BL_LEN + i] = bl_sample(BL_INTRO + i % BL_LOOP);
+    bl_wave_oneshot_res.mem = bl_mem;
+    bl_wave_loop_res.mem = bl_mem;
+}
+
+// Sample-by-sample check at the output rate: Hermite is an identity there.
+static bool bl_check_exact(const char *tag, int start_pos, int nsamples,
+    int len, int loop_len)
+{
+    int nbad = 0, first = -1, maxdiff = 0, peak = 0;
+    for (int i = 0; i < nsamples; i++) {
+        int p = bl_play(start_pos + i, len, loop_len);
+        if (!loop_len && p >= len)
+            break;
+        int want = bl_sample(p) / 2;
+        int got = sv_out[i * 2];
+        int d = got - want; if (d < 0) d = -d;
+        if (d > 64) {
+            nbad++;
+            if (first < 0) first = i;
+            if (d > maxdiff) maxdiff = d;
+        }
+        int a = got < 0 ? -got : got;
+        if (a > peak) peak = a;
+    }
+    if (nbad) {
+        printf("FAILED %s: %d/%d samples off (max %d) from %d\n",
+            tag, nbad, nsamples, maxdiff, first);
+        for (int i = first; i < first + 6 && i < nsamples; i++)
+            printf("   [%d] play=%d got %d want %d\n", i,
+                bl_play(start_pos + i, len, loop_len),
+                sv_out[i * 2], bl_sample(bl_play(start_pos + i, len, loop_len)) / 2);
+        return false;
+    }
+    if (peak < 4096) {
+        printf("FAILED %s: output is silent (peak %d)\n", tag, peak);
+        return false;
+    }
+    return true;
+}
+
+static bool test_mixer_baseline_pcm(waveform_t *wave, int startsample, int nsamples)
+{
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    sv_start(wave, startsample, BL_FREQ);
+    int pos = (int)mixer_ch_get_pos(SV_CHANNEL);
+    sv_mix(nsamples);
+    return bl_check_exact(wave->name, pos, nsamples, wave->len, wave->loop_len);
+}
+
+// Switch the playback rate mid-note: the playhead must advance at the rate
+// that is in force for each half, and both halves must stay audible.
+// Use a oneshot so a full-rate block of N samples cannot land on the same
+// wrapped position as a looping waveform would after exactly one loop_len.
+static bool test_mixer_freq_change(void)
+{
+    const int n1 = 512, n2 = 512;
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    // Settle the volume filter at step 0 so warmup does not consume the oneshot
+    // (sv_start's 2048-sample warmup would land in the quiet middle of the ramp).
+    mixer_ch_play(SV_CHANNEL, &bl_wave_oneshot_res);
+    mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+    mixer_ch_set_pos(SV_CHANNEL, BL_INTRO - 64);
+    mixer_ch_set_freq(SV_CHANNEL, 0);
+    sv_mix(2048);
+    mixer_ch_set_freq(SV_CHANNEL, 22050);
+
+    double pos0 = mixer_ch_get_pos(SV_CHANNEL);
+    sv_mix(n1);
+    int peak = 0;
+    for (int i = 0; i < n1 * 2; i++) {
+        int a = sv_out[i] < 0 ? -sv_out[i] : sv_out[i];
+        if (a > peak) peak = a;
+    }
+    if (peak < 4096) {
+        printf("FAILED freq change: silent at half rate (peak %d)\n", peak);
+        return false;
+    }
+
+    double pos1 = mixer_ch_get_pos(SV_CHANNEL);
+    double advanced = pos1 - pos0;
+    if (advanced < n1 / 2.0 - 2 || advanced > n1 / 2.0 + 2) {
+        printf("FAILED freq change: half-rate advance %.2f, expected ~%d\n",
+            advanced, n1 / 2);
+        return false;
+    }
+
+    mixer_ch_set_freq(SV_CHANNEL, 44100);
+    double pos2 = mixer_ch_get_pos(SV_CHANNEL);
+    sv_mix(n2);
+    peak = 0;
+    for (int i = 0; i < n2 * 2; i++) {
+        int a = sv_out[i] < 0 ? -sv_out[i] : sv_out[i];
+        if (a > peak) peak = a;
+    }
+    if (peak < 4096) {
+        printf("FAILED freq change: silent at full rate (peak %d)\n", peak);
+        return false;
+    }
+
+    advanced = mixer_ch_get_pos(SV_CHANNEL) - pos2;
+    if (advanced < n2 - 2 || advanced > n2 + 2) {
+        printf("FAILED freq change: full-rate advance %.2f, expected ~%d\n",
+            advanced, n2);
+        return false;
+    }
+    return true;
+}
+
+// Stop while the playhead is still inside the waveform, not at the end.
+static bool test_mixer_stop_mid(void)
+{
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    sv_start(&bl_wave_oneshot_stream, 0, BL_FREQ);
+    sv_mix(128);
+
+    double pos = mixer_ch_get_pos(SV_CHANNEL);
+    if (pos < 32 || pos >= BL_LEN - 32) {
+        printf("FAILED stop mid: position %.1f not inside the waveform\n", pos);
+        return false;
+    }
+    if (!mixer_ch_playing(SV_CHANNEL)) {
+        printf("FAILED stop mid: channel already idle at position %.1f\n", pos);
+        return false;
+    }
+
+    mixer_ch_stop(SV_CHANNEL);
+    if (mixer_ch_playing(SV_CHANNEL)) {
+        printf("FAILED stop mid: channel still playing after stop\n");
+        return false;
+    }
+
+    // Let the volume ramp decay, then the output must be silent.
+    sv_mix(2048);
+    for (int i = 0; i < 8; i++)
+        sv_mix(4096);
+    for (int i = 0; i < 4096; i++) {
+        if (sv_out[i * 2] || sv_out[i * 2 + 1]) {
+            printf("FAILED stop mid: still audible at sample %d: %d/%d\n",
+                i, sv_out[i * 2], sv_out[i * 2 + 1]);
+            return false;
+        }
+    }
+    return true;
+}
+
+// Resident VADPCM loop: same content as rf_wave, but addressed from RDRAM.
+static uint8_t *rf_mem_res;
+static waveform_t rf_wave_resident;
+
+static bool test_mixer_resident_vadpcm_loop(void)
+{
+    if (!rf_mem_res) {
+        int fb = VADPCM_FRAME_BYTES(rf_bits);
+        rf_mem_res = malloc_uncached(RF_FRAMES * fb + 64);
+        memcpy(rf_mem_res, rf_frames, RF_FRAMES * fb);
+        rf_wave_resident = rf_wave;
+        rf_wave_resident.name = "rf-loop-res";
+        rf_wave_resident.mem = rf_mem_res;
+        // Keep read for seek side-effects (decoder state).
+        rf_wave_resident.__uuid = 0;
+    }
+    return test_mixer_loop_exact(&rf_wave_resident, RF_LOOP_START - 64);
+}
+
 int main(void)
 {
     debug_init_emulog();
@@ -1792,6 +2050,23 @@ int main(void)
             if (!test_mixer_loop_exact(&rf_wave, RF_LOOP_START + rf_starts[i])) failed++;
         }
     }
+
+    // Resident / frequency-change / mid-stop coverage. One-shot and looping
+    // PCM/VADPCM, small pinned loops and large seek-wrap loops are already
+    // exercised above.
+    printf("Baseline mixer scenarios\n");
+    fflush(stdout);
+    bl_init();
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_oneshot_res, 0, 300)) failed++;
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_oneshot_stream, 0, 300)) failed++;
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_res, BL_INTRO - 32, 1024)) failed++;
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_stream, BL_INTRO - 32, 1024)) failed++;
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_res, BL_INTRO + 8, 1024)) failed++;
+    total++; if (!test_mixer_freq_change()) failed++;
+    total++; if (!test_mixer_stop_mid()) failed++;
+    rf_init(4);
+    total++; if (!test_mixer_resident_vadpcm_loop()) failed++;
+
     sv_silence();
     mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
 
