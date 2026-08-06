@@ -342,8 +342,9 @@ int sf_convert(const char *infn, const char *outfn)
 
 	walign(out, 2);
 	placeholder_set(out, "metadata_offset");
-	placeholder_set_offset(out, metadata.size(), "metadata_size");
-	asset_compress_mem(metadata.data(), metadata.size(), out, DEFAULT_COMPRESSION, 0, NULL);
+	int meta_cmp = asset_compress_mem(metadata.data(), metadata.size(), out,
+		DEFAULT_COMPRESSION, 0, NULL);
+	placeholder_set_offset(out, meta_cmp, "metadata_size");
 
 	placeholder_set_offset(out, presets.size(), "num_presets");
 	placeholder_set_offset(out, regions.size(), "num_regions");

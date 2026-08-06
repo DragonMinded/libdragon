@@ -32,11 +32,8 @@ sf64_bank_t *sf64_load(const char *fn)
 		fn, head.version);
 
 	lseek(fd, head.metadata_offset, SEEK_SET);
-	int meta_sz = 0;
+	int meta_sz = head.metadata_size;
 	void *meta = asset_loadfd(fd, &meta_sz);
-	assertf(meta_sz == (int)head.metadata_size,
-		"cannot load SF64 file: %s\nMetadata size mismatch (%d != %lu)",
-		fn, meta_sz, (unsigned long)head.metadata_size);
 
 	int tables = (int)head.num_presets * (int)sizeof(sf64_preset_t)
 		+ (int)head.num_regions * (int)sizeof(sf64_region_t)

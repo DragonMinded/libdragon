@@ -44,7 +44,7 @@ typedef struct __attribute__((packed)) {
 	uint16_t num_regions;       ///< Number of regions
 	uint16_t num_samples;       ///< Number of embedded samples
 	uint32_t metadata_offset;   ///< Offset of asset-compressed metadata
-	uint32_t metadata_size;     ///< Uncompressed metadata size
+	uint32_t metadata_size;     ///< Compressed metadata size (for #asset_loadfd)
 	uint32_t sample_data_offset;///< Offset of the first embedded WAV64
 } sf64_header_t;
 
