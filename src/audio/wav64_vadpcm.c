@@ -423,7 +423,8 @@ void wav64_vadpcm_init(wav64_t *wav, int state_size)
         "wav64: %s: %d-bit VADPCM cannot be huffman-compressed", wav->wave.name, wav->st->vadpcm.bits);
     wav->st->vadpcm.loop_state = NULL;
     if (wav->wave.loop_len > 0 && vhead->num_skippoints > 0) {
-        int loop_start = wav->wave.len - wav->wave.loop_len;
+        int loop_end = wav->wave.loop_end ? wav->wave.loop_end : wav->wave.len;
+        int loop_start = loop_end - wav->wave.loop_len;
         int idx = wav64_vadpcm_find_skippoint(vhead, loop_start, false);
         if (idx >= 0)
             wav->st->vadpcm.loop_state = vhead->skip_states + idx * wav->wave.channels;

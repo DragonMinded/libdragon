@@ -41,7 +41,8 @@ typedef struct {
 	int bitsPerSample;			// Original bits per sample in input file
 	int sampleRate;
 	bool looping;
-	int loopOffset;				// Offset of the beginning of the loop in samples
+	int loopOffset;				// Exclusive-start of the sustain loop (samples)
+	int loopEnd;				// Exclusive end of the sustain loop (0 ⇒ cnt)
 	std::vector<int> skipPoints;		// Skip points in the waveform
 	/** VADPCM: compressed frames to keep in RDRAM for note-on (0 = none). */
 	uint8_t attack_frames;

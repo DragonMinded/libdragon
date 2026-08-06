@@ -140,7 +140,8 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 		assertf(0, "wav64 %s: invalid ID: %02x%02x%02x%02x\n",
 			file_name, head.id[0], head.id[1], head.id[2], head.id[3]);
 	}
-	assertf(head.version == 9, "wav64 %s: invalid version: %02x\n",
+	assertf(head.version == 10,
+		"wav64 %s: unsupported version %02x; reconvert with audioconv64)",
 		file_name, head.version);
 	assertf(head.format < WAV64_NUM_FORMATS, "Unknown wav64 compression format %d; corrupted file?", head.format);
 	assertf(head.format < WAV64_NUM_FORMATS && algos[head.format].init != NULL,
@@ -216,7 +217,13 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 	wav->wave.frequency = head.freq;
 	wav->wave.len = head.len;
 	wav->wave.loop_len = head.loop_len;
+	wav->wave.loop_end = head.loop_end;
 	wav->wave.state_size = head.state_size;
+	int wloop_end = head.loop_end ? head.loop_end : head.len;
+	assertf(head.loop_len >= 0 && head.loop_len <= wloop_end &&
+		head.loop_end >= 0 && head.loop_end <= head.len,
+		"wav64 %s: invalid loop %d..%d (len %d)", file_name,
+		wloop_end - (int)head.loop_len, wloop_end, (int)head.len);
 
 	// Read ext data
 	read(file_handle, wav->st->ext, ext_size);
@@ -255,6 +262,18 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 			samplebuffer_dma_wait(&sbuf);
 			rspq_highpri_sync();
 			assertf(wlen == wav->wave.len, "wav64: preload failed for %s: wlen=%x/%x", wav->wave.name, wlen, wav->wave.len);
+
+			// Terminal loops: the RSP overreads past len, so pad the margin
+			// with the loop start. Non-terminal loops keep the release tail
+			// intact; streamed playback fills overread via #waveform_read.
+			if (wav->wave.loop_len && (!wav->wave.loop_end || wav->wave.loop_end == wav->wave.len)) {
+				int ub = wav->wave.channels * (wav->wave.bits >> 3);
+				int loop_start = wav->wave.len - wav->wave.loop_len;
+				uint8_t *base = (uint8_t *)wav->st->samples;
+				for (int i = 0; i < SAMPLEBUFFER_MARGIN_UNITS; i++)
+					memcpy(base + (wav->wave.len + i) * ub,
+						base + (loop_start + i % wav->wave.loop_len) * ub, ub);
+			}
 
 			if (algos[wav->st->format].close)
 				algos[wav->st->format].close(wav);
@@ -309,7 +328,10 @@ double wav64_seek(wav64_t *wav, int ch, double time_sec)
 }
 
 void wav64_set_loop(wav64_t *wav, bool loop) {
+	// Full-file terminal loop (or disarm). Sustain loops with a release tail
+	// come from the file header; use #mixer_ch_set_loop to toggle those.
 	wav->wave.loop_len = loop ? wav->wave.len : 0;
+	wav->wave.loop_end = 0;
 
 	// Odd loop lengths are not supported for 8-bit waveforms because they would
 	// change the 2-byte phase between ROM and RDRAM addresses during loop unrolling.

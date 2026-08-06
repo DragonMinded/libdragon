@@ -26,18 +26,19 @@ typedef struct samplebuffer_s samplebuffer_t;
 /** @brief Header of a WAV64 file. */
 typedef struct __attribute__((packed)) {
 	char id[4];             ///< ID of the file (WAV64_ID)
-	int8_t version;         ///< Version of the file (WAV64_FILE_VERSION)
+	int8_t version;         ///< Version of the file
 	int8_t format;          ///< Format of the file (WAV64_FORMAT_RAW)
 	int8_t channels;        ///< Number of interleaved channels
 	int8_t nbits;           ///< Width of sample in bits (8 or 16)
 	int32_t freq;           ///< Default playback frequency
 	int32_t len;            ///< Length of the file (in samples)
-	int32_t loop_len;       ///< Length of the loop since file end (or 0 if no loop)
+	int32_t loop_len;       ///< Length of the sustain loop (0 if no loop)
+	int32_t loop_end;       ///< Exclusive end of the sustain loop (0 ⇒ #len)
 	uint32_t start_offset;  ///< Offset of the first sample in the file
 	uint32_t state_size;    ///< Size of per-mixer-channel state to allocate at runtime
 } wav64_header_t;
 
-_Static_assert(sizeof(wav64_header_t) == 28, "invalid wav64_header size");
+_Static_assert(sizeof(wav64_header_t) == 32, "invalid wav64_header size");
 
 /** @brief WAV64 state */
 typedef struct wav64_state_s {

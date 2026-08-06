@@ -89,6 +89,7 @@ static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
 		.sampleRate = 44100,
 		.looping = s->loop_type != 0,
 		.loopOffset = s->loop_start,
+		.loopEnd = s->loop_type != 0 ? (int)s->loop_end : 0,
 	};
 	for (auto pos : sample_skip_points[s])
 		wav.skipPoints.push_back(pos);
@@ -105,9 +106,10 @@ static void xm_save_wave64(xm_sample_t *s, FILE *out, const char *outfn)
 
 	if (wav.looping) {
 		// Adjust loop information as they might have changed during compression
+		int lend = wav.loopEnd ? wav.loopEnd : wav.cnt;
 		s->loop_start = wav.loopOffset;
-		s->loop_length = wav.cnt - wav.loopOffset;
-		s->loop_end = wav.cnt;
+		s->loop_length = lend - wav.loopOffset;
+		s->loop_end = lend;
 		s->length = wav.cnt;
 	}
 }
