@@ -34,14 +34,16 @@
 #include "libulc.h"
 
 #include "huff_vadpcm.c"
-#include "conv_common.h"
+#include "audioconv64.h"
+
+// Shared parsing helpers for --wav-seek (same syntax as videoconv64 --seek)
+#include "../common/seekfile.cpp"
 
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
 int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
-enum ulc_mode_t { ULC_MODE_VBR, ULC_MODE_ABR, ULC_MODE_CBR };
 ulc_mode_t flag_wav_compress_ulc_mode = ULC_MODE_VBR;
 float flag_wav_compress_ulc_bitrate = 64.0f;
 float flag_wav_compress_ulc_quality = 50.0f;

@@ -1,3 +1,13 @@
+/*
+    audioconv64: convert audio files to the format used by the Libdragon SDK
+	Written by Giovanni Bajo <giovannibajo@gmail.com>
+
+    This tool is part of the Libdragon SDK.
+
+    This is free and unencumbered software released into the public domain.
+
+    For more information, please refer to <http://unlicense.org/>
+*/
 #pragma once
 
 #include <cstdio>
@@ -28,11 +38,7 @@
 	#define LE16_TO_HOST(i) (i)
 #endif
 
-extern bool flag_verbose;
-extern bool flag_debug;
-
-extern int flag_wav_compress_vadpcm_huffman;
-extern int flag_wav_compress_vadpcm_bits;
+enum ulc_mode_t { ULC_MODE_VBR, ULC_MODE_ABR, ULC_MODE_CBR };
 
 typedef struct {
 	int16_t *samples;			// Samples (always 16-bit signed)
@@ -50,8 +56,40 @@ typedef struct {
 	bool resident;
 } wav_data_t;
 
+// Global options
+extern bool flag_verbose;
+extern bool flag_debug;
+
+// WAV options
+extern bool flag_wav_looping;
+extern int flag_wav_looping_offset;
+extern int flag_wav_compress;
+extern int flag_wav_compress_vadpcm_huffman;
+extern int flag_wav_compress_vadpcm_bits;
+extern ulc_mode_t flag_wav_compress_ulc_mode;
+extern float flag_wav_compress_ulc_bitrate;
+extern float flag_wav_compress_ulc_quality;
+extern int flag_wav_resample;
+extern double flag_wav_seek_interval_sec;
+extern const char *flag_wav_seek_file;
+extern bool flag_wav_mono;
+
+// XM options
+extern int flag_xm_compress_meta;
+extern int flag_xm_compress_samples;
+extern bool flag_xm_8bit;
+extern const char *flag_xm_extsampledir;
+
+// YM options
+extern bool flag_ym_compress;
+
+__attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...);
 
 char* changeext(const char* fn, const char *ext);
+
+int wav_convert(const char *infn, const char *outfn);
+int xm_convert(const char *infn, const char *outfn);
+int ym_convert(const char *infn, const char *outfn);
 
 bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int format);

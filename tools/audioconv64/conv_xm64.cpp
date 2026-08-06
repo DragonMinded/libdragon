@@ -45,14 +45,14 @@
 #include "../common/polyfill.h"
 #include "../common/utils.h"
 #include "../common/assetcomp.h"
-#include "conv_common.h"
+#include "audioconv64.h"
 
 int flag_xm_compress_meta = DEFAULT_COMPRESSION;
 int flag_xm_compress_samples = DEFAULT_COMPRESSION;
 bool flag_xm_8bit = false;
 const char *flag_xm_extsampledir = NULL;
 
-std::map<xm_sample_t*, std::set<int>> sample_skip_points;
+static std::map<xm_sample_t*, std::set<int>> sample_skip_points;
 /** Per-sample VADPCM attack window (frames), keyed by sample CRC32. */
 static std::map<uint32_t, uint8_t> sample_attack_by_hash;
 /** Samples marked for full RDRAM preload (keyed by CRC32). */

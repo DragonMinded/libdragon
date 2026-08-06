@@ -26,16 +26,14 @@
 #define _Static_assert static_assert
 #endif
 
-#include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/polyfill.h"
+#include "../common/assetcomp.h"
+#include "audioconv64.h"
 
 bool flag_verbose = false;
 bool flag_debug = false;
 static bool had_error = false;
-
-// Shared parsing helpers for --wav-seek (same syntax as videoconv64 --seek)
-#include "../common/seekfile.cpp"
 
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...) {
@@ -46,14 +44,6 @@ void fatal(const char *str, ...) {
 	va_end(va);
 	exit(1);
 }
-
-/************************************************************************************
- *  CONVERTERS
- ************************************************************************************/
-
-#include "conv_wav64.cpp"
-#include "conv_xm64.cpp"
-#include "conv_ym64.cpp"
 
 /************************************************************************************
  *  MAIN
@@ -386,8 +376,9 @@ int main(int argc, char *argv[]) {
 					return 1;
 				}
 				const char *param = argv[i];
-				double sec = 0.0;
-				if (parse_double_strict(param, &sec) && sec > 0.0) {
+				char *end = NULL;
+				double sec = strtod(param, &end);
+				if (end != param && *end == '\0' && sec > 0.0) {
 					flag_wav_seek_interval_sec = sec;
 				} else {
 					// Defer parsing until after resampling so timestamps can be converted using the final sample rate.
