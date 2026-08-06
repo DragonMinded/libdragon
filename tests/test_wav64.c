@@ -127,12 +127,16 @@ static void emit_setchannel(int ch, void *codebook, void *state, int bits) {
         PhysicalAddr(codebook) | (bits - 2), PhysicalAddr(state), 0);
 }
 
-static void emit_channel_lr(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
-    uint32_t pos, uint32_t step, uint32_t len, uint32_t loop_len, void *ptr,
-    int nsamples)
+// @p dlvol / @p drvol are the volume ramp increments applied by the ucode every
+// 4 output samples; 0 keeps the volume constant for the whole command. @p tlvol
+// / @p trvol are where the ramp stops: the ucode clamps between them and the
+// starting volume, so passing the starting volume itself pins the volume.
+static void emit_channel_target(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
+    int16_t dlvol, int16_t drvol, int16_t tlvol, int16_t trvol, uint32_t pos,
+    uint32_t step, uint32_t len, uint32_t loop_len, void *ptr, int nsamples)
 {
     assert((nsamples & 1) == 0 && nsamples >= 0 && nsamples <= 512);
-    rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 7);
+    rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 9);
     // a0: ch<<19 | flags<<11 | nsamples/2  (9 bits: nsamples up to 512)
     rspq_write_arg(&w, ((uint32_t)ch << 19) | ((flags & 0xFF) << 11) | ((uint32_t)nsamples >> 1));
     rspq_write_arg(&w, ((uint32_t)(uint16_t)lvol << 16) | (uint16_t)rvol);
@@ -141,7 +145,17 @@ static void emit_channel_lr(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
     rspq_write_arg(&w, len);
     rspq_write_arg(&w, loop_len);
     rspq_write_arg(&w, PhysicalAddr(ptr));
+    rspq_write_arg(&w, ((uint32_t)(uint16_t)dlvol << 16) | (uint16_t)drvol);
+    rspq_write_arg(&w, ((uint32_t)(uint16_t)tlvol << 16) | (uint16_t)trvol);
     rspq_write_end(&w);
+}
+
+static void emit_channel_lr(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
+    uint32_t pos, uint32_t step, uint32_t len, uint32_t loop_len, void *ptr,
+    int nsamples)
+{
+    emit_channel_target(ch, flags, lvol, rvol, 0, 0, lvol, rvol, pos, step, len,
+        loop_len, ptr, nsamples);
 }
 
 static void emit_channel(int ch, uint32_t flags, int16_t vol, uint32_t pos,
@@ -224,17 +238,6 @@ static int16_t hermite_ref(int16_t y0, int16_t y1, int16_t y2, int16_t y3, uint1
     return (int16_t)v;
 }
 
-#define WARMUP_SAMPLES  256
-
-// Value the one-tap volume filter of the ucode settles on for a given target.
-static int16_t volume_settle(int16_t target)
-{
-    int32_t x = 0;
-    for (int i = 0; i < 1024; i++)
-        x = (int32_t)(((int64_t)x * 0xe076 + (int64_t)target * 0x1f8a) >> 16);
-    return (int16_t)x;
-}
-
 static bool test_vadpcm_inmixer(int nframes, uint32_t step, int nout, int seed, int bits) {
     my_srand(seed);
 
@@ -269,22 +272,6 @@ static bool test_vadpcm_inmixer(int nframes, uint32_t step, int nout, int seed, 
     uint32_t flags = CH_FLAGS_VADPCM | CH_FLAGS_16BIT | CH_FLAGS_CLEAR_ACCUM;
     uint32_t len = (uint32_t)nsamples << MIXER_FX64_FRAC;
 
-    // Warm up the per-channel volume filter (step 0 keeps pos at 0).
-    wav64_vadpcm_vector_t *state_warm = malloc_uncached(sizeof(wav64_vadpcm_vector_t));
-    memset(state_warm, 0, sizeof(*state_warm));
-    int32_t *warm_out = malloc_uncached(WARMUP_SAMPLES * 4);
-    for (int i = 0; i < 4; i++) {
-        rspq_highpri_begin();
-        emit_setchannel(0, codebook, state_warm, bits);
-        emit_channel(0, flags, vol, 0, 0, len, 0, frames, WARMUP_SAMPLES);
-        emit_flush(WARMUP_SAMPLES, warm_out);
-        rspq_highpri_end();
-    }
-    rspq_wait();
-    free_uncached(state_warm);
-    free_uncached(warm_out);
-
-    // Fresh state for the measured run.
     memset(state_rsp, 0, sizeof(*state_rsp));
     rspq_highpri_begin();
     emit_setchannel(0, codebook, state_rsp, bits);
@@ -295,14 +282,13 @@ static bool test_vadpcm_inmixer(int nframes, uint32_t step, int nout, int seed, 
 
     bool ok = true;
     int16_t *stereo = (int16_t*)out;
-    int16_t settled = volume_settle(vol);
     for (int i = 0; i < nout; i++) {
         uint32_t pos = step * (uint32_t)i;
         int si = pos >> MIXER_FX64_FRAC;
         uint16_t x = (uint16_t)(pos << 4);
         int16_t y0 = ref_pcm[si], y1 = ref_pcm[si+1], y2 = ref_pcm[si+2], y3 = ref_pcm[si+3];
         int16_t res = hermite_ref(y0, y1, y2, y3, x);
-        int32_t v = (int32_t)(((int64_t)res * settled * 2) >> 16);
+        int32_t v = (int32_t)(((int64_t)res * vol * 2) >> 16);
         int16_t l = stereo[i*2], r = stereo[i*2+1];
         int d0 = l - v, d1 = r - v;
         if (d0 < -2 || d0 > 2 || d1 < -2 || d1 > 2) {
@@ -366,19 +352,6 @@ static bool test_pcm_resample(bool is16, uint32_t step, int nsamples, int seed)
     uint32_t flags = CH_FLAGS_CLEAR_ACCUM | (is16 ? (CH_FLAGS_16BIT | 1) : 0);
     uint32_t len = (uint32_t)(nwave << bps) << MIXER_FX64_FRAC;
 
-    // The volume filter converges on the target geometrically, one step every
-    // 8 output samples. Run it on a zero step (which keeps replaying sample 0,
-    // so it cannot run off the waveform) until it has settled.
-    int32_t *warm = malloc_uncached(WARMUP_SAMPLES * 4);
-    for (int i = 0; i < 4; i++) {
-        rspq_highpri_begin();
-        emit_channel(0, flags, vol, 0, 0, len, 0, wave, WARMUP_SAMPLES);
-        emit_flush(WARMUP_SAMPLES, warm);
-        rspq_highpri_end();
-    }
-    rspq_wait();
-    free_uncached(warm);
-
     rspq_highpri_begin();
     emit_channel(0, flags, vol, 0, step, len, 0, wave, nsamples);
     emit_flush(nsamples, out);
@@ -397,7 +370,7 @@ static bool test_pcm_resample(bool is16, uint32_t step, int nsamples, int seed)
             y[t] = is16 ? ((int16_t*)wave)[si+t] : (int16_t)(((int8_t*)wave)[si+t] << 8);
         int16_t res = hermite_ref(y[0], y[1], y[2], y[3], x);
 
-        int32_t v = (int32_t)(((int64_t)res * volume_settle(vol) * 2) >> 16);
+        int32_t v = (int32_t)(((int64_t)res * vol * 2) >> 16);
         int16_t l = stereo[i*2], r = stereo[i*2+1];
         int d0 = l - v, d1 = r - v;
         if (d0 < -2 || d0 > 2 || d1 < -2 || d1 > 2) {
@@ -440,17 +413,6 @@ static bool test_pcm_resample_stereo(bool is16, uint32_t step, int nsamples, int
         (is16 ? (CH_FLAGS_16BIT | 2) : 1);
     uint32_t len = (uint32_t)(nframes << bps) << MIXER_FX64_FRAC;
 
-    int32_t *warm = malloc_uncached(WARMUP_SAMPLES * 4);
-    for (int i = 0; i < 4; i++) {
-        rspq_highpri_begin();
-        emit_channel_lr(0, flags_l, vol, 0, 0, 0, len, 0, wave, WARMUP_SAMPLES);
-        emit_channel_lr(1, flags_r, 0, vol, 0, 0, len, 0, wave, WARMUP_SAMPLES);
-        emit_flush(WARMUP_SAMPLES, warm);
-        rspq_highpri_end();
-    }
-    rspq_wait();
-    free_uncached(warm);
-
     rspq_highpri_begin();
     emit_channel_lr(0, flags_l, vol, 0, 0, step, len, 0, wave, nsamples);
     emit_channel_lr(1, flags_r, 0, vol, 0, step, len, 0, wave, nsamples);
@@ -460,7 +422,6 @@ static bool test_pcm_resample_stereo(bool is16, uint32_t step, int nsamples, int
 
     bool ok = true;
     int16_t *stereo = (int16_t*)out;
-    int16_t settled = volume_settle(vol);
     for (int i = 0; i < nsamples; i++) {
         uint32_t pos = step * (uint32_t)i;
         int fi = pos >> (MIXER_FX64_FRAC + bps);
@@ -478,8 +439,8 @@ static bool test_pcm_resample_stereo(bool is16, uint32_t step, int nsamples, int
         }
         int16_t res_l = hermite_ref(yl[0], yl[1], yl[2], yl[3], x);
         int16_t res_r = hermite_ref(yr[0], yr[1], yr[2], yr[3], x);
-        int32_t vl = (int32_t)(((int64_t)res_l * settled * 2) >> 16);
-        int32_t vr = (int32_t)(((int64_t)res_r * settled * 2) >> 16);
+        int32_t vl = (int32_t)(((int64_t)res_l * vol * 2) >> 16);
+        int32_t vr = (int32_t)(((int64_t)res_r * vol * 2) >> 16);
 
         int16_t l = stereo[i*2], r = stereo[i*2+1];
         int d0 = l - vl, d1 = r - vr;
@@ -2217,6 +2178,246 @@ static bool test_mixer_stop_mid(void)
     return true;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// Volume ramps
+//
+// The loop of the baseline asset is a square wave of constant absolute
+// amplitude, so playing it at the output rate makes the envelope of the
+// capture the channel volume itself, sample by sample.
+//////////////////////////////////////////////////////////////////////////////
+
+// Deviation of the envelope from a straight line, and from the volume that was
+// asked for. The ucode walks the volume one output sample at a time, in steps
+// it recomputes every four of them, so the envelope follows the line it is
+// meant to within the rounding of those steps.
+#define VR_TOL_LINE   64
+#define VR_TOL_LEVEL  128
+
+static int vr_amp(int i)   { int a = sv_out[i*2];   return a < 0 ? -a : a; }
+static int vr_amp_r(int i) { int a = sv_out[i*2+1]; return a < 0 ? -a : a; }
+
+static void vr_start(waveform_t *wave, float lvol, float rvol)
+{
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    sv_start(wave, BL_INTRO, BL_FREQ);
+    mixer_ch_set_vol(SV_CHANNEL, lvol, rvol);
+    sv_mix(2048);                     // let the declick ramp settle
+}
+
+// A linear ramp comes out as a straight line whatever the staircase of the
+// ucode does to it, so the capture is checked against the line through two of
+// its own interior points: a ramp that moves once per mix round (or once per
+// poll) is caught this way. The endpoints of that line are then checked
+// against the volumes that were asked for.
+static bool vr_check_linear(const char *tag, int nramp, float v0, float v1,
+    int (*amp)(int))
+{
+    int i1 = nramp/4, i2 = nramp*3/4;
+    int a1 = amp(i1), a2 = amp(i2);
+    int worst = 0, wi = -1;
+
+    for (int i = nramp/8; i <= nramp*7/8; i++) {
+        int want = a1 + (int)((int64_t)(a2 - a1) * (i - i1) / (i2 - i1));
+        int d = amp(i) - want; if (d < 0) d = -d;
+        if (d > worst) { worst = d; wi = i; }
+    }
+    if (worst > VR_TOL_LINE) {
+        printf("FAILED %s: envelope off its own line by %d at %d\n", tag, worst, wi);
+        printf("   [%d]=%d [%d]=%d [%d]=%d\n", i1, a1, wi, amp(wi), i2, a2);
+        return false;
+    }
+    for (int k = 0; k < 2; k++) {
+        int i = k ? i2 : i1, a = k ? a2 : a1;
+        int want = (int)(BL_AMP * (v0 + (v1 - v0) * i / (float)nramp));
+        int d = a - want; if (d < 0) d = -d;
+        if (d > VR_TOL_LEVEL) {
+            printf("FAILED %s: envelope is %d at %d, expected %d\n", tag, a, i, want);
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool vr_check_level(const char *tag, int from, int to, float v,
+    int (*amp)(int))
+{
+    int want = (int)(BL_AMP * v), worst = 0, wi = -1;
+    for (int i = from; i < to; i++) {
+        int d = amp(i) - want; if (d < 0) d = -d;
+        if (d > worst) { worst = d; wi = i; }
+    }
+    if (worst > VR_TOL_LEVEL) {
+        printf("FAILED %s: volume %d at %d, expected %d\n", tag, amp(wi), wi, want);
+        return false;
+    }
+    return true;
+}
+
+// A ramp spanning several rounds and several polls must come out as one
+// straight line, with no step at the boundaries.
+static bool test_mixer_vol_ramp(waveform_t *wave)
+{
+    const int nramp = 4096, ntail = 2048;
+
+    vr_start(wave, 0.5f, 0.5f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, nramp);
+    sv_mix(nramp + ntail);
+    if (!vr_check_linear("vol ramp down", nramp, 0.5f, 0.0f, vr_amp))
+        return false;
+    if (!vr_check_level("vol ramp down", nramp + 512, nramp + ntail, 0.0f, vr_amp))
+        return false;
+
+    vr_start(wave, 0.0f, 0.0f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.75f, 0.75f, nramp);
+    sv_mix(nramp + ntail);
+    if (!vr_check_linear("vol ramp up", nramp, 0.0f, 0.75f, vr_amp))
+        return false;
+    if (!vr_check_level("vol ramp up", nramp + 512, nramp + ntail, 0.75f, vr_amp))
+        return false;
+
+    // The two sides ramp independently, and on a stereo waveform they are two
+    // separate MIX_CHANNELs that must stay in step.
+    vr_start(wave, 0.5f, 0.5f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 1.0f, nramp);
+    sv_mix(nramp + ntail);
+    if (!vr_check_linear("vol ramp pan L", nramp, 0.5f, 0.0f, vr_amp))
+        return false;
+    if (!vr_check_linear("vol ramp pan R", nramp, 0.5f, 1.0f, vr_amp_r))
+        return false;
+    return true;
+}
+
+// A ramp shorter than a mix round still has to run: what the ucode is given
+// is an increment per block of 4 samples, not one per round.
+static bool test_mixer_vol_ramp_short(void)
+{
+    vr_start(&bl_wave_loop_res, 0.5f, 0.5f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, 64);
+    sv_mix(1024);
+    // Well before the round the ramp lives in is over.
+    if (vr_amp(200) > BL_AMP / 8) {
+        printf("FAILED vol ramp short: still at %d after 200 samples\n", vr_amp(200));
+        return false;
+    }
+    return vr_check_level("vol ramp short", 512, 1024, 0.0f, vr_amp);
+}
+
+// A new ramp starts from the volume the channel has now, not from the target
+// of the ramp it replaces; #mixer_ch_set_vol cancels it outright.
+static bool test_mixer_vol_ramp_replace(void)
+{
+    const int nramp = 8192;
+
+    vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, nramp);
+    sv_mix(nramp/2);
+    if (!vr_check_level("vol ramp replace", nramp/2 - 64, nramp/2, 0.5f, vr_amp))
+        return false;
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 1.0f, 1.0f, 4096);
+    sv_mix(4096 + 1024);
+    if (!vr_check_linear("vol ramp replace", 4096, 0.5f, 1.0f, vr_amp))
+        return false;
+    if (!vr_check_level("vol ramp replace", 4096 + 512, 4096 + 1024, 1.0f, vr_amp))
+        return false;
+
+    vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, nramp);
+    sv_mix(nramp/2);
+    mixer_ch_set_vol(SV_CHANNEL, 0.25f, 0.25f);
+    sv_mix(4096);
+    // The cancelled ramp must not resume, now or later.
+    if (!vr_check_level("vol ramp cancel", 512, 4096, 0.25f, vr_amp))
+        return false;
+    sv_mix(4096);
+    return vr_check_level("vol ramp cancel", 0, 4096, 0.25f, vr_amp);
+}
+
+// The ucode is given a slope and the value it is heading for, and clamps to
+// it: a ramp may therefore end anywhere inside a round, at a sample that is
+// not even a multiple of the 4 the slope is recomputed at. What this looks for
+// is the volume sailing past its target, which is what would happen if the
+// slope kept being applied to the end of the round.
+static bool test_mixer_vol_ramp_land(void)
+{
+    static const int durations[] = { 13, 77, 300, 1001 };
+
+    for (int i = 0; i < 4; i++) {
+        int n = durations[i];
+
+        vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+        mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, n);
+        sv_mix(2048);
+        if (!vr_check_level("vol ramp land down", n + 8, 2048, 0.0f, vr_amp))
+            return false;
+
+        // Upwards, from and to a volume that leaves room on both sides, so
+        // that an overshoot shows up instead of saturating out of sight.
+        vr_start(&bl_wave_loop_res, 0.25f, 0.25f);
+        mixer_ch_set_vol_ramp(SV_CHANNEL, 0.5f, 0.5f, n);
+        sv_mix(2048);
+        if (!vr_check_level("vol ramp land up", n + 8, 2048, 0.5f, vr_amp))
+            return false;
+    }
+    return true;
+}
+
+// The ramp moves at every output sample, and not once per group of eight: a
+// steep ramp comes out as a line and not as a staircase. What this looks for
+// is the jump between two neighbouring samples, which stepping once per group
+// would make eight times the slope at every group boundary.
+static bool test_mixer_vol_ramp_smooth(void)
+{
+    const int nramp = 256;
+    const int slope = BL_AMP / nramp;     // envelope units per output sample
+
+    vr_start(&bl_wave_loop_res, 0.0f, 0.0f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 1.0f, 1.0f, nramp);
+    sv_mix(1024);
+
+    int worst = 0, wi = -1;
+    for (int i = 1; i < nramp - 1; i++) {
+        int d = vr_amp(i) - vr_amp(i - 1); if (d < 0) d = -d;
+        if (d > worst) { worst = d; wi = i; }
+    }
+    if (worst > slope * 2) {
+        printf("FAILED vol ramp smooth: envelope jumps by %d at %d, slope is %d\n",
+            worst, wi, slope);
+        return false;
+    }
+    // ...and it is a ramp at all: an envelope that never moves would sail
+    // through the test above.
+    int mid = vr_amp(nramp/2);
+    if (mid < BL_AMP/4 || mid > BL_AMP*3/4) {
+        printf("FAILED vol ramp smooth: %d halfway, expected around %d\n",
+            mid, BL_AMP/2);
+        return false;
+    }
+    return true;
+}
+
+// mixer_ch_set_vol walks to the new volume instead of stepping to it, which is
+// what keeps a music player from clicking on every tick.
+static bool test_mixer_declick(void)
+{
+    const int nd = 128;               // MIXER_DECLICK_SAMPLES
+
+    vr_start(&bl_wave_loop_res, 0.0f, 0.0f);
+    mixer_ch_set_vol(SV_CHANNEL, 1.0f, 1.0f);
+    sv_mix(1024);
+
+    // Not a step: a quarter into the ramp the volume is still around a quarter.
+    int a = vr_amp(nd/4);
+    if (a > BL_AMP/2) {
+        printf("FAILED declick: %d at sample %d, expected around %d\n",
+            a, nd/4, BL_AMP/4);
+        return false;
+    }
+    // ...but over and done with well within a mix round.
+    return vr_check_level("declick", nd + 8, 1024, 1.0f, vr_amp);
+}
+
 // Resident VADPCM loop: same content as rf_wave, but addressed from RDRAM.
 static uint8_t *rf_mem_res;
 static waveform_t rf_wave_resident;
@@ -2452,6 +2653,16 @@ int main(void)
     // VADPCM stereo: exact left + L/R identity across unpin + release.
     SL_RUN(&slv_wave_stereo, SL_INSIDE, slv_sample);
     #undef SL_RUN
+
+    printf("Volume ramps\n");
+    fflush(stdout);
+    total++; if (!test_mixer_vol_ramp(&bl_wave_loop_res)) failed++;
+    total++; if (!test_mixer_vol_ramp(&bl_wave_loop_stereo)) failed++;
+    total++; if (!test_mixer_vol_ramp_short()) failed++;
+    total++; if (!test_mixer_vol_ramp_replace()) failed++;
+    total++; if (!test_mixer_vol_ramp_land()) failed++;
+    total++; if (!test_mixer_vol_ramp_smooth()) failed++;
+    total++; if (!test_mixer_declick()) failed++;
 
     total++; if (!test_mixer_freq_change()) failed++;
     total++; if (!test_mixer_stop_mid()) failed++;

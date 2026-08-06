@@ -128,6 +128,35 @@ void mixer_set_vol(float vol);
 void mixer_ch_set_vol(int ch, float lvol, float rvol);
 
 /**
+ * @brief Linearly ramp channel volume to the specified values.
+ *
+ * This is the same as #mixer_ch_set_vol, but instead of changing the volume
+ * right away, the mixer walks it linearly from its current value to the
+ * specified one over @p duration output samples.
+ *
+ * The ramp is run by the mixer itself, across RSP rounds and audio buffers: it
+ * does not need any #mixer_add_event callback while it is in progress, and it
+ * is smooth well below the granularity of a mix round. It is the intended way
+ * to implement volume envelopes, fade in / fade out, and to avoid the click of
+ * stopping a channel abruptly.
+ *
+ * A ramp replaces whatever ramp was running on the channel, starting from the
+ * volume that one had reached. Calling #mixer_ch_set_vol (or passing a
+ * @p duration of 0 here) cancels the ramp and sets the volume immediately;
+ * stopping the channel cancels it as well.
+ *
+ * The RSP walks the volume one output sample at a time, in steps it recomputes
+ * every four of them, so @p duration is effectively rounded up to a multiple
+ * of 4.
+ *
+ * @param[in]   ch              Channel index
+ * @param[in]   lvol            Target left volume (range [0..1])
+ * @param[in]   rvol            Target right volume (range [0..1])
+ * @param[in]   duration        Length of the ramp, in output samples
+ */
+void mixer_ch_set_vol_ramp(int ch, float lvol, float rvol, int duration);
+
+/**
  * @brief Set channel volume (as volume and panning).
  * 
  * Configure the left and right channel volumes for the specified channel,
