@@ -137,8 +137,13 @@ static void samplebuffer_recalc_size(samplebuffer_t *buf) {
 	// RSP may still be reading. A full highpri sync is the safe barrier; the
 	// samplebuffer itself does not track rounds. The first configuration of a
 	// buffer has handed out no window yet, so it never syncs.
-	if (buf->size > 0 && n != buf->size)
+	if (buf->size > 0 && n != buf->size) {
 		rspq_highpri_sync();
+		// No old window is live after the sync, so restart at the aligned base.
+		// Keeping head here would also reinterpret an index from the old ring
+		// modulus as an index in the new one.
+		buf->head = 0;
+	}
 
 	buf->size = n;
 	// The buffer is empty, but head is where the next stream restarts, and the
@@ -151,6 +156,15 @@ void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes) {
 	assertf(buf->widx == 0 && buf->ridx == 0 && buf->wpos == 0,
 		"samplebuffer_set_unit_bytes can only be called on an empty samplebuffer");
 
+	// head is an index in units. It cannot be carried across a unit-size
+	// change: the same numeric index denotes a different byte address, and an
+	// address aligned for stereo PCM can be unaligned for mono PCM. Drain old
+	// windows and restart the newly configured ring at its aligned base.
+	if (buf->unit_bytes && buf->unit_bytes != unit_bytes) {
+		rspq_highpri_sync();
+		buf->head = 0;
+		buf->size = 0;
+	}
 	buf->unit_bytes = (uint8_t)unit_bytes;
 	samplebuffer_recalc_size(buf);
 }
