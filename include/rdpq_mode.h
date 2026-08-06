@@ -564,8 +564,8 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * use #RDPQ_BLENDER_MULTIPLY_CONST.
  * 
  * #RDPQ_BLENDER_ADDITIVE is mostly broken on RDP, as it doesn't handle correctly
- * overflowing values. Basically, values up to 1.5 are correctly clamped to 1,
- * but values above 1.5 are wrapped back to 0, which makes the mode almost useless.
+ * overflowing values. Basically, values that overflow 1.0 are not clamped but
+ * wrap back to 0, which makes the mode almost useless.
  * 
  * It is possible to also create custom formulas. The blender unit
  * allows for up to two passes. Use #RDPQ_BLENDER to create a one-pass
