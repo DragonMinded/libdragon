@@ -98,7 +98,7 @@ typedef struct __attribute__((packed)) {
  *
  * Immutable after #sf64_load. Safe to share across synthesizers.
  */
-struct sf64_bank_s {
+typedef struct sf64_bank_s {
 	int fd;                     ///< Open SF64 file (shared by embedded WAV64s)
 	uint16_t num_presets;       ///< Number of presets
 	uint16_t num_regions;       ///< Number of regions
@@ -108,7 +108,7 @@ struct sf64_bank_s {
 	sf64_sample_t *samples;     ///< Sample table (into #meta)
 	void *meta;                 ///< Decompressed metadata blob
 	wav64_t *waves[];           ///< Embedded waveforms (#num_samples)
-};
+} sf64_bank_t;
 
 #ifdef __cplusplus
 static_assert(sizeof(sf64_header_t) == 24, "invalid sf64_header size");

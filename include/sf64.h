@@ -9,17 +9,17 @@
  * envelopes, and embedded WAV64 samples.
  *
  * Load a bank with #sf64_load; free it with #sf64_close. The bank itself is
- * immutable and has no mixer events — playback is driven by a synthesizer
- * that shares the bank.
+ * immutable and has no mixer events — playback is driven by #sf64_synth_t
+ * (see sf64_synth.h).
  */
-#ifndef __LIBDRAGON_SF64_H
-#define __LIBDRAGON_SF64_H
+#ifndef LIBDRAGON_SF64_H
+#define LIBDRAGON_SF64_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** @brief Opaque SF64 sound bank. */
+/** @brief SF64 sound bank. */
 typedef struct sf64_bank_s sf64_bank_t;
 
 /**
@@ -52,6 +52,39 @@ void sf64_close(sf64_bank_t *bank);
  * @return            Preset index, or -1 if not found
  */
 int sf64_find_preset(sf64_bank_t *bank, int midi_bank, int program);
+
+/**
+ * @brief Number of presets in the bank.
+ *
+ * Presets are indexed `0 .. count-1` for #sf64_preset_name / #sf64_preset_id.
+ */
+int sf64_preset_count(sf64_bank_t *bank);
+
+/**
+ * @brief Name of the preset at @p index (NUL-terminated, owned by the bank).
+ */
+const char *sf64_preset_name(sf64_bank_t *bank, int index);
+
+/**
+ * @brief MIDI bank and program of the preset at @p index.
+ *
+ * @param bank         Loaded bank
+ * @param index        Preset index (`0 .. #sf64_preset_count - 1`)
+ * @param[out] midi_bank  MIDI bank number (may be NULL)
+ * @param[out] program    MIDI program number (may be NULL)
+ */
+void sf64_preset_id(sf64_bank_t *bank, int index, int *midi_bank, int *program);
+
+/**
+ * @brief First region of a preset that matches @p key and @p velocity.
+ *
+ * @param bank           Loaded bank
+ * @param preset_index   Preset index (`0 .. #sf64_preset_count - 1`)
+ * @param key            MIDI key (0–127)
+ * @param velocity       MIDI velocity (1–127)
+ * @return               Region index, or -1 if none match
+ */
+int sf64_find_region(sf64_bank_t *bank, int preset_index, int key, int velocity);
 
 #ifdef __cplusplus
 }

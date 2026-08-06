@@ -80,3 +80,42 @@ int sf64_find_preset(sf64_bank_t *bank, int midi_bank, int program)
 	}
 	return -1;
 }
+
+int sf64_preset_count(sf64_bank_t *bank)
+{
+	assert(bank);
+	return bank->num_presets;
+}
+
+const char *sf64_preset_name(sf64_bank_t *bank, int index)
+{
+	assert(bank);
+	assertf(index >= 0 && index < bank->num_presets,
+		"sf64: preset index %d out of range (0..%d)", index, bank->num_presets - 1);
+	return (const char *)bank->meta + bank->presets[index].name_offset;
+}
+
+void sf64_preset_id(sf64_bank_t *bank, int index, int *midi_bank, int *program)
+{
+	assert(bank);
+	assertf(index >= 0 && index < bank->num_presets,
+		"sf64: preset index %d out of range (0..%d)", index, bank->num_presets - 1);
+	if (midi_bank) *midi_bank = bank->presets[index].bank;
+	if (program) *program = bank->presets[index].program;
+}
+
+int sf64_find_region(sf64_bank_t *bank, int preset_index, int key, int velocity)
+{
+	assert(bank);
+	assertf(preset_index >= 0 && preset_index < bank->num_presets,
+		"sf64: preset index %d out of range (0..%d)", preset_index, bank->num_presets - 1);
+	sf64_preset_t *p = &bank->presets[preset_index];
+	for (int i = 0; i < p->num_regions; i++) {
+		int ri = p->first_region + i;
+		sf64_region_t *r = &bank->regions[ri];
+		if (key >= r->key_min && key <= r->key_max &&
+			velocity >= r->velocity_min && velocity <= r->velocity_max)
+			return ri;
+	}
+	return -1;
+}
