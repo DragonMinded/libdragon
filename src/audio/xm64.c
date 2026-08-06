@@ -26,6 +26,12 @@
 
 static char *xm64_extsampledir = NULL;
 
+/// @brief Length of the ramp that walks a volume change across a few milliseconds.
+/// XM volumes jump on every tick (envelopes, slides, global volume, mute), and
+/// a hard step is heard as a click; this is short enough that nothing sounds
+/// delayed, and long enough to kill the discontinuity.
+#define XM64_VOL_RAMP_SAMPLES  128
+
 static void stop(xm_context_t *ctx, xm64player_t *xmp) {
 	for (int i=0;i<ctx->module.num_channels;i++)
 		mixer_ch_stop(xmp->first_ch+i);
@@ -112,11 +118,14 @@ static int tick(void *arg) {
 				mixer_ch_set_pos(first_ch+i, ch->sample_position);
 
 				// Configure also frequency and volume that might have changed
-				// since last tick.
+				// since last tick. Volume is ramped explicitly: a hard step on
+				// every tick is the classic XM click, and the mixer no longer
+				// hides that behind mixer_ch_set_vol.
 				mixer_ch_set_freq(first_ch+i, ch->frequency);
-				mixer_ch_set_vol(first_ch+i,
+				mixer_ch_set_vol_ramp(first_ch+i,
 					muted ? 0 : gvol * ch->actual_volume[0],
-					muted ? 0 : gvol * ch->actual_volume[1]);
+					muted ? 0 : gvol * ch->actual_volume[1],
+					XM64_VOL_RAMP_SAMPLES);
 			} else {
 				mixer_ch_stop(first_ch+i);
 			}
