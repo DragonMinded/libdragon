@@ -83,6 +83,9 @@ extern const char *flag_xm_extsampledir;
 // YM options
 extern bool flag_ym_compress;
 
+// SF options
+extern int flag_sf_compress;
+
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...);
 
@@ -91,5 +94,6 @@ char* changeext(const char* fn, const char *ext);
 int wav_convert(const char *infn, const char *outfn);
 int xm_convert(const char *infn, const char *outfn);
 int ym_convert(const char *infn, const char *outfn);
+int sf_convert(const char *infn, const char *outfn);
 
 bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int format);
