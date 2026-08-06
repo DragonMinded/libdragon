@@ -293,6 +293,11 @@ void mixer_ch_set_loop(int ch, bool enable);
  *
  * This function must be called after #mixer_ch_play, as otherwise the
  * position is reset to the beginning of the waveform.
+ *
+ * Some compressed formats can only restart their decoder on the seek points
+ * their asset was built with: a VADPCM waveform, for instance, accepts the
+ * start of the waveform and its loop point. Seeking elsewhere on one of those
+ * is an error.
  * 
  * @param[in]   ch              Channel index
  * @param[in]   pos             Playback position (in number of samples)

@@ -1809,6 +1809,11 @@ static bool test_mixer_baseline_pcm(waveform_t *wave, int startsample, int nsamp
         bl_wave_loop_end(wave), wave->loop_len, NULL);
 }
 
+// Frame a test explicitly asked for with #mixer_ch_set_pos, which is the one
+// case where the caller owns the restriction (and a real asset would have to
+// be built with a seek point there).
+static int slv_seek_asked = -1;
+
 // Where the note-off (#mixer_ch_set_loop false) lands relative to the loop.
 typedef enum {
     SL_BEFORE,       // still in the intro
@@ -1860,6 +1865,7 @@ static bool test_mixer_set_loop(waveform_t *wave, sl_when_t when,
     // (sv_start's 2048-sample warmup would walk past the intro / near-end).
     mixer_ch_play(SV_CHANNEL, wave);
     mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+    slv_seek_asked = start / 16;
     mixer_ch_set_pos(SV_CHANNEL, start);
     mixer_ch_set_freq(SV_CHANNEL, 0);
     sv_mix(2048);
@@ -1903,6 +1909,9 @@ static bool test_mixer_set_loop(waveform_t *wave, sl_when_t when,
         return false;
     }
 
+    // From here on nothing asked for a jump: every seek the mixer makes has to
+    // be one the asset could serve.
+    slv_seek_asked = -1;
     mixer_ch_set_loop(SV_CHANNEL, false);
     pos = (int)mixer_ch_get_pos(SV_CHANNEL);
     int remain = wave->len - pos;
@@ -1970,10 +1979,21 @@ static wav64_vadpcm_vector_t *slv_loop_state;
 static waveform_vadpcm_t slv_codec;
 static waveform_vadpcm_t slv_codec_stereo;
 
+// A real VADPCM asset can only re-seed its decoder on the points audioconv64
+// wrote into the file: the start of the waveform and its loop point. Deriving
+// the state from the reference PCM would let the mixer seek anywhere, and hide
+// the seeks that a wav64 could not serve.
+static void slv_check_seek(int wpos)
+{
+    assertf(wpos == 0 || wpos == SLV_INTRO / 16 || wpos == slv_seek_asked,
+        "VADPCM seek to frame %d, which is not a seek point", wpos);
+}
+
 static void slv_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
 {
     (void)ctx;
     if (seeking) {
+        slv_check_seek(wpos);
         wav64_state_vadpcm_t *st = sbuf->state;
         for (int i = 0; i < 8; i++) {
             int p = wpos * 16 - 8 + i;
@@ -1995,6 +2015,7 @@ static void slv_read_stereo(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen,
     samplebuffer_t *sbuf_r = sbuf + 1;
     (void)ctx;
     if (seeking && sbuf->widx == 0) {
+        slv_check_seek(wpos);
         wav64_state_vadpcm_t *st = sbuf->state;
         for (int i = 0; i < 8; i++) {
             int p = wpos * 16 - 8 + i;
@@ -2646,12 +2667,18 @@ int main(void)
 
     slv_init();
     // VADPCM streamed/resident; release length not a multiple of 16.
+    // BEFORE is the note-off that never reached the sustain loop: the refill
+    // after the unpin has to carry on from the intro, where no seek point is.
+    SL_RUN(&slv_wave_stream, SL_BEFORE, slv_sample);
     SL_RUN(&slv_wave_stream, SL_INSIDE, slv_sample);
     SL_RUN(&slv_wave_stream, SL_NEAR_END, slv_sample);
     SL_RUN(&slv_wave_stream, SL_AFTER_WRAP, slv_sample);
     SL_RUN(&slv_wave_res, SL_INSIDE, slv_sample);
-    // VADPCM stereo: exact left + L/R identity across unpin + release.
+    // VADPCM stereo: exact left + L/R identity across unpin + release, with
+    // both planes going through the intro and the post-wrap re-seed.
+    SL_RUN(&slv_wave_stereo, SL_BEFORE, slv_sample);
     SL_RUN(&slv_wave_stereo, SL_INSIDE, slv_sample);
+    SL_RUN(&slv_wave_stereo, SL_AFTER_WRAP, slv_sample);
     #undef SL_RUN
 
     printf("Volume ramps\n");

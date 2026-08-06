@@ -723,21 +723,61 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 static bool mixer_wave_fits(int ch);
 
 /**
+ * @brief Resume a streamed VADPCM channel over an emptied ring.
+ *
+ * A VADPCM stream can only be re-seeded on the points its asset was built
+ * with, so an empty ring must not turn the next fetch into a seek. It does not
+ * have to: the frames are addressed directly, and the decoder state the RSP
+ * carries already belongs to the frame playback sits on. Marking the ring as
+ * the continuation of that frame is enough for the refill to be a plain
+ * sequential read.
+ *
+ * The state is not the right one at exactly one moment: right after the CPU
+ * wrapped the position between two rounds (see #mixer_advance), where the RSP
+ * is still holding the one of the end of the waveform. That frame is the loop
+ * start, whose state every looping asset carries, so it can just be handed
+ * over (see #mixer_emit_setstate).
+ */
+static void mixer_vadpcm_resume(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
+	bool stereo = (c->flags & CH_FLAGS_STEREO) != 0;
+
+	sbuf->wpos = sbuf->wnext = c->vframe;
+	if (stereo) {
+		samplebuffer_t *sbuf_r = &Mixer.ch_buf[ch+1];
+		sbuf_r->wpos = sbuf_r->wnext = c->vframe;
+	}
+
+	if (!c->loop_state || !c->wave->loop_len)
+		return;
+	if (c->vframe != (waveform_loop_end(c->wave) - c->wave->loop_len) / 16)
+		return;
+	memcpy(c->codec_state, c->loop_state, 16 * (stereo ? 2 : 1));
+	Mixer.vstate_dirty |= mixer_bit(ch);
+	if (stereo)
+		Mixer.vstate_dirty |= mixer_bit(ch+1);
+}
+
+/**
  * @brief Go back to streaming a loop that was pinned in the samplebuffer.
  *
  * The pinned copy is addressed relative to the loop region and is wrapped by
  * the RSP, so it only survives while playback stays inside it. Dropping it
- * empties the ring, which makes the next fetch a seek: that is also what
- * re-seeds the decoder state.
+ * empties the ring, and the next fetch refills it from wherever playback is.
  */
 static void mixer_ch_unpin_loop(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
+	bool stereo_vadpcm = (c->flags & (CH_FLAGS_VADPCM | CH_FLAGS_STEREO))
+		== (CH_FLAGS_VADPCM | CH_FLAGS_STEREO);
 	c->flags &= ~CH_FLAGS_LOOP_CACHED;
-	if ((c->flags & CH_FLAGS_VADPCM) && (c->flags & CH_FLAGS_STEREO)) {
+	if (stereo_vadpcm) {
 		Mixer.channels[ch+1].flags &= ~CH_FLAGS_LOOP_CACHED;
 		samplebuffer_flush(&Mixer.ch_buf[ch+1]);
 	}
 	samplebuffer_flush(&Mixer.ch_buf[ch]);
+	if (c->flags & CH_FLAGS_VADPCM)
+		mixer_vadpcm_resume(ch);
 	mixer_refresh_max_ns(ch);
 }
 
@@ -1341,9 +1381,24 @@ static void mixer_fill_loop_cache(int ch) {
 	else
 		c->ptr = (uint8_t*)SAMPLES_PTR(sbuf) - (cache_start << bps);
 	c->flags |= CH_FLAGS_LOOP_CACHED;
+	// The fill reads from the first frame of the pinned region, and the seed
+	// it leaves behind belongs to that frame. Playback is normally already
+	// somewhere inside the region, decoding the very same frames the stream
+	// was serving: handing that seed to the RSP would restart its decoder
+	// several frames behind. Only the seek the fill did for its own sake is
+	// dropped, never one the channel still owed.
 	if (vadpcm) {
-		c->vframe = sloop_start;
-		if (stereo_vadpcm) Mixer.channels[ch+1].vframe = sloop_start;
+		int frame = (int)(c->pos >> (MIXER_FX64_FRAC + 4));
+		if (frame != sloop_start) {
+			if (c->vframe == frame) {
+				Mixer.vstate_dirty &= ~mixer_bit(ch);
+				if (stereo_vadpcm) Mixer.vstate_dirty &= ~mixer_bit(ch+1);
+			} else {
+				mixer_vadpcm_seek(c, frame * 16);
+			}
+		}
+		c->vframe = frame;
+		if (stereo_vadpcm) Mixer.channels[ch+1].vframe = frame;
 	}
 	mixer_refresh_max_ns(ch);
 	tracef("ch:%d loop cached at %x len=%x\n", ch, sloop_start, sloop_len);
