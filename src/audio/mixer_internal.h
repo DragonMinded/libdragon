@@ -66,4 +66,45 @@ typedef struct {
 /** @brief Register mixer profile slots with #profile_init. */
 void __mixer_profile_init(void);
 
+/**
+ * @brief Rounds: how the CPU knows what the RSP has already read.
+ *
+ * The CPU queues mix rounds without waiting for them, so the input windows it
+ * hands out stay live until the RSP gets to them. Each round carries an id
+ * that MIX_FLUSH writes back to RDRAM once the round is over.
+ * #mixer_poll_async waits for the round that closed the poll
+ * MIXER_POLL_LOOKAHEAD polls ago before starting a new one, which is what
+ * keeps samplebuffer refills from overwriting live windows. Ids start at 1,
+ * so 0 means "no round".
+ * @{
+ */
+
+/** @brief True if the RSP has finished the given round. */
+bool __mixer_round_done(uint32_t id);
+
+/** @brief Wait for the RSP to finish the given round. */
+void __mixer_round_wait(uint32_t id);
+
+/** @} */
+
+/**
+ * @brief Copy a block of RDRAM onto another one through the mixer ucode.
+ *
+ * What the RSP brings here is ordering: the copy runs where it is enqueued,
+ * which is what mirroring data that an audio codec overlay has been asked to
+ * write, and may not have written yet, requires (see #waveform_t::rsp_written).
+ *
+ * Both addresses and the length must be 8-byte aligned. Returns false if the
+ * mixer is not running, leaving the copy to the caller.
+ */
+bool __mixer_rdram_copy(void *dst, void *src, int nbytes);
+
+/**
+ * @brief Output samples the CPU may mix without ever waiting for the RSP.
+ *
+ * The span sample buffers are sized for. Callers that size their own buffers
+ * (xm64) have to use the same figure.
+ */
+int __mixer_inflight_samples(void);
+
 #endif

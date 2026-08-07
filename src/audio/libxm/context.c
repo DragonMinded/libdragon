@@ -129,13 +129,17 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	#define RS(x,n)   fseek(in, n, SEEK_CUR)  // just skip the string
 	#endif
 
-	uint32_t ctx_size, ctx_size_all_samples, ctx_size_all_patterns, ctx_size_stream_pattern_buf, ctx_size_stream_sample_buf[32];
+	uint32_t ctx_size, ctx_size_all_samples, ctx_size_all_patterns, ctx_size_stream_pattern_buf;
+	uint32_t buf_rate[32], buf_base[32], buf_min[32], buf_cap[32];
 
 	R32(ctx_size);
 	R32(ctx_size_all_patterns);
 	R32(ctx_size_all_samples);
 	R32(ctx_size_stream_pattern_buf);
-	for (int i=0;i<32;i++) R32(ctx_size_stream_sample_buf[i]);
+	for (int i=0;i<32;i++) R32(buf_rate[i]);
+	for (int i=0;i<32;i++) R32(buf_base[i]);
+	for (int i=0;i<32;i++) R32(buf_min[i]);
+	for (int i=0;i<32;i++) R32(buf_cap[i]);
 
 	uint32_t alloc_bytes = ctx_size;
 	#if XM_STREAM_PATTERNS
@@ -158,7 +162,12 @@ int xm_context_load(xm_context_t** ctxp, FILE* in, uint32_t rate) {
 	ctx->ctx_size_all_samples = ctx_size_all_samples;
 	ctx->ctx_size_all_patterns = ctx_size_all_patterns;
 	ctx->ctx_size_stream_pattern_buf = ctx_size_stream_pattern_buf;
-	for (int i=0;i<32;i++) ctx->ctx_size_stream_sample_buf[i] = ctx_size_stream_sample_buf[i];
+	for (int i=0;i<32;i++) {
+		ctx->ctx_stream_buf_rate[i] = buf_rate[i];
+		ctx->ctx_stream_buf_base[i] = buf_base[i];
+		ctx->ctx_stream_buf_min[i] = buf_min[i];
+		ctx->ctx_stream_buf_cap[i] = buf_cap[i];
+	}
 
 #if XM_STREAM_WAVEFORMS || XM_STREAM_PATTERNS
 	ctx->fd = fileno(in);   /* Save the file if we need to stream later */

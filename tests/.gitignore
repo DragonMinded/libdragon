@@ -4,3 +4,5 @@ filesystem/*.sprite
 filesystem/*.mdb
 filesystem/texdb/
 filesystem/test_dir/
+filesystem_sf64/
+assets/sf64test.sf2

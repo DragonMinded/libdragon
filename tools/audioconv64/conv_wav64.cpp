@@ -12,14 +12,17 @@
 #define _GNU_SOURCE
 #endif
 
+#include <assert.h>
 #include <string.h>
 #include <vector>
 #include <array>
 #include <algorithm>
 #include <time.h>
 #include <unordered_set>
-#include "../../src/audio/wav64_internal.h"
 #include "../common/binout.h"
+#include "../common/polyfill.h"
+#include "audioconv64.h"
+#include "../../src/audio/wav64_internal.h"
 
 #define DR_WAV_IMPLEMENTATION
 #include "../common/dr_wav.h"
@@ -33,14 +36,15 @@
 #include "libulc.h"
 
 #include "huff_vadpcm.c"
-#include "conv_common.h"
+
+// Shared parsing helpers for --wav-seek (same syntax as videoconv64 --seek)
+#include "../common/seekfile.cpp"
 
 bool flag_wav_looping = false;
 int flag_wav_looping_offset = 0;
 int flag_wav_compress = 1;
 int flag_wav_compress_vadpcm_huffman = -1;
 int flag_wav_compress_vadpcm_bits = 4;
-enum ulc_mode_t { ULC_MODE_VBR, ULC_MODE_ABR, ULC_MODE_CBR };
 ulc_mode_t flag_wav_compress_ulc_mode = ULC_MODE_VBR;
 float flag_wav_compress_ulc_bitrate = 64.0f;
 float flag_wav_compress_ulc_quality = 50.0f;
@@ -74,6 +78,7 @@ static bool read_wav(const char *infn, wav_data_t *out)
 	out->sampleRate = wav.sampleRate;
 
 	// Check if we find smpl metadata, and if so, extract the loop points.
+	// Keep samples past the loop end as a release tail.
 	for (int i=0; i<wav.metadataCount; i++) {
 		if (wav.pMetadata[i].type == drwav_metadata_type_smpl) {
 			drwav_smpl* smpl = &wav.pMetadata[i].data.smpl;
@@ -82,34 +87,39 @@ static bool read_wav(const char *infn, wav_data_t *out)
 				drwav_smpl_loop* loop = &smpl->pLoops[0];
 				out->looping = true;
 				out->loopOffset = loop->firstSampleOffset;
-				if (out->cnt > loop->lastSampleOffset+1)
-					out->cnt = loop->lastSampleOffset+1;
+				out->loopEnd = loop->lastSampleOffset + 1;
+				if (out->loopEnd > out->cnt)
+					out->loopEnd = out->cnt;
 
 				switch (loop->type) {
 				case 0: // standard forward loop
 					if (flag_verbose)
-						fprintf(stderr, "  found forward loop [start=%d end=%d cnt=%d]\n", loop->firstSampleOffset,
-							loop->lastSampleOffset, out->cnt);
+						fprintf(stderr, "  found forward loop [start=%d end=%d cnt=%d release=%d]\n",
+							loop->firstSampleOffset, loop->lastSampleOffset, out->cnt,
+							out->cnt - out->loopEnd);
 					break;
 				case 1: { // ping-pong loop
 					if (flag_verbose)
 						fprintf(stderr, "  found ping-pong loop [start=%d end=%d cnt=%d]\n", loop->firstSampleOffset,
 							loop->lastSampleOffset, out->cnt);
-					// Unroll the ping-pong loop in the buffer.
+					// Unroll the ping-pong into a terminal forward loop; any
+					// release past the original loop end is dropped.
 					int last_offset = loop->lastSampleOffset;
 					int first_offset = loop->firstSampleOffset;
 					int loop_len = last_offset - first_offset + 1;
-					int16_t* new_samples = (int16_t*)malloc((out->cnt + loop_len) * out->channels * sizeof(int16_t));
-					memcpy(new_samples, samples, out->cnt * out->channels * sizeof(int16_t));
+					int keep = out->loopEnd;
+					int16_t* new_samples = (int16_t*)malloc((keep + loop_len) * out->channels * sizeof(int16_t));
+					memcpy(new_samples, samples, keep * out->channels * sizeof(int16_t));
 					for (int i=0; i<loop_len; i++) {
 						for (int j=0; j<wav.channels; j++) {
-							new_samples[out->cnt * wav.channels + i * wav.channels + j] = samples[(last_offset - i) * wav.channels + j];
+							new_samples[keep * wav.channels + i * wav.channels + j] = samples[(last_offset - i) * wav.channels + j];
 						}
 					}
 					free(samples);
 					out->samples = new_samples;
-					out->cnt += loop_len;
-					out->loopOffset = out->cnt - loop_len;
+					out->cnt = keep + loop_len;
+					out->loopOffset = keep;
+					out->loopEnd = out->cnt;
 				}	break;
 				default:
 					fprintf(stderr, "WARNING: %s: loop type %d not supported\n", infn, loop->type);
@@ -178,6 +188,32 @@ static void resample_progress_print(int64_t bytes_done, int64_t bytes_total, int
 }
 
 /**
+ * Insert @p ncopy samples of the loop prefix at @p loopEnd, shifting the
+ * release tail forward. Both loop bounds advance by @p ncopy so the loop
+ * content is a rotation of the original (used to align loopStart).
+ */
+static void wav_rotate_loop_at_end(wav_data_t *wav, int ncopy)
+{
+	int ch = wav->channels;
+	int loop_end = wav->loopEnd ? wav->loopEnd : wav->cnt;
+	int loop_len = loop_end - wav->loopOffset;
+	assert(ncopy > 0 && loop_len > 0 && loop_end <= wav->cnt);
+
+	wav->samples = (int16_t*)realloc(wav->samples, (wav->cnt + ncopy) * ch * sizeof(int16_t));
+	memmove(&wav->samples[(loop_end + ncopy) * ch],
+		&wav->samples[loop_end * ch],
+		(wav->cnt - loop_end) * ch * sizeof(int16_t));
+	for (int i = 0; i < ncopy; i++) {
+		int src = wav->loopOffset + (i % loop_len);
+		for (int c = 0; c < ch; c++)
+			wav->samples[(loop_end + i) * ch + c] = wav->samples[src * ch + c];
+	}
+	wav->cnt += ncopy;
+	wav->loopOffset += ncopy;
+	wav->loopEnd = loop_end + ncopy;
+}
+
+/**
  * @brief Write a WAV64 file, optionally compressing it.
  * 
  * @param infn 			Input file name (used only for diagnostics)
@@ -191,19 +227,26 @@ static void resample_progress_print(int64_t bytes_done, int64_t bytes_total, int
  * After the call:
  *   wav->samples might have been reallocated to a different buffer, and the original one freed
  * 
- * Consider the function might have to change the wav->cnt and wav->loopOffset
+ * Consider the function might have to change the wav->cnt / loopOffset / loopEnd
  * values to make them compatible with the compression format (eg: padding, realigning).
  */
 bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int format)
 {
 	bool failed = false;
 	int basepos = ftell(out);
-	
-	// Adjust loops for playback constraints
-	int loop_len = wav->looping ? wav->cnt - wav->loopOffset : 0;
-	if (loop_len < 0) {
-		fprintf(stderr, "WARNING: %s: invalid looping offset: %d (size: %d)\n", infn, wav->loopOffset, wav->cnt);
+
+	// Terminal loop if none was set explicitly.
+	if (wav->looping && wav->loopEnd == 0)
+		wav->loopEnd = wav->cnt;
+	int loop_end = wav->looping ? wav->loopEnd : 0;
+	int loop_len = wav->looping ? loop_end - wav->loopOffset : 0;
+	if (loop_len < 0 || loop_end > wav->cnt) {
+		fprintf(stderr, "WARNING: %s: invalid loop %d..%d (size: %d)\n",
+			infn, wav->loopOffset, loop_end, wav->cnt);
 		loop_len = 0;
+		loop_end = 0;
+		wav->looping = false;
+		wav->loopEnd = 0;
 	}
 
 	switch (format) {
@@ -218,27 +261,14 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		break;
 
 	case 1: { // vadpcm 
-		// We need the loop point to be aligned to the VADPCM frame size (16 samples).
-		// This allows the VADPCM decoder to be simpler when looping, as it doesn't
-		// have to decode and discard partial frames.
-		// Moreover, we even force an alignment to *even* frames (32 samples) because
-		// this gurantees the source ROM pointer is even, which means that direct DMA
-		// will be performed during decoding, with no memcpy.
-		// To do so, move forward the loop point until the next frame boundary,
-		// and copy the skipped samples to the end of the buffer.
+		// Align loopStart to 32 samples (even VADPCM frames) by rotating the
+		// skipped prefix into the loop end — not past sample_end, so a release
+		// tail stays after the loop.
 		enum { VADCPM_ALIGN = 32 };
 		if (wav->looping && (wav->loopOffset % VADCPM_ALIGN) != 0) {
-			int ncopy = VADCPM_ALIGN - (wav->loopOffset % VADCPM_ALIGN);
-			
-			wav->samples = (int16_t*)realloc(wav->samples, (wav->cnt + ncopy) * wav->channels * sizeof(int16_t));
-			// Manually copy the samples to the end of the buffer, so that
-			// we handle the case of a loop length smaller than the copy size.
-			for (int i=0; i<ncopy * wav->channels; i++) {
-				wav->samples[wav->cnt * wav->channels + i] = wav->samples[wav->loopOffset * wav->channels + i];
-			}
-			wav->cnt += ncopy;
-			wav->loopOffset += ncopy;
-			loop_len = wav->cnt - wav->loopOffset;
+			wav_rotate_loop_at_end(wav, VADCPM_ALIGN - (wav->loopOffset % VADCPM_ALIGN));
+			loop_end = wav->loopEnd;
+			loop_len = loop_end - wav->loopOffset;
 		}
 
 		wav->bitsPerSample = 16; // VADPCM always uses 16-bit samples
@@ -256,23 +286,17 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 			frame_align++;
 		}
 
-		// Move an embedded loop start to the next ULC block. The runtime can only
-		// restart decoding at 1024-frame boundaries, while frame_align only
-		// guarantees DMA-safe output addresses. Preserve the complete loop by
-		// appending the skipped prefix to its end, effectively rotating it just
-		// like the VADPCM alignment adjustment above.
 		if (wav->looping && (wav->loopOffset % ULC_BLOCK_SIZE) != 0) {
-			const int ncopy = ULC_BLOCK_SIZE - (wav->loopOffset % ULC_BLOCK_SIZE);
-			wav->samples = (int16_t*)realloc(wav->samples, (wav->cnt + ncopy) * wav->channels * sizeof(int16_t));
-			for (int i = 0; i < ncopy * wav->channels; i++) {
-				wav->samples[wav->cnt * wav->channels + i] = wav->samples[wav->loopOffset * wav->channels + i];
-			}
-			wav->cnt += ncopy;
-			wav->loopOffset += ncopy;
+			wav_rotate_loop_at_end(wav, ULC_BLOCK_SIZE - (wav->loopOffset % ULC_BLOCK_SIZE));
+			loop_end = wav->loopEnd;
+			loop_len = loop_end - wav->loopOffset;
 		}
 
 		wav->cnt -= wav->cnt % frame_align;
-		loop_len = wav->looping ? wav->cnt - wav->loopOffset : 0;
+		if (wav->looping && wav->loopEnd > wav->cnt)
+			wav->loopEnd = wav->cnt;
+		loop_end = wav->looping ? wav->loopEnd : 0;
+		loop_len = wav->looping ? loop_end - wav->loopOffset : 0;
 	} break;
 
 	case 3: // opus:
@@ -280,14 +304,20 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		break;
 	}
 
+	// Recompute after alignment. On disk, 0 means terminal (loop_end == len).
+	loop_end = wav->looping ? (wav->loopEnd ? wav->loopEnd : wav->cnt) : 0;
+	loop_len = wav->looping ? loop_end - wav->loopOffset : 0;
+	int loop_end_disk = (wav->looping && loop_end < wav->cnt) ? loop_end : 0;
+
 	fwrite("WV64", 1, 4, out);
-	w8(out, 9); 				 			// version
+	w8(out, 10);							// version
 	w8(out, format);  						// format
 	w8(out, wav->channels);					// channels
 	w8(out, wav->bitsPerSample);			// bits
 	w32(out, wav->sampleRate);				// frequency
 	w32(out, wav->cnt);						// len
 	w32(out, loop_len);						// loop_len
+	w32(out, loop_end_disk);				// loop_end (0 means len)
 	w32_placeholderf(out, "%s/samples", outfn);		// offset where samples begin
 	w32_placeholderf(out, "%s/state_size", outfn);    // size of per-mixer-channel state to allocate at runtime
 
@@ -336,7 +366,18 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		if (wav->cnt % VADPCM_ALIGN) {
 			int newcnt = (wav->cnt + VADPCM_ALIGN - 1) / VADPCM_ALIGN * VADPCM_ALIGN;
 			wav->samples = (int16_t*)realloc(wav->samples, newcnt * wav->channels * sizeof(int16_t));
-			memset(wav->samples + wav->cnt, 0, (newcnt - wav->cnt) * wav->channels * sizeof(int16_t));
+			// The padding shares a frame with real samples, and a frame carries
+			// a single scale factor: padding with silence would spend the whole
+			// residual range on the jump to zero and flatten the real samples
+			// next to it. Continue the waveform instead, with the samples that
+			// really play next (the loop start) or by holding the last one.
+			for (int i = wav->cnt; i < newcnt; i++) {
+				int src = loop_len > 0
+					? wav->loopOffset + (i - wav->cnt) % loop_len
+					: wav->cnt - 1;
+				for (int c = 0; c < wav->channels; c++)
+					wav->samples[i * wav->channels + c] = wav->samples[src * wav->channels + c];
+			}
 			wav->cnt = newcnt;
 		}
 
@@ -1036,6 +1077,8 @@ int wav_convert(const char *infn, const char *outfn) {
 		wav.loopOffset = flag_wav_looping_offset;
 	if (flag_wav_looping && !wav.looping)
 		wav.looping = true;
+	if (wav.looping && wav.loopEnd == 0)
+		wav.loopEnd = wav.cnt;
 
 	// Check if the user requested conversion to mono
 	if (flag_wav_mono && wav.channels == 2) {
@@ -1203,6 +1246,8 @@ int wav_convert(const char *infn, const char *outfn) {
 
 		// Update loop/seek points to the new sample rate
 		wav.loopOffset = (int)((int64_t)wav.loopOffset * wavResampleTo / wav.sampleRate);
+		if (wav.loopEnd)
+			wav.loopEnd = (int)((int64_t)wav.loopEnd * wavResampleTo / wav.sampleRate);
 		for (size_t i = 0; i < wav.skipPoints.size(); i++) {
 			wav.skipPoints[i] = (int)((int64_t)wav.skipPoints[i] * wavResampleTo / wav.sampleRate);
 		}

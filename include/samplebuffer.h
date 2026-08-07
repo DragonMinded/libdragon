@@ -31,11 +31,26 @@ typedef uint32_t sample_ptr_t;
 #define SAMPLES_PTR(buf)            ((void*)(uintptr_t)((buf)->ptr_and_flags))
 
 /**
- * Maximum window (in units) that #samplebuffer_get / #samplebuffer_append may
- * request. Matches the samplebuffer tail margin: one MIX_CHANNEL input span
- * plus RSP sample-cache overread.
+ * Maximum window (in units) that #samplebuffer_get may request across the ring
+ * wrap. Matches one MIX_CHANNEL input span plus RSP sample-cache overread.
+ * Also the default size of the mirrored tail (see #samplebuffer_t::margin_units).
  */
 #define SAMPLEBUFFER_MARGIN_UNITS  128
+
+/** @brief Units that #samplebuffer_prefetch keeps ready ahead of the mixer. */
+#define SAMPLEBUFFER_PREFETCH_UNITS      SAMPLEBUFFER_MARGIN_UNITS
+
+/**
+ * @brief Size of the mirrored tail, in units, for the given append granularity.
+ *
+ * The caller that allocates the memory of a samplebuffer has to add this on
+ * top of the usable size it wants (see #samplebuffer_t::margin_units).
+ */
+inline int samplebuffer_margin_units(int append_units)
+{
+    return append_units > SAMPLEBUFFER_MARGIN_UNITS
+        ? append_units : SAMPLEBUFFER_MARGIN_UNITS;
+}
 
 /**
  * samplebuffer_t holds samples used by the mixer to feed the RSP.
@@ -47,11 +62,19 @@ typedef uint32_t sample_ptr_t;
  * waveform read function will push samples into the buffer via samplebuffer_append,
  * so that they become available for the mixer.
  *
- * Data is stored circularly with a small tail margin so that any window up to
- * the margin size is always contiguous in physical memory (required by RSP
- * DMA). size * unit_bytes is kept a multiple of 8 so that absolute waveform
- * positions preserve their 2-byte phase in the samplebuffer (dma_read / dfs
- * compatibility).
+ * Layout: `[0, size)` is the circular sample area; `[size, size+margin_units)`
+ * is a contiguous spill/mirror region so that any append of up to
+ * #margin_units units and any #samplebuffer_get window of up to
+ * #SAMPLEBUFFER_MARGIN_UNITS units is always linear in physical memory
+ * (required by RSP DMA). size * unit_bytes is kept a multiple of 8 so that
+ * absolute waveform positions preserve their 2-byte phase in the samplebuffer
+ * (dma_read / dfs compatibility).
+ *
+ * Physical cleanup has a single home: #samplebuffer_get mirrors the leading
+ * units into the tail when a window straddles the wrap, and a pending spill
+ * from a wrapping append is flushed back to the start before the next
+ * get/append/flush/undo. The samplebuffer itself does not wait on the RSP;
+ * that is the mixer's job (see mixer_poll_async).
  *
  * In general, the sample buffer assumes that the contained data is committed
  * to physical memory, not just CPU cache. It is responsibility of the client
@@ -77,11 +100,17 @@ typedef struct samplebuffer_s {
 
     /**
      * Granularity in units of the appends done by the producer, or 0 if
-     * unknown: declared via #waveform_t::append_units, or learnt from the
-     * appends themselves. When it exceeds the tail margin (only then can an
-     * append need a relocate), #size is kept a multiple of it.
+     * unknown: declared via #waveform_t::append_units. The mirrored tail is
+     * sized to #margin_units = MAX(#SAMPLEBUFFER_MARGIN_UNITS, this), so a
+     * single append of that size is always contiguous.
      */
     int append_units;
+
+    /**
+     * Size of the mirrored tail in units: MAX(#SAMPLEBUFFER_MARGIN_UNITS,
+     * #append_units). Fixed for the life of a configuration.
+     */
+    int margin_units;
 
     /**
      * Absolute position in the waveform of the first sample
@@ -143,14 +172,11 @@ typedef struct samplebuffer_s {
     int head;
 
     /**
-     * Latest #samplebuffer_append that has not been committed yet: physical
-     * start slot and length in units. An append may spill into the tail
-     * margin so the write stays contiguous; commit then mirrors the overflow
-     * back to the start of the sample area (after any PI DMA has finished).
-     * pending_len == 0 means nothing is pending.
+     * Units of the latest append that spilled past #size into the margin and
+     * still need to be copied back to the start of the sample area. 0 means
+     * nothing pending. Flushed by the next get/append/flush/undo.
      */
-    int pending_slot;
-    int pending_len;
+    int spill;
 } samplebuffer_t;
 
 /**
@@ -231,9 +257,9 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen);
  * @brief Append samples into the buffer (zero-copy).
  *
  * Returns a contiguous uncached pointer where the caller must write `wlen`
- * units. Windows larger than the samplebuffer margin are allowed, but they
- * may force the live window to be relocated to keep the write contiguous:
- * declare their size in #waveform_t::append_units to avoid that.
+ * units. `wlen` must not exceed #samplebuffer_t::margin_units when the write would wrap past
+ * the usable end (declare large chunks in #waveform_t::append_units so the
+ * margin covers them).
  */
 void* samplebuffer_append(samplebuffer_t *buf, int wlen);
 

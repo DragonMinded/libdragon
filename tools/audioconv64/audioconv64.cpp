@@ -22,20 +22,14 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#ifdef __cplusplus
-#define _Static_assert static_assert
-#endif
-
-#include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/polyfill.h"
+#include "../common/assetcomp.h"
+#include "audioconv64.h"
 
 bool flag_verbose = false;
 bool flag_debug = false;
 static bool had_error = false;
-
-// Shared parsing helpers for --wav-seek (same syntax as videoconv64 --seek)
-#include "../common/seekfile.cpp"
 
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...) {
@@ -46,14 +40,6 @@ void fatal(const char *str, ...) {
 	va_end(va);
 	exit(1);
 }
-
-/************************************************************************************
- *  CONVERTERS
- ************************************************************************************/
-
-#include "conv_wav64.cpp"
-#include "conv_xm64.cpp"
-#include "conv_ym64.cpp"
 
 /************************************************************************************
  *  MAIN
@@ -69,6 +55,7 @@ void usage(void) {
 	printf("   * WAV/MP3 => WAV64 (Waveforms)\n");
 	printf("   * XM  => XM64  (MilkyTracker, OpenMPT)\n");
 	printf("   * YM  => YM64  (Arkos Tracker II)\n");
+	printf("   * SF2 => SF64  (SoundFont 2)\n");
 	printf("\n");
 	printf("Global options:\n");
 	printf("   -o / --output <dir>       	Specify output directory\n");
@@ -97,6 +84,9 @@ void usage(void) {
 	printf("\n");
 	printf("YM options:\n");
 	printf("   --ym-compress <true|false>  	Compress output file\n");
+	printf("\n");
+	printf("SF2 options:\n");
+	printf("   --sf-compress <0|1>          Compression for SF samples (default: 1=vadpcm)\n");
 	printf("\n");
 }
 
@@ -152,6 +142,10 @@ void convert(const char *infn, const char *outfn1) {
 	} else if (strcasecmp(ext, ".ym") == 0) {
 		char *outfn = changeext(outfn1, ".ym64");
 		if (ym_convert(infn, outfn) != 0) had_error = true;
+		free(outfn);
+	} else if (strcasecmp(ext, ".sf2") == 0) {
+		char *outfn = changeext(outfn1, ".sf64");
+		if (sf_convert(infn, outfn) != 0) had_error = true;
 		free(outfn);
 	} else {
 		fprintf(stderr, "WARNING: ignoring unknown file: %s\n", infn);
@@ -386,8 +380,9 @@ int main(int argc, char *argv[]) {
 					return 1;
 				}
 				const char *param = argv[i];
-				double sec = 0.0;
-				if (parse_double_strict(param, &sec) && sec > 0.0) {
+				char *end = NULL;
+				double sec = strtod(param, &end);
+				if (end != param && *end == '\0' && sec > 0.0) {
 					flag_wav_seek_interval_sec = sec;
 				} else {
 					// Defer parsing until after resampling so timestamps can be converted using the final sample rate.
@@ -423,6 +418,19 @@ int main(int argc, char *argv[]) {
 					flag_ym_compress = false;
 				else {
 					fprintf(stderr, "invalid boolean argument for --ym-compress: %s\n", argv[i]);
+					return 1;
+				}
+			} else if (!strcmp(argv[i], "--sf-compress")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --sf-compress\n");
+					return 1;
+				}
+				if (!strcmp(argv[i], "0") || !strcmp(argv[i], "none"))
+					flag_sf_compress = 0;
+				else if (!strcmp(argv[i], "1") || !strcmp(argv[i], "vadpcm"))
+					flag_sf_compress = 1;
+				else {
+					fprintf(stderr, "invalid argument for --sf-compress: %s\n", argv[i]);
 					return 1;
 				}
 			} else {

@@ -26,7 +26,7 @@
 #include <cstring>
 
 #include "liblzh5.h"
-#include "conv_common.h"
+#include "audioconv64.h"
 
 bool flag_ym_compress = false;
 

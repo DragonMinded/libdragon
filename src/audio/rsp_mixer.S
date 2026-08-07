@@ -20,9 +20,9 @@
 	#   MIX_FLUSH    – DMA ACCUM out to RDRAM and clear it.
 	#
 	# All MIX_CHANNEL + MIX_FLUSH of a round are enqueued in one highpri burst
-	# of this overlay so ACCUM (in .bss) cannot be clobbered mid-round. XVOL_L/R
-	# (one-tap volume filter state) and the per-channel VADPCM table live in
-	# saved state, so they survive overlay swaps.
+	# of this overlay so ACCUM (in .bss) cannot be clobbered mid-round. The
+	# per-channel VADPCM table lives in saved state, so it survives overlay
+	# swaps; nothing else has to.
 	#
 	# Per-round channel parameters travel inline in the MIX_CHANNEL command; the
 	# VADPCM pointers, which only change when a new waveform starts, are sent by
@@ -36,8 +36,20 @@
 	# (owner=L, STEREO_SUB=R) that share the same interleaved cache and loop
 	# body as mono; only the gather differs. VADPCM frames are DMA'd compressed,
 	# decoded into DMEM_SAMPLE_CACHE, then Hermite-resampled by that same loop.
-	# Stereo VADPCM is two independent mono MIX_CHANNELs. The volume filter
-	# runs once every 8 samples.
+	# Stereo VADPCM is two independent mono MIX_CHANNELs.
+	#
+	# Volume ramps
+	# ============
+	#
+	# Each MIX_CHANNEL carries the volume the channel starts the round with,
+	# the one its ramp ends on and the increment between the two, per block
+	# of four output samples. The mixing loop walks the volume one output
+	# sample at a time and clamps it to the two ends, so a ramp can land
+	# anywhere inside a round; a channel with no ramp sends an increment of
+	# zero and the clamp simply holds the volume. None of it costs a cycle:
+	# it all fits vector slots the loop leaves empty. The CPU recomputes the
+	# three values from absolute time at every round, so rounding of the
+	# increment cannot accumulate into drift (see mixer_ch_set_vol_ramp).
 	#
 	####################################################################
 
@@ -49,10 +61,6 @@
 
 # Maximum number of channels supported by this ucode.
 #define MAX_CHANNELS              32
-
-# Activate one-tap filter on volume changes, to smooth out sudden changes
-# that can cause clicks.
-#define VOLUME_FILTER             1
 
 # Max output samples that fit in ACCUM (stereo int16). Must match mixer.c.
 #define MAX_SAMPLES_PER_ROUND     512
@@ -91,7 +99,7 @@
 # time, whatever the PCM format: refilling costs about as much as mixing a
 # cacheful, so it is worth spending most of the spare DMEM on the window.
 #define SAMPLE_CACHE_SIZE         64
-#define SAMPLE_CACHE_SAMPLES      128
+#define SAMPLE_CACHE_SAMPLES      160
 
 # In-mixer VADPCM: one fill decodes as many frames of 16 samples as the
 # window holds. It cannot hold more: their compressed form is staged in the
@@ -103,24 +111,27 @@
 	# Global register allocations
 	################################
 
-	# $v00 is zeroed once per command and must stay zero for the whole of it:
-	# it is the vs operand of the vor/vsub that build the splats of the mono
-	# resampler, and vs cannot be swizzled, so no element of another vector
-	# can stand in for it. Nothing else in this file may write to it, VADPCM
-	# decoder included (see v____).
+	# $v00 is zeroed once per command: it is the vs operand of the vor/vmrg
+	# that build the splats of the mono resampler, and vs cannot be swizzled,
+	# so no element of another vector can stand in for it. Nothing else in
+	# this file may write to it, VADPCM decoder included (see v____), with
+	# one exception: the mono mixing loop borrows it as the lower bound of
+	# the volume clamp (see v_vlo), and hands it back at every exit.
 	#define v_zero        $v00
 	#define v_shift       $v30
 	#define v_const1      $v31
 
 	#define k_0000        v_zero
-	#define k_alpha       v_const1.e1
-	#define k_1malpha     v_const1.e2
+	# k_minusone: integer minus one. vmudh by it negates a vector with the
+	#          same saturation a vsub from zero would have, which is what
+	#          lets the mono loop keep its zero vector free (see v_vlo).
 	# k_half:  0.5 as a 0.16 unsigned fraction. Multiplying by it with vmudl
 	#          is a logical shift right by one (vsrl cannot be used here: it
 	#          needs the RSPQ shift table in $v31, which holds VCONST_1).
 	# k_one:   integer one. vmudh by it loads a vector into the accumulator
 	#          unshifted, to start a vmadm chain.
 	# k_eight: integer eight, one group of the mono resampler.
+	#define k_minusone    v_const1.e1
 	#define k_half        v_const1.e3
 	#define k_one         v_const1.e4
 	#define k_eight       v_const1.e5
@@ -129,10 +140,11 @@
 	.data
 
 	RSPQ_BeginOverlayHeader
-		RSPQ_DefineCommand MIX_CHANNEL,       32		# 0x0
+		RSPQ_DefineCommand MIX_CHANNEL,       36		# 0x0
 		RSPQ_DefineCommand MIX_SETCHANNEL,    16		# 0x1
-		RSPQ_DefineCommand MIX_FLUSH,          8		# 0x2
+		RSPQ_DefineCommand MIX_FLUSH,         16		# 0x2
 		RSPQ_DefineCommand MIX_SETSTATE,      24		# 0x3
+		RSPQ_DefineCommand MIX_COPY,          12		# 0x4
 	RSPQ_EndOverlayHeader
 
 ############################################################################
@@ -140,8 +152,8 @@
 	.align 4
 VCONST_1:
 	.half 0x7FFF
-	.half 0xe076      #   (0.9837**8) fixed 0.16
-	.half 0x1f8a      # 1-(0.9837**8) fixed 0.16
+	.half -1          # integer minus one
+	.half 0
 	.half 0x8000      # 0.5 fixed 0.16
 	.half 1           # integer one
 	.half 8           # integer eight
@@ -153,6 +165,13 @@ VCONST_1:
 PERM8:
 	.half 0, 4, 1, 5, 2, 6, 3, 7
 
+	# Position of each ACCUM slot of a quad within the four samples the
+	# ramp walks between two of its steps, as a 0.16 fraction. Multiplying
+	# the step by it is what staggers a volume vector across its lanes.
+	.align 4
+VSTAGGER:
+	.half 0, 0, 0x4000, 0x4000, 0x8000, 0x8000, 0xC000, 0xC000
+
 	.align 4
 BANNER0:    .ascii "Dragon RSP Audio"
 BANNER1:    .ascii " Coded by Rasky "
@@ -162,11 +181,6 @@ BANNER1:    .ascii " Coded by Rasky "
 	# Layout must match mixer_overlay_state_t in mixer.c.
 	# ================================================================
 	RSPQ_BeginSavedState
-	# One-tap volume filter state, [left:16][right:16] per channel. Kept
-	# interleaved so it can be splatted into the [L,R,L,R,...] vector the
-	# mixing loops use with a single word load.
-	.align 4
-XVOL:                     .dcb.l MAX_CHANNELS
 	# Per-channel VADPCM pointers, written by MIX_SETCHANNEL. They only
 	# change when a new waveform is played, so the CPU sends them once
 	# instead of inlining them in every MIX_CHANNEL.
@@ -254,6 +268,19 @@ ACCUM_PAD:                .dcb.w (ACCUM_PAD_SAMPLES * 2)
 DMEM_SAMPLE_CACHE:        .dcb.b SAMPLE_CACHE_SAMPLES * 2
 DMEM_SAMPLE_CACHE_ZERO:   .dcb.b 16
 
+	# Spill slot of the volume vector of the second half of a group. It lives
+	# in $v30, which the VADPCM decoder needs as a shift table, so it is
+	# saved here around a decode (the other one is in a register the decoder
+	# leaves alone).
+	.align 4
+DMEM_VMID:                .dcb.b 16
+
+	# Lower bound of the volume clamp, splatted the same way. It lives in
+	# $v00, which the paths outside the mixing loop need back as the zero
+	# vector, so it is reloaded from here on the way in (see MonoPrime).
+	.align 4
+DMEM_VLO:                 .dcb.b 16
+
 	# Per-lane tap addresses produced by the mono resampler, and the
 	# scratch used to transpose the eight gathered 4-tap groups.
 	.align 4
@@ -275,6 +302,13 @@ MIX_VADPCM_STATE_BEFORE:  .space 16
 	.align 2
 ROUND_SCRATCH:            .long  0
 
+	# Staging for the round marker MIX_FLUSH sends back to RDRAM, telling the
+	# CPU which windows the RSP is done reading (see MIX_FLUSH). A DMA moves
+	# 8 bytes at a time, so the id is stored twice rather than paired with
+	# garbage.
+	.align 3
+ROUND_MARKER:             .long  0, 0
+
 	# Stashed MIX_CHANNEL parameters (command buffer may be overwritten).
 	.align 2
 CH_POS:                   .long  0
@@ -289,8 +323,23 @@ CH_FLAGS:                 .half  0
 CH_IDX:                   .half  0
 CH_LVOL:                  .half  0
 CH_RVOL:                  .half  0
-CH_NSAMPLES:              .half  0
-CH_ACC_OFF:               .half  0
+# Volume the ramp of this command is heading for, [left:16][right:16]. Together
+# with CH_LVOL/CH_RVOL it gives the two ends of the ramp, which are the bounds
+# the mixing loops clamp to. Equal to CH_LVOL/CH_RVOL when no ramp is running.
+	.align 2
+CH_TVOL:                  .long  0
+# Volume the ramp advances by every four output samples, [left:16][right:16].
+# Only the setup needs it: the loop keeps the step as the difference of its two
+# volume vectors.
+	.align 2
+CH_DVOL:                  .long  0
+# Output samples of the current round. Latched by every MIX_CHANNEL from
+# a0's 9-bit nsamples/2 field; shared by every channel of the round.
+# Not a scratch: the VADPCM path spills the live tick count elsewhere.
+ROUND_NSAMPLES:           .half  0
+# Scratch for the live tick count across a VADPCM decode, which clobbers the
+# scalar registers that hold it.
+CH_TICKS:                 .half  0
 # First frame currently decoded into DMEM_SAMPLE_CACHE; -1 = none.
 CH_VCUR_FRAME:            .long  0
 # Frame index that MIX_VADPCM_STATE is ready to decode next.
@@ -330,14 +379,21 @@ CH_VNFRAMES_TOT:          .long  0
 # MIX_CHANNEL – resample one channel and accumulate into ACCUM.
 #
 # Command words (32 bytes):
-#   a0: [ovl+cmd:8][ch_idx:8][flags:8][pad:8]   (24-bit payload)
-#   a1: [lvol:16][rvol:16]
+#   a0: [ovl+cmd:8][ch:5][flags:8][nsamples/2:9]
+#   a1: [lvol:16][rvol:16]        volume at the start of the round
 #   a2: pos   (fixed point, WAVEFORM_POS_FRAC_BITS)
 #   a3: step
 #   +16: len
 #   +20: loop_len
-#   +24: ptr  (0 = silence: only ramp volume toward target)
-#   +28: [acc_offset:16][nsamples:16]
+#   +24: ptr  (0 = nothing to mix)
+#   +28: [dlvol:16][drvol:16]     volume ramp, per block of 4 samples
+#   +32: [tlvol:16][trvol:16]     volume the ramp ends on (= lvol/rvol if none)
+#
+# nsamples is the same for every channel of a round and is always even
+# (see mixer_round_length), so every MIX_CHANNEL latches nsamples/2 from a0
+# into ROUND_NSAMPLES (9 bits: 0..256 covers MIXER_MAX_SAMPLES_PER_ROUND).
+# Accumulator writes always start at ACCUM: the old per-command acc_offset
+# was invariably 0.
 #
 # VADPCM codebook/state/loop_state come from the per-channel table filled by
 # MIX_SETCHANNEL.
@@ -360,13 +416,38 @@ CH_VNFRAMES_TOT:          .long  0
 	#define wv_addr        t8
 	#define wv_step_8x     t2
 	#define acc_ptr        s8
-	#define ch_idx         k0
 
-	# Volumes, as [L,R,L,R,L,R,L,R] to match the ACCUM layout. $v24/$v25
-	# are outside the range the VADPCM decoder uses, so they survive a
-	# frame decode untouched.
+	# Volumes, as [L,R,L,R,L,R,L,R] to match the ACCUM layout.
+	#
+	# The ramp moves once per output sample, so the eight samples a group
+	# emits are mixed with eight different volumes. Two vectors carry them:
+	# v_xvol the four samples ACCUM's first quad holds, v_xvol4 the four of
+	# the second one, four samples further along the ramp. Both are built
+	# already staggered (lane k of v_xvol is k quarters of a half-group step
+	# above the volume the round starts at) and both advance by a whole
+	# group at a time, which is what the loop needs the step for.
+	#
+	# The step itself is not kept anywhere: it is the difference between the
+	# two vectors, which the loop subtracts back out of them. That is what
+	# leaves a register for the second vector, and it is also what makes the
+	# landing come out right, since the difference of two clamped vectors is
+	# what is left of the step and goes to zero as the ramp lands.
+	#
+	# The ramp is a slope and nothing else: what stops it on the value the
+	# CPU asked for is the clamp to [v_vlo, v_vhi], the two ends of the ramp
+	# sorted, which is also why a round never has to be cut short at the
+	# point a ramp lands. With no ramp running the two bounds coincide and
+	# the clamp simply holds the volume.
+	#
+	# $v24/$v25 are outside the range the VADPCM decoder uses, so they
+	# survive a frame decode untouched. v_xvol4 does not: the decoder needs
+	# $v30 as a shift table, so it is spilled to DMEM_VMID around a decode.
+	# v_vlo borrows the zero vector, which every path outside the mixing
+	# loop wants back, so it is reloaded from DMEM_VLO on the way in.
 	#define v_xvol         $v24
-	#define v_chvol        $v25
+	#define v_xvol4        v_shift
+	#define v_vhi          $v25
+	#define v_vlo          v_zero
 
 	# Mono resampler state, live across MonoLoop iterations:
 	#   v_frac  fraction of the sample position, 0.16 unsigned
@@ -375,14 +456,21 @@ CH_VNFRAMES_TOT:          .long  0
 	#define v_frac         $v26
 	#define v_idx          $v27
 	#define v_kmono        $v29
-	# k_limit  first tap address that would read past the cache
-	# k_zaddr  address of the window of four zero samples
-	# k_step8f 8-sample step, fractional part
-	# k_step8i 8-sample step, whole samples
+	# k_limit   first tap address that would read past the cache
+	# k_zaddr   address of the window of four zero samples
+	# k_step8f  8-sample step, fractional part
+	# k_step8i  8-sample step, whole samples
+	# k_addrmul bytes per v_idx unit: 2 per sample (mono), 4 per frame (stereo)
+	# k_subofs  byte bias of the plane being mixed: 2 on the right channel of
+	#           an interleaved stereo waveform, whose samples start one
+	#           halfword later, and 0 everywhere else
+	# (e4 carries the VADPCM sign-extension multiplier, see kext.)
 	#define k_limit        v_kmono.e0
 	#define k_zaddr        v_kmono.e1
 	#define k_step8f       v_kmono.e2
 	#define k_step8i       v_kmono.e3
+	#define k_addrmul      v_kmono.e5
+	#define k_subofs       v_kmono.e6
 
 	# Registers of one MonoLoop iteration. The powers of x are the only
 	# values that must survive from one iteration to the next (they are
@@ -413,6 +501,12 @@ CH_VNFRAMES_TOT:          .long  0
 	#define v_y2n          $v22
 	#define v_y3n          $v23
 	#define v_cnt          $v20
+	# Half-group step of the ramp, the difference of the two volume vectors.
+	# The loop rebuilds it every iteration in the register y0 is read out of,
+	# which the transpose only rewrites at the top of the next one; the paths
+	# around the loop rebuild it in one of the free gather registers.
+	#define v_diff         $v16
+	#define v_diffc        $v20
 
 	#define addr_ptr       v0
 	#define tr_ptr         a0
@@ -431,11 +525,11 @@ CH_VNFRAMES_TOT:          .long  0
 	.func MIX_CHANNEL
 MIX_CHANNEL:
 	# Stash command parameters into DMEM.
-	# a0 bits[23:16]=ch_idx, bits[15:8]=flags (bits[31:24]=ovl+cmd).
-	srl t0, a0, 16
-	andi t0, 0xFF                  # ch_idx
+	# a0: bits[23:19]=ch_idx, bits[18:11]=flags, bits[8:0]=nsamples/2
+	srl t0, a0, 19
+	andi t0, 0x1F                  # ch_idx
 	sh t0, %lo(CH_IDX)
-	srl t0, a0, 8
+	srl t0, a0, 11
 	andi t0, 0xFF                  # flags
 	sh t0, %lo(CH_FLAGS)
 	srl t0, a1, 16                 # lvol
@@ -444,16 +538,16 @@ MIX_CHANNEL:
 	sh t0, %lo(CH_RVOL)
 	sw a2, %lo(CH_POS)
 	sw a3, %lo(CH_STEP)
-	lw t0, CMD_ADDR(0x10, 0x20)
+	lw t0, CMD_ADDR(0x10, 0x24)
 	sw t0, %lo(CH_LEN)
-	lw t0, CMD_ADDR(0x14, 0x20)
+	lw t0, CMD_ADDR(0x14, 0x24)
 	sw t0, %lo(CH_LOOP_LEN)
-	lw t0, CMD_ADDR(0x18, 0x20)
+	lw t0, CMD_ADDR(0x18, 0x24)
 	sw t0, %lo(CH_PTR)
-	lw t0, CMD_ADDR(0x1C, 0x20)
-	sh t0, %lo(CH_NSAMPLES)
-	srl t0, 16
-	sh t0, %lo(CH_ACC_OFF)
+	lw t0, CMD_ADDR(0x20, 0x24)
+	sw t0, %lo(CH_TVOL)
+	lw t0, CMD_ADDR(0x1C, 0x24)
+	sw t0, %lo(CH_DVOL)
 	# VADPCM pointers: fetch this channel's entry from the table.
 	lh t1, %lo(CH_IDX)
 	sll t1, 2
@@ -467,6 +561,12 @@ MIX_CHANNEL:
 	li t0, %lo(VCONST_1)
 	lqv v_const1, 0,t0
 	vxor v_zero, v_zero, v_zero
+
+	# Latch nsamples from a0. Same for every channel of a round; nsamples/2
+	# needs 9 bits because MIXER_MAX_SAMPLES_PER_ROUND is 512.
+	andi t1, a0, 0x1FF
+	sll t1, 1
+	sh t1, %lo(ROUND_NSAMPLES)
 
 	# Optionally clear ACCUM (first channel of a round).
 	lh t0, %lo(CH_FLAGS)
@@ -483,14 +583,13 @@ MIX_CHANNEL:
 	addi t0, -1
 
 MIX_CHANNEL_NoClear:
-	# Splat the current filtered volume and the target volume of this
-	# channel into [L,R,L,R,L,R,L,R] vectors. Both are stored as adjacent
-	# halfword pairs in DMEM, so one word replicated four times does it.
+	# Splat the volume this round starts at, the one its ramp ends on and
+	# the step between two of its points into [L,R,L,R,L,R,L,R] vectors.
+	# All three are stored as adjacent halfword pairs in DMEM, so one word
+	# replicated four times does each of them.
 	li s0, %lo(RSPQ_SCRATCH_MEM)
-	lh ch_idx, %lo(CH_IDX)
-	sll t0, ch_idx, 2
-	lw t1, %lo(XVOL)(t0)
-	lw t2, %lo(CH_LVOL)             # CH_RVOL is the next halfword
+	lw t1, %lo(CH_LVOL)             # CH_RVOL is the next halfword
+	lw t2, %lo(CH_TVOL)
 	sw t1, 0x00(s0)
 	sw t1, 0x04(s0)
 	sw t1, 0x08(s0)
@@ -500,19 +599,41 @@ MIX_CHANNEL_NoClear:
 	sw t2, 0x04(s0)
 	sw t2, 0x08(s0)
 	sw t2, 0x0C(s0)
-	lqv v_chvol, 0x00,s0
+	lqv v_vhi, 0x00,s0
+	lw t1, %lo(CH_DVOL)
+	sw t1, 0x00(s0)
+	sw t1, 0x04(s0)
+	sw t1, 0x08(s0)
+	sw t1, 0x0C(s0)
+	lqv v_diffc, 0x00,s0
 
-	lh ticks, %lo(CH_NSAMPLES)
+	lh ticks, %lo(ROUND_NSAMPLES)
 	beqz ticks, MIX_CHANNEL_Done
 
-	# Accumulator write pointer: ACCUM + acc_offset * sizeof(stereo int16)
+	# Sort the two ends of the ramp into the bounds the mixing loop clamps
+	# to. v_vlo lands in the zero vector, so it is also stashed: every path
+	# that leaves the loop wants the zero back and reloads it from there.
+	# They are the ends of the whole ramp, so they are the same for every
+	# lane: what the stagger below adds is a fraction of one step, and no
+	# lane of the round can start further along than the ramp ends.
+	vlt v_vlo, v_xvol, v_vhi
+	vge v_vhi, v_xvol, v_vhi
+	li s0, %lo(DMEM_VLO)
+	sqv v_vlo, 0x00,s0
+
+	# Stagger the two volume vectors: the four samples of a quad are a
+	# quarter of a step apart, and the second quad is a whole step past the
+	# first one.
+	li s0, %lo(VSTAGGER)
+	lqv $v08, 0x00,s0
+	vmudm $v08, v_diffc, $v08
+	vadd v_xvol, v_xvol, $v08
+	vadd v_xvol4, v_xvol, v_diffc
+
 	li acc_ptr, %lo(ACCUM)
-	lh t0, %lo(CH_ACC_OFF)
-	sll t0, 2
-	add acc_ptr, t0
 
 	lw wv_addr, %lo(CH_PTR)
-	beqz wv_addr, MIX_CHANNEL_Silence
+	beqz wv_addr, MIX_CHANNEL_Done
 
 	lw wv_pos, %lo(CH_POS)
 	lw wv_step, %lo(CH_STEP)
@@ -583,12 +704,15 @@ MonoSetup:
 	lh t0, %lo(CH_FLAGS)
 	andi bps, t0, CH_FLAGS_BPS_SHIFT
 	# A VADPCM command decodes one plane into an int16 cache, so its units are
-	# mono samples however the STEREO bit (which the owner still carries) reads.
-	andi stereo_shift, t0, CH_FLAGS_STEREO
+	# mono samples however the STEREO / STEREO_SUB bits (which the owner of a
+	# stereo pair still carries) read.
 	andi t1, t0, CH_FLAGS_VADPCM
 	srl t1, 2                                # VADPCM bit -> STEREO bit
+	sll t2, t1, 1                            #            -> STEREO_SUB bit
+	or t1, t2
 	nor t1, t1, zero
-	and stereo_shift, t1
+	and t0, t1
+	andi stereo_shift, t0, CH_FLAGS_STEREO
 	srl stereo_shift, 3                      # bit 3 → 0 or 1
 	li cache_half, %lo(DMEM_SAMPLE_CACHE)
 	li t1, %lo(DMEM_SAMPLE_CACHE_ZERO)
@@ -609,6 +733,15 @@ MonoSetup:
 	# MonoDmaFetch before the loop ever runs.
 	li s0, %lo(RSPQ_SCRATCH_MEM)
 	sh t1, 0x02(s0)                          # k_zaddr
+	# The resampler turns each lane of v_idx into a byte address with a single
+	# multiply, and biases it to the plane it is mixing with a single or, so
+	# that neither depends on a test inside the loop.
+	li t1, 2
+	sllv t1, t1, stereo_shift
+	sh t1, 0x0A(s0)                          # k_addrmul
+	andi t0, CH_FLAGS_STEREO_SUB
+	srl t0, 3                                # bit 4 → 2 bytes
+	sh t0, 0x0C(s0)                          # k_subofs
 	srl cache_half, 1                        # byte address -> DMEM index
 	sll t2, wv_step, 3
 	sllv t0, t2, frac_shift
@@ -689,6 +822,7 @@ MonoDmaFetch:
 	# half of a lane, which is exactly the <<8 scaling the mixer expects.
 	# The first half is widened first, so that its source (which is the
 	# second half of the destination) is read before being overwritten.
+	# SAMPLE_CACHE_SAMPLES=160 → 80 source bytes per half, so 8+2 lpv/sqv.
 	lh t1, %lo(CH_FLAGS)
 	andi t1, CH_FLAGS_16BIT
 	bnez t1, MonoRefill
@@ -712,12 +846,16 @@ MonoDmaFetch:
 	sqv $v15, 0x70,s3
 	lpv $v08, 0x40,s1
 	lpv $v09, 0x48,s1
-	lpv $v10, 0x50,s1
-	lpv $v11, 0x58,s1
-	lpv $v12, 0x60,s1
-	lpv $v13, 0x68,s1
-	lpv $v14, 0x70,s1
-	lpv $v15, 0x78,s1
+	sqv $v08, 0x80,s3
+	sqv $v09, 0x90,s3
+	lpv $v08, 0x50,s1
+	lpv $v09, 0x58,s1
+	lpv $v10, 0x60,s1
+	lpv $v11, 0x68,s1
+	lpv $v12, 0x70,s1
+	lpv $v13, 0x78,s1
+	lpv $v14, 0x80,s1
+	lpv $v15, 0x88,s1
 	sqv $v08, 0x00,s1
 	sqv $v09, 0x10,s1
 	sqv $v10, 0x20,s1
@@ -726,11 +864,19 @@ MonoDmaFetch:
 	sqv $v13, 0x50,s1
 	sqv $v14, 0x60,s1
 	sqv $v15, 0x70,s1
+	lpv $v08, 0x90,s1
+	lpv $v09, 0x98,s1
+	sqv $v08, 0x80,s1
+	sqv $v09, 0x90,s1
 
 MonoRefill:
 	# Seed the eight lanes: lane k plays output sample PERM8[k], so it
 	# starts at wv_pos + PERM8[k]*step. The whole-sample carry of that
 	# product comes out of the accumulator, hence the vmudn/vsar pair.
+	#
+	# The splat below needs the zero vector as its vs, so take $v00 back
+	# from the volume clamp; MonoPrime reloads the bound before the loop.
+	vxor v_zero, v_zero, v_zero
 	li t1, %lo(PERM8)
 	lh t0, %lo(CH_STEPF)
 	lh s0, %lo(CH_STEPI)
@@ -767,35 +913,50 @@ MonoPrime:
 	# body, minus the transpose read-back, and it is lent the group of ACCUM
 	# slots that the loop advances past at its end. The zero taps make the
 	# pass it makes over them add nothing.
-	beqz  stereo_shift, 1f
+	#
+	# It also runs the tail of the body, which is where the ramp advances,
+	# so the group it advances by has to be given back first: a pair one
+	# group behind is what the tail turns back into the pair it was handed.
+	# Only the first vector is rewound, the second one is rebuilt from it,
+	# because the two ends of the ramp are a step apart and that step is all
+	# the loop has to go on. This is the one place the ramp leaves the range
+	# it spans, so the rewind can saturate: a round that starts at a volume
+	# less than a group below the top of the fx15 range (a fade-out from
+	# full volume) begins a fraction of a group in instead. Rebuilding the
+	# second vector is what keeps the step exact when that happens; the
+	# starting volume is off by whatever was clipped, which is a hair of the
+	# ramp unless it is steep enough to cover the range in a few groups. Only
+	# the round a ramp starts in can be in that position — every later one
+	# starts from a volume the ramp has already passed through.
+	#
+	# It is also the one way into the loop, so this is where the lower bound
+	# of the volume clamp gets its register back from the zero vector.
+	li    t0, %lo(DMEM_VLO)
+	vsub  v_diffc, v_xvol4, v_xvol
+	lqv   v_vlo, 0x00,t0
+	vsub  v_xvol,  v_xvol,  v_diffc
+	vsub  v_xvol,  v_xvol,  v_diffc
+	vadd  v_xvol4, v_xvol,  v_diffc
+	vmudn v_addr, v_idx,  k_addrmul          # v_idx units → byte address
 	li    mask, 0xFF                         # nothing to give back yet
-	vsll  v_addr, v_idx, 2                   # stereo: frames → bytes
-	j     2f
 	addi  acc_ptr, -8*4
-1:	vsll  v_addr, v_idx, 1                   # mono: samples → bytes
-	addi  acc_ptr, -8*4
-2:	vlt   v_tmp,  v_addr, k_limit
+	vor   v_addr, v_addr, k_subofs           # → the plane being mixed
+	vlt   v_tmp,  v_addr, k_limit
 	vmrg  v_addr, v_addr, k_zaddr
 	j     MonoLoopGather
 	sqv   v_addr, 0x00,addr_ptr
 
 	.balign 8
 MonoLoop:
-	# Mono: ~50 cycles/iter (8 samples) → 6.3 cyc/sample including the
-	# stereo_shift test. Stereo: a few more for the lsv gather; a stereo
-	# waveform is two MIX_CHANNEL commands (owner=L, STEREO_SUB=R).
+	# Mono: ~50 cycles per group of eight output samples, that is 6.25 cycles
+	# per sample. Stereo: a few more for the lsv gather; a stereo waveform is
+	# two MIX_CHANNEL commands (owner=L, STEREO_SUB=R).
 	#
-	# v_idx is in samples (mono) or frames (stereo); byte address ×2 or ×4.
-	beqz  stereo_shift, MonoLoopMono
-	nop
-	vsll  v_addr, v_idx, 2
-	j     MonoLoopCommon
-	nop
-
-	.balign 8
-MonoLoopMono:
-	vsll  v_addr, v_idx, 1
-MonoLoopCommon:
+	# The byte addresses of the group being gathered were multiplied out of
+	# v_idx at the bottom of the previous iteration and biased there to the
+	# plane this command owns (an or, because a stereo frame is four bytes,
+	# so the halfword bit is always clear).
+	#
 	# Read back the taps gathered by the previous iteration, one tap of all
 	# eight output samples per register, while the DMEM addresses of the
 	# group gathered by this one are computed. Lanes whose 4-tap window is
@@ -805,20 +966,21 @@ MonoLoopCommon:
 	#
 	# The eight ltv leave the SU no room for anything else, so this is where
 	# the vector operations that depend on neither the taps nor the powers
-	# of x are parked.
-	                                         ltv $v16.e0, 0x00,tr_ptr
-	                                         ltv $v16.e7, 0x10,tr_ptr
-	                                         ltv $v16.e6, 0x20,tr_ptr
-	                                         ltv $v16.e5, 0x30,tr_ptr
+	# of x are parked: the whole volume clamp. The two volume vectors were
+	# advanced by one group at the bottom of the previous iteration, and
+	# pinning them to the ends of the ramp is what is left before the vmacf
+	# reads them. It has to happen here and nowhere else, because a compare
+	# writes VCC and the vlt below owns it all the way down to the cfc2.
+	# The clamps also clear VCO, which nothing between here and the vaddc at
+	# the bottom of the body relies on.
+	vge   v_xvol,  v_xvol,  v_vlo;           ltv $v16.e0, 0x00,tr_ptr
+	vlt   v_xvol,  v_xvol,  v_vhi;           ltv $v16.e7, 0x10,tr_ptr
+	vge   v_xvol4, v_xvol4, v_vlo;           ltv $v16.e6, 0x20,tr_ptr
+	vlt   v_xvol4, v_xvol4, v_vhi;           ltv $v16.e5, 0x30,tr_ptr
 	vlt   v_tmp,  v_addr, k_limit;           ltv $v16.e4, 0x40,tr_ptr
 	vmrg  v_addr, v_addr, k_zaddr;           ltv $v16.e3, 0x50,tr_ptr
-#if VOLUME_FILTER
-	vmudm v_xvol, v_xvol,  k_alpha;          ltv $v16.e2, 0x60,tr_ptr
-	vmadm v_xvol, v_chvol, k_1malpha;        ltv $v16.e1, 0x70,tr_ptr
-#else
 	                                         ltv $v16.e2, 0x60,tr_ptr
 	                                         ltv $v16.e1, 0x70,tr_ptr
-#endif
 	                                         add wv_pos, wv_step_8x
 	                                         addi ticks, -8
 	                                         sqv v_addr, 0x00,addr_ptr
@@ -827,21 +989,25 @@ MonoLoopGather:
 	# Negated taps: the coefficients are fed to the accumulator one unit    # Gather the taps of each of
 	# at a time (vmadm saturates its output but not the accumulator), so    # the eight output samples of
 	# the subtractions of the polynomial are done on the taps instead.      # the next group.
+	# They are multiplies by minus one, and not subtractions from zero,
+	# because the zero vector is on loan to the volume clamp for the whole
+	# of the loop (see v_vlo). Both saturate the same way.
 	#
 	# Mono uses ldv (8 bytes = 4 contiguous taps). Stereo taps of one plane
 	# are every other halfword, so four lsv per lane build the same e0..e3
 	# layout; vector loads wrap inside a 16-byte DMEM line, and a lone lsv
-	# of an aligned halfword never wraps.
-	vsub  v_y0n, v_zero, v_y0;               lhu s0, 0x00(addr_ptr)
-	vsub  v_y1n, v_zero, v_y1;               lhu s1, 0x02(addr_ptr)
-	vsub  v_y2n, v_zero, v_y2;               lhu s2, 0x04(addr_ptr)
-	vsub  v_y3n, v_zero, v_y3;               lhu s3, 0x06(addr_ptr)
+	# of an aligned halfword never wraps. The test between the two rides
+	# one slot earlier than it reads, so that the last address load fills
+	# its delay slot: both gathers need that address anyway.
+	vmudh v_y0n, v_y0, k_minusone;           lhu s0, 0x00(addr_ptr)
+	vmudh v_y1n, v_y1, k_minusone;           lhu s1, 0x02(addr_ptr)
+	vmudh v_y2n, v_y2, k_minusone;           lhu s2, 0x04(addr_ptr)
+	vmudh v_y3n, v_y3, k_minusone;           lhu s3, 0x06(addr_ptr)
 	vmudh v_res, v_y1,  k_one;               lhu s4, 0x08(addr_ptr)     # y1
 	vmadm v_res, v_y2,  v_x05;               lhu s6, 0x0A(addr_ptr)     # + x * (y2 - y0)/2
 	vmadm v_res, v_y0n, v_x05;               lhu s7, 0x0C(addr_ptr)
-	vmadm v_res, v_y0,  v_x2;                lhu t0, 0x0E(addr_ptr)     # + x^2 * (y0 - 5*y1/2
-	bnez  stereo_shift, MonoGatherStereo
-	nop
+	vmadm v_res, v_y0,  v_x2;                bnez stereo_shift, MonoGatherStereo
+	                                         lhu t0, 0x0E(addr_ptr)     # + x^2 * (y0 - 5*y1/2
 	vmadm v_res, v_y1n, v_x2;                ldv $v08, 0x00,s0          #          + 2*y2 - y3/2)
 	vmadm v_res, v_y1n, v_x2;                ldv $v09, 0x00,s1
 	vmadm v_res, v_y1n, v_x205;              ldv $v10, 0x00,s2
@@ -872,47 +1038,50 @@ MonoGatherMix:
 
 	# .q0/.q1 duplicate each result into the L and R slot of one ACCUM      # ...and spill them, so that they
 	# entry, so the interleaved volume vector applies both gains at once.   # can be read back transposed.
+	# Each quad has its own vector, four samples of ramp apart.
 	vmudh v_acc0, v_acc0, k_one;             stv $v08.e0, 0x00,tr_ptr
-	vmacf v_acc0, v_xvol, v_res.q0;          stv $v08.e1, 0x10,tr_ptr
+	vmacf v_acc0, v_xvol,  v_res.q0;         stv $v08.e1, 0x10,tr_ptr
 	vmudh v_acc1, v_acc1, k_one;             stv $v08.e2, 0x20,tr_ptr
-	vmacf v_acc1, v_xvol, v_res.q1;          stv $v08.e3, 0x30,tr_ptr
+	vmacf v_acc1, v_xvol4, v_res.q1;         stv $v08.e3, 0x30,tr_ptr
 	vmudl v_x305, v_x2,   v_x05;             stv $v08.e4, 0x40,tr_ptr   # x^3/2 = x^2 * (x/2)
 	vmudl v_x3,   v_x2,   v_frac;            stv $v08.e5, 0x50,tr_ptr   # x^3
-	vmudl v_x205, v_x2,   k_half;            stv $v08.e6, 0x60,tr_ptr   # x^2/2
-	                                         stv $v08.e7, 0x70,tr_ptr
-	                                         sqv v_acc0, 0x00,acc_ptr
-	vaddc v_frac, v_frac, k_step8f;          srv v_acc0, 0x10,acc_ptr   # advance the eight positions:
-	vadd  v_idx,  v_idx,  k_step8i;          sqv v_acc1, 0x10,acc_ptr   #   the carry crosses over
-	                                         srv v_acc1, 0x20,acc_ptr
+	vaddc v_frac, v_frac, k_step8f;          stv $v08.e6, 0x60,tr_ptr   # advance the eight positions:
+	vadd  v_idx,  v_idx,  k_step8i;          stv $v08.e7, 0x70,tr_ptr   #   the carry crosses over
+	vmudl v_x205, v_x2,   k_half;            sqv v_acc0, 0x00,acc_ptr   # x^2/2
+	# The volume of the group the next iteration mixes: one group further
+	# along the ramp, which is two of the half-group steps the two vectors
+	# are apart by. Walking them over each other that way is what keeps the
+	# step out of a register of its own, and it costs nothing here, where
+	# the SU is busy draining ACCUM. The clamp cannot follow them, because
+	# the vlt/vmrg pair at the top owns VCC from there down to the cfc2
+	# below: it runs at the top of the next iteration instead.
+	#
+	# y0 has been read out of v_diff for the last time by now, and the
+	# transpose only writes it again at the top.
+	vsub  v_diff,  v_xvol4, v_xvol;          srv v_acc0, 0x10,acc_ptr
+	vadd  v_xvol,  v_xvol4, v_diff;          sqv v_acc1, 0x10,acc_ptr
+	# Byte addresses of the group the next iteration gathers. v_addr shares
+	# its register with v_acc0, which the stores above have just drained.
+	vmudn v_addr, v_idx,  k_addrmul;         srv v_acc1, 0x20,acc_ptr
 
 	# VCC still holds the verdict of the vlt at the top: read it only now
 	# that "partial" has consumed the mask of the group just mixed. It is
 	# also the one spot where the cfc2, which counts as both a load and a
 	# store, has neither two cycles before nor after it.
-	                                         cfc2 mask, COP2_CTRL_VCC
-	bgtz s0, MonoLoop
-	addi acc_ptr, 8*4
+	vadd  v_xvol4, v_xvol,  v_diff;          cfc2 mask, COP2_CTRL_VCC
+	vor   v_addr, v_addr, k_subofs;          bgtz s0, MonoLoop
+	                                         addi acc_ptr, 8*4
 	bltz partial, MonoPartial
 	nop
 	j MonoExit
 	nop
 
+	.balign 8
 MonoGatherStereo:
 	# Build y0..y3 of this plane into e0..e3 of each gather register, matching
-	# the mono ldv layout. STEREO_SUB starts one halfword later (the R sample).
-	lh    t1, %lo(CH_FLAGS)
-	andi  t1, CH_FLAGS_STEREO_SUB
-	beqz  t1, 1f
-	nop
-	addi  s0, 2
-	addi  s1, 2
-	addi  s2, 2
-	addi  s3, 2
-	addi  s4, 2
-	addi  s6, 2
-	addi  s7, 2
-	addi  t0, 2
-1:	vmadm v_res, v_y1n, v_x2;                lsv $v08.e0, 0x00,s0
+	# the mono ldv layout. The addresses already point at the plane this
+	# command owns, since k_subofs biased the whole vector of them.
+	vmadm v_res, v_y1n, v_x2;                lsv $v08.e0, 0x00,s0
 	vmadm v_res, v_y1n, v_x2;                lsv $v08.e1, 0x04,s0
 	vmadm v_res, v_y1n, v_x205;              lsv $v08.e2, 0x08,s0
 	vmadm v_res, v_y2,  v_x2;                lsv $v08.e3, 0x0C,s0
@@ -955,6 +1124,28 @@ MonoPartial:
 	# their ticks, ACCUM slots and positions back and replay them once the
 	# cache has been refilled. Their mask is what the loop turned into
 	# "partial", and VCC has since moved on to the group being gathered.
+	#
+	# Part of the ramp is given back with them. The loop moves the volume by
+	# a whole group per iteration, so a group that only emitted some of its
+	# samples has moved it further than those samples paid for, and the
+	# replay is about to move it again for the rest of them. Handing back
+	# the fraction that belongs to the replayed lanes is what keeps the
+	# slope the one the CPU computed, wherever the edge of the cache happens
+	# to cut a group. MonoPrime gives back a whole group on top of that, for
+	# its own pass over the tail of the body.
+	#
+	# The step is the difference between the two volume vectors, so a lane
+	# the clamp has already landed owes nothing without anything having to
+	# ask: what it would hand back is zero. It is kept aside so that the
+	# second vector can be rebuilt from the first one below rather than
+	# rewound with it, which is what keeps the step exact if the rewind
+	# saturates (see MonoPrime). The gather registers are free here: the
+	# group they hold has been spilled and is about to be dropped.
+	vsub  $v09, v_xvol4, v_xvol
+	#
+	# The vmrg below wants the zero vector, which the loop has been using as
+	# the lower bound of the volume clamp: MonoPrime reloads it.
+	vxor  v_zero, v_zero, v_zero
 	addi t0, partial, 0xFF
 	ctc2 t0, COP2_CTRL_VCC
 	vmrg  v_cnt, v_zero, k_one               # 1 for each rejected lane
@@ -962,9 +1153,19 @@ MonoPartial:
 	vadd  v_cnt, v_cnt, v_cnt.h2
 	vadd  v_cnt, v_cnt, v_cnt.e4
 	mfc2  t0, v_cnt.e0
+	# A step covers four samples, so the share of it is count/4: taken as
+	# count/16 and doubled twice, because a whole group can be rejected and
+	# count/4 would not fit a 0.16 multiplier.
+	sll t1, t0, 12
+	mtc2 t1, $v08.e0
 	add ticks, t0
 	sll t1, t0, 2
 	sub acc_ptr, t1
+	vmudm $v10, $v09, $v08.e0
+	vadd  $v10, $v10, $v10
+	vadd  $v10, $v10, $v10
+	vsub  v_xvol,  v_xvol, $v10
+	vadd  v_xvol4, v_xvol, $v09
 	beqz t0, 2f
 	nop
 1:	addi t0, -1
@@ -1108,7 +1309,7 @@ VadpcmFillCache:
 	sh t9, %lo(CH_VATEND)
 2:	sh t2, %lo(CH_VNFRAMES)
 	sh t1, %lo(CH_VLIMIT)
-	sh ticks, %lo(CH_NSAMPLES)
+	sh ticks, %lo(CH_TICKS)
 	sw wv_pos, %lo(CH_POS)
 
 	# Bring MIX_VADPCM_STATE, which decodes CH_VNEXT_FRAME, to start_frame.
@@ -1148,20 +1349,24 @@ VadpcmAligned:
 	lw t1, %lo(ROUND_SCRATCH)
 	lh t0, %lo(CH_VNFRAMES)
 	sw t1, %lo(CH_VCUR_FRAME)
-	jal VadpcmDecodeFrames
 	sh t0, %lo(CH_VDECN)
+	# The decoder wants the register the second volume vector lives in.
+	li t0, %lo(DMEM_VMID)
+	jal VadpcmDecodeFrames
+	sqv v_xvol4, 0x00,t0
 
 	# Hermite reads three taps past the sample it interpolates, and past the
 	# last sample of the waveform those are the first three of the loop. They
 	# ride in with the codebook DMA (MIX_VADPCM_CODEBOOK+128); without them a
 	# loop point would be interpolated towards the padding of the last frame.
+	#
+	# A loop state is only recorded for a waveform that loops, so it says the
+	# taps are meaningful even when the loop is one the CPU wraps by itself
+	# (which reaches the ucode as loop_len = 0).
 	lh t9, %lo(CH_VATEND)
 	bnez t9, VadpcmTapsDone
 	lh s0, %lo(CH_VLIMIT)                    # one sample past the last one
-	lw t2, %lo(CH_LOOP_LEN)
 	lw t3, %lo(CH_LOOP_STATE)
-	beqz t2, VadpcmTapsHold
-	nop
 	beqz t3, VadpcmTapsHold
 	li s1, %lo(MIX_VADPCM_CODEBOOK+128)
 	lh t0, 0x00(s1)
@@ -1173,9 +1378,8 @@ VadpcmAligned:
 	sh t2, 0x04(s0)
 
 VadpcmTapsHold:
-	# Nothing to interpolate towards: a waveform that does not loop, or one
-	# whose loop the CPU wraps by itself between rounds. Hold the last sample,
-	# which at least does not decay towards silence.
+	# Nothing to interpolate towards: a waveform that does not loop. Hold the
+	# last sample, which at least does not decay towards silence.
 	lh t0, -2(s0)
 	sh t0, 0x00(s0)
 	sh t0, 0x02(s0)
@@ -1183,14 +1387,16 @@ VadpcmTapsHold:
 VadpcmTapsDone:
 
 	# The decoder clobbers ticks/pos/len/loop_len/addr, k_ff, s2, $v01-$v23
-	# and $v31 (which it needs as the shift table of vsra8).
-	lh ticks, %lo(CH_NSAMPLES)
+	# and $v30/$v31 (which it needs as the shift tables of vsra8).
+	lh ticks, %lo(CH_TICKS)
 	lw wv_pos, %lo(CH_POS)
 	lw wv_len, %lo(CH_LEN)
 	lw wv_loop_len, %lo(CH_LOOP_LEN)
 	lw wv_addr, %lo(CH_PTR)
 	li t0, %lo(VCONST_1)
 	lqv v_const1, 0,t0
+	li t0, %lo(DMEM_VMID)
+	lqv v_xvol4, 0,t0
 	lh t1, %lo(CH_VLIMIT)
 	mtc2 t1, k_limit
 
@@ -1236,68 +1442,45 @@ VadpcmEpilog:
 1:	lw s0, %lo(CH_STATE)
 	jal DMAOut
 	li t0, DMA_SIZE(16, 1)
-	blez ticks, MIX_CHANNEL_Done
-	nop
-	j MIX_CHANNEL_Silence
-	nop
 
 MIX_CHANNEL_SilenceLeft:
-	blez ticks, MIX_CHANNEL_Done
-	nop
-	# fall through to silence ramp for remaining ticks
-
-	############################################################
-	# Silence path: ramp volume toward target, advance acc_ptr
-	############################################################
-MIX_CHANNEL_Silence:
-SilenceLoop:
-	blez ticks, MIX_CHANNEL_Done
-	li t0, 8
-	blt ticks, t0, 1f
-	nop
-	li t0, 8
-1:
-#if VOLUME_FILTER
-	# xvol = xvol*alpha + chvol*(1-alpha)
-	vmudm v_xvol, v_xvol,  k_alpha
-	vmadm v_xvol, v_chvol, k_1malpha
-#endif
-	sub ticks, t0
-	sll t1, t0, 2                  # each sample = 4 bytes in ACCUM
-	j SilenceLoop
-	add acc_ptr, t1
+	# A channel that runs out of data mixes nothing for the rest of the
+	# round, and there is no state left to carry across it: the volume of
+	# every round is computed from scratch by the CPU.
 
 MIX_CHANNEL_Done:
-	# Store updated xvol for this channel
-	lh ch_idx, %lo(CH_IDX)
-	sll t0, ch_idx, 2
-	mfc2 t1, v_xvol.e0
-	mfc2 t2, v_xvol.e1
-	sll t1, 16
-	andi t2, 0xFFFF
-	or t1, t2
-	sw t1, %lo(XVOL)(t0)
+	# Hand $v00 back to the next command as the zero vector: the mixing
+	# loop borrows it for the lower bound of the volume clamp, and not
+	# every path out of it goes through a reload.
+	vxor v_zero, v_zero, v_zero
 	j RSPQ_Loop
 	nop
 	.endfunc
 
 
 ###############################################################
-# MIX_FLUSH – DMA ACCUM to RDRAM and clear ACCUM.
+# MIX_FLUSH – DMA ACCUM to RDRAM, clear ACCUM, mark the round as done.
 #
 # a0: [nsamples:16][pad:16]
 # a1: output RDRAM pointer (physical, 8-byte aligned)
+# a2: round id
+# a3: RDRAM pointer where the id of the last round done is published
 #
 # The DMA engine ignores the low 3 bits of both addresses, so ACCUM can only
 # be sent as-is to an 8-byte aligned pointer. The CPU guarantees that: the
 # output buffer is aligned and every round mixes an even number of stereo
 # samples (see mixer_round_length).
+#
+# The marker is what lets the CPU know how far behind the RSP is. Every
+# MIX_CHANNEL of the round has read its input window by the time we get here,
+# and transfers run in order, so a CPU that sees the id knows those windows
+# are free and can refill them (see samplebuffer_append).
 ###############################################################
 
 	.func MIX_FLUSH
 MIX_FLUSH:
 	andi t4, a0, 0xFFFF            # nsamples
-	beqz t4, RSPQ_Loop
+	beqz t4, MIX_FLUSH_Mark
 	move s0, a1                    # output rdram
 
 	sll t0, t4, 2
@@ -1315,6 +1498,14 @@ MIX_FLUSH:
 	addi s4, 64
 	bnez t0, 1b
 	addi t0, -1
+
+MIX_FLUSH_Mark:
+	sw a2, %lo(ROUND_MARKER) + 0
+	sw a2, %lo(ROUND_MARKER) + 4
+	move s0, a3
+	li s4, %lo(ROUND_MARKER)
+	jal DMAOut
+	li t0, DMA_SIZE(8, 1)
 
 	j RSPQ_Loop
 	nop
@@ -1376,6 +1567,42 @@ MIX_SETSTATE:
 	sqv $v01, 0x00,s4
 	.endfunc
 
+
+###############################################################
+# MIX_COPY – copy a block of RDRAM onto another one.
+#
+# Command words (12 bytes):
+#   a0: [ovl+cmd:8][pad:8][nbytes:16]
+#   a1: destination (physical, 8-byte aligned)
+#   a2: source      (physical, 8-byte aligned)
+#
+# The samplebuffers use it to refresh the copy of their first samples that
+# sits past the end of the ring (see samplebuffer_commit), when those samples
+# are written by the RSP itself (any codec that decodes with an overlay): the
+# copy has to travel through the queue to land after them.
+#
+# nbytes may not exceed the sample cache this stages the copy through, which
+# is scratch to every other command.
+###############################################################
+
+	.func MIX_COPY
+MIX_COPY:
+	andi t0, a0, 0xFFFF
+	move s0, a2
+	addi t0, -1
+	jal DMAIn
+	li s4, %lo(DMEM_SAMPLE_CACHE)
+
+	andi t0, a0, 0xFFFF
+	move s0, a1
+	addi t0, -1
+	jal DMAOut
+	li s4, %lo(DMEM_SAMPLE_CACHE)
+
+	j RSPQ_Loop
+	nop
+	.endfunc
+
 	#undef ticks
 	#undef wv_pos
 	#undef wv_step
@@ -1384,7 +1611,6 @@ MIX_SETSTATE:
 	#undef wv_addr
 	#undef wv_step_8x
 	#undef acc_ptr
-	#undef ch_idx
 	#undef stereo_shift
 
 
@@ -1451,16 +1677,15 @@ MIX_SETSTATE:
 	# Decode CH_VDECN frames starting at CH_VNEXT_FRAME into
 	# DMEM_SAMPLE_CACHE. Advances CH_VNEXT_FRAME by CH_VDECN.
 	# Clobbers t2, t3, t4, t6, t7, t8, t9, s0-s5 and $v01-$v23, $v26, $v27,
-	# $v31 ($v30 is rewritten with the shift table it already held). $v00 is
-	# deliberately left alone, see v____.
+	# $v30, $v31. $v00 is deliberately left alone, see v____.
 	.func VadpcmDecodeFrames
 VadpcmDecodeFrames:
 	sw ra, %lo(CH_VADPCM_RA)
 
-	# MIX_CHANNEL keeps volume-filter constants in $v31 (v_const1), but
-	# the decoder needs the RSPQ shift table in vshift8 ($v31). Restore it
-	# the same way RSPQ_Loop does before each command; caller reloads
-	# VCONST_1.
+	# MIX_CHANNEL keeps its constants in $v31 (v_const1) and one of its two
+	# volume vectors in $v30 (v_xvol4), but the decoder needs the RSPQ shift
+	# tables there. Restore them the same way RSPQ_Loop does before each
+	# command; the caller saves the volume and reloads both.
 	lpv vshift8, 0x00,zero
 	vsrl vshift, vshift8, 8
 
@@ -1596,6 +1821,9 @@ VADPCM_Priming:
 
 	.balign 8
 VADPCM_DecodeLoop:
+	# One iteration decodes one frame, that is 16 samples, in ~37 cycles:
+	# 2.3 cycles per sample, against the 8.3 that the resampler above spends
+	# on each output sample it then interpolates from them.
 	vmudh vres1, next_vres1, vscale.e0; addu in3, vstride
 	vmudh v____,  pred1a, vres0.e0;    lsv vsrc.e0, 0x00,in0
 	vmadh v____,  pred1c, vres0.e1;    sqv vresult, 0,slot_ptr

@@ -128,6 +128,35 @@ void mixer_set_vol(float vol);
 void mixer_ch_set_vol(int ch, float lvol, float rvol);
 
 /**
+ * @brief Linearly ramp channel volume to the specified values.
+ *
+ * This is the same as #mixer_ch_set_vol, but instead of changing the volume
+ * right away, the mixer walks it linearly from its current value to the
+ * specified one over @p duration output samples.
+ *
+ * The ramp is run by the mixer itself, across RSP rounds and audio buffers: it
+ * does not need any #mixer_add_event callback while it is in progress, and it
+ * is smooth well below the granularity of a mix round. It is the intended way
+ * to implement volume envelopes, fade in / fade out, and to avoid the click of
+ * stopping a channel abruptly.
+ *
+ * A ramp replaces whatever ramp was running on the channel, starting from the
+ * volume that one had reached. Calling #mixer_ch_set_vol (or passing a
+ * @p duration of 0 here) cancels the ramp and sets the volume immediately;
+ * stopping the channel cancels it as well.
+ *
+ * The RSP walks the volume one output sample at a time, in steps it recomputes
+ * every four of them, so @p duration is effectively rounded up to a multiple
+ * of 4.
+ *
+ * @param[in]   ch              Channel index
+ * @param[in]   lvol            Target left volume (range [0..1])
+ * @param[in]   rvol            Target right volume (range [0..1])
+ * @param[in]   duration        Length of the ramp, in output samples
+ */
+void mixer_ch_set_vol_ramp(int ch, float lvol, float rvol, int duration);
+
+/**
  * @brief Set channel volume (as volume and panning).
  * 
  * Configure the left and right channel volumes for the specified channel,
@@ -239,6 +268,22 @@ void mixer_ch_play(int ch, waveform_t *wave);
  */
 void mixer_ch_set_freq(int ch, float frequency);
 
+/**
+ * @brief Enable or disable the sustain loop on a mixer channel.
+ *
+ * The loop bounds come from the waveform (`#waveform_t::loop_len` /
+ * `#waveform_t::loop_end`). Disabling does not seek: playback continues from
+ * the current position through to `#waveform_t::len` (the release tail, when
+ * present) and then stops. Enabling again restores looping at the waveform's
+ * loop region.
+ *
+ * Must be called while the channel is playing a waveform that defines a loop.
+ *
+ * @param[in]   ch              Channel index
+ * @param[in]   enable          True to loop, false to play through to the end
+ */
+void mixer_ch_set_loop(int ch, bool enable);
+
 /** 
  * @brief Change the current playback position within a waveform. 
  * 
@@ -248,6 +293,11 @@ void mixer_ch_set_freq(int ch, float frequency);
  *
  * This function must be called after #mixer_ch_play, as otherwise the
  * position is reset to the beginning of the waveform.
+ *
+ * Some compressed formats can only restart their decoder on the seek points
+ * their asset was built with: a VADPCM waveform, for instance, accepts the
+ * start of the waveform and its loop point. Seeking elsewhere on one of those
+ * is an error.
  * 
  * @param[in]   ch              Channel index
  * @param[in]   pos             Playback position (in number of samples)
@@ -603,14 +653,34 @@ typedef enum {
 	int len;
 
 	/**
-     * @brief Length of the loop of the waveform (from the end).
-     * 
-     * This value describes how many samples of the tail of the waveform needs
-     * to be played in a loop. For instance, if len==1200 and loop_len=500, the
-     * waveform will be played once, and then the last 700 samples will be
-     * repeated in loop.
-     */
+	 * @brief Length of the loop, in samples.
+	 *
+	 * The loop occupies `[loop_end - loop_len, loop_end)`. With the default
+	 * `#loop_end` of zero (meaning `#len`), this is a terminal loop: e.g.
+	 * `len==1200` and `loop_len==500` repeats the last 500 samples.
+	 *
+	 * Loop will be enabled by default during playback if configured here, but
+	 * can still be toggled using #mixer_ch_set_loop.
+	 */
 	int loop_len;
+
+	/**
+	 * @brief Exclusive end of the loop, in samples.
+	 *
+	 * The loop occupies `[loop_end - loop_len, loop_end)`. With the default 
+	 * value of zero, this is a terminal loop: e.g. `len==1200`, `loop_len==500`,
+	 * and `loop_end==0`, repeats the last 500 samples.
+	 *
+	 * Otherwise, set it to create a non-terminal loop. For example, `len==1200`,
+	 * `loop_len==500`, and `loop_end==1000`, creates a loop that repeats the
+	 * samples from 500 to 1000.
+	 *
+	 * You can toggle the loop at runtime with #mixer_ch_set_loop, including
+	 * during playback. For instance, if you disable a loop while it was
+	 * already playing, the playback will continue until the end of the 
+	 * waveform is reached (thus going through the post-loop tail).
+	 */
+	int loop_end;
 
      /** 
      * @brief Callback to notify the start of playback of the waveform.
@@ -646,18 +716,25 @@ typedef enum {
 	bool async_read;
 
 	/**
+	 * @brief True if #read produces samples through an RSP overlay.
+	 *
+	 * Set this when the bytes #samplebuffer_append returns are filled by RSP
+	 * commands still in the queue (e.g. ULC). The samplebuffer then mirrors
+	 * those bytes through the same queue (MIX_COPY) so the copy lands after
+	 * the decode. Leave it false for CPU or PI producers.
+	 */
+	bool rsp_written;
+
+	/**
 	 * @brief Granularity in units of the appends made by #read (0 if unknown).
 	 *
 	 * Set this when #read always appends a whole multiple of a fixed chunk
-	 * (a codec frame: 960 samples for Opus, one audioframe for YM64). The
-	 * samplebuffer then keeps its usable size a multiple of the chunk, so that
-	 * a chunk is never split by the wrap and the live window does not have to
-	 * be relocated to keep the append contiguous.
+	 * (a codec frame: 1024 samples for ULC, one audioframe for YM64). The
+	 * samplebuffer sizes its mirrored tail to MAX(#SAMPLEBUFFER_MARGIN_UNITS,
+	 * this), so a single append of that size stays contiguous across the wrap.
 	 *
-	 * Any value is allowed: the samplebuffer applies it only when it is worth
-	 * it (a chunk that fits the tail margin never needs a relocate anyway) and
-	 * only when the buffer is large enough to keep a couple of chunks after
-	 * the rounding. Leave it 0 if the appends have no fixed size.
+	 * Leave it 0 if the appends have no fixed size (or always fit the default
+	 * margin of #SAMPLEBUFFER_MARGIN_UNITS).
 	 */
 	int append_units;
 

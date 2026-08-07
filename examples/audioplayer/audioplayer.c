@@ -218,8 +218,7 @@ enum Page page_song(void) {
 		#endif
 		#if XM_STREAM_WAVEFORMS
 		song_ramsz -= xm.ctx->ctx_size_all_samples;
-		for (int i=0;i<32;i++)
-			song_ramsz += xm.ctx->ctx_size_stream_sample_buf[i];
+		song_ramsz += xm.stream_ramsz;
 		#endif
 	} else {
 		ym64player_open(&ym, cur_rom, &yminfo);

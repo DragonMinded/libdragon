@@ -593,6 +593,7 @@ void wav64_ulc_init(wav64_t *wav, int state_size) {
     wav->wave.start = waveform_ulc_start;
     wav->wave.read = waveform_ulc_read;
     wav->wave.append_units = ULC_BLOCK_SIZE;
+    wav->wave.rsp_written = true;
     wav->wave.loop_restart_only = true;
 }
 

@@ -127,20 +127,35 @@ static void emit_setchannel(int ch, void *codebook, void *state, int bits) {
         PhysicalAddr(codebook) | (bits - 2), PhysicalAddr(state), 0);
 }
 
-static void emit_channel_lr(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
-    uint32_t pos, uint32_t step, uint32_t len, uint32_t loop_len, void *ptr,
-    int nsamples)
+// @p dlvol / @p drvol are the volume ramp increments applied by the ucode every
+// 4 output samples; 0 keeps the volume constant for the whole command. @p tlvol
+// / @p trvol are where the ramp stops: the ucode clamps between them and the
+// starting volume, so passing the starting volume itself pins the volume.
+static void emit_channel_target(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
+    int16_t dlvol, int16_t drvol, int16_t tlvol, int16_t trvol, uint32_t pos,
+    uint32_t step, uint32_t len, uint32_t loop_len, void *ptr, int nsamples)
 {
-    rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 8);
-    rspq_write_arg(&w, ((uint32_t)ch << 16) | ((flags & 0xFF) << 8));
+    assert((nsamples & 1) == 0 && nsamples >= 0 && nsamples <= 512);
+    rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 9);
+    // a0: ch<<19 | flags<<11 | nsamples/2  (9 bits: nsamples up to 512)
+    rspq_write_arg(&w, ((uint32_t)ch << 19) | ((flags & 0xFF) << 11) | ((uint32_t)nsamples >> 1));
     rspq_write_arg(&w, ((uint32_t)(uint16_t)lvol << 16) | (uint16_t)rvol);
     rspq_write_arg(&w, pos);
     rspq_write_arg(&w, step);
     rspq_write_arg(&w, len);
     rspq_write_arg(&w, loop_len);
     rspq_write_arg(&w, PhysicalAddr(ptr));
-    rspq_write_arg(&w, (uint32_t)nsamples);   // acc_offset 0
+    rspq_write_arg(&w, ((uint32_t)(uint16_t)dlvol << 16) | (uint16_t)drvol);
+    rspq_write_arg(&w, ((uint32_t)(uint16_t)tlvol << 16) | (uint16_t)trvol);
     rspq_write_end(&w);
+}
+
+static void emit_channel_lr(int ch, uint32_t flags, int16_t lvol, int16_t rvol,
+    uint32_t pos, uint32_t step, uint32_t len, uint32_t loop_len, void *ptr,
+    int nsamples)
+{
+    emit_channel_target(ch, flags, lvol, rvol, 0, 0, lvol, rvol, pos, step, len,
+        loop_len, ptr, nsamples);
 }
 
 static void emit_channel(int ch, uint32_t flags, int16_t vol, uint32_t pos,
@@ -150,8 +165,14 @@ static void emit_channel(int ch, uint32_t flags, int16_t vol, uint32_t pos,
 }
 
 static void emit_flush(int nsamples, void *out) {
+    // MIX_FLUSH publishes the id of the round it ends (the mixer uses it to
+    // know what the RSP has read); these tests drive the ucode by hand and
+    // have nowhere to track it, so it goes to a scratch word.
+    static uint32_t *round_marker = NULL;
+    if (!round_marker)
+        round_marker = malloc_uncached(8);
     rspq_write(__mixer_overlay_id, MIXER_CMD_FLUSH, (uint32_t)nsamples,
-        PhysicalAddr(out));
+        PhysicalAddr(out), 0, PhysicalAddr(round_marker));
 }
 
 static void gen_codebook(wav64_vadpcm_vector_t *cb) {
@@ -217,17 +238,6 @@ static int16_t hermite_ref(int16_t y0, int16_t y1, int16_t y2, int16_t y3, uint1
     return (int16_t)v;
 }
 
-#define WARMUP_SAMPLES  256
-
-// Value the one-tap volume filter of the ucode settles on for a given target.
-static int16_t volume_settle(int16_t target)
-{
-    int32_t x = 0;
-    for (int i = 0; i < 1024; i++)
-        x = (int32_t)(((int64_t)x * 0xe076 + (int64_t)target * 0x1f8a) >> 16);
-    return (int16_t)x;
-}
-
 static bool test_vadpcm_inmixer(int nframes, uint32_t step, int nout, int seed, int bits) {
     my_srand(seed);
 
@@ -262,22 +272,6 @@ static bool test_vadpcm_inmixer(int nframes, uint32_t step, int nout, int seed, 
     uint32_t flags = CH_FLAGS_VADPCM | CH_FLAGS_16BIT | CH_FLAGS_CLEAR_ACCUM;
     uint32_t len = (uint32_t)nsamples << MIXER_FX64_FRAC;
 
-    // Warm up the per-channel volume filter (step 0 keeps pos at 0).
-    wav64_vadpcm_vector_t *state_warm = malloc_uncached(sizeof(wav64_vadpcm_vector_t));
-    memset(state_warm, 0, sizeof(*state_warm));
-    int32_t *warm_out = malloc_uncached(WARMUP_SAMPLES * 4);
-    for (int i = 0; i < 4; i++) {
-        rspq_highpri_begin();
-        emit_setchannel(0, codebook, state_warm, bits);
-        emit_channel(0, flags, vol, 0, 0, len, 0, frames, WARMUP_SAMPLES);
-        emit_flush(WARMUP_SAMPLES, warm_out);
-        rspq_highpri_end();
-    }
-    rspq_wait();
-    free_uncached(state_warm);
-    free_uncached(warm_out);
-
-    // Fresh state for the measured run.
     memset(state_rsp, 0, sizeof(*state_rsp));
     rspq_highpri_begin();
     emit_setchannel(0, codebook, state_rsp, bits);
@@ -288,14 +282,13 @@ static bool test_vadpcm_inmixer(int nframes, uint32_t step, int nout, int seed, 
 
     bool ok = true;
     int16_t *stereo = (int16_t*)out;
-    int16_t settled = volume_settle(vol);
     for (int i = 0; i < nout; i++) {
         uint32_t pos = step * (uint32_t)i;
         int si = pos >> MIXER_FX64_FRAC;
         uint16_t x = (uint16_t)(pos << 4);
         int16_t y0 = ref_pcm[si], y1 = ref_pcm[si+1], y2 = ref_pcm[si+2], y3 = ref_pcm[si+3];
         int16_t res = hermite_ref(y0, y1, y2, y3, x);
-        int32_t v = (int32_t)(((int64_t)res * settled * 2) >> 16);
+        int32_t v = (int32_t)(((int64_t)res * vol * 2) >> 16);
         int16_t l = stereo[i*2], r = stereo[i*2+1];
         int d0 = l - v, d1 = r - v;
         if (d0 < -2 || d0 > 2 || d1 < -2 || d1 > 2) {
@@ -359,19 +352,6 @@ static bool test_pcm_resample(bool is16, uint32_t step, int nsamples, int seed)
     uint32_t flags = CH_FLAGS_CLEAR_ACCUM | (is16 ? (CH_FLAGS_16BIT | 1) : 0);
     uint32_t len = (uint32_t)(nwave << bps) << MIXER_FX64_FRAC;
 
-    // The volume filter converges on the target geometrically, one step every
-    // 8 output samples. Run it on a zero step (which keeps replaying sample 0,
-    // so it cannot run off the waveform) until it has settled.
-    int32_t *warm = malloc_uncached(WARMUP_SAMPLES * 4);
-    for (int i = 0; i < 4; i++) {
-        rspq_highpri_begin();
-        emit_channel(0, flags, vol, 0, 0, len, 0, wave, WARMUP_SAMPLES);
-        emit_flush(WARMUP_SAMPLES, warm);
-        rspq_highpri_end();
-    }
-    rspq_wait();
-    free_uncached(warm);
-
     rspq_highpri_begin();
     emit_channel(0, flags, vol, 0, step, len, 0, wave, nsamples);
     emit_flush(nsamples, out);
@@ -390,7 +370,7 @@ static bool test_pcm_resample(bool is16, uint32_t step, int nsamples, int seed)
             y[t] = is16 ? ((int16_t*)wave)[si+t] : (int16_t)(((int8_t*)wave)[si+t] << 8);
         int16_t res = hermite_ref(y[0], y[1], y[2], y[3], x);
 
-        int32_t v = (int32_t)(((int64_t)res * volume_settle(vol) * 2) >> 16);
+        int32_t v = (int32_t)(((int64_t)res * vol * 2) >> 16);
         int16_t l = stereo[i*2], r = stereo[i*2+1];
         int d0 = l - v, d1 = r - v;
         if (d0 < -2 || d0 > 2 || d1 < -2 || d1 > 2) {
@@ -433,17 +413,6 @@ static bool test_pcm_resample_stereo(bool is16, uint32_t step, int nsamples, int
         (is16 ? (CH_FLAGS_16BIT | 2) : 1);
     uint32_t len = (uint32_t)(nframes << bps) << MIXER_FX64_FRAC;
 
-    int32_t *warm = malloc_uncached(WARMUP_SAMPLES * 4);
-    for (int i = 0; i < 4; i++) {
-        rspq_highpri_begin();
-        emit_channel_lr(0, flags_l, vol, 0, 0, 0, len, 0, wave, WARMUP_SAMPLES);
-        emit_channel_lr(1, flags_r, 0, vol, 0, 0, len, 0, wave, WARMUP_SAMPLES);
-        emit_flush(WARMUP_SAMPLES, warm);
-        rspq_highpri_end();
-    }
-    rspq_wait();
-    free_uncached(warm);
-
     rspq_highpri_begin();
     emit_channel_lr(0, flags_l, vol, 0, 0, step, len, 0, wave, nsamples);
     emit_channel_lr(1, flags_r, 0, vol, 0, step, len, 0, wave, nsamples);
@@ -453,7 +422,6 @@ static bool test_pcm_resample_stereo(bool is16, uint32_t step, int nsamples, int
 
     bool ok = true;
     int16_t *stereo = (int16_t*)out;
-    int16_t settled = volume_settle(vol);
     for (int i = 0; i < nsamples; i++) {
         uint32_t pos = step * (uint32_t)i;
         int fi = pos >> (MIXER_FX64_FRAC + bps);
@@ -471,8 +439,8 @@ static bool test_pcm_resample_stereo(bool is16, uint32_t step, int nsamples, int
         }
         int16_t res_l = hermite_ref(yl[0], yl[1], yl[2], yl[3], x);
         int16_t res_r = hermite_ref(yr[0], yr[1], yr[2], yr[3], x);
-        int32_t vl = (int32_t)(((int64_t)res_l * settled * 2) >> 16);
-        int32_t vr = (int32_t)(((int64_t)res_r * settled * 2) >> 16);
+        int32_t vl = (int32_t)(((int64_t)res_l * vol * 2) >> 16);
+        int32_t vr = (int32_t)(((int64_t)res_r * vol * 2) >> 16);
 
         int16_t l = stereo[i*2], r = stereo[i*2+1];
         int d0 = l - vl, d1 = r - vr;
@@ -717,6 +685,65 @@ static bool test_mixer_stream(float freq, int startsample)
         }
     }
     return true;
+}
+
+// Every mix round the CPU enqueues keeps its window of the samplebuffer live
+// until the RSP runs it, and the ring is only sized for the rounds of a couple
+// of polls: past that, mixer_poll_async waits for the oldest poll before
+// starting. Play the same stream three times — syncing after every short
+// chunk, in poll-sized chunks, and finally queueing polls back-to-back without
+// syncing, as mixer_try_play does. All three must produce the same audio: a
+// refill landing on a window the RSP had still to read makes the runs diverge.
+extern void mixer_poll_async(int16_t *out, int nsamples);
+
+static bool test_mixer_queue_depth(float freq)
+{
+    int nsamples = 8192;
+    int16_t *ref = malloc(nsamples * 4);
+    int saved = sv_chunk;
+
+    sv_shift = 0;
+    sv_chunk = 64;
+    sv_start(&sv_wave, 0, freq);
+    sv_mix(nsamples);
+    memcpy(ref, sv_out, nsamples * 4);
+    bool ok = sv_check_lr("mixer queue depth (reference)", nsamples);
+
+    // Same tolerance as sv_check_lr: each run settles its volume ramps
+    // independently.
+    #define CHECK_AGAINST_REF(tag) ({ \
+        for (int i = 0; ok && i < nsamples * 2; i++) { \
+            int d = ref[i] - sv_out[i]; if (d < 0) d = -d; \
+            if (d > 32) { \
+                printf("FAILED %s: freq=%d: sample %d: %d/%d, expected %d/%d\n", \
+                    tag, (int)freq, i/2, sv_out[(i/2)*2], sv_out[(i/2)*2+1], \
+                    ref[(i/2)*2], ref[(i/2)*2+1]); \
+                ok = false; \
+            } \
+        } \
+    })
+
+    int blen = audio_get_buffer_length() & ~1;
+
+    sv_chunk = blen;
+    sv_start(&sv_wave, 0, freq);
+    sv_mix(nsamples);
+    ok = ok && sv_check_lr("mixer queue depth", nsamples);
+    CHECK_AGAINST_REF("mixer queue depth");
+
+    sv_start(&sv_wave, 0, freq);
+    for (int done = 0; done < nsamples; done += blen) {
+        int n = nsamples - done < blen ? nsamples - done : blen;
+        mixer_poll_async(sv_out + done * 2, n);
+    }
+    rspq_highpri_sync();
+    ok = ok && sv_check_lr("mixer queue depth (async)", nsamples);
+    CHECK_AGAINST_REF("mixer queue depth (async)");
+
+    #undef CHECK_AGAINST_REF
+    sv_chunk = saved;
+    free(ref);
+    return ok;
 }
 
 // The position the RSP receives is 31 bits wide, so past 2^31 the CPU has to
@@ -1552,6 +1579,885 @@ static bool test_mixer_loop_cache(waveform_t *wave, float freq)
     return ok;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// Baseline mixer scenarios + mixer_ch_set_loop matrix
+//
+// Synthetic asset: rising-ramp intro + square-wave loop + descending release.
+// Variants cover PCM/VADPCM × resident/streamed × mono/stereo × cached/tiny,
+// and note-off before / inside / near loop_end / just after a wrap.
+//////////////////////////////////////////////////////////////////////////////
+
+// Longer than sv_start's volume-ramp warmup (2048), so a oneshot is still
+// playing when the measured capture begins.
+#define BL_INTRO     2048
+#define BL_LOOP      512
+#define BL_RELEASE   256             // shorter than MIXER_MAX_SAMPLES_PER_ROUND
+#define BL_LOOP_END  (BL_INTRO + BL_LOOP)
+#define BL_LEN       (BL_LOOP_END + BL_RELEASE)
+#define BL_TINY_LOOP 32              // shorter than MIXER_LOOP_OVERREAD
+#define BL_PIN_INTRO 200
+#define BL_PIN_LOOP  100             // whole waveform pins in the samplebuffer
+#define BL_PIN_REL   80
+#define BL_PIN_END   (BL_PIN_INTRO + BL_PIN_LOOP)
+#define BL_PIN_LEN   (BL_PIN_END + BL_PIN_REL)
+#define BL_AMP       16000
+#define BL_SQ        16
+#define BL_FREQ      44100
+
+static int16_t bl_sample_geom(int pos, int intro, int loop, int release)
+{
+    int loop_end = intro + loop, len = loop_end + release;
+    if (pos < intro)
+        return (int16_t)(-BL_AMP + (int32_t)(2 * BL_AMP) * pos / intro);
+    if (pos < loop_end) {
+        int i = pos - intro;
+        return (i % BL_SQ < BL_SQ / 2) ? BL_AMP : (int16_t)-BL_AMP;
+    }
+    if (pos < len) {
+        int i = pos - loop_end;
+        return (int16_t)(BL_AMP - (int32_t)(2 * BL_AMP) * i / release);
+    }
+    return 0;
+}
+
+static int16_t bl_sample(int pos) {
+    return bl_sample_geom(pos, BL_INTRO, BL_LOOP, BL_RELEASE);
+}
+static int16_t bl_tiny_sample(int pos) {
+    return bl_sample_geom(pos, BL_INTRO, BL_TINY_LOOP, BL_RELEASE);
+}
+static int16_t bl_pin_sample(int pos) {
+    return bl_sample_geom(pos, BL_PIN_INTRO, BL_PIN_LOOP, BL_PIN_REL);
+}
+
+static int bl_play(int pos, int loop_end, int loop_len)
+{
+    // Hermite with a null fraction returns the second tap, one past pos.
+    pos++;
+    if (loop_len && pos >= loop_end)
+        pos = loop_end - loop_len + (pos - loop_end) % loop_len;
+    return pos;
+}
+
+static void bl_read_with(samplebuffer_t *sbuf, int wpos, int wlen,
+    int16_t (*sample)(int), int ch)
+{
+    while (wlen > 0) {
+        int n = wlen < SAMPLEBUFFER_MARGIN_UNITS ? wlen : SAMPLEBUFFER_MARGIN_UNITS;
+        int16_t *dst = samplebuffer_append(sbuf, n);
+        for (int i = 0; i < n; i++) {
+            int16_t s = sample(wpos + i);
+            if (ch == 2) dst[2*i] = dst[2*i+1] = s;
+            else         dst[i] = s;
+        }
+        wlen -= n;
+        wpos += n;
+    }
+}
+
+static void bl_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    bl_read_with(sbuf, wpos, wlen, bl_sample, 1);
+}
+
+static void bl_tiny_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    bl_read_with(sbuf, wpos, wlen, bl_tiny_sample, 1);
+}
+
+static void bl_read_stereo(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    bl_read_with(sbuf, wpos, wlen, bl_sample, 2);
+}
+
+static void bl_pin_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    bl_read_with(sbuf, wpos, wlen, bl_pin_sample, 1);
+}
+
+static waveform_t bl_wave_oneshot_res = {
+    .name = "bl-oneshot-res", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN,
+};
+
+// Terminal loop (loop_end == 0 ⇒ len). Resident overread past len is padded
+// with loop-start samples, as wav64 preload does.
+static waveform_t bl_wave_loop_res = {
+    .name = "bl-loop-res", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LOOP_END, .loop_len = BL_LOOP,
+};
+
+// Resident sustain + release. Overread past loop_end bleeds into the release
+// while looping (WAV64 preload of the rotated prefix is a later PR); this
+// asset is only used for a mid-loop note-off that never wraps after disable.
+static waveform_t bl_wave_loop_res_rel = {
+    .name = "bl-loop-res-rel", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN, .loop_len = BL_LOOP, .loop_end = BL_LOOP_END,
+};
+
+static waveform_t bl_wave_oneshot_stream = {
+    .name = "bl-oneshot-stream", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN, .read = bl_read,
+};
+
+// Sustain loop + release tail (streamed): loop_end < len. Loop is large enough
+// that the mixer keeps streaming it (non-cached).
+static waveform_t bl_wave_loop_stream = {
+    .name = "bl-loop-stream", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_LEN, .loop_len = BL_LOOP, .loop_end = BL_LOOP_END, .read = bl_read,
+};
+
+static waveform_t bl_wave_loop_stereo = {
+    .name = "bl-loop-stereo", .bits = 16, .channels = 2, .frequency = BL_FREQ,
+    .len = BL_LEN, .loop_len = BL_LOOP, .loop_end = BL_LOOP_END, .read = bl_read_stereo,
+};
+
+// Loop shorter than MIXER_LOOP_OVERREAD: overread refill wraps the tiny loop
+// more than once per fetch.
+static waveform_t bl_wave_tiny = {
+    .name = "bl-tiny-loop", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_INTRO + BL_TINY_LOOP + BL_RELEASE,
+    .loop_len = BL_TINY_LOOP, .loop_end = BL_INTRO + BL_TINY_LOOP, .read = bl_tiny_read,
+};
+
+// Short enough that the mixer pins the whole waveform in the samplebuffer.
+static waveform_t bl_wave_pin = {
+    .name = "bl-pin-loop", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = BL_PIN_LEN, .loop_len = BL_PIN_LOOP, .loop_end = BL_PIN_END,
+    .read = bl_pin_read,
+};
+
+// Resident copy of the first @p len samples. The RSP overreads
+// MIXER_LOOP_OVERREAD past the end, and for a looping waveform those samples
+// must be the ones at the loop start, as a wav64 preload lays them out.
+static int16_t *bl_resident(int len, int loop_len)
+{
+    int16_t *mem = malloc_uncached((len + MIXER_LOOP_OVERREAD) * 2);
+    for (int i = 0; i < len + MIXER_LOOP_OVERREAD; i++)
+        mem[i] = bl_sample(i < len || !loop_len ? i
+            : len - loop_len + (i - len) % loop_len);
+    return mem;
+}
+
+static void bl_init(void)
+{
+    if (bl_wave_oneshot_res.mem)
+        return;
+    bl_wave_oneshot_res.mem = bl_resident(BL_LEN, 0);
+    bl_wave_loop_res.mem = bl_resident(BL_LOOP_END, BL_LOOP);
+    // Full asset including release; no loop-start pad at loop_end (see above).
+    bl_wave_loop_res_rel.mem = bl_resident(BL_LEN, 0);
+}
+
+// Sample-by-sample check at the output rate: Hermite is an identity there.
+// @p loop_end doubles as the physical end when there is no loop.
+// @p sample is NULL for the default bl_sample shape.
+static bool bl_check_exact(const char *tag, int start_pos, int nsamples,
+    int loop_end, int loop_len, int16_t (*sample)(int))
+{
+    if (!sample) sample = bl_sample;
+    int nbad = 0, first = -1, maxdiff = 0, peak = 0;
+    for (int i = 0; i < nsamples; i++) {
+        int p = bl_play(start_pos + i, loop_end, loop_len);
+        if (!loop_len && p >= loop_end)
+            break;
+        int want = sample(p) / 2;
+        int got = sv_out[i * 2];
+        int d = got - want; if (d < 0) d = -d;
+        if (d > 64) {
+            nbad++;
+            if (first < 0) first = i;
+            if (d > maxdiff) maxdiff = d;
+        }
+        int a = got < 0 ? -got : got;
+        if (a > peak) peak = a;
+    }
+    if (nbad) {
+        printf("FAILED %s: %d/%d samples off (max %d) from %d\n",
+            tag, nbad, nsamples, maxdiff, first);
+        for (int i = first; i < first + 6 && i < nsamples; i++)
+            printf("   [%d] play=%d got %d want %d\n", i,
+                bl_play(start_pos + i, loop_end, loop_len),
+                sv_out[i * 2],
+                sample(bl_play(start_pos + i, loop_end, loop_len)) / 2);
+        return false;
+    }
+    if (peak < 4096) {
+        printf("FAILED %s: output is silent (peak %d)\n", tag, peak);
+        return false;
+    }
+    return true;
+}
+
+static int bl_wave_loop_end(const waveform_t *wave) {
+    return wave->loop_end ? wave->loop_end : wave->len;
+}
+
+static bool test_mixer_baseline_pcm(waveform_t *wave, int startsample, int nsamples)
+{
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    sv_start(wave, startsample, BL_FREQ);
+    int pos = (int)mixer_ch_get_pos(SV_CHANNEL);
+    sv_mix(nsamples);
+    return bl_check_exact(wave->name, pos, nsamples,
+        bl_wave_loop_end(wave), wave->loop_len, NULL);
+}
+
+// Frame a test explicitly asked for with #mixer_ch_set_pos, which is the one
+// case where the caller owns the restriction (and a real asset would have to
+// be built with a seek point there).
+static int slv_seek_asked = -1;
+
+// Where the note-off (#mixer_ch_set_loop false) lands relative to the loop.
+typedef enum {
+    SL_BEFORE,       // still in the intro
+    SL_INSIDE,       // mid-loop
+    SL_NEAR_END,     // a few samples before loop_end
+    SL_AFTER_WRAP,   // just after wrapping back to loop_start
+} sl_when_t;
+
+// Disable the sustain loop at @p when, then verify a seamless one-shot through
+// the release tail and a silent stop. PCM exact match when @p sample is set;
+// otherwise only L/R identity + audible + idle (VADPCM / stereo stress).
+static bool test_mixer_set_loop(waveform_t *wave, sl_when_t when,
+    int16_t (*sample)(int))
+{
+    int loop_end = bl_wave_loop_end(wave);
+    int loop_start = loop_end - wave->loop_len;
+    int start, target;
+    char tag[64];
+    const char *wname[] = { "before", "inside", "near_end", "after_wrap" };
+
+    switch (when) {
+    case SL_BEFORE:
+        start = loop_start > 64 ? loop_start - 64 : 0;
+        target = start + 16;
+        break;
+    case SL_INSIDE:
+        start = loop_start + 8;
+        target = loop_start + wave->loop_len / 2;
+        break;
+    case SL_NEAR_END:
+        // Land a few samples before loop_end; mix in steps of 2 so a round
+        // cannot jump past the window and wrap.
+        start = loop_end - 8;
+        if (start < loop_start) start = loop_start;
+        target = loop_end - 4;
+        break;
+    case SL_AFTER_WRAP:
+        start = loop_end - 6;
+        if (start < loop_start) start = loop_start;
+        target = loop_start + 16;   // after the wrap
+        break;
+    }
+    snprintf(tag, sizeof(tag), "set_loop %s/%s", wave->name, wname[when]);
+
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    // Settle the volume ramp at step 0 so the playhead stays on @p start
+    // (sv_start's 2048-sample warmup would walk past the intro / near-end).
+    mixer_ch_play(SV_CHANNEL, wave);
+    mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+    slv_seek_asked = start / 16;
+    mixer_ch_set_pos(SV_CHANNEL, start);
+    mixer_ch_set_freq(SV_CHANNEL, 0);
+    sv_mix(2048);
+    mixer_ch_set_freq(SV_CHANNEL, BL_FREQ);
+
+    int prev = start;
+    for (int guard = 0; guard < 256; guard++) {
+        int pos = (int)mixer_ch_get_pos(SV_CHANNEL);
+        if (when == SL_AFTER_WRAP) {
+            if (pos < prev && pos >= loop_start && pos < loop_start + 64)
+                break;
+        } else if (when == SL_NEAR_END) {
+            if (pos >= target && pos < loop_end) break;
+        } else if (when == SL_BEFORE) {
+            break; // already parked in the intro
+        } else if (pos >= target && pos < loop_end) {
+            break;
+        }
+        prev = pos;
+        // Steps of 2: mixer_poll requires an even count, and near loop_end a
+        // larger step would wrap past the NEAR_END window.
+        sv_mix(when == SL_INSIDE ? 32 : 2);
+    }
+
+    int pos = (int)mixer_ch_get_pos(SV_CHANNEL);
+    if (when == SL_BEFORE && !(pos < loop_start)) {
+        printf("FAILED %s: pos %d not in intro [0,%d)\n", tag, pos, loop_start);
+        return false;
+    }
+    if (when == SL_INSIDE && !(pos >= loop_start && pos < loop_end)) {
+        printf("FAILED %s: pos %d not inside the loop\n", tag, pos);
+        return false;
+    }
+    if (when == SL_NEAR_END && !(pos >= loop_end - 16 && pos < loop_end)) {
+        printf("FAILED %s: pos %d not near loop_end=%d\n", tag, pos, loop_end);
+        return false;
+    }
+    if (when == SL_AFTER_WRAP && !(pos >= loop_start && pos < loop_start + 64)) {
+        printf("FAILED %s: pos %d not just after wrap (loop_start=%d)\n",
+            tag, pos, loop_start);
+        return false;
+    }
+
+    // From here on nothing asked for a jump: every seek the mixer makes has to
+    // be one the asset could serve.
+    slv_seek_asked = -1;
+    mixer_ch_set_loop(SV_CHANNEL, false);
+    pos = (int)mixer_ch_get_pos(SV_CHANNEL);
+    int remain = wave->len - pos;
+    if (remain < 8) {
+        printf("FAILED %s: only %d samples left after disable\n", tag, remain);
+        return false;
+    }
+    // mixer_poll rejects odd counts; a release of 37 samples is the point.
+    sv_mix((remain + 65) & ~1);
+
+    if (sample) {
+        char rtag[80];
+        snprintf(rtag, sizeof(rtag), "%s (release)", tag);
+        int ncheck = remain < 4096 ? remain : 4096;
+        if (!bl_check_exact(rtag, pos, ncheck, wave->len, 0, sample))
+            return false;
+    } else {
+        // Audible release; stereo planes must stay together.
+        int peak = 0, n = remain < 512 ? remain : 512;
+        for (int i = 0; i < n * 2; i++) {
+            int a = sv_out[i] < 0 ? -sv_out[i] : sv_out[i];
+            if (a > peak) peak = a;
+        }
+        if (peak < 1024) {
+            printf("FAILED %s: silent release (peak %d)\n", tag, peak);
+            return false;
+        }
+    }
+    if (wave->channels == 2) {
+        // Skip the last overread past sample_end: silence padding of the two
+        // VADPCM planes can settle one sample apart there.
+        int n = remain < 512 ? remain : 512;
+        if (n > 8) n -= 8;
+        if (!sv_check_lr(tag, n))
+            return false;
+    }
+
+    sv_mix(2048);
+    if (mixer_ch_playing(SV_CHANNEL)) {
+        printf("FAILED %s: still playing after release (pos=%.1f len=%d)\n",
+            tag, mixer_ch_get_pos(SV_CHANNEL), wave->len);
+        return false;
+    }
+    return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// VADPCM sustain + release (streamed / resident)
+//
+// Release length is deliberately not a multiple of 16, so the last frame is
+// partial — the case WAV64 v10 has to get right at sample_end.
+//////////////////////////////////////////////////////////////////////////////
+
+#define SLV_INTRO     128
+#define SLV_LOOP      64
+#define SLV_RELEASE   37
+#define SLV_LOOP_END  (SLV_INTRO + SLV_LOOP)
+#define SLV_LEN       (SLV_LOOP_END + SLV_RELEASE)
+#define SLV_FRAMES    ((SLV_LEN + 15) / 16)
+
+static uint8_t *slv_frames;
+static int16_t *slv_ref;
+static wav64_vadpcm_vector_t *slv_codebook;
+static wav64_vadpcm_vector_t *slv_loop_state;
+static waveform_vadpcm_t slv_codec;
+static waveform_vadpcm_t slv_codec_stereo;
+
+// A real VADPCM asset can only re-seed its decoder on the points audioconv64
+// wrote into the file: the start of the waveform and its loop point. Deriving
+// the state from the reference PCM would let the mixer seek anywhere, and hide
+// the seeks that a wav64 could not serve.
+static void slv_check_seek(int wpos)
+{
+    assertf(wpos == 0 || wpos == SLV_INTRO / 16 || wpos == slv_seek_asked,
+        "VADPCM seek to frame %d, which is not a seek point", wpos);
+}
+
+static void slv_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx;
+    if (seeking) {
+        slv_check_seek(wpos);
+        wav64_state_vadpcm_t *st = sbuf->state;
+        for (int i = 0; i < 8; i++) {
+            int p = wpos * 16 - 8 + i;
+            st->state[0].v[i] = p >= 0 ? slv_ref[p] : 0;
+        }
+    }
+    int fb = VADPCM_FRAME_BYTES(4);
+    while (wlen > 0) {
+        int n = wlen < SAMPLEBUFFER_MARGIN_UNITS ? wlen : SAMPLEBUFFER_MARGIN_UNITS;
+        memcpy(samplebuffer_append(sbuf, n), slv_frames + wpos * fb, n * fb);
+        wlen -= n;
+        wpos += n;
+    }
+}
+
+// Stereo VADPCM with identical planes: L/R must stay together across a note-off.
+static void slv_read_stereo(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    samplebuffer_t *sbuf_r = sbuf + 1;
+    (void)ctx;
+    if (seeking && sbuf->widx == 0) {
+        slv_check_seek(wpos);
+        wav64_state_vadpcm_t *st = sbuf->state;
+        for (int i = 0; i < 8; i++) {
+            int p = wpos * 16 - 8 + i;
+            st->state[0].v[i] = st->state[1].v[i] = p >= 0 ? slv_ref[p] : 0;
+        }
+        samplebuffer_flush(sbuf_r);
+        sbuf_r->wpos = wpos;
+        sbuf_r->head = sbuf->head;
+    }
+    int fb = VADPCM_FRAME_BYTES(4);
+    while (wlen > 0) {
+        int n = wlen < SAMPLEBUFFER_MARGIN_UNITS ? wlen : SAMPLEBUFFER_MARGIN_UNITS;
+        uint8_t *dl = samplebuffer_append(sbuf, n);
+        uint8_t *dr = samplebuffer_append(sbuf_r, n);
+        memcpy(dl, slv_frames + wpos * fb, n * fb);
+        memcpy(dr, dl, n * fb);
+        sbuf_r->wnext = sbuf_r->wpos + sbuf_r->widx;
+        wlen -= n;
+        wpos += n;
+    }
+}
+
+static waveform_t slv_wave_stream = {
+    .name = "slv-stream", .bits = 16, .channels = 1, .frequency = BL_FREQ,
+    .len = SLV_LEN, .loop_len = SLV_LOOP, .loop_end = SLV_LOOP_END,
+    .read = slv_read, .format = WAVEFORM_FORMAT_VADPCM,
+    .codec = &slv_codec, .state_size = sizeof(wav64_state_vadpcm_t),
+};
+
+static waveform_t slv_wave_stereo = {
+    .name = "slv-stereo", .bits = 16, .channels = 2, .frequency = BL_FREQ,
+    .len = SLV_LEN, .loop_len = SLV_LOOP, .loop_end = SLV_LOOP_END,
+    .read = slv_read_stereo, .format = WAVEFORM_FORMAT_VADPCM,
+    .codec = &slv_codec_stereo, .state_size = sizeof(wav64_state_vadpcm_t),
+};
+
+static waveform_t slv_wave_res;
+static uint8_t *slv_mem_res;
+
+static void slv_init(void)
+{
+    if (slv_frames)
+        return;
+    int fb = VADPCM_FRAME_BYTES(4);
+    slv_codebook = malloc_uncached(2 * VADPCM_CODEBOOK_STRIDE);
+    memset(slv_codebook, 0, 2 * VADPCM_CODEBOOK_STRIDE);
+    gen_codebook(slv_codebook);
+    memcpy((uint8_t *)slv_codebook + VADPCM_CODEBOOK_STRIDE, slv_codebook,
+        8 * sizeof(wav64_vadpcm_vector_t));
+    slv_frames = malloc(SLV_FRAMES * fb);
+    for (int f = 0; f < SLV_FRAMES; f++)
+        sv_gen_frame(slv_frames + f * fb, f + 9000, 4);
+    slv_ref = malloc(SLV_FRAMES * 16 * 2);
+    wav64_vadpcm_vector_t state = {0};
+    vadpcm_decode(NPREDICTORS, ORDER, slv_codebook, &state,
+        SLV_FRAMES, slv_ref, slv_frames, 4);
+    slv_loop_state = malloc_uncached(2 * sizeof(*slv_loop_state));
+    for (int i = 0; i < 8; i++)
+        slv_loop_state[0].v[i] = slv_loop_state[1].v[i] = slv_ref[SLV_INTRO - 8 + i];
+    int16_t *taps = (int16_t *)((uint8_t *)slv_codebook + 128);
+    taps[0] = slv_ref[SLV_INTRO + 0];
+    taps[1] = slv_ref[SLV_INTRO + 1];
+    taps[2] = slv_ref[SLV_INTRO + 2];
+    memcpy((uint8_t *)slv_codebook + VADPCM_CODEBOOK_STRIDE + 128, taps, 6);
+    slv_codec.codebook = slv_codebook;
+    slv_codec.loop_state = slv_loop_state;
+    slv_codec.bits = 4;
+    slv_codec_stereo = slv_codec;
+
+    slv_mem_res = malloc_uncached(SLV_FRAMES * fb + 64);
+    memcpy(slv_mem_res, slv_frames, SLV_FRAMES * fb);
+    slv_wave_res = slv_wave_stream;
+    slv_wave_res.name = "slv-res";
+    slv_wave_res.mem = slv_mem_res;
+    slv_wave_res.__uuid = 0;
+}
+
+static int16_t slv_sample(int pos)
+{
+    if (pos < 0 || pos >= SLV_FRAMES * 16) return 0;
+    return slv_ref[pos];
+}
+
+// Switch the playback rate mid-note: the playhead must advance at the rate
+// that is in force for each half, and both halves must stay audible.
+// Use a oneshot so a full-rate block of N samples cannot land on the same
+// wrapped position as a looping waveform would after exactly one loop_len.
+static bool test_mixer_freq_change(void)
+{
+    const int n1 = 512, n2 = 512;
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    // Settle the volume filter at step 0 so warmup does not consume the oneshot
+    // (sv_start's 2048-sample warmup would land in the quiet middle of the ramp).
+    mixer_ch_play(SV_CHANNEL, &bl_wave_oneshot_res);
+    mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+    mixer_ch_set_pos(SV_CHANNEL, BL_INTRO - 64);
+    mixer_ch_set_freq(SV_CHANNEL, 0);
+    sv_mix(2048);
+    mixer_ch_set_freq(SV_CHANNEL, 22050);
+
+    double pos0 = mixer_ch_get_pos(SV_CHANNEL);
+    sv_mix(n1);
+    int peak = 0;
+    for (int i = 0; i < n1 * 2; i++) {
+        int a = sv_out[i] < 0 ? -sv_out[i] : sv_out[i];
+        if (a > peak) peak = a;
+    }
+    if (peak < 4096) {
+        printf("FAILED freq change: silent at half rate (peak %d)\n", peak);
+        return false;
+    }
+
+    double pos1 = mixer_ch_get_pos(SV_CHANNEL);
+    double advanced = pos1 - pos0;
+    if (advanced < n1 / 2.0 - 2 || advanced > n1 / 2.0 + 2) {
+        printf("FAILED freq change: half-rate advance %.2f, expected ~%d\n",
+            advanced, n1 / 2);
+        return false;
+    }
+
+    mixer_ch_set_freq(SV_CHANNEL, 44100);
+    double pos2 = mixer_ch_get_pos(SV_CHANNEL);
+    sv_mix(n2);
+    peak = 0;
+    for (int i = 0; i < n2 * 2; i++) {
+        int a = sv_out[i] < 0 ? -sv_out[i] : sv_out[i];
+        if (a > peak) peak = a;
+    }
+    if (peak < 4096) {
+        printf("FAILED freq change: silent at full rate (peak %d)\n", peak);
+        return false;
+    }
+
+    advanced = mixer_ch_get_pos(SV_CHANNEL) - pos2;
+    if (advanced < n2 - 2 || advanced > n2 + 2) {
+        printf("FAILED freq change: full-rate advance %.2f, expected ~%d\n",
+            advanced, n2);
+        return false;
+    }
+    return true;
+}
+
+// Stop while the playhead is still inside the waveform, not at the end.
+static bool test_mixer_stop_mid(void)
+{
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    sv_start(&bl_wave_oneshot_stream, 0, BL_FREQ);
+    sv_mix(128);
+
+    double pos = mixer_ch_get_pos(SV_CHANNEL);
+    if (pos < 32 || pos >= BL_LEN - 32) {
+        printf("FAILED stop mid: position %.1f not inside the waveform\n", pos);
+        return false;
+    }
+    if (!mixer_ch_playing(SV_CHANNEL)) {
+        printf("FAILED stop mid: channel already idle at position %.1f\n", pos);
+        return false;
+    }
+
+    mixer_ch_stop(SV_CHANNEL);
+    if (mixer_ch_playing(SV_CHANNEL)) {
+        printf("FAILED stop mid: channel still playing after stop\n");
+        return false;
+    }
+
+    // Let the volume ramp decay, then the output must be silent.
+    sv_mix(2048);
+    for (int i = 0; i < 8; i++)
+        sv_mix(4096);
+    for (int i = 0; i < 4096; i++) {
+        if (sv_out[i * 2] || sv_out[i * 2 + 1]) {
+            printf("FAILED stop mid: still audible at sample %d: %d/%d\n",
+                i, sv_out[i * 2], sv_out[i * 2 + 1]);
+            return false;
+        }
+    }
+    return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Volume ramps
+//
+// The loop of the baseline asset is a square wave of constant absolute
+// amplitude, so playing it at the output rate makes the envelope of the
+// capture the channel volume itself, sample by sample.
+//////////////////////////////////////////////////////////////////////////////
+
+// Deviation of the envelope from a straight line, and from the volume that was
+// asked for. The ucode walks the volume one output sample at a time, in steps
+// it recomputes every four of them, so the envelope follows the line it is
+// meant to within the rounding of those steps.
+#define VR_TOL_LINE   64
+#define VR_TOL_LEVEL  128
+
+static int vr_amp(int i)   { int a = sv_out[i*2];   return a < 0 ? -a : a; }
+static int vr_amp_r(int i) { int a = sv_out[i*2+1]; return a < 0 ? -a : a; }
+
+static void vr_start(waveform_t *wave, float lvol, float rvol)
+{
+    bl_init();
+    sv_silence();
+    mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+    sv_start(wave, BL_INTRO, BL_FREQ);
+    mixer_ch_set_vol(SV_CHANNEL, lvol, rvol);
+    sv_mix(2048);                     // let the declick ramp settle
+}
+
+// A linear ramp comes out as a straight line whatever the staircase of the
+// ucode does to it, so the capture is checked against the line through two of
+// its own interior points: a ramp that moves once per mix round (or once per
+// poll) is caught this way. The endpoints of that line are then checked
+// against the volumes that were asked for.
+static bool vr_check_linear(const char *tag, int nramp, float v0, float v1,
+    int (*amp)(int))
+{
+    int i1 = nramp/4, i2 = nramp*3/4;
+    int a1 = amp(i1), a2 = amp(i2);
+    int worst = 0, wi = -1;
+
+    for (int i = nramp/8; i <= nramp*7/8; i++) {
+        int want = a1 + (int)((int64_t)(a2 - a1) * (i - i1) / (i2 - i1));
+        int d = amp(i) - want; if (d < 0) d = -d;
+        if (d > worst) { worst = d; wi = i; }
+    }
+    if (worst > VR_TOL_LINE) {
+        printf("FAILED %s: envelope off its own line by %d at %d\n", tag, worst, wi);
+        printf("   [%d]=%d [%d]=%d [%d]=%d\n", i1, a1, wi, amp(wi), i2, a2);
+        return false;
+    }
+    for (int k = 0; k < 2; k++) {
+        int i = k ? i2 : i1, a = k ? a2 : a1;
+        int want = (int)(BL_AMP * (v0 + (v1 - v0) * i / (float)nramp));
+        int d = a - want; if (d < 0) d = -d;
+        if (d > VR_TOL_LEVEL) {
+            printf("FAILED %s: envelope is %d at %d, expected %d\n", tag, a, i, want);
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool vr_check_level(const char *tag, int from, int to, float v,
+    int (*amp)(int))
+{
+    int want = (int)(BL_AMP * v), worst = 0, wi = -1;
+    for (int i = from; i < to; i++) {
+        int d = amp(i) - want; if (d < 0) d = -d;
+        if (d > worst) { worst = d; wi = i; }
+    }
+    if (worst > VR_TOL_LEVEL) {
+        printf("FAILED %s: volume %d at %d, expected %d\n", tag, amp(wi), wi, want);
+        return false;
+    }
+    return true;
+}
+
+// A ramp spanning several rounds and several polls must come out as one
+// straight line, with no step at the boundaries.
+static bool test_mixer_vol_ramp(waveform_t *wave)
+{
+    const int nramp = 4096, ntail = 2048;
+
+    vr_start(wave, 0.5f, 0.5f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, nramp);
+    sv_mix(nramp + ntail);
+    if (!vr_check_linear("vol ramp down", nramp, 0.5f, 0.0f, vr_amp))
+        return false;
+    if (!vr_check_level("vol ramp down", nramp + 512, nramp + ntail, 0.0f, vr_amp))
+        return false;
+
+    vr_start(wave, 0.0f, 0.0f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.75f, 0.75f, nramp);
+    sv_mix(nramp + ntail);
+    if (!vr_check_linear("vol ramp up", nramp, 0.0f, 0.75f, vr_amp))
+        return false;
+    if (!vr_check_level("vol ramp up", nramp + 512, nramp + ntail, 0.75f, vr_amp))
+        return false;
+
+    // The two sides ramp independently, and on a stereo waveform they are two
+    // separate MIX_CHANNELs that must stay in step.
+    vr_start(wave, 0.5f, 0.5f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 1.0f, nramp);
+    sv_mix(nramp + ntail);
+    if (!vr_check_linear("vol ramp pan L", nramp, 0.5f, 0.0f, vr_amp))
+        return false;
+    if (!vr_check_linear("vol ramp pan R", nramp, 0.5f, 1.0f, vr_amp_r))
+        return false;
+    return true;
+}
+
+// A ramp shorter than a mix round still has to run: what the ucode is given
+// is an increment per block of 4 samples, not one per round.
+static bool test_mixer_vol_ramp_short(void)
+{
+    vr_start(&bl_wave_loop_res, 0.5f, 0.5f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, 64);
+    sv_mix(1024);
+    // Well before the round the ramp lives in is over.
+    if (vr_amp(200) > BL_AMP / 8) {
+        printf("FAILED vol ramp short: still at %d after 200 samples\n", vr_amp(200));
+        return false;
+    }
+    return vr_check_level("vol ramp short", 512, 1024, 0.0f, vr_amp);
+}
+
+// A new ramp starts from the volume the channel has now, not from the target
+// of the ramp it replaces; #mixer_ch_set_vol cancels it outright.
+static bool test_mixer_vol_ramp_replace(void)
+{
+    const int nramp = 8192;
+
+    vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, nramp);
+    sv_mix(nramp/2);
+    if (!vr_check_level("vol ramp replace", nramp/2 - 64, nramp/2, 0.5f, vr_amp))
+        return false;
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 1.0f, 1.0f, 4096);
+    sv_mix(4096 + 1024);
+    if (!vr_check_linear("vol ramp replace", 4096, 0.5f, 1.0f, vr_amp))
+        return false;
+    if (!vr_check_level("vol ramp replace", 4096 + 512, 4096 + 1024, 1.0f, vr_amp))
+        return false;
+
+    vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, nramp);
+    sv_mix(nramp/2);
+    mixer_ch_set_vol(SV_CHANNEL, 0.25f, 0.25f);
+    sv_mix(4096);
+    // The cancelled ramp must not resume, now or later.
+    if (!vr_check_level("vol ramp cancel", 512, 4096, 0.25f, vr_amp))
+        return false;
+    sv_mix(4096);
+    return vr_check_level("vol ramp cancel", 0, 4096, 0.25f, vr_amp);
+}
+
+// The ucode is given a slope and the value it is heading for, and clamps to
+// it: a ramp may therefore end anywhere inside a round, at a sample that is
+// not even a multiple of the 4 the slope is recomputed at. What this looks for
+// is the volume sailing past its target, which is what would happen if the
+// slope kept being applied to the end of the round.
+static bool test_mixer_vol_ramp_land(void)
+{
+    static const int durations[] = { 13, 77, 300, 1001 };
+
+    for (int i = 0; i < 4; i++) {
+        int n = durations[i];
+
+        vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+        mixer_ch_set_vol_ramp(SV_CHANNEL, 0.0f, 0.0f, n);
+        sv_mix(2048);
+        if (!vr_check_level("vol ramp land down", n + 8, 2048, 0.0f, vr_amp))
+            return false;
+
+        // Upwards, from and to a volume that leaves room on both sides, so
+        // that an overshoot shows up instead of saturating out of sight.
+        vr_start(&bl_wave_loop_res, 0.25f, 0.25f);
+        mixer_ch_set_vol_ramp(SV_CHANNEL, 0.5f, 0.5f, n);
+        sv_mix(2048);
+        if (!vr_check_level("vol ramp land up", n + 8, 2048, 0.5f, vr_amp))
+            return false;
+    }
+    return true;
+}
+
+// The ramp moves at every output sample, and not once per group of eight: a
+// steep ramp comes out as a line and not as a staircase. What this looks for
+// is the jump between two neighbouring samples, which stepping once per group
+// would make eight times the slope at every group boundary.
+static bool test_mixer_vol_ramp_smooth(void)
+{
+    const int nramp = 256;
+    const int slope = BL_AMP / nramp;     // envelope units per output sample
+
+    vr_start(&bl_wave_loop_res, 0.0f, 0.0f);
+    mixer_ch_set_vol_ramp(SV_CHANNEL, 1.0f, 1.0f, nramp);
+    sv_mix(1024);
+
+    int worst = 0, wi = -1;
+    for (int i = 1; i < nramp - 1; i++) {
+        int d = vr_amp(i) - vr_amp(i - 1); if (d < 0) d = -d;
+        if (d > worst) { worst = d; wi = i; }
+    }
+    if (worst > slope * 2) {
+        printf("FAILED vol ramp smooth: envelope jumps by %d at %d, slope is %d\n",
+            worst, wi, slope);
+        return false;
+    }
+    // ...and it is a ramp at all: an envelope that never moves would sail
+    // through the test above.
+    int mid = vr_amp(nramp/2);
+    if (mid < BL_AMP/4 || mid > BL_AMP*3/4) {
+        printf("FAILED vol ramp smooth: %d halfway, expected around %d\n",
+            mid, BL_AMP/2);
+        return false;
+    }
+    return true;
+}
+
+// mixer_ch_set_vol walks to the new volume instead of stepping to it, which is
+// what keeps a music player from clicking on every tick.
+static bool test_mixer_declick(void)
+{
+    const int nd = 128;               // MIXER_DECLICK_SAMPLES
+
+    vr_start(&bl_wave_loop_res, 0.0f, 0.0f);
+    mixer_ch_set_vol(SV_CHANNEL, 1.0f, 1.0f);
+    sv_mix(1024);
+
+    // Not a step: a quarter into the ramp the volume is still around a quarter.
+    int a = vr_amp(nd/4);
+    if (a > BL_AMP/2) {
+        printf("FAILED declick: %d at sample %d, expected around %d\n",
+            a, nd/4, BL_AMP/4);
+        return false;
+    }
+    // ...but over and done with well within a mix round.
+    return vr_check_level("declick", nd + 8, 1024, 1.0f, vr_amp);
+}
+
+// Resident VADPCM loop: same content as rf_wave, but addressed from RDRAM.
+static uint8_t *rf_mem_res;
+static waveform_t rf_wave_resident;
+
+static bool test_mixer_resident_vadpcm_loop(void)
+{
+    if (!rf_mem_res) {
+        int fb = VADPCM_FRAME_BYTES(rf_bits);
+        rf_mem_res = malloc_uncached(RF_FRAMES * fb + 64);
+        memcpy(rf_mem_res, rf_frames, RF_FRAMES * fb);
+        rf_wave_resident = rf_wave;
+        rf_wave_resident.name = "rf-loop-res";
+        rf_wave_resident.mem = rf_mem_res;
+        // Keep read for seek side-effects (decoder state).
+        rf_wave_resident.__uuid = 0;
+    }
+    return test_mixer_loop_exact(&rf_wave_resident, RF_LOOP_START - 64);
+}
+
 int main(void)
 {
     debug_init_emulog();
@@ -1646,6 +2552,11 @@ int main(void)
         }
     }
     sv_chunk = 1024;
+    for (int i = 0; i < 5; i++) {
+        total++;
+        if (!test_mixer_queue_depth(sv_freqs[i]))
+            failed++;
+    }
     total++; if (!test_mixer_posfold()) failed++;
     total++; if (!test_mixer_stop_releases_sub()) failed++;
     total++; if (!test_mixer_switch_waveform()) failed++;
@@ -1721,6 +2632,70 @@ int main(void)
             if (!test_mixer_loop_exact(&rf_wave, RF_LOOP_START + rf_starts[i])) failed++;
         }
     }
+
+    // Resident / frequency-change / mid-stop / set_loop matrix.
+    printf("Baseline mixer scenarios\n");
+    fflush(stdout);
+    bl_init();
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_oneshot_res, 0, 300)) failed++;
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_oneshot_stream, 0, 300)) failed++;
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_res, BL_INTRO - 32, 1024)) failed++;
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_stream, BL_INTRO - 32, 1024)) failed++;
+    total++; if (!test_mixer_baseline_pcm(&bl_wave_loop_res, BL_INTRO + 8, 1024)) failed++;
+
+    printf("mixer_ch_set_loop matrix\n");
+    fflush(stdout);
+    #define SL_RUN(w, when, s) do { \
+        total++; if (!test_mixer_set_loop((w), (when), (s))) failed++; \
+    } while (0)
+    // PCM streamed mono: every note-off placement, including the fundamentals
+    // near loop_end and just after a wrap. Release is shorter than a round.
+    SL_RUN(&bl_wave_loop_stream, SL_BEFORE, bl_sample);
+    SL_RUN(&bl_wave_loop_stream, SL_INSIDE, bl_sample);
+    SL_RUN(&bl_wave_loop_stream, SL_NEAR_END, bl_sample);
+    SL_RUN(&bl_wave_loop_stream, SL_AFTER_WRAP, bl_sample);
+    // PCM resident with release (mid-loop only: wraps would Hermite into release).
+    SL_RUN(&bl_wave_loop_res_rel, SL_INSIDE, bl_sample);
+    // PCM stereo streamed.
+    SL_RUN(&bl_wave_loop_stereo, SL_INSIDE, bl_sample);
+    // Loop shorter than MIXER_LOOP_OVERREAD.
+    SL_RUN(&bl_wave_tiny, SL_INSIDE, bl_tiny_sample);
+    SL_RUN(&bl_wave_tiny, SL_NEAR_END, bl_tiny_sample);
+    // Loop pinned in the samplebuffer.
+    SL_RUN(&bl_wave_pin, SL_INSIDE, bl_pin_sample);
+    SL_RUN(&bl_wave_pin, SL_AFTER_WRAP, bl_pin_sample);
+
+    slv_init();
+    // VADPCM streamed/resident; release length not a multiple of 16.
+    // BEFORE is the note-off that never reached the sustain loop: the refill
+    // after the unpin has to carry on from the intro, where no seek point is.
+    SL_RUN(&slv_wave_stream, SL_BEFORE, slv_sample);
+    SL_RUN(&slv_wave_stream, SL_INSIDE, slv_sample);
+    SL_RUN(&slv_wave_stream, SL_NEAR_END, slv_sample);
+    SL_RUN(&slv_wave_stream, SL_AFTER_WRAP, slv_sample);
+    SL_RUN(&slv_wave_res, SL_INSIDE, slv_sample);
+    // VADPCM stereo: exact left + L/R identity across unpin + release, with
+    // both planes going through the intro and the post-wrap re-seed.
+    SL_RUN(&slv_wave_stereo, SL_BEFORE, slv_sample);
+    SL_RUN(&slv_wave_stereo, SL_INSIDE, slv_sample);
+    SL_RUN(&slv_wave_stereo, SL_AFTER_WRAP, slv_sample);
+    #undef SL_RUN
+
+    printf("Volume ramps\n");
+    fflush(stdout);
+    total++; if (!test_mixer_vol_ramp(&bl_wave_loop_res)) failed++;
+    total++; if (!test_mixer_vol_ramp(&bl_wave_loop_stereo)) failed++;
+    total++; if (!test_mixer_vol_ramp_short()) failed++;
+    total++; if (!test_mixer_vol_ramp_replace()) failed++;
+    total++; if (!test_mixer_vol_ramp_land()) failed++;
+    total++; if (!test_mixer_vol_ramp_smooth()) failed++;
+    total++; if (!test_mixer_declick()) failed++;
+
+    total++; if (!test_mixer_freq_change()) failed++;
+    total++; if (!test_mixer_stop_mid()) failed++;
+    rf_init(4);
+    total++; if (!test_mixer_resident_vadpcm_loop()) failed++;
+
     sv_silence();
     mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
 

@@ -15,7 +15,6 @@
 #include "debug.h"
 #include "profile.h"
 #include "rspq.h"
-#include <stdlib.h>
 #include <string.h>
 
 /** @brief Set to 1 to activate debug logs */
@@ -44,6 +43,8 @@ static int samplebuffer_align_len(const samplebuffer_t *buf, int len) {
 	return ((len + ((8 >> bps) - 1)) >> (3 - bps)) << (3 - bps);
 }
 
+extern inline int samplebuffer_margin_units(int append_units);
+
 void samplebuffer_dma_wait(samplebuffer_t *buf) {
 	if (buf->dma_ticket) {
 		dma_wait_finished(buf->dma_ticket);
@@ -51,32 +52,39 @@ void samplebuffer_dma_wait(samplebuffer_t *buf) {
 	}
 }
 
-/** Commit a pending append that may have spilled into the tail margin. */
-static void samplebuffer_commit(samplebuffer_t *buf) {
-	if (buf->pending_len <= 0)
-		return;
-	int ub = buf->unit_bytes;
-	int ring = buf->size;
-	int slot = buf->pending_slot;
-	int len = buf->pending_len;
-	// Mirror needs the DMA to have finished; otherwise leave the ticket for
-	// the mixer to wait on before the RSP consumes the window.
-	if (slot < SAMPLEBUFFER_MARGIN_UNITS) {
-		samplebuffer_dma_wait(buf);
-		int n = MIN(len, SAMPLEBUFFER_MARGIN_UNITS - slot);
-		memcpy(samplebuffer_base(buf) + (ring + slot) * ub,
-		       samplebuffer_base(buf) + slot * ub,
-		       n * ub);
-	} else if (slot + len > ring) {
-		samplebuffer_dma_wait(buf);
-		// Write crossed the usable end into the margin: mirror the overflow
-		// back to the start (producer wrote into the margin area).
-		int overflow = slot + len - ring;
-		memcpy(samplebuffer_base(buf),
-		       samplebuffer_base(buf) + ring * ub,
-		       overflow * ub);
+/**
+ * Copy exactly @p nbytes inside the sample area.
+ *
+ * A waveform that declares #waveform_t::rsp_written produces samples through
+ * the RSP queue: the copy has to travel through the same queue so it lands
+ * after them. Every other producer writes with the CPU or a PI transfer, so
+ * the bytes are already in RDRAM and a memcpy is enough (after any PI DMA).
+ */
+static void samplebuffer_copy(samplebuffer_t *buf, uint8_t *dst, uint8_t *src, int nbytes) {
+	if (buf->wave && buf->wave->rsp_written) {
+		// The queued copy moves whole 8-byte blocks, and the bytes past
+		// nbytes at the destination are not ours to change: stage them at the
+		// source so that the tail of the copy rewrites them unchanged.
+		int n8 = ROUND_UP(nbytes, 8);
+		if (n8 > nbytes)
+			memcpy(src + nbytes, dst + nbytes, n8 - nbytes);
+		if (__mixer_rdram_copy(dst, src, n8))
+			return;
 	}
-	buf->pending_len = 0;
+	samplebuffer_dma_wait(buf);
+	memcpy(dst, src, nbytes);
+}
+
+/** Flush a pending spill from the margin back to the start of the ring. */
+static void samplebuffer_unspill(samplebuffer_t *buf) {
+	if (buf->spill <= 0)
+		return;
+	uint8_t *base = samplebuffer_base(buf);
+	int nbytes = buf->spill * buf->unit_bytes;
+	buf->spill = 0;
+	// Exactly the spilled units: anything past them is a unit still live in
+	// the ring (for VADPCM, a different 9-byte frame).
+	samplebuffer_copy(buf, base, base + buf->size * buf->unit_bytes, nbytes);
 }
 
 void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes, int state_size) {
@@ -86,8 +94,9 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes, i
 		"specified buffer must be in the uncached segment.\nTry using malloc_uncached() to allocate it");
 	buf->ptr_and_flags = (uint32_t)(uintptr_t)uncached_mem;
 	assert((buf->ptr_and_flags & 7) == 0);
-	buf->size = nbytes;
+	// size is in units, so it stays 0 until the unit size is known.
 	buf->capacity_bytes = nbytes;
+	buf->margin_units = SAMPLEBUFFER_MARGIN_UNITS;
 
 	if (state_size) {
 		buf->state = uncached_mem + nbytes;
@@ -97,19 +106,18 @@ void samplebuffer_init(samplebuffer_t *buf, uint8_t* uncached_mem, int nbytes, i
 	buf->wnext = -1;
 }
 
-static int gcd(int a, int b) {
-	while (b) { int t = a % b; a = b; b = t; }
-	return a;
-}
-
 /**
  * Recompute the usable size in units, from the allocated bytes, the unit size
- * and the append granularity. The samplebuffer must be empty.
+ * and the margin. The samplebuffer must be empty.
  */
 static void samplebuffer_recalc_size(samplebuffer_t *buf) {
 	int ub = buf->unit_bytes;
 	assert(ub > 0);
-	int usable = buf->capacity_bytes - SAMPLEBUFFER_MARGIN_UNITS * ub;
+
+	int margin = samplebuffer_margin_units(buf->append_units);
+	buf->margin_units = margin;
+
+	int usable = buf->capacity_bytes - margin * ub;
 	assertf(usable >= ub, "samplebuffer too small for margin");
 
 	// size * unit_bytes must be a multiple of 8, so that a waveform position
@@ -125,19 +133,12 @@ static void samplebuffer_recalc_size(samplebuffer_t *buf) {
 	}
 	assertf(n >= SAMPLEBUFFER_MARGIN_UNITS, "samplebuffer too small");
 
-	// If the producer appends chunks that do not fit the tail margin, keep the
-	// size a multiple of the chunk (and of the byte phase above): the write
-	// cursor then wraps exactly at the end of the usable area, so a chunk is
-	// never split by the wrap and never needs the live window to be relocated.
-	// Smaller chunks always fit the margin, so they gain nothing from this.
-	// Give up if it would not leave room for two chunks.
-	int f = buf->append_units;
-	if (f > SAMPLEBUFFER_MARGIN_UNITS) {
-		int phase = 8 / gcd(ub, 8);
-		int step = f / gcd(f, phase) * phase;
-		if (n - n % step >= 2*f)
-			n -= n % step;
-	}
+	// Changing the modulus invalidates the physical position of any window the
+	// RSP may still be reading. A full highpri sync is the safe barrier; the
+	// samplebuffer itself does not track rounds. The first configuration of a
+	// buffer has handed out no window yet, so it never syncs.
+	if (buf->size > 0 && n != buf->size)
+		rspq_highpri_sync();
 
 	buf->size = n;
 	// The buffer is empty, but head is where the next stream restarts, and the
@@ -182,66 +183,6 @@ static inline int samplebuffer_slot(const samplebuffer_t *buf, int rel) {
 	return (buf->head + rel) % buf->size;
 }
 
-/**
- * Move the live window [ridx, widx) to the start of the sample area, so that a
- * following append of wlen units is contiguous (rare; only large appends).
- *
- * With a known append granularity, the window is placed so that the write
- * cursor lands on a multiple of it: as the usable size is a multiple as well,
- * from here on appends wrap exactly at the end of the samplebuffer and no
- * further relocation is needed, until an undo or a seek breaks the phase again.
- */
-static void samplebuffer_relocate_live(samplebuffer_t *buf, int wlen) {
-	int ub = buf->unit_bytes;
-	int ring = buf->size;
-	int live = buf->widx - buf->ridx;
-	uint8_t *base = samplebuffer_base(buf);
-
-	int dst = 0;
-	int f = buf->append_units;
-	if (f > SAMPLEBUFFER_MARGIN_UNITS && ring % f == 0 &&
-		ROUND_UP(live, f) + wlen <= ring)
-		dst = ROUND_UP(live, f) - live;
-
-	if (live > 0) {
-		samplebuffer_dma_wait(buf);
-		// RSP may still be reading this window from a prior mix round. With
-		// #waveform_t::append_units this path is rare (seek / undo that breaks
-		// the write phase), so a full highpri sync is acceptable.
-		rspq_highpri_sync();
-		int src = samplebuffer_slot(buf, buf->ridx);
-		if (src != dst) {
-			int nbytes = live * ub;
-			if (src + live <= ring) {
-				memmove(base + dst * ub, base + src * ub, nbytes);
-			} else {
-				int first = ring - src;
-				void *tmp = malloc(nbytes);
-				assert(tmp);
-				memcpy(tmp, base + src * ub, first * ub);
-				memcpy((uint8_t*)tmp + first * ub, base, (live - first) * ub);
-				memcpy(base + dst * ub, tmp, nbytes);
-				free(tmp);
-			}
-		}
-		// Keep the margin mirror coherent with the new start of the sample area.
-		memcpy(base + ring * ub, base, SAMPLEBUFFER_MARGIN_UNITS * ub);
-	} else if (buf->head != dst) {
-		// Nothing live to move, but the write cursor still jumps backwards over
-		// a region that a round emitted before the last flush can be reading:
-		// this is the one case where restarting forward is not an option.
-		rspq_highpri_sync();
-	}
-
-	buf->wpos += buf->ridx;
-	buf->widx = live;
-	buf->ridx = 0;
-	buf->head = dst;
-}
-
-/** @brief Units that #samplebuffer_prefetch keeps ready ahead of the mixer. */
-#define SAMPLEBUFFER_PREFETCH_UNITS      SAMPLEBUFFER_MARGIN_UNITS
-
 /** @brief Units left ahead that trigger a refill.
  *
  * A WaveformRead costs mostly per call, so refilling late (in bigger chunks)
@@ -252,8 +193,6 @@ static void samplebuffer_relocate_live(samplebuffer_t *buf, int wlen) {
 void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 	void *ret = NULL;
 	PROFILE_SCOPE(PS_SBUF_GET) {
-	samplebuffer_commit(buf);
-
 	int ub = buf->unit_bytes;
 	int ring = buf->size;
 	int round_len = samplebuffer_align_len(buf, *wlen);
@@ -265,6 +204,8 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 		assertf(buf->wv_read, "samplebuffer_get: no reader to seek to %x (had %x+%x)",
 			wpos, buf->wpos, buf->widx);
 		bool seeking = (buf->wnext < 0) || (wpos != buf->wnext);
+		// Discard any pending spill with the flush: copying it back would
+		// rewrite samples that this seek is about to throw away.
 		samplebuffer_flush(buf);
 		buf->wpos = wpos;
 		int len = round_len;
@@ -275,9 +216,10 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 			buf->wpos--; len++;
 		}
 		buf->wv_read(buf->wave->ctx, buf, buf->wpos, len, seeking);
-		samplebuffer_commit(buf);
+		samplebuffer_unspill(buf);
 		buf->wnext = buf->wpos + buf->widx;
 	} else {
+		samplebuffer_unspill(buf);
 		buf->ridx = wpos - buf->wpos;
 		int reuse = buf->wpos + buf->widx - wpos;
 		if (reuse < *wlen) {
@@ -288,7 +230,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 			// Free space without discarding past the live read cursor.
 			missing = MIN(missing, ring - (buf->widx - buf->ridx));
 			buf->wv_read(buf->wave->ctx, buf, wpos+reuse, missing, false);
-			samplebuffer_commit(buf);
+			samplebuffer_unspill(buf);
 			buf->wnext = buf->wpos + buf->widx;
 		}
 	}
@@ -306,6 +248,17 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen) {
 	int slot = samplebuffer_slot(buf, rel);
 	assertf(*wlen <= SAMPLEBUFFER_MARGIN_UNITS || slot + *wlen <= ring,
 		"samplebuffer_get: window %x not contiguous (slot=%x size=%x)", *wlen, slot, ring);
+
+	// Window straddles the wrap: mirror the leading units into the margin so
+	// the RSP sees one linear DMA. wlen already includes the mixer's overread.
+	int need = slot + *wlen - ring;
+	if (need > 0) {
+		assertf(need <= buf->margin_units,
+			"samplebuffer_get: mirror %x > margin %x", need, buf->margin_units);
+		uint8_t *base = samplebuffer_base(buf);
+		samplebuffer_copy(buf, base + ring * ub, base, ROUND_UP(need * ub, 8));
+	}
+
 	ret = samplebuffer_base(buf) + slot * ub;
 	}
 	return ret;
@@ -315,7 +268,7 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen) {
 	if (!buf->wave || !buf->wv_read || !buf->wave->async_read ||
 		buf->widx == 0 || buf->wnext < 0)
 		return;
-	samplebuffer_commit(buf);
+	samplebuffer_unspill(buf);
 
 	// Only extend the current stream: on a seek the samplebuffer is flushed,
 	// so anything fetched now would be thrown away.
@@ -337,7 +290,7 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen) {
 	if (missing <= 0)
 		return;
 
-	// Leave the transfer in flight: samplebuffer_get will commit and sync it.
+	// Leave the transfer in flight: samplebuffer_get will sync it.
 	PROFILE_SCOPE(PS_SBUF_GET) {
 		buf->wv_read(buf->wave->ctx, buf, buf->wnext, missing, false);
 	}
@@ -345,22 +298,7 @@ void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen) {
 }
 
 void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
-	samplebuffer_commit(buf);
-
-	// Learn the granularity of the large appends, for producers that do not
-	// declare it (or declare a divisor of the chunk they really use: one that
-	// fits the margin cannot save any relocate, so the chunk we are seeing is
-	// a better guess). The size can only be changed while the samplebuffer is
-	// empty, as it is the modulus of all the physical positions.
-	if (wlen > SAMPLEBUFFER_MARGIN_UNITS) {
-		int f = buf->append_units > SAMPLEBUFFER_MARGIN_UNITS
-			? gcd(buf->append_units, wlen) : wlen;
-		if (f != buf->append_units) {
-			buf->append_units = f;
-			if (buf->widx == 0 && buf->ridx == 0)
-				samplebuffer_recalc_size(buf);
-		}
-	}
+	samplebuffer_unspill(buf);
 
 	int ub = buf->unit_bytes;
 	int ring = buf->size;
@@ -385,29 +323,27 @@ void* samplebuffer_append(samplebuffer_t *buf, int wlen) {
 	}
 
 	int slot = samplebuffer_slot(buf, buf->widx);
-	// Contiguous write: fit before the usable end, or spill into the margin
-	// (≤MARGIN). Codecs that append full frames larger than the margin (Opus,
-	// YM) may need a relocate of the live window so that the write is linear.
-	if (slot + wlen > ring && wlen > SAMPLEBUFFER_MARGIN_UNITS) {
-		assertf(buf->widx - buf->ridx + wlen <= ring,
-			"samplebuffer_append: buffer too small\n"
-			"live:%x wlen:%x size:%x", buf->widx - buf->ridx, wlen, ring);
-		samplebuffer_relocate_live(buf, wlen);
-		slot = samplebuffer_slot(buf, buf->widx);
-		assert(slot + wlen <= ring);
-	} else if (slot + wlen > ring) {
-		assertf(wlen <= SAMPLEBUFFER_MARGIN_UNITS,
-			"samplebuffer_append: large append %x wraps (slot=%x)", wlen, slot);
+	// Contiguous write: either fits before the usable end, or spills into the
+	// margin (≤ margin_units).
+	if (slot + wlen > ring) {
+		assertf(wlen <= buf->margin_units,
+			"samplebuffer_append: append of %x units wraps and does not fit the\n"
+			"margin (slot:%x margin:%x): declare it in waveform_t::append_units",
+			wlen, slot, buf->margin_units);
+		buf->spill = slot + wlen - ring;
 	}
 
-	buf->pending_slot = slot;
-	buf->pending_len = wlen;
 	buf->widx += wlen;
-	return samplebuffer_base(buf) + slot * ub;
+	uint8_t *ret = samplebuffer_base(buf) + slot * ub;
+	// An RSP producer writes through SP DMA, which ignores the low 3 bits of
+	// the RDRAM address: an unaligned slot would silently land elsewhere.
+	assertf(!buf->wave || !buf->wave->rsp_written || ((uintptr_t)ret & 7) == 0,
+		"samplebuffer_append: unaligned slot %x for an RSP-written waveform", slot);
+	return ret;
 }
 
 void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
-	samplebuffer_commit(buf);
+	samplebuffer_unspill(buf);
 	tracef("samplebuffer_undo: wlen=%x\n", wlen);
 	assertf(buf->widx >= wlen, "samplebuffer_undo: invalid wlen:%x widx:%x", wlen, buf->widx);
 	buf->widx -= wlen;
@@ -416,18 +352,17 @@ void samplebuffer_undo(samplebuffer_t *buf, int wlen) {
 }
 
 void samplebuffer_flush(samplebuffer_t *buf) {
-	samplebuffer_commit(buf);
 	samplebuffer_dma_wait(buf);
+	// Discard any pending spill: the samples are being thrown away, and
+	// copying them back could overwrite a window a prior round still holds.
+	buf->spill = 0;
 	// Restart the ring where the last append left off, rather than rewinding it
 	// to the top. Rounds already emitted read from the window that was live
 	// here, and the RSP can still be behind them: the CPU is allowed to run
-	// that far ahead (#mixer_poll_async, and the events served in the middle of
-	// a poll). Refilling from the top would rewrite those samples under it,
-	// while writing forward leaves the refill the same distance from them that
-	// every append relies on — a whole turn of the ring.
+	// that far ahead (#mixer_poll_async). Writing forward leaves the refill
+	// a whole turn of the ring away from those samples.
 	if (buf->size > 0)
 		buf->head = (buf->head + buf->widx) % buf->size;
 	buf->wpos = buf->widx = buf->ridx = 0;
 	buf->wnext = -1;
-	buf->pending_len = 0;
 }

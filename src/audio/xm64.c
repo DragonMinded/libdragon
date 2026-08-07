@@ -17,6 +17,7 @@
 #include "wav64_internal.h"
 #include "asset_internal.h"
 #include "profile.h"
+#include "utils.h"
 #include "libxm/xm.h"
 #include "libxm/xm_internal.h"
 #include <stdbool.h>
@@ -24,6 +25,12 @@
 #include <unistd.h>
 
 static char *xm64_extsampledir = NULL;
+
+/// @brief Length of the ramp that walks a volume change across a few milliseconds.
+/// XM volumes jump on every tick (envelopes, slides, global volume, mute), and
+/// a hard step is heard as a click; this is short enough that nothing sounds
+/// delayed, and long enough to kill the discontinuity.
+#define XM64_VOL_RAMP_SAMPLES  128
 
 static void stop(xm_context_t *ctx, xm64player_t *xmp) {
 	for (int i=0;i<ctx->module.num_channels;i++)
@@ -111,11 +118,14 @@ static int tick(void *arg) {
 				mixer_ch_set_pos(first_ch+i, ch->sample_position);
 
 				// Configure also frequency and volume that might have changed
-				// since last tick.
+				// since last tick. Volume is ramped explicitly: a hard step on
+				// every tick is the classic XM click, and the mixer no longer
+				// hides that behind mixer_ch_set_vol.
 				mixer_ch_set_freq(first_ch+i, ch->frequency);
-				mixer_ch_set_vol(first_ch+i,
+				mixer_ch_set_vol_ramp(first_ch+i,
 					muted ? 0 : gvol * ch->actual_volume[0],
-					muted ? 0 : gvol * ch->actual_volume[1]);
+					muted ? 0 : gvol * ch->actual_volume[1],
+					XM64_VOL_RAMP_SAMPLES);
 			} else {
 				mixer_ch_stop(first_ch+i);
 			}
@@ -157,8 +167,9 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 		}
 		assertf(0, "cannot load XM64 file: %s\nFile corrupted", fn);
 	}
-	assertf(header.version == 11 || header.version == 12,
-		"cannot load XM64 file: %s\nVersion %d not supported", fn, header.version);
+	assertf(header.version == 13,
+		"cannot load XM64 file: %s\nVersion %d not supported, please convert again with audioconv64",
+		fn, header.version);
 
 	// Seek to the beginning of the metadata, that are asset-compressed. We need
 	// to read the metadata in small chunks, so we use asset_fopen() for this.
@@ -222,17 +233,34 @@ void xm64player_play(xm64player_t *player, int first_ch) {
 	assert(first_ch + xm_get_number_of_channels(player->ctx) <= MIXER_MAX_CHANNELS);
 
 	if (!player->playing) {
-		// XM64 header contains the optimal size for sample buffers on each
-		// channel, to minimize memory consumption. To configure it, bump
-		// the frequency of each channel to an unreasonably high value (we don't
-		// know how much we need, so shoot high), but then limit the buffer size
-		// to the optimal value.
+		// XM64 stores the optimal sample buffer size of each channel, to
+		// minimize memory consumption. Part of it covers the rounds the mixer
+		// lets the CPU enqueue before the RSP has mixed them, whose input
+		// windows must stay untouched in the ring: how many those are depends
+		// on the audio configuration, so audioconv64 stores that part as a
+		// rate in bytes per second of playback.
+		//
+		// To configure the size, bump the frequency of each channel to an
+		// unreasonably high value (we don't know how much we need, so shoot
+		// high), but then limit the buffer size to the optimal value.
+		int sample_rate = audio_get_frequency();
+		int inflight = __mixer_inflight_samples();
 		for (int i=0; i<player->ctx->module.num_channels; i++) {
-			// If the value is 0, the channel is not used. We don't have a way
-			// to convey this (0 would be interpreted as "no limit"), so just
+			uint32_t rate = player->ctx->ctx_stream_buf_rate[i];
+			uint32_t min = player->ctx->ctx_stream_buf_min[i];
+			// If both are 0, the channel is not used. We don't have a way to
+			// convey this (0 would be interpreted as "no limit"), so just
 			// avoid calling the limit function altogether.
-			if (player->ctx->ctx_size_stream_sample_buf[i] != 0)
-				mixer_ch_set_limits(first_ch+i, 0, 1e9, player->ctx->ctx_size_stream_sample_buf[i]);
+			if (!rate && !min)
+				continue;
+			uint32_t sz = player->ctx->ctx_stream_buf_base[i] +
+				(uint32_t)((uint64_t)rate * inflight / sample_rate);
+			uint32_t cap = player->ctx->ctx_stream_buf_cap[i];
+			if (cap && sz > cap) sz = cap;
+			if (sz < min) sz = min;
+			sz = ROUND_UP(sz, 8);
+			player->stream_ramsz += sz;
+			mixer_ch_set_limits(first_ch+i, 0, 1e9, sz);
 		}
 
 		mixer_add_event(0, tick, player);
