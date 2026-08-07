@@ -175,8 +175,8 @@ typedef struct {
 	mixer_fx15_t r;        ///< Right volume at the first sample of the round
 	mixer_fx15_t dl;       ///< Left increment per block of 4 samples
 	mixer_fx15_t dr;       ///< Right increment per block of 4 samples
-	mixer_fx15_t tl;       ///< Left volume the ramp ends on
-	mixer_fx15_t tr;       ///< Right volume the ramp ends on
+	mixer_fx15_t tl;       ///< Left volume the round ends on
+	mixer_fx15_t tr;       ///< Right volume the round ends on
 } mixer_round_vol_t;
 
 /** @brief Overlay saved-state layout (must match rsp_mixer.S) */
@@ -1633,13 +1633,13 @@ static mixer_fx15_t mixer_ramp_step(int delta, int nblocks)
 	return (mixer_fx15_t)CLAMP(delta < 0 ? -d : d, -0x8000, 0x7FFF);
 }
 
-// Volumes a channel is mixed with over the round starting at tick @p tick:
-// the value at its first sample, the value its ramp is heading for, and the
+// Volumes a channel is mixed with over the round of @p ns samples starting at
+// tick @p tick: the value at its first sample, the value it stops on, and the
 // increment that walks from one to the other every 4 samples. All are derived
 // from the absolute tick, so a round never inherits the rounding of the ones
 // before it.
 static mixer_round_vol_t mixer_channel_volumes(int ch, uint32_t flags, bool sub,
-	mixer_fx16_t gvol, int64_t tick)
+	mixer_fx16_t gvol, int64_t tick, int ns)
 {
 	// A stereo sub channel is a plane of its owner, and follows its ramp.
 	int och = sub ? ch-1 : ch;
@@ -1652,12 +1652,22 @@ static mixer_round_vol_t mixer_channel_volumes(int ch, uint32_t flags, bool sub,
 	vol.tr = vol.r;
 
 	if (mixer_ramp_active(och, tick)) {
-		// The end of the ramp, which is where the ucode clamps, and not the
-		// end of the round: the two only coincide by chance.
+		// The slice of the ramp this round covers, and nothing beyond it: the
+		// volume it ends on is what the ucode clamps to, and the increment
+		// walks the round's own blocks. The increment is a whole number of
+		// fx15 units, so a ramp shallower than one unit per block cannot be
+		// walked at its slope; taking the end of the whole ramp as the bound
+		// would let such a ramp run through every round many times too fast
+		// and be pulled back to the right value at the next one, which is an
+		// audible flutter on any ramp of more than a couple of seconds. Held
+		// to the round, it lands early and waits there, and the round after
+		// it picks up exactly where it stopped.
 		mixer_ramp_t *rmp = &Mixer.ramp[och];
-		mixer_fold_volumes(flags, sub, gvol, Mixer.lvol[och], Mixer.rvol[och],
-			&vol.tl, &vol.tr);
-		int nblocks = DIVIDE_CEIL((int)(rmp->start_tick + rmp->duration - tick), 4);
+		mixer_fx15_t el, er;
+		mixer_ch_vol_at(och, tick + ns, &el, &er);
+		mixer_fold_volumes(flags, sub, gvol, el, er, &vol.tl, &vol.tr);
+		int64_t end = MIN(rmp->start_tick + rmp->duration, tick + ns);
+		int nblocks = MAX(DIVIDE_CEIL((int)(end - tick), 4), 1);
 		vol.dl = mixer_ramp_step(vol.tl - vol.l, nblocks);
 		vol.dr = mixer_ramp_step(vol.tr - vol.r, nblocks);
 	}
@@ -1837,7 +1847,7 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol, int64_t ti
 			// behind on the RSP: drop it from the round entirely.
 			continue;
 		} else if (c->flags & CH_FLAGS_STEREO_SUB) {
-			vol = mixer_channel_volumes(ch, owner->flags, true, gvol, tick);
+			vol = mixer_channel_volumes(ch, owner->flags, true, gvol, tick, ns);
 
 			if (!(owner->flags & CH_FLAGS_VADPCM)) {
 				// PCM interleaved: extract R from the owner's sample stream.
@@ -1863,7 +1873,7 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol, int64_t ti
 				}
 			}
 		} else {
-			vol = mixer_channel_volumes(ch, c->flags, false, gvol, tick);
+			vol = mixer_channel_volumes(ch, c->flags, false, gvol, tick, ns);
 			pos = (uint32_t)c->pos & 0x7FFFFFFF;
 			step = (uint32_t)c->step & 0x7FFFFFFF;
 
