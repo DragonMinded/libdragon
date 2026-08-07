@@ -388,11 +388,11 @@ command<8> GLCmd_PreInitMagma(u32 statePtr, u32 client_flags)
     // Fog
     {
         vec32 fog_parms = load(GL_STATE_FOG_PARAMS, 0).xy;
-        vec32 diff = fog_parms - fog_parms.x;
+        vec32 diff = fog_parms - fog_parms.y;
         vec32 factor;
-        factor.x = invert_half(diff).y;
+        factor.x = invert_half(diff).x;
         vec16 factor_f = factor << 11;
-        vec32 offset = VZERO - fog_parms.x;
+        vec32 offset = VZERO - fog_parms.y;
         offset = offset << GLP_VTX_POS_SHIFT;
 
         u32 enabled = flags & 0x8; // FLAG_FOG

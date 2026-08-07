@@ -98,11 +98,11 @@ void mgfx_get_lighting(mgfx_lighting_t *dst, const mgfx_lighting_parms_t *parms)
 
 void mgfx_get_fog(mgfx_fog_t *dst, const mgfx_fog_parms_t *parms)
 {
-    float diff = parms->end - parms->start;
+    float diff = parms->start - parms->end;
     // start == end is undefined, so disable fog by setting the factor to 0
     bool is_disabled = fabsf(diff) < FLT_MIN;
     float factor = is_disabled ? 0.0f : 1.0f / diff;
-    float offset = -parms->start;
+    float offset = -parms->end;
 
     int32_t offset_fx = offset * (1<<16);
     // Premultiply with 1.15 conversion factor

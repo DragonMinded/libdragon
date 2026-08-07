@@ -601,7 +601,7 @@ void render()
         rdpq_mode_persp(true);
         rdpq_mode_filter(FILTER_BILINEAR);
         rdpq_mode_combiner(RDPQ_COMBINER2((TEX0,0,SHADE,0), (TEX0,0,SHADE,0), (COMBINED,0,PRIM,0), (COMBINED,0,PRIM,0)));
-        rdpq_mode_fog(RDPQ_BLENDER((FOG_RGB, SHADE_ALPHA, IN_RGB, INV_MUX_ALPHA)));
+        rdpq_mode_fog(RDPQ_FOG_STANDARD);
     rdpq_mode_end();
 
     rdpq_set_fog_color(color_from_packed32(fog_color));
