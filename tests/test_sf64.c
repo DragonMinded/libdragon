@@ -317,7 +317,9 @@ static bool test_synth_pitch(sf64_bank_t *bank)
 		return false;
 	}
 
-	// −12 and +11 stay inside region A (key 0..71, root 60).
+	// −12 on region A (root 60); +12 on region C (root 72, key 84).
+	sf64_region_t *rc = ra + 1;
+	sf64_sample_t *sc = &bank->samples[rc->sample_index];
 	silence();
 	sf64_synth_note_on(synth, 48, 100);
 	if (!check_freq(synth, "pitch -12", expect_freq(ra, sa, 48))) {
@@ -325,8 +327,19 @@ static bool test_synth_pitch(sf64_bank_t *bank)
 		return false;
 	}
 	silence();
-	sf64_synth_note_on(synth, 71, 100);
-	if (!check_freq(synth, "pitch +11", expect_freq(ra, sa, 71))) {
+	sf64_synth_note_on(synth, 84, 100);
+	if (mixer_ch_playing_waveform(CH) != &bank->waves[rc->sample_index]->wave) {
+		printf("FAILED pitch +12: wrong waveform\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (!check_freq(synth, "pitch +12", expect_freq(rc, sc, 84))) {
+		sf64_synth_close(synth);
+		return false;
+	}
+	// Expect ~2× the sample rate.
+	if (fabsf(expect_freq(rc, sc, 84) - 2.0f * sc->sample_rate) > 1.0f) {
+		printf("FAILED pitch +12: expect_freq not 2x rate\n");
 		sf64_synth_close(synth);
 		return false;
 	}
@@ -391,7 +404,7 @@ static bool test_synth_key_split(sf64_bank_t *bank)
 		sf64_synth_close(synth);
 		return false;
 	}
-	// Boundary inclusivity: 71 → A, still in range.
+	// Boundary inclusivity: 71 → A, 72 → C.
 	silence();
 	if (!sf64_synth_note_on(synth, 71, 100) ||
 		mixer_ch_playing_waveform(CH) != &bank->waves[r[0].sample_index]->wave) {
@@ -399,6 +412,30 @@ static bool test_synth_key_split(sf64_bank_t *bank)
 		sf64_synth_close(synth);
 		return false;
 	}
+
+	// Key outside every region: shrink both ranges, leave a hole at 60.
+	uint8_t a_min = r[0].key_min, a_max = r[0].key_max;
+	uint8_t c_min = r[1].key_min, c_max = r[1].key_max;
+	r[0].key_min = 0;  r[0].key_max = 40;
+	r[1].key_min = 80; r[1].key_max = 127;
+	silence();
+	if (sf64_synth_note_on(synth, 60, 100)) {
+		printf("FAILED key_split: key outside ranges still played\n");
+		r[0].key_min = a_min; r[0].key_max = a_max;
+		r[1].key_min = c_min; r[1].key_max = c_max;
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (mixer_ch_playing(CH)) {
+		printf("FAILED key_split: channel active after unmatched note_on\n");
+		r[0].key_min = a_min; r[0].key_max = a_max;
+		r[1].key_min = c_min; r[1].key_max = c_max;
+		sf64_synth_close(synth);
+		return false;
+	}
+	r[0].key_min = a_min; r[0].key_max = a_max;
+	r[1].key_min = c_min; r[1].key_max = c_max;
+
 	sf64_synth_close(synth);
 	return true;
 }
@@ -421,6 +458,14 @@ static bool test_synth_vel_split(sf64_bank_t *bank)
 	if (!sf64_synth_note_on(synth, 60, 80) ||
 		mixer_ch_playing_waveform(CH) != &bank->waves[r[1].sample_index]->wave) {
 		printf("FAILED vel_split: vel 80\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	// Upper bound inclusive.
+	silence();
+	if (!sf64_synth_note_on(synth, 60, 127) ||
+		mixer_ch_playing_waveform(CH) != &bank->waves[r[1].sample_index]->wave) {
+		printf("FAILED vel_split: vel 127\n");
 		sf64_synth_close(synth);
 		return false;
 	}
@@ -464,6 +509,16 @@ static bool test_synth_mono_replace(sf64_bank_t *bank)
 	mix(64);
 	if (mixer_ch_playing(CH)) {
 		printf("FAILED mono: note-off did not stop\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Stop while already idle, and a second identical note-off, must stay quiet.
+	sf64_synth_note_off(synth, 60);
+	sf64_synth_note_off(synth, 60);
+	mix(64);
+	if (mixer_ch_playing(CH)) {
+		printf("FAILED mono: repeated note-off left channel playing\n");
 		sf64_synth_close(synth);
 		return false;
 	}
@@ -517,27 +572,6 @@ static bool test_synth_preset(sf64_bank_t *bank)
 		sf64_synth_close(synth);
 		return false;
 	}
-
-	// No matching region → false, channel idle after a prior stop.
-	sf64_synth_note_off(synth, 60);
-	silence();
-	assert(sf64_synth_set_preset(synth, 0, 0));
-	// Every key 0..127 matches preset 0, so poke an empty match via vel on
-	// a patched range, then restore.
-	sf64_region_t *r0 = &bank->regions[bank->presets[0].first_region];
-	uint8_t save_vmin = r0[0].velocity_min, save_vmax = r0[0].velocity_max;
-	uint8_t save_vmin1 = r0[1].velocity_min, save_vmax1 = r0[1].velocity_max;
-	r0[0].velocity_min = r0[0].velocity_max = 1;
-	r0[1].velocity_min = r0[1].velocity_max = 1;
-	if (sf64_synth_note_on(synth, 60, 100)) {
-		printf("FAILED preset: unmatched note_on returned true\n");
-		r0[0].velocity_min = save_vmin; r0[0].velocity_max = save_vmax;
-		r0[1].velocity_min = save_vmin1; r0[1].velocity_max = save_vmax1;
-		sf64_synth_close(synth);
-		return false;
-	}
-	r0[0].velocity_min = save_vmin; r0[0].velocity_max = save_vmax;
-	r0[1].velocity_min = save_vmin1; r0[1].velocity_max = save_vmax1;
 
 	sf64_synth_close(synth);
 	return true;
