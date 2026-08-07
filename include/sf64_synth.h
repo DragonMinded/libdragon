@@ -12,8 +12,13 @@
  * select a preset with #sf64_synth_set_preset, then drive notes with
  * #sf64_synth_note_on / #sf64_synth_note_off.
  *
+ * Amp envelopes use the mixer's volume ramps (attack into the note, release
+ * to silence). Advance them with #sf64_synth_process by the same output-sample
+ * counts you pass to #mixer_poll — there is no absolute clock. The synthesizer
+ * does not register a mixer event yet; the application calls process from its
+ * own loop or from an external deadline.
+ *
  * This version is monophonic: a new note-on replaces the previous note.
- * Note-off is immediate (no amp envelope yet).
  */
 #ifndef LIBDRAGON_SF64_SYNTH_H
 #define LIBDRAGON_SF64_SYNTH_H
@@ -77,7 +82,8 @@ bool sf64_synth_set_preset(sf64_synth_t *synth, int midi_bank, int program);
  *
  * Finds the first region of the preset that matches @p key and @p velocity,
  * stops any previous note, and plays that region's sample at the SF2 pitch
- * and volume for the note. A velocity of 0 is treated as #sf64_synth_note_off.
+ * for the note. Volume starts at zero and ramps to the target over the
+ * region's attack. A velocity of 0 is treated as #sf64_synth_note_off.
  *
  * @param synth     Synthesizer
  * @param key       MIDI key (0–127)
@@ -87,14 +93,30 @@ bool sf64_synth_set_preset(sf64_synth_t *synth, int midi_bank, int program);
 bool sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity);
 
 /**
- * @brief Stop the current note if it was started with @p key.
+ * @brief Release the current note if it was started with @p key.
  *
- * A note-off for a different key is ignored. Stop is immediate.
+ * Ignored if @p key is not the sounding note. Volume fades out over the
+ * region's release; call #sf64_synth_process until that fade ends so the
+ * channel is stopped. A zero-length release stops at once.
  *
  * @param synth  Synthesizer
  * @param key    MIDI key that should be released
  */
 void sf64_synth_note_off(sf64_synth_t *synth, int key);
+
+/**
+ * @brief Tell the synthesizer that @p num_samples of audio have elapsed.
+ *
+ * Call this with the same sample counts you feed to #mixer_poll (or from a
+ * #mixer_add_event callback). It finishes the attack or release when their
+ * time is up. Pass 0 to only query the next deadline without advancing time.
+ *
+ * @param synth        Synthesizer
+ * @param num_samples  Elapsed output samples (`>= 0`)
+ * @return             Samples until the next attack/release end, or `< 0`
+ *                     if nothing is pending
+ */
+int sf64_synth_process(sf64_synth_t *synth, int num_samples);
 
 #ifdef __cplusplus
 }
