@@ -27,25 +27,28 @@
  *    size depends on the playing speed, sample pitch, etc. across the whole
  *    module.
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
 #include <inttypes.h>
-#include "mixer.h"
-#include "samplebuffer.h"
 #include <algorithm>
 #include <map>
 #include <set>
 #include <vector>
 
-#include "libxm.h"
-#include "../common/crc32.c"
 #include "../common/binout.h"
 #include "../common/nanotime.h"
 #include "../common/polyfill.h"
 #include "../common/utils.h"
 #include "../common/assetcomp.h"
 #include "audioconv64.h"
+#include "mixer.h"
+#include "samplebuffer.h"
+#include "libxm.h"
+#include "../common/crc32.c"
 
 int flag_xm_compress_meta = DEFAULT_COMPRESSION;
 int flag_xm_compress_samples = DEFAULT_COMPRESSION;

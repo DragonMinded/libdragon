@@ -13,6 +13,9 @@
  * preset/region tables (not the public render API), copy them into SF64
  * structures, and embed each unique sample slice as a WAV64.
  */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <math.h>
 #include <string.h>
 #include <vector>

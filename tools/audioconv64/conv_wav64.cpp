@@ -19,8 +19,10 @@
 #include <algorithm>
 #include <time.h>
 #include <unordered_set>
-#include "../../src/audio/wav64_internal.h"
 #include "../common/binout.h"
+#include "../common/polyfill.h"
+#include "audioconv64.h"
+#include "../../src/audio/wav64_internal.h"
 
 #define DR_WAV_IMPLEMENTATION
 #include "../common/dr_wav.h"
@@ -34,7 +36,6 @@
 #include "libulc.h"
 
 #include "huff_vadpcm.c"
-#include "audioconv64.h"
 
 // Shared parsing helpers for --wav-seek (same syntax as videoconv64 --seek)
 #include "../common/seekfile.cpp"

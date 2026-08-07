@@ -14,6 +14,9 @@
 #include <cstdint>
 #include <vector>
 
+// C headers in src/ use _Static_assert; map to C++ static_assert.
+#define _Static_assert static_assert
+
 #include "vadpcm_pack.h"
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__

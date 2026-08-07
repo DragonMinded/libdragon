@@ -22,10 +22,6 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 
-#ifdef __cplusplus
-#define _Static_assert static_assert
-#endif
-
 #include "../common/binout.h"
 #include "../common/polyfill.h"
 #include "../common/assetcomp.h"
