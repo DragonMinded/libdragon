@@ -254,6 +254,24 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen);
 void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen);
 
 /**
+ * @brief Granularity, in units, that keeps appends 8-byte aligned.
+ *
+ * A producer that writes through the RSP (#waveform_t::rsp_written) deposits
+ * its samples with SP DMA, which needs an 8-byte aligned destination. Appends
+ * of whole blocks preserve that alignment on their own, but a producer that
+ * undoes part of what it appended — a block codec trimming the samples past the
+ * end of a waveform — has to round the part it keeps to this granularity, or
+ * the next append lands mid-word. #samplebuffer_append checks it.
+ */
+inline int samplebuffer_align_units(const samplebuffer_t *buf)
+{
+    int n = 1;
+    while ((n * buf->unit_bytes) & 7)
+        n++;
+    return n;
+}
+
+/**
  * @brief Append samples into the buffer (zero-copy).
  *
  * Returns a contiguous uncached pointer where the caller must write `wlen`

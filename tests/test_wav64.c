@@ -937,6 +937,96 @@ static bool test_mixer_stream_pcm8(float freq, int startsample)
 }
 
 //////////////////////////////////////////////////////////////////////////////
+// Block codec at a loop point
+//
+// A block codec (ULC, Opus) decodes whole blocks and undoes whatever crosses
+// the end of the waveform; the mixer then appends the loop overread right
+// after, in the same fetch and with no flush in between. Both writes reach
+// RDRAM through SP DMA, which needs an 8-byte aligned destination, so the trim
+// cannot stop at an arbitrary sample: it rounds up and keeps a few of the
+// samples it already decoded past the end.
+//////////////////////////////////////////////////////////////////////////////
+
+#define BC_LEN      4099    // not a multiple of the 4 samples of an 8-byte slot
+#define BC_BLOCK    1024
+#define BC_CHANNEL  2
+
+// Triangle over the whole loop, so the waveform is continuous across the wrap
+// and any jump in the output is a defect rather than the signal.
+static int16_t bc_sample(int pos)
+{
+    int half = BC_LEN / 2;
+    int v = pos < half ? pos : BC_LEN - pos;
+    return (int16_t)(v * 12000 / half);
+}
+
+static int bc_calls, bc_units;
+
+static void bc_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    int n = ROUND_UP(wlen, BC_BLOCK);
+    bc_calls++; bc_units += n;
+    int16_t *out = samplebuffer_append(sbuf, n);
+    for (int i = 0; i < n; i++)
+        out[i] = bc_sample((wpos + i) % BC_LEN);
+
+    // Keep the samples the block already holds up to the next 8-byte boundary,
+    // which is what leaves the write cursor where the next block can land.
+    int valid = ROUND_UP(BC_LEN - wpos, 4);
+    if (n > valid)
+        samplebuffer_undo(sbuf, n - valid);
+}
+
+static waveform_t bc_wave = {
+    .name = "bc-block", .bits = 16, .channels = 1, .frequency = 44100,
+    .len = BC_LEN, .loop_len = BC_LEN, .read = bc_read,
+    .append_units = BC_BLOCK, .rsp_written = true, .loop_restart_only = true,
+};
+
+static bool test_mixer_block_codec_loop(float freq)
+{
+    mixer_ch_stop(BC_CHANNEL);
+    sv_mix(2048);
+
+    mixer_ch_set_limits(BC_CHANNEL, 16, 48000, 0);
+    mixer_ch_play(BC_CHANNEL, &bc_wave);
+    mixer_ch_set_freq(BC_CHANNEL, freq);
+    mixer_ch_set_vol(BC_CHANNEL, 0.5f, 0.5f);
+    sv_mix(2048);
+
+    // Several laps of the loop, so the trim and the refill happen many times.
+    bc_calls = bc_units = 0;
+    int peak = 0, maxjump = 0, worst = -1, prev = 0;
+    for (int i = 0; i < 4; i++) {
+        sv_mix(4096);
+        for (int j = 0; j < 4096; j++) {
+            int s = sv_out[j*2];
+            int a = s < 0 ? -s : s;
+            int d = s - prev; if (d < 0) d = -d;
+            if (a > peak) peak = a;
+            if ((i || j) && d > maxjump) { maxjump = d; worst = i*4096 + j; }
+            prev = s;
+        }
+    }
+    mixer_ch_stop(BC_CHANNEL);
+    sv_mix(2048);
+
+    if (peak < 1024) {
+        printf("FAILED block codec loop: silent (peak %d) freq=%d\n", peak, (int)freq);
+        return false;
+    }
+    // The slope is a handful of units per sample at most, so anything beyond
+    // this is the ring handing out samples from the wrong place.
+    if (maxjump > 200) {
+        printf("FAILED block codec loop: discontinuity %d at %d freq=%d (reads=%d units=%d)\n",
+            maxjump, worst, (int)freq, bc_calls, bc_units);
+        return false;
+    }
+    return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // Partial VADPCM frames
 //
 // A waveform whose length is not a multiple of 16 ends with a partial frame,
@@ -2537,6 +2627,13 @@ int main(void)
             if (!test_mixer_stream_pcm8(sp_freqs[i], sp_starts[j]))
                 failed++;
         }
+    }
+
+    const float bc_freqs[] = { 48000, 44100, 32000, 22050 };
+    for (int i = 0; i < 4; i++) {
+        total++;
+        if (!test_mixer_block_codec_loop(bc_freqs[i]))
+            failed++;
     }
 
     printf("Streamed stereo VADPCM tests\n");

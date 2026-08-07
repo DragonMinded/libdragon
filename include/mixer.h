@@ -722,6 +722,13 @@ typedef enum {
 	 * commands still in the queue (e.g. ULC). The samplebuffer then mirrors
 	 * those bytes through the same queue (MIX_COPY) so the copy lands after
 	 * the decode. Leave it false for CPU or PI producers.
+	 *
+	 * SP DMA needs an 8-byte aligned destination, so such a producer must also
+	 * leave the write cursor on a boundary it can write to: whatever it keeps
+	 * of a decoded block has to be a multiple of #samplebuffer_align_units.
+	 * Appending whole blocks does that by itself; #samplebuffer_undo of a
+	 * partial block (trimming the samples past the end of the waveform) is
+	 * where it has to be rounded, or the next append lands mid-word.
 	 */
 	bool rsp_written;
 

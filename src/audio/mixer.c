@@ -669,9 +669,15 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 	// / misaligns and samplebuffer_get tries to extend it without a reader.
 	bool stereo_vadpcm = (c->flags & (CH_FLAGS_VADPCM | CH_FLAGS_STEREO))
 		== (CH_FLAGS_VADPCM | CH_FLAGS_STEREO);
+	// On a ring the RSP writes into, every append has to leave the write cursor
+	// where the producer can write next (see #samplebuffer_align_units),
+	// including the appends the mixer makes itself: a few extra units of
+	// silence past the end of a waveform that does not loop cost nothing.
+	int pad = wave->rsp_written ? samplebuffer_align_units(sbuf) : 1;
 
 	if (wpos >= wave_len) {
 		if (!wave_loop) {
+			wlen = ROUND_UP(wlen, pad);
 			memset(samplebuffer_append(sbuf, wlen), 0, wlen * ub);
 			if (stereo_vadpcm) {
 				samplebuffer_t *r = sbuf + 1;
@@ -700,6 +706,7 @@ static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, b
 		return;
 
 	if (!wave_loop) {
+		len2 = ROUND_UP(len2, pad);
 		memset(samplebuffer_append(sbuf, len2), 0, len2 * ub);
 		if (stereo_vadpcm) {
 			samplebuffer_t *r = sbuf + 1;
