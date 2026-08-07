@@ -5,7 +5,7 @@
  *
  * Loads the deterministic sf64test bank, checks preset/region/sample layout,
  * plays embedded waveforms through the real mixer, and exercises the
- * monophonic synthesizer (pitch, matching, envelopes).
+ * synthesizer (pitch, matching, envelopes, polyphony).
  */
 #include <libdragon.h>
 #include <math.h>
@@ -17,6 +17,7 @@
 
 #define SAMPLE_RATE  22050
 #define CH           0
+#define NCH          4
 #define AMP          16000
 #define SQ           16
 #define A_LEN        4096
@@ -71,6 +72,15 @@ static void silence(void)
 {
 	mixer_ch_stop(CH);
 	mix(2048);
+}
+
+/** Stop mixer channels and clear synth voice state (re-binds the range). */
+static void synth_silence(sf64_synth_t *synth, int nch)
+{
+	for (int i = 0; i < nch; i++)
+		mixer_ch_stop(i);
+	mix(2048);
+	sf64_synth_set_channels(synth, 0, nch);
 }
 
 // Settle the volume ramp at step 0 so the playhead stays on @p start.
@@ -268,6 +278,61 @@ static bool test_play_loop(sf64_bank_t *bank)
 	return true;
 }
 
+static int peak_range(int start, int n)
+{
+	int peak = 0;
+	for (int i = start * 2; i < (start + n) * 2; i++) {
+		int a = out[i] < 0 ? -out[i] : out[i];
+		if (a > peak) peak = a;
+	}
+	return peak;
+}
+
+// An envelope of several seconds asks the mixer for a ramp shallower than the
+// one fx15 unit per block of four samples that is the least the ucode can
+// walk. It has to be bounded by the volume each round ends on: bounded by the
+// end of the whole ramp instead, it would run through every round many times
+// too fast and be pulled back at the next one, an audible flutter.
+static bool test_slow_ramp(sf64_bank_t *bank)
+{
+	// The loop of sample B is a square of constant amplitude, so the peak of
+	// a window of output is the volume the ramp has reached over it.
+	int si = bank->regions[bank->presets[2].first_region].sample_index;
+	waveform_t *wave = &bank->waves[si]->wave;
+	play_at(wave, B_INTRO + 8);
+
+	const int SECS = 20, WIN = 64, BLK = 2048, NBLK = 4;
+	mixer_ch_set_vol_ramp(CH, 0, 0, SECS * SAMPLE_RATE);
+
+	int prev = -1;
+	for (int b = 0; b < NBLK; b++) {
+		mix(BLK);
+		for (int i = 0; i < BLK / WIN; i++) {
+			int peak = peak_range(i * WIN, WIN);
+			// The envelope only sinks: any rise is the ramp snapping back.
+			if (prev >= 0 && peak > prev + 4) {
+				printf("FAILED slow ramp: peak %d -> %d at sample %d\n",
+					prev, peak, b * BLK + i * WIN);
+				silence();
+				return false;
+			}
+			prev = peak;
+		}
+	}
+
+	// And it sank by as much as it should have, give or take a round.
+	float t = (float)(NBLK * BLK - WIN) / (float)(SECS * SAMPLE_RATE);
+	int want = (int)(AMP * VOL * (1.0f - t));
+	if (prev < want - 32 || prev > want + 8) {
+		printf("FAILED slow ramp: peak %d after %d samples, want %d\n",
+			prev, NBLK * BLK, want);
+		silence();
+		return false;
+	}
+	silence();
+	return true;
+}
+
 // Expected playback frequency for a region / key (SF2 pitch formula).
 static float expect_freq(const sf64_region_t *r, const sf64_sample_t *s, int key)
 {
@@ -295,13 +360,13 @@ static bool check_freq(sf64_synth_t *synth, const char *tag, float want)
 static bool test_synth_pitch(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channel(synth, CH);
+	sf64_synth_set_channels(synth, 0, 1);
 	assert(sf64_synth_set_preset(synth, 0, 0));
 
 	sf64_region_t *ra = &bank->regions[bank->presets[0].first_region];
 	sf64_sample_t *sa = &bank->samples[ra->sample_index];
 
-	silence();
+	synth_silence(synth, 1);
 	if (!sf64_synth_note_on(synth, 60, 100)) {
 		printf("FAILED pitch: note_on root\n");
 		sf64_synth_close(synth);
@@ -320,13 +385,13 @@ static bool test_synth_pitch(sf64_bank_t *bank)
 	// −12 on region A (root 60); +12 on region C (root 72, key 84).
 	sf64_region_t *rc = ra + 1;
 	sf64_sample_t *sc = &bank->samples[rc->sample_index];
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 48, 100);
 	if (!check_freq(synth, "pitch -12", expect_freq(ra, sa, 48))) {
 		sf64_synth_close(synth);
 		return false;
 	}
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 84, 100);
 	if (mixer_ch_playing_waveform(CH) != &bank->waves[rc->sample_index]->wave) {
 		printf("FAILED pitch +12: wrong waveform\n");
@@ -350,7 +415,7 @@ static bool test_synth_pitch(sf64_bank_t *bank)
 	int16_t save_kt = ra->pitch_keytrack;
 	ra->coarse_tune = 12;
 	ra->fine_tune = 0;
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	if (!check_freq(synth, "pitch coarse+12", expect_freq(ra, sa, 60))) {
 		ra->coarse_tune = save_coarse;
@@ -359,7 +424,7 @@ static bool test_synth_pitch(sf64_bank_t *bank)
 	}
 	ra->coarse_tune = 0;
 	ra->fine_tune = 100; // +1 semitone
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	if (!check_freq(synth, "pitch fine+100", expect_freq(ra, sa, 60))) {
 		ra->fine_tune = save_fine;
@@ -368,7 +433,7 @@ static bool test_synth_pitch(sf64_bank_t *bank)
 	}
 	ra->fine_tune = 0;
 	ra->pitch_keytrack = 50; // half tracking
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 66, 100);
 	if (!check_freq(synth, "pitch keytrack50", expect_freq(ra, sa, 66))) {
 		ra->pitch_keytrack = save_kt;
@@ -386,18 +451,18 @@ static bool test_synth_pitch(sf64_bank_t *bank)
 static bool test_synth_key_split(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channel(synth, CH);
+	sf64_synth_set_channels(synth, 0, 1);
 	assert(sf64_synth_set_preset(synth, 0, 0));
 
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
-	silence();
+	synth_silence(synth, 1);
 	if (!sf64_synth_note_on(synth, 60, 100) ||
 		mixer_ch_playing_waveform(CH) != &bank->waves[r[0].sample_index]->wave) {
 		printf("FAILED key_split: low key\n");
 		sf64_synth_close(synth);
 		return false;
 	}
-	silence();
+	synth_silence(synth, 1);
 	if (!sf64_synth_note_on(synth, 72, 100) ||
 		mixer_ch_playing_waveform(CH) != &bank->waves[r[1].sample_index]->wave) {
 		printf("FAILED key_split: high key\n");
@@ -405,7 +470,7 @@ static bool test_synth_key_split(sf64_bank_t *bank)
 		return false;
 	}
 	// Boundary inclusivity: 71 → A, 72 → C.
-	silence();
+	synth_silence(synth, 1);
 	if (!sf64_synth_note_on(synth, 71, 100) ||
 		mixer_ch_playing_waveform(CH) != &bank->waves[r[0].sample_index]->wave) {
 		printf("FAILED key_split: key 71 boundary\n");
@@ -418,7 +483,7 @@ static bool test_synth_key_split(sf64_bank_t *bank)
 	uint8_t c_min = r[1].key_min, c_max = r[1].key_max;
 	r[0].key_min = 0;  r[0].key_max = 40;
 	r[1].key_min = 80; r[1].key_max = 127;
-	silence();
+	synth_silence(synth, 1);
 	if (sf64_synth_note_on(synth, 60, 100)) {
 		printf("FAILED key_split: key outside ranges still played\n");
 		r[0].key_min = a_min; r[0].key_max = a_max;
@@ -443,18 +508,18 @@ static bool test_synth_key_split(sf64_bank_t *bank)
 static bool test_synth_vel_split(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channel(synth, CH);
+	sf64_synth_set_channels(synth, 0, 1);
 	assert(sf64_synth_set_preset(synth, 0, 1));
 
 	sf64_region_t *r = &bank->regions[bank->presets[1].first_region];
-	silence();
+	synth_silence(synth, 1);
 	if (!sf64_synth_note_on(synth, 60, 79) ||
 		mixer_ch_playing_waveform(CH) != &bank->waves[r[0].sample_index]->wave) {
 		printf("FAILED vel_split: vel 79\n");
 		sf64_synth_close(synth);
 		return false;
 	}
-	silence();
+	synth_silence(synth, 1);
 	if (!sf64_synth_note_on(synth, 60, 80) ||
 		mixer_ch_playing_waveform(CH) != &bank->waves[r[1].sample_index]->wave) {
 		printf("FAILED vel_split: vel 80\n");
@@ -462,7 +527,7 @@ static bool test_synth_vel_split(sf64_bank_t *bank)
 		return false;
 	}
 	// Upper bound inclusive.
-	silence();
+	synth_silence(synth, 1);
 	if (!sf64_synth_note_on(synth, 60, 127) ||
 		mixer_ch_playing_waveform(CH) != &bank->waves[r[1].sample_index]->wave) {
 		printf("FAILED vel_split: vel 127\n");
@@ -472,114 +537,6 @@ static bool test_synth_vel_split(sf64_bank_t *bank)
 	sf64_synth_close(synth);
 	return true;
 }
-
-static bool test_synth_mono_replace(sf64_bank_t *bank)
-{
-	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channel(synth, CH);
-	assert(sf64_synth_set_preset(synth, 0, 0));
-
-	silence();
-	sf64_synth_note_on(synth, 48, 100);
-	mix(256);
-	double pos_a = mixer_ch_get_pos(CH);
-	sf64_synth_note_on(synth, 60, 100);
-	double pos_b = mixer_ch_get_pos(CH);
-	if (pos_b >= pos_a && pos_b > 64) {
-		// A restart must rewind; a continued A would keep advancing.
-		printf("FAILED mono: note-on did not restart (pos %.1f -> %.1f)\n",
-			pos_a, pos_b);
-		sf64_synth_close(synth);
-		return false;
-	}
-	if (!mixer_ch_playing(CH)) {
-		printf("FAILED mono: second note not playing\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-
-	// note-off wrong key ignored; matching key stops.
-	sf64_synth_note_off(synth, 48);
-	if (!mixer_ch_playing(CH)) {
-		printf("FAILED mono: wrong-key note-off stopped the note\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-	sf64_synth_note_off(synth, 60);
-	mix(64);
-	if (mixer_ch_playing(CH)) {
-		printf("FAILED mono: note-off did not stop\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-
-	// Stop while already idle, and a second identical note-off, must stay quiet.
-	sf64_synth_note_off(synth, 60);
-	sf64_synth_note_off(synth, 60);
-	mix(64);
-	if (mixer_ch_playing(CH)) {
-		printf("FAILED mono: repeated note-off left channel playing\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-
-	// velocity 0 == note-off
-	sf64_synth_note_on(synth, 60, 100);
-	sf64_synth_note_on(synth, 60, 0);
-	mix(64);
-	if (mixer_ch_playing(CH)) {
-		printf("FAILED mono: velocity 0 did not note-off\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-
-	sf64_synth_close(synth);
-	return true;
-}
-
-static bool test_synth_preset(sf64_bank_t *bank)
-{
-	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channel(synth, CH);
-
-	if (sf64_synth_set_preset(synth, 0, 99)) {
-		printf("FAILED preset: missing program accepted\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-	if (!sf64_synth_set_preset(synth, 0, 0)) {
-		printf("FAILED preset: program 0 rejected\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-
-	// Change preset while a note is sounding: the sounding wave stays,
-	// the next note-on uses the new preset.
-	silence();
-	sf64_synth_note_on(synth, 60, 100);
-	waveform_t *before = mixer_ch_playing_waveform(CH);
-	assert(sf64_synth_set_preset(synth, 0, 1));
-	if (mixer_ch_playing_waveform(CH) != before) {
-		printf("FAILED preset: change interrupted the sounding note\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-	// High velocity on VelSplit → sample D, not A.
-	sf64_synth_note_on(synth, 60, 100);
-	sf64_region_t *rd = &bank->regions[bank->presets[1].first_region + 1];
-	if (mixer_ch_playing_waveform(CH) != &bank->waves[rd->sample_index]->wave) {
-		printf("FAILED preset: next note did not use new preset\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-
-	sf64_synth_close(synth);
-	return true;
-}
-
-//////////////////////////////////////////////////////////////////////////////
-// Attack / release / sustain-loop (real mixer, virtual clock)
-//////////////////////////////////////////////////////////////////////////////
 
 static int16_t samples_to_timecents(int n)
 {
@@ -604,16 +561,266 @@ static int peak_n(int n)
 	return peak;
 }
 
+static bool test_synth_polyphony(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 3);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+
+	// Three notes → three channels; note-off of one leaves the others.
+	synth_silence(synth, 3);
+	if (!sf64_synth_note_on(synth, 48, 100) ||
+		!sf64_synth_note_on(synth, 60, 100) ||
+		!sf64_synth_note_on(synth, 72, 100)) {
+		printf("FAILED poly: could not start three notes\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (!mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2)) {
+		printf("FAILED poly: expected channels 0-2 playing\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Saturation: fourth note discarded; existing voices untouched.
+	if (sf64_synth_note_on(synth, 64, 100)) {
+		printf("FAILED poly: note accepted with no free channel\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (!mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2)) {
+		printf("FAILED poly: saturation disturbed existing voices\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_note_off(synth, 60);
+	mix(64);
+	if (!mixer_ch_playing(0) || mixer_ch_playing(1) || !mixer_ch_playing(2)) {
+		printf("FAILED poly: note-off 60 should free only ch1\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Release with non-zero envelope: channel freed only at deadline.
+	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
+	int16_t save_rel = r->amp_env.release_timecents;
+	r->amp_env.release_timecents = samples_to_timecents(400);
+	int rel = env_samples(r->amp_env.release_timecents);
+	synth_silence(synth, 3);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	sf64_synth_note_on(synth, 48, 100);
+	sf64_synth_note_off(synth, 48);
+	if (!mixer_ch_playing(0)) {
+		printf("FAILED poly: release stopped immediately\n");
+		r->amp_env.release_timecents = save_rel;
+		sf64_synth_close(synth);
+		return false;
+	}
+	int mid = sf64_synth_process(synth, rel / 2);
+	if (!mixer_ch_playing(0) || mid != rel - rel / 2) {
+		printf("FAILED poly: release mid remaining %d\n", mid);
+		r->amp_env.release_timecents = save_rel;
+		sf64_synth_close(synth);
+		return false;
+	}
+	sf64_synth_process(synth, mid);
+	mix(64);
+	if (mixer_ch_playing(0)) {
+		printf("FAILED poly: channel not freed after release deadline\n");
+		r->amp_env.release_timecents = save_rel;
+		sf64_synth_close(synth);
+		return false;
+	}
+	// Channel reusable after free.
+	if (!sf64_synth_note_on(synth, 60, 100) || !mixer_ch_playing(0)) {
+		printf("FAILED poly: could not reuse freed channel\n");
+		r->amp_env.release_timecents = save_rel;
+		sf64_synth_close(synth);
+		return false;
+	}
+	r->amp_env.release_timecents = save_rel;
+
+	// Allocator range: first_channel=1, num=2 → only ch1/ch2.
+	synth_silence(synth, 3);
+	sf64_synth_set_channels(synth, 1, 2);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	sf64_synth_note_on(synth, 48, 100);
+	sf64_synth_note_on(synth, 60, 100);
+	if (mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2)) {
+		printf("FAILED poly: allocator used wrong channel range\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (sf64_synth_note_on(synth, 72, 100)) {
+		printf("FAILED poly: range of 2 accepted a third note\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// note-off wrong key ignored; velocity 0 == note-off; repeated off ok.
+	synth_silence(synth, 3);
+	sf64_synth_set_channels(synth, 0, 1);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	sf64_synth_note_on(synth, 60, 100);
+	sf64_synth_note_off(synth, 48);
+	if (!mixer_ch_playing(0)) {
+		printf("FAILED poly: wrong-key note-off stopped the note\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	sf64_synth_note_on(synth, 60, 0);
+	mix(64);
+	if (mixer_ch_playing(0)) {
+		printf("FAILED poly: velocity 0 did not note-off\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	sf64_synth_note_off(synth, 60);
+	sf64_synth_note_off(synth, 60);
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+static bool test_synth_deadlines(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 2);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	sf64_region_t *r0 = &bank->regions[bank->presets[0].first_region];
+	sf64_region_t *r1 = r0 + 1;
+	int16_t save_atk0 = r0->amp_env.attack_timecents;
+	int16_t save_atk1 = r1->amp_env.attack_timecents;
+	int16_t save_rel0 = r0->amp_env.release_timecents;
+	int16_t save_rel1 = r1->amp_env.release_timecents;
+
+	// Two attacks with different deadlines → process returns the sooner one.
+	r0->amp_env.attack_timecents = samples_to_timecents(800);
+	r1->amp_env.attack_timecents = samples_to_timecents(200);
+	int atk0 = env_samples(r0->amp_env.attack_timecents);
+	int atk1 = env_samples(r1->amp_env.attack_timecents);
+	synth_silence(synth, 2);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	sf64_synth_note_on(synth, 48, 100); // region A
+	sf64_synth_note_on(synth, 72, 100); // region C
+	int dl = sf64_synth_process(synth, 0);
+	if (dl != atk1) {
+		printf("FAILED deadlines: soonest attack %d want %d\n", dl, atk1);
+		goto fail_dl;
+	}
+	dl = sf64_synth_process(synth, atk1);
+	if (dl != atk0 - atk1) {
+		printf("FAILED deadlines: after first attack remaining %d want %d\n",
+			dl, atk0 - atk1);
+		goto fail_dl;
+	}
+	sf64_synth_process(synth, dl);
+	if (sf64_synth_process(synth, 0) >= 0) {
+		printf("FAILED deadlines: expected no deadline in dual sustain\n");
+		goto fail_dl;
+	}
+
+	// Two equal releases; late process completes both.
+	r0->amp_env.attack_timecents = -12000;
+	r1->amp_env.attack_timecents = -12000;
+	r0->amp_env.release_timecents = samples_to_timecents(300);
+	r1->amp_env.release_timecents = samples_to_timecents(300);
+	int rel = env_samples(r0->amp_env.release_timecents);
+	synth_silence(synth, 2);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	sf64_synth_note_on(synth, 48, 100);
+	sf64_synth_note_on(synth, 72, 100);
+	sf64_synth_note_off(synth, 48);
+	sf64_synth_note_off(synth, 72);
+	dl = sf64_synth_process(synth, 0);
+	if (dl != rel) {
+		printf("FAILED deadlines: equal release remaining %d want %d\n", dl, rel);
+		goto fail_dl;
+	}
+	sf64_synth_process(synth, rel + 50);
+	mix(64);
+	if (mixer_ch_playing(0) || mixer_ch_playing(1)) {
+		printf("FAILED deadlines: late process did not free both channels\n");
+		goto fail_dl;
+	}
+
+	r0->amp_env.attack_timecents = save_atk0;
+	r1->amp_env.attack_timecents = save_atk1;
+	r0->amp_env.release_timecents = save_rel0;
+	r1->amp_env.release_timecents = save_rel1;
+	sf64_synth_close(synth);
+	return true;
+
+fail_dl:
+	r0->amp_env.attack_timecents = save_atk0;
+	r1->amp_env.attack_timecents = save_atk1;
+	r0->amp_env.release_timecents = save_rel0;
+	r1->amp_env.release_timecents = save_rel1;
+	sf64_synth_close(synth);
+	return false;
+}
+
+static bool test_synth_preset(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 2);
+
+	if (sf64_synth_set_preset(synth, 0, 99)) {
+		printf("FAILED preset: missing program accepted\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (!sf64_synth_set_preset(synth, 0, 0)) {
+		printf("FAILED preset: program 0 rejected\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Change preset while a note is sounding: the sounding wave stays,
+	// a note-on on a different key uses the new preset on another channel.
+	synth_silence(synth, 2);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	sf64_synth_note_on(synth, 48, 100);
+	waveform_t *before = mixer_ch_playing_waveform(CH);
+	assert(sf64_synth_set_preset(synth, 0, 1));
+	if (mixer_ch_playing_waveform(CH) != before) {
+		printf("FAILED preset: change interrupted the sounding note\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	// High velocity on VelSplit → sample D on ch1 (key 60 ≠ 48, so no retrigger).
+	sf64_synth_note_on(synth, 60, 100);
+	sf64_region_t *rd = &bank->regions[bank->presets[1].first_region + 1];
+	if (mixer_ch_playing_waveform(1) != &bank->waves[rd->sample_index]->wave) {
+		printf("FAILED preset: next note did not use new preset\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (mixer_ch_playing_waveform(CH) != before) {
+		printf("FAILED preset: retriggered the previous key\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Attack / release / sustain-loop (real mixer, virtual clock)
+//////////////////////////////////////////////////////////////////////////////
+
 static bool test_synth_attack(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channel(synth, CH);
+	sf64_synth_set_channels(synth, 0, 1);
 	assert(sf64_synth_set_preset(synth, 0, 0));
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	int16_t save_atk = r->amp_env.attack_timecents;
 
 	// Zero attack → immediate sustain, no deadline.
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	if (sf64_synth_process(synth, 0) >= 0) {
 		printf("FAILED attack0: expected no deadline\n");
@@ -633,7 +840,7 @@ static bool test_synth_attack(sf64_bank_t *bank)
 	int16_t save_atk_c = rc->amp_env.attack_timecents;
 	rc->amp_env.attack_timecents = samples_to_timecents(512);
 	int atk = env_samples(rc->amp_env.attack_timecents);
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 72, 100);
 	int dl = sf64_synth_process(synth, 0);
 	if (dl != atk) {
@@ -692,14 +899,14 @@ static bool test_synth_attack(sf64_bank_t *bank)
 static bool test_synth_release(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channel(synth, CH);
+	sf64_synth_set_channels(synth, 0, 1);
 	assert(sf64_synth_set_preset(synth, 0, 0));
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	int16_t save_atk = r->amp_env.attack_timecents;
 	int16_t save_rel = r->amp_env.release_timecents;
 
 	// Zero release in sustain → immediate stop.
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	sf64_synth_note_off(synth, 60);
 	mix(64);
@@ -714,7 +921,7 @@ static bool test_synth_release(sf64_bank_t *bank)
 	r->amp_env.release_timecents = samples_to_timecents(400);
 	int atk = env_samples(r->amp_env.attack_timecents);
 	int rel = env_samples(r->amp_env.release_timecents);
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	mix(64);
 	sf64_synth_process(synth, 64); // still in attack
@@ -748,7 +955,7 @@ static bool test_synth_release(sf64_bank_t *bank)
 
 	// Note-off in sustain with non-zero release.
 	r->amp_env.attack_timecents = -12000;
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	sf64_synth_note_off(synth, 60);
 	dl = sf64_synth_process(synth, 0);
@@ -788,7 +995,7 @@ static bool test_synth_release(sf64_bank_t *bank)
 static bool test_synth_loop_env(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channel(synth, CH);
+	sf64_synth_set_channels(synth, 0, 1);
 
 	// Sustain loop (preset 2 / sample B): note-off disables loop, pos leaves the loop.
 	assert(sf64_synth_set_preset(synth, 0, 2));
@@ -798,7 +1005,7 @@ static bool test_synth_loop_env(sf64_bank_t *bank)
 	r->amp_env.release_timecents = samples_to_timecents(600);
 	int rel = env_samples(r->amp_env.release_timecents);
 
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	// Land inside the loop.
 	mixer_ch_set_freq(CH, 0);
@@ -832,7 +1039,7 @@ static bool test_synth_loop_env(sf64_bank_t *bank)
 
 	// Continuous loop: note-off must NOT disable the loop (pos stays in range).
 	r->loop_mode = SF64_LOOP_CONTINUOUS;
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	mixer_ch_set_freq(CH, 0);
 	mixer_ch_set_pos(CH, B_INTRO + 8);
@@ -864,7 +1071,7 @@ static bool test_synth_loop_env(sf64_bank_t *bank)
 	int16_t save_rel_a = ra->amp_env.release_timecents;
 	ra->amp_env.release_timecents = samples_to_timecents(300);
 	rel = env_samples(ra->amp_env.release_timecents);
-	silence();
+	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 60, 100);
 	sf64_synth_note_off(synth, 60);
 	if (!mixer_ch_playing(CH)) {
@@ -904,8 +1111,9 @@ int main(void)
 
 	assert(dfs_init(DFS_DEFAULT_LOCATION) == DFS_ESUCCESS);
 	audio_init(SAMPLE_RATE, 4);
-	mixer_init(4);
-	mixer_ch_set_limits(CH, 16, SAMPLE_RATE * 4, 0);
+	mixer_init(NCH);
+	for (int i = 0; i < NCH; i++)
+		mixer_ch_set_limits(i, 16, SAMPLE_RATE * 4, 0);
 
 	out_cap = 8192 * 2;
 	out = malloc_uncached(out_cap * sizeof(int16_t));
@@ -920,15 +1128,18 @@ int main(void)
 	total++; if (!test_play_oneshot(bank, 1, pcm_c, "sample C")) failed++;
 	total++; if (!test_play_oneshot(bank, 2, pcm_d, "sample D")) failed++;
 	total++; if (!test_play_loop(bank)) failed++;
+	total++; if (!test_slow_ramp(bank)) failed++;
 
 	printf("synth\n");
 	fflush(stdout);
 	// Oneshoot helpers pin the channel to SAMPLE_RATE; pitch tests need headroom.
-	mixer_ch_set_limits(CH, 16, SAMPLE_RATE * 4, 0);
+	for (int i = 0; i < NCH; i++)
+		mixer_ch_set_limits(i, 16, SAMPLE_RATE * 4, 0);
 	total++; if (!test_synth_pitch(bank)) failed++;
 	total++; if (!test_synth_key_split(bank)) failed++;
 	total++; if (!test_synth_vel_split(bank)) failed++;
-	total++; if (!test_synth_mono_replace(bank)) failed++;
+	total++; if (!test_synth_polyphony(bank)) failed++;
+	total++; if (!test_synth_deadlines(bank)) failed++;
 	total++; if (!test_synth_preset(bank)) failed++;
 
 	printf("envelopes\n");
