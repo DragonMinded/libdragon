@@ -5,7 +5,8 @@
  *
  * Loads the deterministic sf64test bank, checks preset/region/sample layout,
  * plays embedded waveforms through the real mixer, and exercises the
- * synthesizer (pitch, matching, envelopes, polyphony).
+ * synthesizer through step 4 (pitch, matching, envelopes, polyphony without
+ * voice stealing: allocator, saturation, same-key retrigger, deadlines).
  */
 #include <libdragon.h>
 #include <math.h>
@@ -561,13 +562,71 @@ static int peak_n(int n)
 	return peak;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// Step 4 — polyphony without voice stealing
+//////////////////////////////////////////////////////////////////////////////
+
+/** Sequential alloc, free, reuse of the lowest free channel, exhaustion, range. */
+static bool test_synth_allocator(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 3);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+
+	synth_silence(synth, 3);
+	if (!sf64_synth_note_on(synth, 48, 100) ||
+		!sf64_synth_note_on(synth, 60, 100) ||
+		!sf64_synth_note_on(synth, 72, 100) ||
+		!mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2)) {
+		printf("FAILED alloc: sequential fill of ch0-2\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (sf64_synth_note_on(synth, 64, 100)) {
+		printf("FAILED alloc: accepted a note with no free channel\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Free the middle channel; the next note must take the lowest free one.
+	sf64_synth_note_off(synth, 60);
+	mix(64);
+	if (mixer_ch_playing(1)) {
+		printf("FAILED alloc: note-off did not free ch1\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (!sf64_synth_note_on(synth, 64, 100) || !mixer_ch_playing(1) ||
+		!mixer_ch_playing(0) || !mixer_ch_playing(2)) {
+		printf("FAILED alloc: reuse did not pick the lowest free channel\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// first_channel=1, num=2 → only ch1/ch2, never ch0 or ch3.
+	synth_silence(synth, NCH);
+	sf64_synth_set_channels(synth, 1, 2);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	sf64_synth_note_on(synth, 48, 100);
+	sf64_synth_note_on(synth, 60, 100);
+	if (mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2) ||
+		mixer_ch_playing(3) || sf64_synth_note_on(synth, 72, 100)) {
+		printf("FAILED alloc: out-of-range channel used or accepted\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+/** Chord, note-off of one key, release frees only at deadline, reuse after. */
 static bool test_synth_polyphony(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
 	sf64_synth_set_channels(synth, 0, 3);
 	assert(sf64_synth_set_preset(synth, 0, 0));
 
-	// Three notes → three channels; note-off of one leaves the others.
 	synth_silence(synth, 3);
 	if (!sf64_synth_note_on(synth, 48, 100) ||
 		!sf64_synth_note_on(synth, 60, 100) ||
@@ -582,18 +641,6 @@ static bool test_synth_polyphony(sf64_bank_t *bank)
 		return false;
 	}
 
-	// Saturation: fourth note discarded; existing voices untouched.
-	if (sf64_synth_note_on(synth, 64, 100)) {
-		printf("FAILED poly: note accepted with no free channel\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-	if (!mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2)) {
-		printf("FAILED poly: saturation disturbed existing voices\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-
 	sf64_synth_note_off(synth, 60);
 	mix(64);
 	if (!mixer_ch_playing(0) || mixer_ch_playing(1) || !mixer_ch_playing(2)) {
@@ -602,7 +649,7 @@ static bool test_synth_polyphony(sf64_bank_t *bank)
 		return false;
 	}
 
-	// Release with non-zero envelope: channel freed only at deadline.
+	// Release with non-zero envelope: channel freed only at the deadline.
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	int16_t save_rel = r->amp_env.release_timecents;
 	r->amp_env.release_timecents = samples_to_timecents(400);
@@ -632,7 +679,6 @@ static bool test_synth_polyphony(sf64_bank_t *bank)
 		sf64_synth_close(synth);
 		return false;
 	}
-	// Channel reusable after free.
 	if (!sf64_synth_note_on(synth, 60, 100) || !mixer_ch_playing(0)) {
 		printf("FAILED poly: could not reuse freed channel\n");
 		r->amp_env.release_timecents = save_rel;
@@ -640,23 +686,6 @@ static bool test_synth_polyphony(sf64_bank_t *bank)
 		return false;
 	}
 	r->amp_env.release_timecents = save_rel;
-
-	// Allocator range: first_channel=1, num=2 → only ch1/ch2.
-	synth_silence(synth, 3);
-	sf64_synth_set_channels(synth, 1, 2);
-	assert(sf64_synth_set_preset(synth, 0, 0));
-	sf64_synth_note_on(synth, 48, 100);
-	sf64_synth_note_on(synth, 60, 100);
-	if (mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2)) {
-		printf("FAILED poly: allocator used wrong channel range\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-	if (sf64_synth_note_on(synth, 72, 100)) {
-		printf("FAILED poly: range of 2 accepted a third note\n");
-		sf64_synth_close(synth);
-		return false;
-	}
 
 	// note-off wrong key ignored; velocity 0 == note-off; repeated off ok.
 	synth_silence(synth, 3);
@@ -683,6 +712,93 @@ static bool test_synth_polyphony(sf64_bank_t *bank)
 	return true;
 }
 
+/** Full pool: new note discarded, existing voices left untouched. */
+static bool test_synth_saturation(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 3);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+
+	synth_silence(synth, 3);
+	sf64_synth_note_on(synth, 48, 100);
+	sf64_synth_note_on(synth, 60, 100);
+	sf64_synth_note_on(synth, 72, 100);
+	mix(128);
+	waveform_t *w0 = mixer_ch_playing_waveform(0);
+	waveform_t *w1 = mixer_ch_playing_waveform(1);
+	waveform_t *w2 = mixer_ch_playing_waveform(2);
+	double p0 = mixer_ch_get_pos(0);
+	double p1 = mixer_ch_get_pos(1);
+	double p2 = mixer_ch_get_pos(2);
+
+	if (sf64_synth_note_on(synth, 64, 100)) {
+		printf("FAILED sat: note accepted with no free channel\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (mixer_ch_playing_waveform(0) != w0 ||
+		mixer_ch_playing_waveform(1) != w1 ||
+		mixer_ch_playing_waveform(2) != w2 ||
+		mixer_ch_get_pos(0) != p0 ||
+		mixer_ch_get_pos(1) != p1 ||
+		mixer_ch_get_pos(2) != p2) {
+		printf("FAILED sat: discarded note disturbed an existing voice\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+/**
+ * note_on on an already sounding key stops the previous voice (retrigger)
+ * without touching other keys; note_off then clears that key.
+ */
+static bool test_synth_same_key(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 3);
+	assert(sf64_synth_set_preset(synth, 0, 0));
+
+	synth_silence(synth, 3);
+	sf64_synth_note_on(synth, 60, 100); // ch0
+	sf64_synth_note_on(synth, 48, 100); // ch1
+	mix(64);
+	double pos_other = mixer_ch_get_pos(1);
+	waveform_t *w_other = mixer_ch_playing_waveform(1);
+
+	if (!sf64_synth_note_on(synth, 60, 100)) {
+		printf("FAILED same-key: retrigger rejected with a free channel\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	// Old key-60 stopped (frees ch0, which the new voice reclaims); key 48 stays.
+	if (!mixer_ch_playing(0) || !mixer_ch_playing(1) || mixer_ch_playing(2)) {
+		printf("FAILED same-key: expected ch0+ch1 after retrigger\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (mixer_ch_playing_waveform(1) != w_other ||
+		mixer_ch_get_pos(1) < pos_other) {
+		printf("FAILED same-key: retrigger disturbed the other key\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_note_off(synth, 60);
+	mix(64);
+	if (mixer_ch_playing(0) || !mixer_ch_playing(1) || mixer_ch_playing(2)) {
+		printf("FAILED same-key: note-off did not leave only the other key\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+/** Independent attack/release deadlines across voices. */
 static bool test_synth_deadlines(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
@@ -709,7 +825,19 @@ static bool test_synth_deadlines(sf64_bank_t *bank)
 		printf("FAILED deadlines: soonest attack %d want %d\n", dl, atk1);
 		goto fail_dl;
 	}
-	dl = sf64_synth_process(synth, atk1);
+	// Several process(0) calls before the deadline leave it unchanged.
+	if (sf64_synth_process(synth, 0) != atk1 ||
+		sf64_synth_process(synth, 0) != atk1) {
+		printf("FAILED deadlines: process(0) changed the pending attack\n");
+		goto fail_dl;
+	}
+	dl = sf64_synth_process(synth, atk1 / 2);
+	if (dl != atk1 - atk1 / 2) {
+		printf("FAILED deadlines: mid-attack remaining %d want %d\n",
+			dl, atk1 - atk1 / 2);
+		goto fail_dl;
+	}
+	dl = sf64_synth_process(synth, dl);
 	if (dl != atk0 - atk1) {
 		printf("FAILED deadlines: after first attack remaining %d want %d\n",
 			dl, atk0 - atk1);
@@ -721,7 +849,7 @@ static bool test_synth_deadlines(sf64_bank_t *bank)
 		goto fail_dl;
 	}
 
-	// Two equal releases; late process completes both.
+	// Two equal releases; a late process past both deadlines frees both.
 	r0->amp_env.attack_timecents = -12000;
 	r1->amp_env.attack_timecents = -12000;
 	r0->amp_env.release_timecents = samples_to_timecents(300);
@@ -1138,7 +1266,10 @@ int main(void)
 	total++; if (!test_synth_pitch(bank)) failed++;
 	total++; if (!test_synth_key_split(bank)) failed++;
 	total++; if (!test_synth_vel_split(bank)) failed++;
+	total++; if (!test_synth_allocator(bank)) failed++;
 	total++; if (!test_synth_polyphony(bank)) failed++;
+	total++; if (!test_synth_saturation(bank)) failed++;
+	total++; if (!test_synth_same_key(bank)) failed++;
 	total++; if (!test_synth_deadlines(bank)) failed++;
 	total++; if (!test_synth_preset(bank)) failed++;
 
