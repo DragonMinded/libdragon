@@ -12,6 +12,11 @@
  * select a preset with #sf64_synth_set_preset, then drive notes with
  * #sf64_synth_note_on / #sf64_synth_note_off.
  *
+ * A single note-on can start several regions at once (SF2 layers). All of
+ * those voices share one note identity; #sf64_synth_note_off releases the
+ * oldest still-held identity for that key. Allocation is atomic: if there
+ * are not enough free channels for every matching region, nothing starts.
+ *
  * Amp envelopes use the mixer's volume ramps (attack into the note, release
  * to silence). Advance them with #sf64_synth_process by the same output-sample
  * counts you pass to #mixer_poll — there is no absolute clock. The synthesizer
@@ -19,13 +24,13 @@
  * loop or from a #mixer_add_event callback.
  *
  * There is no voice stealing: when every reserved channel is in use, further
- * note-ons are ignored. A new note-on on a key that is already sounding
- * replaces the previous voice for that key.
+ * note-ons return 0 and leave existing voices alone.
  */
 #ifndef LIBDRAGON_SF64_SYNTH_H
 #define LIBDRAGON_SF64_SYNTH_H
 
 #include <stdbool.h>
+#include <stdint.h>
 #include "sf64.h"
 
 #ifdef __cplusplus
@@ -83,26 +88,28 @@ bool sf64_synth_set_preset(sf64_synth_t *synth, int midi_bank, int program);
 /**
  * @brief Start a note on the current preset.
  *
- * Finds the first region of the preset that matches @p key and @p velocity,
- * stops any previous voice on the same key, allocates a free mixer channel,
- * and plays that region's sample at the SF2 pitch. Volume ramps through
- * attack then decay to the region's sustain level. Returns false if no region
- * matches or no channel is free. A velocity of 0 is treated as
- * #sf64_synth_note_off.
+ * Starts every region of the preset that matches @p key and @p velocity,
+ * each on its own mixer channel, all sharing one note identity. Volume
+ * ramps through attack then decay to each region's sustain level.
+ *
+ * Allocation is all-or-nothing: if any matching region cannot get a free
+ * channel, none are started and existing voices are left alone. A velocity
+ * of 0 is treated as #sf64_synth_note_off.
  *
  * @param synth     Synthesizer
  * @param key       MIDI key (0–127)
  * @param velocity  MIDI velocity (1–127; 0 = note-off)
- * @return          true if a voice was started
+ * @return          Note identity (`> 0`) if at least one voice started, else 0
  */
-bool sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity);
+uint32_t sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity);
 
 /**
- * @brief Release every active voice that was started with @p key.
+ * @brief Release the oldest still-held note identity for @p key.
  *
- * Volume fades out over each region's release; call #sf64_synth_process until
- * those fades end so the channels are freed. A zero-length release stops at
- * once.
+ * All voices that share that identity enter release together. Call
+ * #sf64_synth_process until those fades end so the channels are freed.
+ * A zero-length release stops at once. Repeated calls peel stacked
+ * note-ons on the same key from oldest to newest.
  *
  * @param synth  Synthesizer
  * @param key    MIDI key that should be released

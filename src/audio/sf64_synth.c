@@ -28,7 +28,8 @@ typedef enum {
 typedef struct {
 	sf64_voice_phase_t phase; ///< Current envelope phase
 	int key;                  ///< MIDI key that started this voice, or -1
-	int region_index;         ///< Index into sf64_bank_t::regions
+	int region_index;         ///< Index into sf64_bank_t.regions
+	uint32_t note_id;         ///< Note identity shared by layered voices; 0 if off
 	int64_t deadline;         ///< Absolute sample time of the next phase change; INT64_MAX = none
 	float lvol, rvol;         ///< Peak gain after attack (pre-sustain)
 	bool sustain_loop;        ///< True if the region uses #SF64_LOOP_SUSTAIN
@@ -42,6 +43,7 @@ typedef struct sf64_synth_s {
 	int preset_index;             ///< Active preset, or -1 if unset
 	int64_t now;                  ///< Absolute sample time advanced by #sf64_synth_process
 	uint32_t used_channel_mask;   ///< Bitmask of busy channels in the allocated range
+	uint32_t next_note_id;        ///< Next note identity to assign (`>= 1`)
 	sf64_voice_t voices[MIXER_MAX_CHANNELS]; ///< Per-channel voice state (indexed by mixer channel)
 } sf64_synth_t;
 
@@ -55,6 +57,7 @@ static void voice_stop(sf64_synth_t *synth, int ch)
 	v->deadline = INT64_MAX;
 	v->key = -1;
 	v->region_index = -1;
+	v->note_id = 0;
 	v->sustain_loop = false;
 	synth->used_channel_mask &= ~(1u << ch);
 }
@@ -66,16 +69,6 @@ static void voices_stop_all(sf64_synth_t *synth)
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++)
 		voice_stop(synth, ch);
-}
-
-static void voices_stop_key(sf64_synth_t *synth, int key)
-{
-	for (int ch = synth->first_channel;
-		 ch < synth->first_channel + synth->num_channels; ch++) {
-		if (synth->voices[ch].phase != SF64_VOICE_OFF &&
-			synth->voices[ch].key == key)
-			voice_stop(synth, ch);
-	}
 }
 
 static int alloc_channel(sf64_synth_t *synth)
@@ -90,6 +83,25 @@ static int alloc_channel(sf64_synth_t *synth)
 	return -1;
 }
 
+static int count_free_channels(sf64_synth_t *synth)
+{
+	int n = 0;
+	for (int ch = synth->first_channel;
+		 ch < synth->first_channel + synth->num_channels; ch++) {
+		if (!(synth->used_channel_mask & (1u << ch)))
+			n++;
+	}
+	return n;
+}
+
+/** True while the key is still held (not yet released). */
+static bool voice_held(const sf64_voice_t *v)
+{
+	return v->phase == SF64_VOICE_ATTACK ||
+		v->phase == SF64_VOICE_DECAY ||
+		v->phase == SF64_VOICE_SUSTAIN;
+}
+
 sf64_synth_t *sf64_synth_create(sf64_bank_t *bank)
 {
 	assert(bank);
@@ -100,6 +112,7 @@ sf64_synth_t *sf64_synth_create(sf64_bank_t *bank)
 	synth->num_channels = 0;
 	synth->preset_index = -1;
 	synth->now = 0;
+	synth->next_note_id = 1;
 	for (int i = 0; i < MIXER_MAX_CHANNELS; i++) {
 		synth->voices[i].phase = SF64_VOICE_OFF;
 		synth->voices[i].deadline = INT64_MAX;
@@ -187,28 +200,10 @@ static void voice_enter_decay(sf64_synth_t *synth, int ch)
 	}
 }
 
-bool sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity)
+/** Start a held voice on an already-reserved channel. */
+static void voice_start(sf64_synth_t *synth, int ch, int ri, int key,
+	int velocity, uint32_t note_id)
 {
-	assert(synth);
-	assertf(synth->num_channels > 0, "sf64_synth: call sf64_synth_set_channels first");
-	if (velocity <= 0) {
-		sf64_synth_note_off(synth, key);
-		return false;
-	}
-	if (synth->preset_index < 0)
-		return false;
-
-	int ri = sf64_find_region(synth->bank, synth->preset_index, key, velocity);
-	if (ri < 0)
-		return false;
-
-	// Retrigger: drop any previous voice on this key so presses do not stack.
-	voices_stop_key(synth, key);
-
-	int ch = alloc_channel(synth);
-	if (ch < 0)
-		return false;
-
 	sf64_region_t *r = &synth->bank->regions[ri];
 	sf64_sample_t *s = &synth->bank->samples[r->sample_index];
 	float cents = (key - r->root_key) * (float)r->pitch_keytrack
@@ -227,6 +222,7 @@ bool sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity)
 
 	v->key = key;
 	v->region_index = ri;
+	v->note_id = note_id;
 	v->lvol = lvol;
 	v->rvol = rvol;
 	v->sustain_loop = (r->loop_mode == SF64_LOOP_SUSTAIN);
@@ -236,7 +232,46 @@ bool sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity)
 	} else {
 		voice_enter_decay(synth, ch);
 	}
-	return true;
+}
+
+uint32_t sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity)
+{
+	assert(synth);
+	assertf(synth->num_channels > 0, "sf64_synth: call sf64_synth_set_channels first");
+	if (velocity <= 0) {
+		sf64_synth_note_off(synth, key);
+		return 0;
+	}
+	if (synth->preset_index < 0)
+		return 0;
+
+	sf64_preset_t *p = &synth->bank->presets[synth->preset_index];
+	int matches[MIXER_MAX_CHANNELS];
+	int nmatch = 0;
+	for (int i = 0; i < p->num_regions; i++) {
+		int ri = p->first_region + i;
+		sf64_region_t *r = &synth->bank->regions[ri];
+		if (key >= r->key_min && key <= r->key_max &&
+			velocity >= r->velocity_min && velocity <= r->velocity_max) {
+			assert(nmatch < MIXER_MAX_CHANNELS);
+			matches[nmatch++] = ri;
+		}
+	}
+	if (nmatch == 0)
+		return 0;
+	if (count_free_channels(synth) < nmatch)
+		return 0;
+
+	uint32_t note_id = synth->next_note_id++;
+	if (synth->next_note_id == 0)
+		synth->next_note_id = 1;
+
+	for (int i = 0; i < nmatch; i++) {
+		int ch = alloc_channel(synth);
+		assert(ch >= 0);
+		voice_start(synth, ch, matches[i], key, velocity, note_id);
+	}
+	return note_id;
 }
 
 void sf64_synth_note_off(sf64_synth_t *synth, int key)
@@ -245,18 +280,36 @@ void sf64_synth_note_off(sf64_synth_t *synth, int key)
 	if (synth->num_channels <= 0)
 		return;
 
+	// Oldest still-held identity for this key (IDs increase monotonically).
+	uint32_t oldest = 0;
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
 		sf64_voice_t *v = &synth->voices[ch];
-		if (v->phase == SF64_VOICE_OFF ||
-			v->phase == SF64_VOICE_RELEASE ||
-			v->key != key)
+		if (!voice_held(v) || v->key != key)
+			continue;
+		if (oldest == 0 || v->note_id < oldest)
+			oldest = v->note_id;
+	}
+	if (oldest == 0)
+		return;
+
+	for (int ch = synth->first_channel;
+		 ch < synth->first_channel + synth->num_channels; ch++) {
+		sf64_voice_t *v = &synth->voices[ch];
+		if (!voice_held(v) || v->key != key || v->note_id != oldest)
 			continue;
 
 		sf64_region_t *r = &synth->bank->regions[v->region_index];
+		sf64_sample_t *s = &synth->bank->samples[r->sample_index];
 		int release = timecents_to_samples(r->amp_env.release_timecents);
 
-		if (v->sustain_loop)
+		// Exit sustain loops so the SF2 release tail can play. Tiny leading
+		// loops are the "release sample" idiom (silence until note-off):
+		// without a low-pass filter, leaving them reveals a pitched body that
+		// sounds like a second note (e.g. GeneralUser Clavinet_rel). Keep
+		// looping silence for those until filters exist.
+		if (v->sustain_loop && s->loop_end > s->loop_start &&
+			s->loop_end - s->loop_start >= 128)
 			mixer_ch_set_loop(ch, false);
 
 		if (release <= 0) {

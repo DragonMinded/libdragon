@@ -5,8 +5,8 @@
  *
  * Loads the deterministic sf64test bank, checks preset/region/sample layout,
  * plays embedded waveforms through the real mixer, and exercises the
- * synthesizer through step 4 (pitch, matching, envelopes, polyphony without
- * voice stealing: allocator, saturation, same-key retrigger, deadlines).
+ * synthesizer through step 5 (pitch, matching, envelopes, polyphony, layers
+ * and note identity).
  */
 #include <libdragon.h>
 #include <math.h>
@@ -138,26 +138,30 @@ static bool check_pcm(const char *tag, int start, int nsamples,
 
 static bool test_bank_layout(sf64_bank_t *bank)
 {
-	if (bank->num_presets != 3 || bank->num_regions != 5 || bank->num_samples != 4) {
+	if (bank->num_presets != 5 || bank->num_regions != 10 || bank->num_samples != 4) {
 		printf("FAILED layout: presets=%d regions=%d samples=%d\n",
 			bank->num_presets, bank->num_regions, bank->num_samples);
 		return false;
 	}
-	if (sf64_preset_count(bank) != 3) {
+	if (sf64_preset_count(bank) != 5) {
 		printf("FAILED preset_count\n");
 		return false;
 	}
 	if (sf64_find_preset(bank, 0, 0) != 0 ||
 		sf64_find_preset(bank, 0, 1) != 1 ||
 		sf64_find_preset(bank, 0, 2) != 2 ||
-		sf64_find_preset(bank, 0, 3) != -1) {
+		sf64_find_preset(bank, 0, 3) != 3 ||
+		sf64_find_preset(bank, 0, 4) != 4 ||
+		sf64_find_preset(bank, 0, 5) != -1) {
 		printf("FAILED find_preset\n");
 		return false;
 	}
 	int mb, prog;
 	sf64_preset_id(bank, 1, &mb, &prog);
 	if (mb != 0 || prog != 1 || strcmp(sf64_preset_name(bank, 0), "KeySplit") != 0 ||
-		strcmp(sf64_preset_name(bank, 1), "VelSplit") != 0) {
+		strcmp(sf64_preset_name(bank, 1), "VelSplit") != 0 ||
+		strcmp(sf64_preset_name(bank, 3), "Layer2") != 0 ||
+		strcmp(sf64_preset_name(bank, 4), "Layer3") != 0) {
 		printf("FAILED preset introspect: bank=%d prog=%d name0=%s name1=%s\n",
 			mb, prog, sf64_preset_name(bank, 0), sf64_preset_name(bank, 1));
 		return false;
@@ -166,9 +170,13 @@ static bool test_bank_layout(sf64_bank_t *bank)
 	sf64_preset_t *p0 = &bank->presets[0];
 	sf64_preset_t *p1 = &bank->presets[1];
 	sf64_preset_t *p2 = &bank->presets[2];
+	sf64_preset_t *p3 = &bank->presets[3];
+	sf64_preset_t *p4 = &bank->presets[4];
 	if (p0->bank != 0 || p0->program != 0 || p0->num_regions != 2 ||
 		p1->bank != 0 || p1->program != 1 || p1->num_regions != 2 ||
-		p2->bank != 0 || p2->program != 2 || p2->num_regions != 1) {
+		p2->bank != 0 || p2->program != 2 || p2->num_regions != 1 ||
+		p3->bank != 0 || p3->program != 3 || p3->num_regions != 2 ||
+		p4->bank != 0 || p4->program != 4 || p4->num_regions != 3) {
 		printf("FAILED preset headers\n");
 		return false;
 	}
@@ -205,6 +213,22 @@ static bool test_bank_layout(sf64_bank_t *bank)
 		printf("FAILED preset2 sample B: mode=%d ls=%lu le=%lu end=%lu rate=%lu\n",
 			r->loop_mode, (unsigned long)sb->loop_start, (unsigned long)sb->loop_end,
 			(unsigned long)sb->sample_end, (unsigned long)sb->sample_rate);
+		return false;
+	}
+
+	// Preset 3 Layer2 / 4 Layer3: overlapping full-range regions.
+	r = &bank->regions[p3->first_region];
+	if (r[0].sample_index == r[1].sample_index ||
+		r[0].key_min != 0 || r[0].key_max != 127 ||
+		r[1].key_min != 0 || r[1].key_max != 127) {
+		printf("FAILED preset3 Layer2 regions\n");
+		return false;
+	}
+	r = &bank->regions[p4->first_region];
+	if (r[0].sample_index == r[1].sample_index ||
+		r[1].sample_index == r[2].sample_index ||
+		r[0].sample_index == r[2].sample_index) {
+		printf("FAILED preset4 Layer3 regions\n");
 		return false;
 	}
 
@@ -751,48 +775,173 @@ static bool test_synth_saturation(sf64_bank_t *bank)
 	return true;
 }
 
-/**
- * note_on on an already sounding key stops the previous voice (retrigger)
- * without touching other keys; note_off then clears that key.
- */
-static bool test_synth_same_key(sf64_bank_t *bank)
+static int count_playing(int nch)
+{
+	int n = 0;
+	for (int i = 0; i < nch; i++)
+		if (mixer_ch_playing(i)) n++;
+	return n;
+}
+
+static bool wave_playing(int nch, waveform_t *w)
+{
+	for (int i = 0; i < nch; i++)
+		if (mixer_ch_playing(i) && mixer_ch_playing_waveform(i) == w)
+			return true;
+	return false;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Step 5 — layers and note identity
+//////////////////////////////////////////////////////////////////////////////
+
+/** Matching regions start together; non-matching ones are ignored. */
+static bool test_synth_layers(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 4);
+
+	// Layer2: two full-range regions → two voices, distinct samples.
+	assert(sf64_synth_set_preset(synth, 0, 3));
+	sf64_region_t *r2 = &bank->regions[bank->presets[3].first_region];
+	waveform_t *wa = &bank->waves[r2[0].sample_index]->wave;
+	waveform_t *wc = &bank->waves[r2[1].sample_index]->wave;
+	synth_silence(synth, 4);
+	uint32_t id = sf64_synth_note_on(synth, 60, 100);
+	if (id == 0 || count_playing(4) != 2 ||
+		!wave_playing(4, wa) || !wave_playing(4, wc)) {
+		printf("FAILED layers: Layer2 did not start two distinct voices\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Layer3: three voices.
+	assert(sf64_synth_set_preset(synth, 0, 4));
+	sf64_region_t *r3 = &bank->regions[bank->presets[4].first_region];
+	synth_silence(synth, 4);
+	id = sf64_synth_note_on(synth, 60, 100);
+	if (id == 0 || count_playing(4) != 3 ||
+		!wave_playing(4, &bank->waves[r3[0].sample_index]->wave) ||
+		!wave_playing(4, &bank->waves[r3[1].sample_index]->wave) ||
+		!wave_playing(4, &bank->waves[r3[2].sample_index]->wave)) {
+		printf("FAILED layers: Layer3 did not start three voices\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// KeySplit: key 60 matches only region A (C starts at 72).
+	assert(sf64_synth_set_preset(synth, 0, 0));
+	synth_silence(synth, 4);
+	id = sf64_synth_note_on(synth, 60, 100);
+	sf64_region_t *rk = &bank->regions[bank->presets[0].first_region];
+	if (id == 0 || count_playing(4) != 1 ||
+		!wave_playing(4, &bank->waves[rk[0].sample_index]->wave) ||
+		wave_playing(4, &bank->waves[rk[1].sample_index]->wave)) {
+		printf("FAILED layers: incompatible region was not ignored\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+/** Not enough free channels → no layer starts, existing voices untouched. */
+static bool test_synth_layer_atomic(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
 	sf64_synth_set_channels(synth, 0, 3);
 	assert(sf64_synth_set_preset(synth, 0, 0));
 
 	synth_silence(synth, 3);
-	sf64_synth_note_on(synth, 60, 100); // ch0
-	sf64_synth_note_on(synth, 48, 100); // ch1
+	// Occupy two channels with mono notes; one free left.
+	sf64_synth_note_on(synth, 48, 100);
+	sf64_synth_note_on(synth, 60, 100);
 	mix(64);
-	double pos_other = mixer_ch_get_pos(1);
-	waveform_t *w_other = mixer_ch_playing_waveform(1);
+	waveform_t *w0 = mixer_ch_playing_waveform(0);
+	waveform_t *w1 = mixer_ch_playing_waveform(1);
+	double p0 = mixer_ch_get_pos(0);
+	double p1 = mixer_ch_get_pos(1);
+	uint32_t mask_before = (mixer_ch_playing(0) ? 1 : 0) |
+		(mixer_ch_playing(1) ? 2 : 0) |
+		(mixer_ch_playing(2) ? 4 : 0);
 
-	if (!sf64_synth_note_on(synth, 60, 100)) {
-		printf("FAILED same-key: retrigger rejected with a free channel\n");
+	// Layer2 needs two channels; only one is free → reject entirely.
+	assert(sf64_synth_set_preset(synth, 0, 3));
+	if (sf64_synth_note_on(synth, 72, 100) != 0) {
+		printf("FAILED atomic: layered note started with one free channel\n");
 		sf64_synth_close(synth);
 		return false;
 	}
-	// Old key-60 stopped (frees ch0, which the new voice reclaims); key 48 stays.
-	if (!mixer_ch_playing(0) || !mixer_ch_playing(1) || mixer_ch_playing(2)) {
-		printf("FAILED same-key: expected ch0+ch1 after retrigger\n");
+	if (mixer_ch_playing_waveform(0) != w0 ||
+		mixer_ch_playing_waveform(1) != w1 ||
+		mixer_ch_get_pos(0) != p0 ||
+		mixer_ch_get_pos(1) != p1 ||
+		mixer_ch_playing(2) ||
+		((mixer_ch_playing(0) ? 1 : 0) |
+		 (mixer_ch_playing(1) ? 2 : 0) |
+		 (mixer_ch_playing(2) ? 4 : 0)) != mask_before) {
+		printf("FAILED atomic: rejected layer disturbed existing voices\n");
 		sf64_synth_close(synth);
 		return false;
 	}
-	if (mixer_ch_playing_waveform(1) != w_other ||
-		mixer_ch_get_pos(1) < pos_other) {
-		printf("FAILED same-key: retrigger disturbed the other key\n");
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+/**
+ * Stacked note-ons on the same key get distinct identities; note_off peels
+ * the oldest identity (and all of its layers) first.
+ */
+static bool test_synth_note_identity(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 4);
+	assert(sf64_synth_set_preset(synth, 0, 3)); // Layer2
+	sf64_region_t *r = &bank->regions[bank->presets[3].first_region];
+	waveform_t *wa = &bank->waves[r[0].sample_index]->wave;
+	waveform_t *wc = &bank->waves[r[1].sample_index]->wave;
+
+	synth_silence(synth, 4);
+	uint32_t id1 = sf64_synth_note_on(synth, 60, 100);
+	uint32_t id2 = sf64_synth_note_on(synth, 60, 100);
+	if (id1 == 0 || id2 == 0 || id1 == id2 || count_playing(4) != 4) {
+		printf("FAILED identity: stacked Layer2 note-ons (id1=%lu id2=%lu playing=%d)\n",
+			(unsigned long)id1, (unsigned long)id2, count_playing(4));
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (!wave_playing(4, wa) || !wave_playing(4, wc)) {
+		printf("FAILED identity: layered samples missing after stack\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// First note_off releases only the oldest identity (2 voices).
+	sf64_synth_note_off(synth, 60);
+	mix(64);
+	if (count_playing(4) != 2) {
+		printf("FAILED identity: first note-off left %d voices, want 2\n",
+			count_playing(4));
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (!wave_playing(4, wa) || !wave_playing(4, wc)) {
+		printf("FAILED identity: second identity lost a layer\n");
 		sf64_synth_close(synth);
 		return false;
 	}
 
 	sf64_synth_note_off(synth, 60);
 	mix(64);
-	if (mixer_ch_playing(0) || !mixer_ch_playing(1) || mixer_ch_playing(2)) {
-		printf("FAILED same-key: note-off did not leave only the other key\n");
+	if (count_playing(4) != 0) {
+		printf("FAILED identity: second note-off left %d voices\n",
+			count_playing(4));
 		sf64_synth_close(synth);
 		return false;
 	}
+	sf64_synth_note_off(synth, 60); // no-op
 
 	sf64_synth_close(synth);
 	return true;
@@ -1269,9 +1418,11 @@ int main(void)
 	total++; if (!test_synth_allocator(bank)) failed++;
 	total++; if (!test_synth_polyphony(bank)) failed++;
 	total++; if (!test_synth_saturation(bank)) failed++;
-	total++; if (!test_synth_same_key(bank)) failed++;
 	total++; if (!test_synth_deadlines(bank)) failed++;
 	total++; if (!test_synth_preset(bank)) failed++;
+	total++; if (!test_synth_layers(bank)) failed++;
+	total++; if (!test_synth_layer_atomic(bank)) failed++;
+	total++; if (!test_synth_note_identity(bank)) failed++;
 
 	printf("envelopes\n");
 	fflush(stdout);
