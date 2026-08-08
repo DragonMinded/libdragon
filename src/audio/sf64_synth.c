@@ -13,6 +13,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <limits.h>
 #include <assert.h>
 
 /** @brief Envelope phase of a synth voice. */
@@ -24,10 +25,24 @@ typedef enum {
 	SF64_VOICE_RELEASE,  ///< Ramping to silence after note-off
 } sf64_voice_phase_t;
 
+/** @brief Per-MIDI-channel controllers and program */
+typedef struct {
+	uint16_t bank;              ///< MIDI bank select
+	uint8_t program;            ///< MIDI program
+	int16_t preset_index;       ///< Index into sf64_bank_t.presets, or -1
+	uint8_t volume;             ///< CC7 (0–127)
+	uint8_t expression;         ///< CC11 (0–127)
+	uint8_t pan;                ///< CC10 (0–127, 64 = center)
+	uint16_t pitch_bend;        ///< 14-bit bend (center 8192)
+	int16_t pitch_range_cents;  ///< Full bend span in cents (default 200)
+} sf64_midi_channel_t;
+
 /** @brief One voice bound to a mixer channel. */
 typedef struct {
 	sf64_voice_phase_t phase; ///< Current envelope phase
-	int key;                  ///< MIDI key that started this voice, or -1
+	int8_t midi_channel;      ///< MIDI channel that owns this voice, or -1
+	int8_t key;               ///< MIDI key that started this voice, or -1
+	int8_t velocity;          ///< Note-on velocity (for controller recalcs)
 	int region_index;         ///< Index into sf64_bank_t.regions
 	uint32_t note_id;         ///< Note identity shared by layered voices; 0 if off
 	int64_t deadline;         ///< Absolute sample time of the next phase change; INT64_MAX = none
@@ -37,15 +52,85 @@ typedef struct {
 
 /** @brief Opaque synthesizer state (see #sf64_synth_t). */
 typedef struct sf64_synth_s {
+	midi_target_t midi_target;    ///< Must be first; see #sf64_synth_midi_target
 	sf64_bank_t *bank;            ///< Bank this synth plays from
 	int first_channel;            ///< First mixer channel of the allocated range
 	int num_channels;             ///< Number of mixer channels reserved for voices
-	int preset_index;             ///< Active preset, or -1 if unset
 	int64_t now;                  ///< Absolute sample time advanced by #sf64_synth_process
 	uint32_t used_channel_mask;   ///< Bitmask of busy channels in the allocated range
 	uint32_t next_note_id;        ///< Next note identity to assign (`>= 1`)
-	sf64_voice_t voices[MIXER_MAX_CHANNELS]; ///< Per-channel voice state (indexed by mixer channel)
+	sf64_midi_channel_t midi[SF64_MIDI_CHANNELS]; ///< Per-MIDI-channel state
+	sf64_voice_t voices[MIXER_MAX_CHANNELS]; ///< Per-mixer-channel voice state
 } sf64_synth_t;
+
+static void voices_stop_all(sf64_synth_t *synth);
+
+static void sf64_mt_note_on(midi_target_t *t, int ch, int key, int vel, int64_t now)
+{
+	(void)now;
+	sf64_synth_note_on((sf64_synth_t *)t, ch, key, vel);
+}
+
+static void sf64_mt_note_off(midi_target_t *t, int ch, int key, int vel, int64_t now)
+{
+	(void)vel; (void)now;
+	sf64_synth_note_off((sf64_synth_t *)t, ch, key);
+}
+
+static void sf64_mt_cc(midi_target_t *t, int ch, int cc, int value, int64_t now)
+{
+	(void)now;
+	sf64_synth_t *s = (sf64_synth_t *)t;
+	switch (cc) {
+	case 7:  sf64_synth_set_volume(s, ch, value); break;
+	case 11: sf64_synth_set_expression(s, ch, value); break;
+	case 10: sf64_synth_set_pan(s, ch, value); break;
+	case 0:  s->midi[ch].bank = (uint16_t)value; break;
+	}
+}
+
+static void sf64_mt_program(midi_target_t *t, int ch, int program, int64_t now)
+{
+	(void)now;
+	sf64_synth_t *s = (sf64_synth_t *)t;
+	sf64_synth_set_program(s, ch, s->midi[ch].bank, program);
+}
+
+static void sf64_mt_pitch_bend(midi_target_t *t, int ch, int value, int64_t now)
+{
+	(void)now;
+	sf64_synth_set_pitch_bend((sf64_synth_t *)t, ch, value);
+}
+
+static void sf64_mt_reset(midi_target_t *t, int64_t now)
+{
+	sf64_synth_t *s = (sf64_synth_t *)t;
+	voices_stop_all(s);
+	s->now = now;
+}
+
+static int64_t sf64_mt_process(midi_target_t *t, int64_t now)
+{
+	sf64_synth_t *s = (sf64_synth_t *)t;
+	int64_t elapsed = now - s->now;
+	assertf(elapsed >= 0, "sf64 midi_target: clock went backwards");
+	assertf(elapsed <= INT_MAX, "sf64 midi_target: process span too large");
+	int next = sf64_synth_process(s, (int)elapsed);
+	if (next < 0) return INT64_MAX;
+	return s->now + next;
+}
+
+static const midi_target_ops_t sf64_midi_ops = {
+	.note_on = sf64_mt_note_on,
+	.note_off = sf64_mt_note_off,
+	.control_change = sf64_mt_cc,
+	.program_change = sf64_mt_program,
+	.pitch_bend = sf64_mt_pitch_bend,
+	.poly_pressure = NULL,
+	.channel_pressure = NULL,
+	.reset = sf64_mt_reset,
+	.process = sf64_mt_process,
+};
 
 static void voice_stop(sf64_synth_t *synth, int ch)
 {
@@ -55,7 +140,9 @@ static void voice_stop(sf64_synth_t *synth, int ch)
 	mixer_ch_stop(ch);
 	v->phase = SF64_VOICE_OFF;
 	v->deadline = INT64_MAX;
+	v->midi_channel = -1;
 	v->key = -1;
+	v->velocity = 0;
 	v->region_index = -1;
 	v->note_id = 0;
 	v->sustain_loop = false;
@@ -102,20 +189,142 @@ static bool voice_held(const sf64_voice_t *v)
 		v->phase == SF64_VOICE_SUSTAIN;
 }
 
+/** SF2 timecents -> output samples; <= -12000 is instant. */
+static int timecents_to_samples(int16_t tc)
+{
+	if (tc <= -12000)
+		return 0;
+	int rate = audio_get_frequency();
+	assert(rate > 0);
+	float sec = powf(2.0f, tc / 1200.0f);
+	int n = (int)lroundf(sec * (float)rate);
+	return n > 0 ? n : 0;
+}
+
+static float sustain_factor(int16_t centibels)
+{
+	if (centibels <= 0) return 1.0f;
+	if (centibels >= 1440) return 0.0f;
+	return powf(10.0f, -centibels / 200.0f);
+}
+
+static void voice_peak_vols(sf64_synth_t *synth, int ch, float *lvol, float *rvol)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_midi_channel_t *mc = &synth->midi[v->midi_channel];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	float gain = (v->velocity / 127.0f)
+		* (mc->volume / 127.0f)
+		* (mc->expression / 127.0f)
+		* powf(10.0f, -r->attenuation_cb / 200.0f);
+	int pan_sf = r->pan + (int)lroundf((mc->pan - 64) * (500.0f / 64.0f));
+	if (pan_sf < -500) pan_sf = -500;
+	if (pan_sf > 500) pan_sf = 500;
+	float pan = (pan_sf + 500) / 1000.0f;
+	*lvol = gain * (1.0f - pan);
+	*rvol = gain * pan;
+}
+
+static float voice_freq(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_midi_channel_t *mc = &synth->midi[v->midi_channel];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	sf64_sample_t *s = &synth->bank->samples[r->sample_index];
+	float bend = (mc->pitch_bend - 8192) *
+		(float)mc->pitch_range_cents / 8192.0f;
+	float cents = (v->key - r->root_key) * (float)r->pitch_keytrack
+		+ r->coarse_tune * 100.0f + r->fine_tune + bend;
+	return s->sample_rate * powf(2.0f, cents / 1200.0f);
+}
+
+/** Reapply volume for the current envelope phase (controller change). */
+static void voice_apply_vol(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	float l, rvol;
+	voice_peak_vols(synth, ch, &l, &rvol);
+	v->lvol = l;
+	v->rvol = rvol;
+	float sf = sustain_factor(r->amp_env.sustain_centibels);
+	int rem = 0;
+	if (v->deadline != INT64_MAX) {
+		rem = (int)(v->deadline - synth->now);
+		if (rem < 0) rem = 0;
+	}
+
+	switch (v->phase) {
+	case SF64_VOICE_ATTACK:
+		mixer_ch_set_vol_ramp(ch, l, rvol, rem);
+		break;
+	case SF64_VOICE_DECAY:
+		mixer_ch_set_vol_ramp(ch, l * sf, rvol * sf, rem);
+		break;
+	case SF64_VOICE_SUSTAIN:
+		mixer_ch_set_vol_ramp(ch, l * sf, rvol * sf, 0);
+		break;
+	case SF64_VOICE_RELEASE:
+		mixer_ch_set_vol_ramp(ch, 0, 0, rem);
+		break;
+	default:
+		break;
+	}
+}
+
+static void midi_apply_vol(sf64_synth_t *synth, int midi_channel)
+{
+	for (int ch = synth->first_channel;
+		 ch < synth->first_channel + synth->num_channels; ch++) {
+		if (synth->voices[ch].phase != SF64_VOICE_OFF &&
+			synth->voices[ch].midi_channel == midi_channel)
+			voice_apply_vol(synth, ch);
+	}
+}
+
+static void midi_apply_bend(sf64_synth_t *synth, int midi_channel)
+{
+	for (int ch = synth->first_channel;
+		 ch < synth->first_channel + synth->num_channels; ch++) {
+		if (synth->voices[ch].phase != SF64_VOICE_OFF &&
+			synth->voices[ch].midi_channel == midi_channel)
+			mixer_ch_set_freq(ch, voice_freq(synth, ch));
+	}
+}
+
+midi_target_t *sf64_synth_midi_target(sf64_synth_t *synth)
+{
+	assert(synth);
+	return &synth->midi_target;
+}
+
 sf64_synth_t *sf64_synth_create(sf64_bank_t *bank)
 {
 	assert(bank);
 	sf64_synth_t *synth = calloc(1, sizeof(*synth));
 	assert(synth);
+	synth->midi_target.ops = &sf64_midi_ops;
 	synth->bank = bank;
 	synth->first_channel = -1;
 	synth->num_channels = 0;
-	synth->preset_index = -1;
 	synth->now = 0;
 	synth->next_note_id = 1;
+	int preset0 = sf64_find_preset(bank, 0, 0);
+	for (int i = 0; i < SF64_MIDI_CHANNELS; i++) {
+		sf64_midi_channel_t *mc = &synth->midi[i];
+		mc->bank = 0;
+		mc->program = 0;
+		mc->preset_index = (int16_t)preset0;
+		mc->volume = 127;
+		mc->expression = 127;
+		mc->pan = 64;
+		mc->pitch_bend = 8192;
+		mc->pitch_range_cents = 200;
+	}
 	for (int i = 0; i < MIXER_MAX_CHANNELS; i++) {
 		synth->voices[i].phase = SF64_VOICE_OFF;
 		synth->voices[i].deadline = INT64_MAX;
+		synth->voices[i].midi_channel = -1;
 		synth->voices[i].key = -1;
 		synth->voices[i].region_index = -1;
 	}
@@ -140,44 +349,59 @@ void sf64_synth_set_channels(sf64_synth_t *synth, int first_channel, int num_cha
 	synth->num_channels = num_channels;
 }
 
-bool sf64_synth_set_preset(sf64_synth_t *synth, int midi_bank, int program)
+bool sf64_synth_set_program(sf64_synth_t *synth, int midi_channel,
+	int bank, int program)
 {
 	assert(synth);
-	int idx = sf64_find_preset(synth->bank, midi_bank, program);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
+	int idx = sf64_find_preset(synth->bank, bank, program);
 	if (idx < 0)
 		return false;
-	synth->preset_index = idx;
+	sf64_midi_channel_t *mc = &synth->midi[midi_channel];
+	mc->bank = (uint16_t)bank;
+	mc->program = (uint8_t)program;
+	mc->preset_index = (int16_t)idx;
 	return true;
 }
 
-/** SF2 timecents -> output samples; <= -12000 is instant. */
-static int timecents_to_samples(int16_t tc)
+void sf64_synth_set_volume(sf64_synth_t *synth, int midi_channel, int volume)
 {
-	if (tc <= -12000)
-		return 0;
-	int rate = audio_get_frequency();
-	assert(rate > 0);
-	float sec = powf(2.0f, tc / 1200.0f);
-	int n = (int)lroundf(sec * (float)rate);
-	return n > 0 ? n : 0;
+	assert(synth);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
+	assert(volume >= 0 && volume <= 127);
+	synth->midi[midi_channel].volume = (uint8_t)volume;
+	if (synth->num_channels > 0)
+		midi_apply_vol(synth, midi_channel);
 }
 
-static float sustain_factor(int16_t centibels)
+void sf64_synth_set_expression(sf64_synth_t *synth, int midi_channel, int expression)
 {
-	if (centibels <= 0) return 1.0f;
-	if (centibels >= 1440) return 0.0f;
-	return powf(10.0f, -centibels / 200.0f);
+	assert(synth);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
+	assert(expression >= 0 && expression <= 127);
+	synth->midi[midi_channel].expression = (uint8_t)expression;
+	if (synth->num_channels > 0)
+		midi_apply_vol(synth, midi_channel);
 }
 
-static void region_gain_pan(const sf64_region_t *r, int velocity,
-	float *lvol, float *rvol)
+void sf64_synth_set_pan(sf64_synth_t *synth, int midi_channel, int pan)
 {
-	float gain = (velocity / 127.0f) * powf(10.0f, -r->attenuation_cb / 200.0f);
-	float pan = (r->pan + 500) / 1000.0f;
-	if (pan < 0) pan = 0;
-	if (pan > 1) pan = 1;
-	*lvol = gain * (1.0f - pan);
-	*rvol = gain * pan;
+	assert(synth);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
+	assert(pan >= 0 && pan <= 127);
+	synth->midi[midi_channel].pan = (uint8_t)pan;
+	if (synth->num_channels > 0)
+		midi_apply_vol(synth, midi_channel);
+}
+
+void sf64_synth_set_pitch_bend(sf64_synth_t *synth, int midi_channel, int pitch_bend)
+{
+	assert(synth);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
+	assert(pitch_bend >= 0 && pitch_bend <= 16383);
+	synth->midi[midi_channel].pitch_bend = (uint16_t)pitch_bend;
+	if (synth->num_channels > 0)
+		midi_apply_bend(synth, midi_channel);
 }
 
 /** After attack: decay to the sustain level, or enter sustain immediately. */
@@ -201,31 +425,27 @@ static void voice_enter_decay(sf64_synth_t *synth, int ch)
 }
 
 /** Start a held voice on an already-reserved channel. */
-static void voice_start(sf64_synth_t *synth, int ch, int ri, int key,
-	int velocity, uint32_t note_id)
+static void voice_start(sf64_synth_t *synth, int ch, int midi_channel,
+	int ri, int key, int velocity, uint32_t note_id)
 {
 	sf64_region_t *r = &synth->bank->regions[ri];
-	sf64_sample_t *s = &synth->bank->samples[r->sample_index];
-	float cents = (key - r->root_key) * (float)r->pitch_keytrack
-		+ r->coarse_tune * 100.0f + r->fine_tune;
-	float freq = s->sample_rate * powf(2.0f, cents / 1200.0f);
-	float lvol, rvol;
-	region_gain_pan(r, velocity, &lvol, &rvol);
 	int attack = timecents_to_samples(r->amp_env.attack_timecents);
 	sf64_voice_t *v = &synth->voices[ch];
+
+	v->midi_channel = (int8_t)midi_channel;
+	v->key = (int8_t)key;
+	v->velocity = (int8_t)velocity;
+	v->region_index = ri;
+	v->note_id = note_id;
+	v->sustain_loop = (r->loop_mode == SF64_LOOP_SUSTAIN);
+	voice_peak_vols(synth, ch, &v->lvol, &v->rvol);
 
 	// #mixer_ch_set_vol declicks; duration 0 is a true immediate mute.
 	mixer_ch_set_vol_ramp(ch, 0, 0, 0);
 	mixer_ch_play(ch, &synth->bank->waves[r->sample_index]->wave);
-	mixer_ch_set_freq(ch, freq);
-	mixer_ch_set_vol_ramp(ch, lvol, rvol, attack);
+	mixer_ch_set_freq(ch, voice_freq(synth, ch));
+	mixer_ch_set_vol_ramp(ch, v->lvol, v->rvol, attack);
 
-	v->key = key;
-	v->region_index = ri;
-	v->note_id = note_id;
-	v->lvol = lvol;
-	v->rvol = rvol;
-	v->sustain_loop = (r->loop_mode == SF64_LOOP_SUSTAIN);
 	if (attack > 0) {
 		v->phase = SF64_VOICE_ATTACK;
 		v->deadline = synth->now + attack;
@@ -234,18 +454,22 @@ static void voice_start(sf64_synth_t *synth, int ch, int ri, int key,
 	}
 }
 
-uint32_t sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity)
+uint32_t sf64_synth_note_on(sf64_synth_t *synth, int midi_channel,
+	int key, int velocity)
 {
 	assert(synth);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
 	assertf(synth->num_channels > 0, "sf64_synth: call sf64_synth_set_channels first");
 	if (velocity <= 0) {
-		sf64_synth_note_off(synth, key);
+		sf64_synth_note_off(synth, midi_channel, key);
 		return 0;
 	}
-	if (synth->preset_index < 0)
+
+	int preset_index = synth->midi[midi_channel].preset_index;
+	if (preset_index < 0)
 		return 0;
 
-	sf64_preset_t *p = &synth->bank->presets[synth->preset_index];
+	sf64_preset_t *p = &synth->bank->presets[preset_index];
 	int matches[MIXER_MAX_CHANNELS];
 	int nmatch = 0;
 	for (int i = 0; i < p->num_regions; i++) {
@@ -269,23 +493,24 @@ uint32_t sf64_synth_note_on(sf64_synth_t *synth, int key, int velocity)
 	for (int i = 0; i < nmatch; i++) {
 		int ch = alloc_channel(synth);
 		assert(ch >= 0);
-		voice_start(synth, ch, matches[i], key, velocity, note_id);
+		voice_start(synth, ch, midi_channel, matches[i], key, velocity, note_id);
 	}
 	return note_id;
 }
 
-void sf64_synth_note_off(sf64_synth_t *synth, int key)
+void sf64_synth_note_off(sf64_synth_t *synth, int midi_channel, int key)
 {
 	assert(synth);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
 	if (synth->num_channels <= 0)
 		return;
 
-	// Oldest still-held identity for this key (IDs increase monotonically).
+	// Oldest still-held identity for this key on this MIDI channel.
 	uint32_t oldest = 0;
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
 		sf64_voice_t *v = &synth->voices[ch];
-		if (!voice_held(v) || v->key != key)
+		if (!voice_held(v) || v->midi_channel != midi_channel || v->key != key)
 			continue;
 		if (oldest == 0 || v->note_id < oldest)
 			oldest = v->note_id;
@@ -296,7 +521,8 @@ void sf64_synth_note_off(sf64_synth_t *synth, int key)
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
 		sf64_voice_t *v = &synth->voices[ch];
-		if (!voice_held(v) || v->key != key || v->note_id != oldest)
+		if (!voice_held(v) || v->midi_channel != midi_channel ||
+			v->key != key || v->note_id != oldest)
 			continue;
 
 		sf64_region_t *r = &synth->bank->regions[v->region_index];

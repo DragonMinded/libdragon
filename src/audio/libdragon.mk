@@ -5,6 +5,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/audio/libxm/context.o $(BUILD_DIR)/audio/libxm/load.o \
 	$(BUILD_DIR)/audio/ym64.o $(BUILD_DIR)/audio/ay8910.o \
 	$(BUILD_DIR)/audio/sf64.o $(BUILD_DIR)/audio/sf64_synth.o \
+	$(BUILD_DIR)/audio/mid64.o \
 
 LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/audio/wav64_vadpcm.o

@@ -82,6 +82,8 @@
 #include "ym64.h"
 #include "sf64.h"
 #include "sf64_synth.h"
+#include "midi_target.h"
+#include "mid64.h"
 #include "rspq.h"
 #include "rdpq.h"
 #include "rdpq_tri.h"
