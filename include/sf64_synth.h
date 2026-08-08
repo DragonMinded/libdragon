@@ -55,12 +55,11 @@ typedef struct sf64_synth_s sf64_synth_t;
 /**
  * @brief Return the synthesizer as a #midi_target_t for MID64 playback.
  *
- * The synth embeds a #midi_target_t as its first member. Controllers mapped:
- * CC7 volume, CC11 expression, CC10 pan, CC64 sustain, CC0 bank MSB (applied
- * on the next program change). #midi_target_ops_t::reset stops all voices;
+ * Controllers mapped: CC7 volume, CC11 expression, CC10 pan, CC64 sustain,
+ * CC0 bank MSB (applied on the next program change), CC120 All Sound Off,
+ * CC121 Reset All Controllers (does not reset volume/bank/program), CC123
+ * All Notes Off. #midi_target_ops_t::reset stops all voices;
  * #midi_target_ops_t::finish releases them musically (end of song).
- * #midi_target_ops_t::process advances #sf64_synth_process to the absolute
- * sample clock used by MID64.
  */
 midi_target_t *sf64_synth_midi_target(sf64_synth_t *synth);
 

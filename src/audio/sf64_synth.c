@@ -1,150 +1,21 @@
 /**
  * @file sf64_synth.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @brief Polyphonic SF64 synthesizer
+ * @brief Voice engine for the SF64 synthesizer
  * @ingroup mixer
+ *
+ * Owns mixer-channel allocation, DAHDSR envelopes, exclusive class, and
+ * #sf64_synth_process. The MIDI control plane lives in sf64_midi.c.
  */
-#include "sf64_synth.h"
-#include "sf64_internal.h"
+#include "sf64_synth_internal.h"
 #include "wav64.h"
-#include "mixer.h"
 #include "audio.h"
 #include "debug.h"
 #include <math.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include <limits.h>
 #include <assert.h>
 
-/** @brief Envelope phase of a synth voice. */
-typedef enum {
-	SF64_VOICE_OFF,      ///< Idle; mixer channel is free
-	SF64_VOICE_DELAY,    ///< Silent delay before attack
-	SF64_VOICE_ATTACK,   ///< Ramping to peak gain
-	SF64_VOICE_HOLD,     ///< Holding peak before decay
-	SF64_VOICE_DECAY,    ///< Ramping from peak to the sustain level
-	SF64_VOICE_SUSTAIN,  ///< Holding the sustain level until note-off
-	SF64_VOICE_RELEASE,  ///< Ramping to silence after note-off
-} sf64_voice_phase_t;
-
-/** GM drum channel (MIDI channel 10 → index 9). */
-#define SF64_DRUM_CHANNEL  9
-/** Default SF2 percussion bank for #SF64_DRUM_CHANNEL. */
-#define SF64_DRUM_BANK     128
-
-/** @brief Per-MIDI-channel controllers and program */
-typedef struct {
-	uint16_t bank;              ///< MIDI bank select
-	uint8_t program;            ///< MIDI program
-	int16_t preset_index;       ///< Index into sf64_bank_t.presets, or -1
-	uint8_t volume;             ///< CC7 (0–127)
-	uint8_t expression;         ///< CC11 (0–127)
-	uint8_t pan;                ///< CC10 (0–127, 64 = center)
-	uint8_t sustain;            ///< CC64 sustain pedal (`>= 64` = down)
-	uint16_t pitch_bend;        ///< 14-bit bend (center 8192)
-	int16_t pitch_range_cents;  ///< Full bend span in cents (default 200)
-} sf64_midi_channel_t;
-
-/** @brief One voice bound to a mixer channel. */
-typedef struct {
-	sf64_voice_phase_t phase; ///< Current envelope phase
-	int8_t midi_channel;      ///< MIDI channel that owns this voice, or -1
-	int8_t key;               ///< MIDI key that started this voice, or -1
-	int8_t velocity;          ///< Note-on velocity (for controller recalcs)
-	int16_t preset_index;     ///< Preset used at note-on (for exclusive class)
-	int region_index;         ///< Index into sf64_bank_t.regions
-	uint32_t note_id;         ///< Note identity shared by layered voices; 0 if off
-	int64_t deadline;         ///< Absolute sample time of the next phase change; INT64_MAX = none
-	float lvol, rvol;         ///< Peak gain after attack (pre-sustain)
-	bool sustain_loop;        ///< True if the region uses #SF64_LOOP_SUSTAIN
-	bool key_released;        ///< Note-off received (may still be held by pedal)
-	bool held_by_sustain;     ///< Sounding only because the sustain pedal is down
-} sf64_voice_t;
-
-/** @brief Opaque synthesizer state (see #sf64_synth_t). */
-typedef struct sf64_synth_s {
-	midi_target_t midi_target;    ///< Must be first; see #sf64_synth_midi_target
-	sf64_bank_t *bank;            ///< Bank this synth plays from
-	int first_channel;            ///< First mixer channel of the allocated range
-	int num_channels;             ///< Number of mixer channels reserved for voices
-	int64_t now;                  ///< Absolute sample time advanced by #sf64_synth_process
-	uint32_t used_channel_mask;   ///< Bitmask of busy channels in the allocated range
-	uint32_t next_note_id;        ///< Next note identity to assign (`>= 1`)
-	sf64_midi_channel_t midi[SF64_MIDI_CHANNELS]; ///< Per-MIDI-channel state
-	sf64_voice_t voices[MIXER_MAX_CHANNELS]; ///< Per-mixer-channel voice state
-} sf64_synth_t;
-
-static void voices_stop_all(sf64_synth_t *synth);
-static void midi_channels_reset(sf64_synth_t *synth);
-
-static void sf64_mt_note_on(midi_target_t *t, int ch, int key, int vel, int64_t now)
-{
-	sf64_synth_note_on((sf64_synth_t *)t, ch, key, vel);
-}
-
-static void sf64_mt_note_off(midi_target_t *t, int ch, int key, int vel, int64_t now)
-{
-	sf64_synth_note_off((sf64_synth_t *)t, ch, key);
-}
-
-static void sf64_mt_cc(midi_target_t *t, int ch, int cc, int value, int64_t now)
-{
-	sf64_synth_t *s = (sf64_synth_t *)t;
-	switch (cc) {
-	case 7:  sf64_synth_set_volume(s, ch, value); break;
-	case 11: sf64_synth_set_expression(s, ch, value); break;
-	case 10: sf64_synth_set_pan(s, ch, value); break;
-	case 64: sf64_synth_set_sustain(s, ch, value); break;
-	case 0:  s->midi[ch].bank = (uint16_t)value; break;
-	}
-}
-
-static void sf64_mt_program(midi_target_t *t, int ch, int program, int64_t now)
-{
-	sf64_synth_t *s = (sf64_synth_t *)t;
-	sf64_synth_set_program(s, ch, s->midi[ch].bank, program);
-}
-
-static void sf64_mt_pitch_bend(midi_target_t *t, int ch, int value, int64_t now)
-{
-	sf64_synth_set_pitch_bend((sf64_synth_t *)t, ch, value);
-}
-
-static void sf64_mt_reset(midi_target_t *t, int64_t now)
-{
-	sf64_synth_t *s = (sf64_synth_t *)t;
-	voices_stop_all(s);
-	midi_channels_reset(s);
-	s->now = now;
-}
-
-static void sf64_mt_finish(midi_target_t *t, int64_t now);
-
-static int64_t sf64_mt_process(midi_target_t *t, int64_t now)
-{
-	sf64_synth_t *s = (sf64_synth_t *)t;
-	int64_t elapsed = now - s->now;
-	assertf(elapsed >= 0, "sf64 midi_target: clock went backwards");
-	assertf(elapsed <= INT_MAX, "sf64 midi_target: process span too large");
-	int next = sf64_synth_process(s, (int)elapsed);
-	if (next < 0) return INT64_MAX;
-	return s->now + next;
-}
-
-static const midi_target_ops_t sf64_midi_ops = {
-	.note_on = sf64_mt_note_on,
-	.note_off = sf64_mt_note_off,
-	.control_change = sf64_mt_cc,
-	.program_change = sf64_mt_program,
-	.pitch_bend = sf64_mt_pitch_bend,
-	.poly_pressure = NULL,
-	.channel_pressure = NULL,
-	.finish = sf64_mt_finish,
-	.reset = sf64_mt_reset,
-	.process = sf64_mt_process,
-};
-
-static void voice_stop(sf64_synth_t *synth, int ch)
+void voice_stop(sf64_synth_t *synth, int ch)
 {
 	sf64_voice_t *v = &synth->voices[ch];
 	if (v->phase == SF64_VOICE_OFF)
@@ -164,7 +35,7 @@ static void voice_stop(sf64_synth_t *synth, int ch)
 	synth->used_channel_mask &= ~(1u << ch);
 }
 
-static void voices_stop_all(sf64_synth_t *synth)
+void voices_stop_all(sf64_synth_t *synth)
 {
 	if (synth->num_channels <= 0)
 		return;
@@ -194,22 +65,6 @@ static int count_free_channels(sf64_synth_t *synth)
 			n++;
 	}
 	return n;
-}
-
-/** True while the voice is in a pre-release envelope phase. */
-static bool voice_sounding(const sf64_voice_t *v)
-{
-	return v->phase == SF64_VOICE_DELAY ||
-		v->phase == SF64_VOICE_ATTACK ||
-		v->phase == SF64_VOICE_HOLD ||
-		v->phase == SF64_VOICE_DECAY ||
-		v->phase == SF64_VOICE_SUSTAIN;
-}
-
-/** True while the key is still down (note-off not yet received). */
-static bool voice_key_down(const sf64_voice_t *v)
-{
-	return voice_sounding(v) && !v->key_released;
 }
 
 /** SF2 timecents -> output samples; <= -12000 is instant. */
@@ -312,24 +167,7 @@ static void voice_apply_vol(sf64_synth_t *synth, int ch)
 	}
 }
 
-/** Reset MIDI channel controllers / programs to create-time defaults. */
-static void midi_channels_reset(sf64_synth_t *synth)
-{
-	for (int i = 0; i < SF64_MIDI_CHANNELS; i++) {
-		sf64_midi_channel_t *mc = &synth->midi[i];
-		mc->bank = (i == SF64_DRUM_CHANNEL) ? SF64_DRUM_BANK : 0;
-		mc->program = 0;
-		mc->preset_index = (int16_t)sf64_find_preset(synth->bank, mc->bank, 0);
-		mc->volume = 127;
-		mc->expression = 127;
-		mc->pan = 64;
-		mc->sustain = 0;
-		mc->pitch_bend = 8192;
-		mc->pitch_range_cents = 200;
-	}
-}
-
-static void midi_apply_vol(sf64_synth_t *synth, int midi_channel)
+void midi_apply_vol(sf64_synth_t *synth, int midi_channel)
 {
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
@@ -339,7 +177,7 @@ static void midi_apply_vol(sf64_synth_t *synth, int midi_channel)
 	}
 }
 
-static void midi_apply_bend(sf64_synth_t *synth, int midi_channel)
+void midi_apply_bend(sf64_synth_t *synth, int midi_channel)
 {
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
@@ -347,12 +185,6 @@ static void midi_apply_bend(sf64_synth_t *synth, int midi_channel)
 			synth->voices[ch].midi_channel == midi_channel)
 			mixer_ch_set_freq(ch, voice_freq(synth, ch));
 	}
-}
-
-midi_target_t *sf64_synth_midi_target(sf64_synth_t *synth)
-{
-	assert(synth);
-	return &synth->midi_target;
 }
 
 sf64_synth_t *sf64_synth_create(sf64_bank_t *bank)
@@ -396,63 +228,7 @@ void sf64_synth_set_channels(sf64_synth_t *synth, int first_channel, int num_cha
 	synth->num_channels = num_channels;
 }
 
-bool sf64_synth_set_program(sf64_synth_t *synth, int midi_channel,
-	int bank, int program)
-{
-	assert(synth);
-	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
-	int idx = sf64_find_preset(synth->bank, bank, program);
-	if (idx < 0)
-		return false;
-	sf64_midi_channel_t *mc = &synth->midi[midi_channel];
-	mc->bank = (uint16_t)bank;
-	mc->program = (uint8_t)program;
-	mc->preset_index = (int16_t)idx;
-	return true;
-}
-
-void sf64_synth_set_volume(sf64_synth_t *synth, int midi_channel, int volume)
-{
-	assert(synth);
-	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
-	assert(volume >= 0 && volume <= 127);
-	synth->midi[midi_channel].volume = (uint8_t)volume;
-	if (synth->num_channels > 0)
-		midi_apply_vol(synth, midi_channel);
-}
-
-void sf64_synth_set_expression(sf64_synth_t *synth, int midi_channel, int expression)
-{
-	assert(synth);
-	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
-	assert(expression >= 0 && expression <= 127);
-	synth->midi[midi_channel].expression = (uint8_t)expression;
-	if (synth->num_channels > 0)
-		midi_apply_vol(synth, midi_channel);
-}
-
-void sf64_synth_set_pan(sf64_synth_t *synth, int midi_channel, int pan)
-{
-	assert(synth);
-	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
-	assert(pan >= 0 && pan <= 127);
-	synth->midi[midi_channel].pan = (uint8_t)pan;
-	if (synth->num_channels > 0)
-		midi_apply_vol(synth, midi_channel);
-}
-
-void sf64_synth_set_pitch_bend(sf64_synth_t *synth, int midi_channel, int pitch_bend)
-{
-	assert(synth);
-	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
-	assert(pitch_bend >= 0 && pitch_bend <= 16383);
-	synth->midi[midi_channel].pitch_bend = (uint16_t)pitch_bend;
-	if (synth->num_channels > 0)
-		midi_apply_bend(synth, midi_channel);
-}
-
-/** Begin the release envelope (and leave a sustain loop if present). */
-static void voice_enter_release(sf64_synth_t *synth, int ch)
+void voice_enter_release(sf64_synth_t *synth, int ch)
 {
 	sf64_voice_t *v = &synth->voices[ch];
 	sf64_region_t *r = &synth->bank->regions[v->region_index];
@@ -479,42 +255,6 @@ static void voice_enter_release(sf64_synth_t *synth, int ch)
 	mixer_ch_set_vol_ramp(ch, 0, 0, release);
 	v->phase = SF64_VOICE_RELEASE;
 	v->deadline = synth->now + release;
-}
-
-/** End-of-song: drop sustain and release every still-sounding voice. */
-static void sf64_mt_finish(midi_target_t *t, int64_t now)
-{
-	sf64_synth_t *s = (sf64_synth_t *)t;
-	(void)now;
-	for (int i = 0; i < SF64_MIDI_CHANNELS; i++)
-		s->midi[i].sustain = 0;
-	if (s->num_channels <= 0)
-		return;
-	for (int ch = s->first_channel; ch < s->first_channel + s->num_channels; ch++) {
-		if (voice_sounding(&s->voices[ch]))
-			voice_enter_release(s, ch);
-	}
-}
-
-void sf64_synth_set_sustain(sf64_synth_t *synth, int midi_channel, int value)
-{
-	assert(synth);
-	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
-	assert(value >= 0 && value <= 127);
-
-	bool was_down = synth->midi[midi_channel].sustain >= 64;
-	synth->midi[midi_channel].sustain = (uint8_t)value;
-	bool down = value >= 64;
-	if (down || !was_down || synth->num_channels <= 0)
-		return;
-
-	// Pedal up: voices held only by the pedal enter real release.
-	for (int ch = synth->first_channel;
-		 ch < synth->first_channel + synth->num_channels; ch++) {
-		sf64_voice_t *v = &synth->voices[ch];
-		if (v->midi_channel == midi_channel && v->held_by_sustain)
-			voice_enter_release(synth, ch);
-	}
 }
 
 /** Begin decay (or sustain) with phase boundary at absolute sample @p at. */

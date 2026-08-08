@@ -2222,6 +2222,182 @@ fail_mr:
 	return false;
 }
 
+/** CC120 / CC121 / CC123 Channel Mode Messages. */
+static bool test_synth_channel_mode(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 4);
+	midi_target_t *mt = sf64_synth_midi_target(synth);
+	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
+	sf64_region_t *rc = &bank->regions[bank->presets[0].first_region + 1];
+	sf64_sample_t *sc = &bank->samples[rc->sample_index];
+	sf64_envelope_t save0 = r->amp_env;
+	sf64_envelope_t save_c = rc->amp_env;
+
+	r->amp_env.attack_timecents = samples_to_timecents(800);
+	r->amp_env.release_timecents = samples_to_timecents(800);
+	rc->amp_env.release_timecents = samples_to_timecents(800);
+	int rel = env_samples(r->amp_env.release_timecents);
+
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	assert(sf64_synth_set_program(synth, 1, 0, 0));
+
+	// CC120 during attack: hard cut, no release tail.
+	synth_silence(synth, 4);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	assert(mixer_ch_playing(0));
+	mt->ops->control_change(mt, 0, 120, 0, 0);
+	mix(64);
+	if (mixer_ch_playing(0)) {
+		printf("FAILED CC120 attack: voice still playing\n");
+		goto fail_cm;
+	}
+
+	// CC120 during release: also hard cut.
+	synth_silence(synth, 4);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	sf64_synth_note_off(synth, 0, 48);
+	assert(sf64_synth_process(synth, 0) == rel);
+	assert(mixer_ch_playing(0));
+	mt->ops->control_change(mt, 0, 120, 0, 0);
+	mix(64);
+	if (mixer_ch_playing(0)) {
+		printf("FAILED CC120 release: voice still playing\n");
+		goto fail_cm;
+	}
+
+	// CC123 sustain OFF → release (still playing mid-release).
+	synth_silence(synth, 4);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	mt->ops->control_change(mt, 0, 123, 0, 0);
+	int dl = sf64_synth_process(synth, 0);
+	if (dl != rel || !mixer_ch_playing(0)) {
+		printf("FAILED CC123: expected release remaining %d playing=%d\n",
+			dl, mixer_ch_playing(0));
+		goto fail_cm;
+	}
+
+	// CC123 sustain ON → held by pedal through attack into sustain.
+	synth_silence(synth, 4);
+	sf64_synth_set_sustain(synth, 0, 127);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	mt->ops->control_change(mt, 0, 123, 0, 0);
+	int atk = env_samples(r->amp_env.attack_timecents);
+	sf64_synth_process(synth, atk);
+	mix(64);
+	if (!mixer_ch_playing(0) || sf64_synth_process(synth, 0) >= 0) {
+		printf("FAILED CC123 pedal: expected held at sustain (playing=%d dl=%d)\n",
+			mixer_ch_playing(0), sf64_synth_process(synth, 0));
+		goto fail_cm;
+	}
+	sf64_synth_set_sustain(synth, 0, 0);
+	if (sf64_synth_process(synth, 0) != rel) {
+		printf("FAILED CC123 pedal: pedal-up did not release\n");
+		goto fail_cm;
+	}
+
+	// CC121: pitch bend restored; volume preserved; pedal released.
+	synth_silence(synth, 4);
+	sf64_synth_set_volume(synth, 0, 32);
+	sf64_synth_set_pan(synth, 0, 0);
+	sf64_synth_set_expression(synth, 0, 32);
+	sf64_synth_set_sustain(synth, 0, 127);
+	sf64_synth_set_pitch_bend(synth, 0, 0);
+	sf64_synth_note_on(synth, 0, 72, 100);
+	sf64_synth_note_off(synth, 0, 72); // held by pedal
+	assert(mixer_ch_playing(0));
+	if (!check_freq(synth, "CC121 pre-bend",
+			expect_freq_bend(rc, sc, 72, 0, 200)))
+		goto fail_cm;
+	mt->ops->control_change(mt, 0, 121, 0, 0);
+	if (!check_freq(synth, "CC121 bend center",
+			expect_freq_bend(rc, sc, 72, 8192, 200)))
+		goto fail_cm;
+	// Pedal cleared → release; volume still 32 (quiet vs full).
+	dl = sf64_synth_process(synth, 0);
+	if (dl != rel) {
+		printf("FAILED CC121: pedal not cleared (dl=%d)\n", dl);
+		goto fail_cm;
+	}
+	sf64_synth_process(synth, rel);
+	mix(64);
+	synth_silence(synth, 4);
+	sf64_synth_note_on(synth, 0, 72, 127);
+	mix(256);
+	int quiet = peak_n(256);
+	sf64_synth_set_volume(synth, 0, 127);
+	mix(256);
+	int loud = peak_n(256);
+	if (quiet * 2 > loud) {
+		printf("FAILED CC121: volume was reset (quiet=%d loud=%d)\n",
+			quiet, loud);
+		goto fail_cm;
+	}
+
+	// CC121 on ch0 does not affect ch1 bend.
+	synth_silence(synth, 4);
+	sf64_synth_set_pitch_bend(synth, 0, 0);
+	sf64_synth_set_pitch_bend(synth, 1, 0);
+	sf64_synth_note_on(synth, 0, 72, 100);
+	sf64_synth_note_on(synth, 1, 72, 100);
+	mt->ops->control_change(mt, 0, 121, 0, 0);
+	double p0 = mixer_ch_get_pos(1);
+	mix(512);
+	double got = (mixer_ch_get_pos(1) - p0) * SAMPLE_RATE / 512.0;
+	float want = expect_freq_bend(rc, sc, 72, 0, 200);
+	float err = got - want;
+	if (err < 0) err = -err;
+	if (err > want * 0.02f + 1.0f) {
+		printf("FAILED CC121 isolation: ch1 freq %.1f want %.1f\n", got, want);
+		goto fail_cm;
+	}
+
+	// Layered note identity: CC120 / CC123 affect both layers.
+	synth_silence(synth, 4);
+	assert(sf64_synth_set_program(synth, 0, 0, 3)); // Layer2
+	sf64_region_t *rl = &bank->regions[bank->presets[3].first_region];
+	sf64_envelope_t save_l0 = rl[0].amp_env;
+	sf64_envelope_t save_l1 = rl[1].amp_env;
+	rl[0].amp_env.release_timecents = samples_to_timecents(800);
+	rl[1].amp_env.release_timecents = samples_to_timecents(800);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	if (count_playing_n(4) != 2) {
+		printf("FAILED channel mode layer: setup playing=%d\n",
+			count_playing_n(4));
+		rl[0].amp_env = save_l0;
+		rl[1].amp_env = save_l1;
+		goto fail_cm;
+	}
+	mt->ops->control_change(mt, 0, 123, 0, 0);
+	if (sf64_synth_process(synth, 0) != rel || count_playing_n(4) != 2) {
+		printf("FAILED CC123 layer: playing=%d\n", count_playing_n(4));
+		rl[0].amp_env = save_l0;
+		rl[1].amp_env = save_l1;
+		goto fail_cm;
+	}
+	mt->ops->control_change(mt, 0, 120, 0, 0);
+	mix(64);
+	if (count_playing_n(4) != 0) {
+		printf("FAILED CC120 layer: playing=%d\n", count_playing_n(4));
+		rl[0].amp_env = save_l0;
+		rl[1].amp_env = save_l1;
+		goto fail_cm;
+	}
+	rl[0].amp_env = save_l0;
+	rl[1].amp_env = save_l1;
+
+	r->amp_env = save0;
+	rc->amp_env = save_c;
+	sf64_synth_close(synth);
+	return true;
+
+fail_cm:
+	r->amp_env = save0;
+	rc->amp_env = save_c;
+	sf64_synth_close(synth);
+	return false;
+}
+
 static bool test_synth_attenuation(sf64_bank_t *bank)
 {
 	// Converter writes 200 cB (not ~20 from the old 10× TSF factor).
@@ -2330,6 +2506,7 @@ int main(void)
 	total++; if (!test_synth_oneshot_reclaim(bank)) failed++;
 	total++; if (!test_synth_drum_channel(bank)) failed++;
 	total++; if (!test_synth_midi_reset(bank)) failed++;
+	total++; if (!test_synth_channel_mode(bank)) failed++;
 	total++; if (!test_synth_attenuation(bank)) failed++;
 
 	sf64_close(bank);
