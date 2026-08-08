@@ -15,6 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+/// @cond
 #define MIDI_STATUS_MASK       0xF0
 #define MIDI_CHANNEL_MASK      0x0F
 #define MIDI_STATUS_BIT        0x80
@@ -25,6 +26,7 @@
 #define MIDI_PROGRAM_CHANGE    0xC0
 #define MIDI_CHANNEL_PRESSURE  0xD0
 #define MIDI_PITCH_BEND        0xE0
+/// @endcond
 
 struct mid64player_s {
 	uint8_t *file_buf;			///< asset_load() buffer (header + events)
@@ -198,16 +200,22 @@ static void mid64_loop_restart(mid64player_t *p, int64_t now)
 	mid64_peek_next(p);
 }
 
+/** Tear down playback state; caller must already have removed the MixerEvent. */
+static void mid64_do_stop(mid64player_t *p, int64_t now)
+{
+	if (p->target->ops->reset)
+		p->target->ops->reset(p->target, now);
+	p->playing = false;
+	p->stop_requested = false;
+}
+
 static int mid64_tick(void *arg)
 {
 	mid64player_t *p = arg;
 	int64_t now = p->scheduled_sample;
 
 	if (p->stop_requested) {
-		if (p->target->ops->reset)
-			p->target->ops->reset(p->target, now);
-		p->playing = false;
-		p->stop_requested = false;
+		mid64_do_stop(p, now);
 		return 0;
 	}
 
@@ -223,6 +231,10 @@ static int mid64_tick(void *arg)
 				mid64_loop_restart(p, now);
 				continue;
 			}
+			// Natural end: release musically, then keep scheduling process()
+			// until the synth has no pending deadlines.
+			if (p->target->ops->finish)
+				p->target->ops->finish(p->target, now);
 			p->next_midi_sample = INT64_MAX;
 			break;
 		}
@@ -278,7 +290,7 @@ void mid64player_close(mid64player_t *player)
 	assert(player);
 	if (player->playing) {
 		mixer_remove_event(mid64_tick, player);
-		player->playing = false;
+		mid64_do_stop(player, player->scheduled_sample);
 	}
 	free(player->file_buf);
 	free(player);
@@ -364,7 +376,12 @@ void mid64player_play(mid64player_t *player, midi_target_t *target)
 void mid64player_stop(mid64player_t *player)
 {
 	assert(player);
+	if (!player->playing)
+		return;
 	player->stop_requested = true;
+	// Pull the callback forward so a distant next MIDI event cannot delay stop.
+	mixer_remove_event(mid64_tick, player);
+	mixer_add_event(0, mid64_tick, player);
 }
 
 void mid64player_set_loop(mid64player_t *player, bool loop)

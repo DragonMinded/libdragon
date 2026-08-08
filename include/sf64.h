@@ -5,12 +5,8 @@
  * @ingroup mixer
  *
  * SF64 is the runtime format produced by audioconv64 from a SoundFont 2
- * (`.sf2`) file. A bank holds resolved presets, key/velocity regions, amp
- * envelopes, and embedded WAV64 samples.
- *
- * Load a bank with #sf64_load; free it with #sf64_close. The bank itself is
- * immutable and has no mixer events — playback is driven by #sf64_synth_t
- * (see sf64_synth.h).
+ * (`.sf2`) file. Load a bank with #sf64_load and free it with #sf64_close.
+ * Playback is performed by #sf64_synth_t (see sf64_synth.h).
  */
 #ifndef LIBDRAGON_SF64_H
 #define LIBDRAGON_SF64_H
@@ -25,9 +21,8 @@ typedef struct sf64_bank_s sf64_bank_t;
 /**
  * @brief Load an SF64 bank from disk.
  *
- * Opens the file and prepare for synthesis. Samples are not loaded into memory:
- * they will be streamed directly from the filesystem during synthesis.
- * The returned bank must be freed with #sf64_close.
+ * Samples are streamed from the filesystem during playback rather than
+ * preloaded into memory. Free with #sf64_close.
  *
  * @param fn   Filename with filesystem prefix (e.g. `rom:/bank.sf64`)
  * @return     Loaded bank
@@ -36,8 +31,6 @@ sf64_bank_t *sf64_load(const char *fn);
 
 /**
  * @brief Close a bank and free all associated resources.
- *
- * Stops any mixer channel still playing an embedded sample, and frees the bank.
  *
  * @param bank  Bank returned by #sf64_load
  */

@@ -118,6 +118,8 @@ static void sf64_mt_reset(midi_target_t *t, int64_t now)
 	s->now = now;
 }
 
+static void sf64_mt_finish(midi_target_t *t, int64_t now);
+
 static int64_t sf64_mt_process(midi_target_t *t, int64_t now)
 {
 	sf64_synth_t *s = (sf64_synth_t *)t;
@@ -137,6 +139,7 @@ static const midi_target_ops_t sf64_midi_ops = {
 	.pitch_bend = sf64_mt_pitch_bend,
 	.poly_pressure = NULL,
 	.channel_pressure = NULL,
+	.finish = sf64_mt_finish,
 	.reset = sf64_mt_reset,
 	.process = sf64_mt_process,
 };
@@ -476,6 +479,21 @@ static void voice_enter_release(sf64_synth_t *synth, int ch)
 	mixer_ch_set_vol_ramp(ch, 0, 0, release);
 	v->phase = SF64_VOICE_RELEASE;
 	v->deadline = synth->now + release;
+}
+
+/** End-of-song: drop sustain and release every still-sounding voice. */
+static void sf64_mt_finish(midi_target_t *t, int64_t now)
+{
+	sf64_synth_t *s = (sf64_synth_t *)t;
+	(void)now;
+	for (int i = 0; i < SF64_MIDI_CHANNELS; i++)
+		s->midi[i].sustain = 0;
+	if (s->num_channels <= 0)
+		return;
+	for (int ch = s->first_channel; ch < s->first_channel + s->num_channels; ch++) {
+		if (voice_sounding(&s->voices[ch]))
+			voice_enter_release(s, ch);
+	}
 }
 
 void sf64_synth_set_sustain(sf64_synth_t *synth, int midi_channel, int value)
