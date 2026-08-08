@@ -138,12 +138,12 @@ static bool check_pcm(const char *tag, int start, int nsamples,
 
 static bool test_bank_layout(sf64_bank_t *bank)
 {
-	if (bank->num_presets != 5 || bank->num_regions != 10 || bank->num_samples != 4) {
+	if (bank->num_presets != 6 || bank->num_regions != 11 || bank->num_samples != 4) {
 		printf("FAILED layout: presets=%d regions=%d samples=%d\n",
 			bank->num_presets, bank->num_regions, bank->num_samples);
 		return false;
 	}
-	if (sf64_preset_count(bank) != 5) {
+	if (sf64_preset_count(bank) != 6) {
 		printf("FAILED preset_count\n");
 		return false;
 	}
@@ -152,6 +152,7 @@ static bool test_bank_layout(sf64_bank_t *bank)
 		sf64_find_preset(bank, 0, 2) != 2 ||
 		sf64_find_preset(bank, 0, 3) != 3 ||
 		sf64_find_preset(bank, 0, 4) != 4 ||
+		sf64_find_preset(bank, 128, 0) != 5 ||
 		sf64_find_preset(bank, 0, 5) != -1) {
 		printf("FAILED find_preset\n");
 		return false;
@@ -161,7 +162,8 @@ static bool test_bank_layout(sf64_bank_t *bank)
 	if (mb != 0 || prog != 1 || strcmp(sf64_preset_name(bank, 0), "KeySplit") != 0 ||
 		strcmp(sf64_preset_name(bank, 1), "VelSplit") != 0 ||
 		strcmp(sf64_preset_name(bank, 3), "Layer2") != 0 ||
-		strcmp(sf64_preset_name(bank, 4), "Layer3") != 0) {
+		strcmp(sf64_preset_name(bank, 4), "Layer3") != 0 ||
+		strcmp(sf64_preset_name(bank, 5), "DrumKit") != 0) {
 		printf("FAILED preset introspect: bank=%d prog=%d name0=%s name1=%s\n",
 			mb, prog, sf64_preset_name(bank, 0), sf64_preset_name(bank, 1));
 		return false;
@@ -172,12 +174,21 @@ static bool test_bank_layout(sf64_bank_t *bank)
 	sf64_preset_t *p2 = &bank->presets[2];
 	sf64_preset_t *p3 = &bank->presets[3];
 	sf64_preset_t *p4 = &bank->presets[4];
+	sf64_preset_t *p5 = &bank->presets[5];
 	if (p0->bank != 0 || p0->program != 0 || p0->num_regions != 2 ||
 		p1->bank != 0 || p1->program != 1 || p1->num_regions != 2 ||
 		p2->bank != 0 || p2->program != 2 || p2->num_regions != 1 ||
 		p3->bank != 0 || p3->program != 3 || p3->num_regions != 2 ||
-		p4->bank != 0 || p4->program != 4 || p4->num_regions != 3) {
+		p4->bank != 0 || p4->program != 4 || p4->num_regions != 3 ||
+		p5->bank != 128 || p5->program != 0 || p5->num_regions != 1) {
 		printf("FAILED preset headers\n");
+		return false;
+	}
+
+	// Format counts must fit the on-disk uint16 fields.
+	if (bank->num_presets > 65535 || bank->num_regions > 65535 ||
+		bank->num_samples > 65535) {
+		printf("FAILED layout: counts exceed uint16\n");
 		return false;
 	}
 
@@ -194,13 +205,22 @@ static bool test_bank_layout(sf64_bank_t *bank)
 		return false;
 	}
 
-	// Preset 1: A vel 0-79, D vel 80-127
+	// Preset 1: A vel 0-79, D vel 80-127 (D has 200 cB attenuation).
 	r = &bank->regions[p1->first_region];
 	if (r[0].velocity_min != 0 || r[0].velocity_max != 79 ||
 		r[0].sample_index != 0 ||
 		r[1].velocity_min != 80 || r[1].velocity_max != 127 ||
-		r[1].sample_index != 2) {
-		printf("FAILED preset1 velocity split\n");
+		r[1].sample_index != 2 || r[1].attenuation_cb != 200) {
+		printf("FAILED preset1 velocity split (attnD=%d)\n", r[1].attenuation_cb);
+		return false;
+	}
+
+	// Dedup: sample A is shared by KeySplit / VelSplit / Layer2.
+	if (bank->regions[p0->first_region].sample_index !=
+		bank->regions[p1->first_region].sample_index ||
+		bank->regions[p0->first_region].sample_index !=
+		bank->regions[p3->first_region].sample_index) {
+		printf("FAILED layout: sample A not deduplicated across presets\n");
 		return false;
 	}
 
@@ -574,6 +594,17 @@ static int env_samples(int16_t tc)
 	if (tc <= -12000) return 0;
 	int n = (int)lroundf(powf(2.0f, tc / 1200.0f) * (float)SAMPLE_RATE);
 	return n > 0 ? n : 0;
+}
+
+/** Match synth keynum scaling: base + scale*(60-key), then timecents→samples. */
+static int env_scaled_samples_tc(int16_t base_tc, int16_t keynum_scale, int key)
+{
+	int tc = base_tc;
+	if (keynum_scale)
+		tc += (int)keynum_scale * (60 - key);
+	if (tc < -12000) tc = -12000;
+	if (tc > 8000) tc = 8000;
+	return env_samples((int16_t)tc);
 }
 
 static int peak_n(int n)
@@ -1835,6 +1866,42 @@ static bool test_synth_exclusive(sf64_bank_t *bank)
 	rl[0].exclusive_group = gl0;
 	rl[1].exclusive_group = gl1;
 
+	// Rejected layered note-on must not choke victims (atomic with exclusive).
+	// Fill both channels with Layer2 (only layer0 in group 1). A second layered
+	// note needs 2 channels but exclusive reclaims only the group-1 voice.
+	sf64_synth_set_channels(synth, 0, 2);
+	rl[0].exclusive_group = 1;
+	rl[1].exclusive_group = 0;
+	assert(sf64_synth_set_program(synth, 0, 0, 3));
+	synth_silence(synth, 2);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	mix(64);
+	waveform_t *w0 = mixer_ch_playing_waveform(0);
+	waveform_t *w1 = mixer_ch_playing_waveform(1);
+	if (count_playing_n(2) != 2) {
+		printf("FAILED excl: setup for atomic reject playing=%d\n",
+			count_playing_n(2));
+		rl[0].exclusive_group = gl0;
+		rl[1].exclusive_group = gl1;
+		goto fail_excl;
+	}
+	if (sf64_synth_note_on(synth, 0, 61, 100) != 0) {
+		printf("FAILED excl: layered note should have been rejected\n");
+		rl[0].exclusive_group = gl0;
+		rl[1].exclusive_group = gl1;
+		goto fail_excl;
+	}
+	if (count_playing_n(2) != 2 ||
+		mixer_ch_playing_waveform(0) != w0 ||
+		mixer_ch_playing_waveform(1) != w1) {
+		printf("FAILED excl: rejected note-on choked a victim\n");
+		rl[0].exclusive_group = gl0;
+		rl[1].exclusive_group = gl1;
+		goto fail_excl;
+	}
+	rl[0].exclusive_group = gl0;
+	rl[1].exclusive_group = gl1;
+
 	r0[0].exclusive_group = g0a;
 	r0[1].exclusive_group = g0c;
 	r1[0].exclusive_group = g1a;
@@ -1849,6 +1916,348 @@ fail_excl:
 	r1[1].exclusive_group = g1d;
 	sf64_synth_close(synth);
 	return false;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Envelope delay / hold / key scaling, multi-phase process, reclaim, MIDI
+//////////////////////////////////////////////////////////////////////////////
+
+static bool test_synth_delay_hold(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 1);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
+	sf64_envelope_t save = r->amp_env;
+
+	// Delay: silent until deadline, then attack remaining.
+	r->amp_env.delay_timecents = samples_to_timecents(256);
+	r->amp_env.attack_timecents = samples_to_timecents(128);
+	r->amp_env.hold_timecents = -12000;
+	r->amp_env.decay_timecents = -12000;
+	r->amp_env.sustain_centibels = 0;
+	r->amp_env.keynum_to_hold = 0;
+	r->amp_env.keynum_to_decay = 0;
+	int delay = env_samples(r->amp_env.delay_timecents);
+	int atk = env_samples(r->amp_env.attack_timecents);
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	int dl = sf64_synth_process(synth, 0);
+	if (dl != delay) {
+		printf("FAILED delay: remaining %d want %d\n", dl, delay);
+		goto fail_dh;
+	}
+	mix(64);
+	if (peak_n(64) > 64) {
+		printf("FAILED delay: audible during delay (peak %d)\n", peak_n(64));
+		goto fail_dh;
+	}
+	dl = sf64_synth_process(synth, delay);
+	if (dl != atk) {
+		printf("FAILED delay→attack remaining %d want %d\n", dl, atk);
+		goto fail_dh;
+	}
+
+	// Hold: after attack, peak holds before decay to silence.
+	r->amp_env.delay_timecents = -12000;
+	r->amp_env.attack_timecents = samples_to_timecents(64);
+	r->amp_env.hold_timecents = samples_to_timecents(256);
+	r->amp_env.decay_timecents = samples_to_timecents(64);
+	r->amp_env.sustain_centibels = 1440;
+	atk = env_samples(r->amp_env.attack_timecents);
+	int hold = env_samples(r->amp_env.hold_timecents);
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 60, 127);
+	sf64_synth_process(synth, atk); // → hold
+	dl = sf64_synth_process(synth, 0);
+	if (dl != hold) {
+		printf("FAILED hold: remaining %d want %d\n", dl, hold);
+		goto fail_dh;
+	}
+	mix(64);
+	int held = peak_n(64);
+	if (held < 1024) {
+		printf("FAILED hold: silent at peak (peak %d)\n", held);
+		goto fail_dh;
+	}
+	sf64_synth_process(synth, hold); // → decay
+	sf64_synth_process(synth, env_samples(r->amp_env.decay_timecents));
+	mix(64);
+	if (peak_n(64) > held / 8) {
+		printf("FAILED hold: still loud after decay to silence\n");
+		goto fail_dh;
+	}
+
+	// Keynum scaling shortens hold at keys above 60.
+	r->amp_env.attack_timecents = -12000;
+	r->amp_env.hold_timecents = samples_to_timecents(400);
+	r->amp_env.keynum_to_hold = 100;
+	r->amp_env.decay_timecents = -12000;
+	r->amp_env.sustain_centibels = 0;
+	int hold60 = env_scaled_samples_tc(r->amp_env.hold_timecents,
+		r->amp_env.keynum_to_hold, 60);
+	int hold72 = env_scaled_samples_tc(r->amp_env.hold_timecents,
+		r->amp_env.keynum_to_hold, 72);
+	if (hold72 >= hold60) {
+		printf("FAILED keyscale: hold72=%d not shorter than hold60=%d\n",
+			hold72, hold60);
+		goto fail_dh;
+	}
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	dl = sf64_synth_process(synth, 0);
+	if (dl != hold60) {
+		printf("FAILED keyscale: key60 hold %d want %d\n", dl, hold60);
+		goto fail_dh;
+	}
+	// Lower key → longer hold (scale*(60-key) adds timecents).
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	int hold48 = env_scaled_samples_tc(r->amp_env.hold_timecents,
+		r->amp_env.keynum_to_hold, 48);
+	dl = sf64_synth_process(synth, 0);
+	if (dl != hold48 || hold48 <= hold60) {
+		printf("FAILED keyscale: key48 hold %d want %d (key60=%d)\n",
+			dl, hold48, hold60);
+		goto fail_dh;
+	}
+
+	r->amp_env = save;
+	sf64_synth_close(synth);
+	return true;
+
+fail_dh:
+	r->amp_env = save;
+	sf64_synth_close(synth);
+	return false;
+}
+
+static bool test_synth_multiphase(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 1);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
+	sf64_envelope_t save = r->amp_env;
+
+	r->amp_env.delay_timecents = samples_to_timecents(100);
+	r->amp_env.attack_timecents = samples_to_timecents(100);
+	r->amp_env.hold_timecents = samples_to_timecents(100);
+	r->amp_env.decay_timecents = -12000;
+	r->amp_env.sustain_centibels = 0;
+	r->amp_env.keynum_to_hold = 0;
+	r->amp_env.keynum_to_decay = 0;
+	int delay = env_samples(r->amp_env.delay_timecents);
+	int atk = env_samples(r->amp_env.attack_timecents);
+	int hold = env_samples(r->amp_env.hold_timecents);
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	// One process spanning delay+attack+hold must land in sustain.
+	sf64_synth_process(synth, delay + atk + hold);
+	if (sf64_synth_process(synth, 0) >= 0) {
+		printf("FAILED multiphase: still pending after full envelope span\n");
+		r->amp_env = save;
+		sf64_synth_close(synth);
+		return false;
+	}
+	mix(64);
+	if (peak_n(64) < 1024) {
+		printf("FAILED multiphase: silent in sustain after catch-up\n");
+		r->amp_env = save;
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	r->amp_env = save;
+	sf64_synth_close(synth);
+	return true;
+}
+
+static bool test_synth_oneshot_reclaim(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 1);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
+	sf64_envelope_t save = r->amp_env;
+	r->amp_env.delay_timecents = -12000;
+	r->amp_env.attack_timecents = -12000;
+	r->amp_env.hold_timecents = -12000;
+	r->amp_env.decay_timecents = -12000;
+	r->amp_env.release_timecents = -12000;
+
+	synth_silence(synth, 1);
+	if (!sf64_synth_note_on(synth, 0, 60, 100)) {
+		printf("FAILED oneshot reclaim: first note_on failed\n");
+		goto fail_os;
+	}
+	// Play past the oneshot length at 1:1 (root key 60).
+	mix(A_LEN + 512);
+	if (mixer_ch_playing(0)) {
+		printf("FAILED oneshot reclaim: mixer still playing after sample end\n");
+		goto fail_os;
+	}
+	// Voice still reserved until process reclaims it.
+	if (sf64_synth_note_on(synth, 0, 48, 100) != 0) {
+		printf("FAILED oneshot reclaim: note_on before process should fail\n");
+		goto fail_os;
+	}
+	sf64_synth_process(synth, 0);
+	if (!sf64_synth_note_on(synth, 0, 48, 100) || !mixer_ch_playing(0)) {
+		printf("FAILED oneshot reclaim: process did not free the channel\n");
+		goto fail_os;
+	}
+
+	r->amp_env = save;
+	sf64_synth_close(synth);
+	return true;
+
+fail_os:
+	r->amp_env = save;
+	sf64_synth_close(synth);
+	return false;
+}
+
+static bool test_synth_drum_channel(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 2);
+	sf64_region_t *rd = &bank->regions[bank->presets[5].first_region];
+	sf64_region_t *ra = &bank->regions[bank->presets[0].first_region];
+
+	// Channel 9 defaults to bank 128 / DrumKit without Bank Select.
+	synth_silence(synth, 2);
+	if (!sf64_synth_note_on(synth, 9, 60, 100)) {
+		printf("FAILED drum: ch9 note_on with default bank\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (mixer_ch_playing_waveform(0) != &bank->waves[rd->sample_index]->wave) {
+		printf("FAILED drum: ch9 did not play DrumKit sample\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Melodic ch0 still defaults to bank 0 / KeySplit.
+	if (!sf64_synth_note_on(synth, 0, 48, 100)) {
+		printf("FAILED drum: ch0 note_on failed\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (mixer_ch_playing_waveform(1) != &bank->waves[ra->sample_index]->wave) {
+		printf("FAILED drum: ch0 did not play KeySplit\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+static bool test_synth_midi_reset(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 2);
+	midi_target_t *mt = sf64_synth_midi_target(synth);
+	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
+	int16_t save_rel = r->amp_env.release_timecents;
+	r->amp_env.release_timecents = samples_to_timecents(200);
+	int rel = env_samples(r->amp_env.release_timecents);
+
+	assert(sf64_synth_set_program(synth, 0, 0, 3)); // Layer2
+	sf64_synth_set_volume(synth, 0, 16);
+	sf64_synth_set_sustain(synth, 0, 127);
+	sf64_synth_set_pan(synth, 0, 0);
+	synth_silence(synth, 2);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	if (count_playing_n(2) != 2) {
+		printf("FAILED midi reset: Layer2 did not start two voices\n");
+		goto fail_mr;
+	}
+
+	mt->ops->reset(mt, 0);
+	mix(64);
+	if (count_playing_n(2) != 0) {
+		printf("FAILED midi reset: voices still playing\n");
+		goto fail_mr;
+	}
+
+	// Controllers / program restored: KeySplit, full volume, no sustain.
+	synth_silence(synth, 2);
+	if (!sf64_synth_note_on(synth, 0, 48, 127) || count_playing_n(2) != 1) {
+		printf("FAILED midi reset: expected single KeySplit voice\n");
+		goto fail_mr;
+	}
+	mix(128);
+	int full = peak_n(128);
+	if (full < 1024) {
+		printf("FAILED midi reset: volume not restored (peak %d)\n", full);
+		goto fail_mr;
+	}
+	sf64_synth_note_off(synth, 0, 48);
+	int dl = sf64_synth_process(synth, 0);
+	if (dl != rel) {
+		printf("FAILED midi reset: sustain still held (remaining %d)\n", dl);
+		goto fail_mr;
+	}
+
+	// Drum channel bank restored to 128.
+	synth_silence(synth, 2);
+	sf64_synth_set_program(synth, 9, 0, 0); // force melodic
+	mt->ops->reset(mt, 0);
+	sf64_region_t *rd = &bank->regions[bank->presets[5].first_region];
+	if (!sf64_synth_note_on(synth, 9, 60, 100) ||
+		mixer_ch_playing_waveform(0) != &bank->waves[rd->sample_index]->wave) {
+		printf("FAILED midi reset: ch9 bank not restored to 128\n");
+		goto fail_mr;
+	}
+
+	r->amp_env.release_timecents = save_rel;
+	sf64_synth_close(synth);
+	return true;
+
+fail_mr:
+	r->amp_env.release_timecents = save_rel;
+	sf64_synth_close(synth);
+	return false;
+}
+
+static bool test_synth_attenuation(sf64_bank_t *bank)
+{
+	// Converter writes 200 cB (not ~20 from the old 10× TSF factor).
+	sf64_region_t *rd = &bank->regions[bank->presets[1].first_region + 1];
+	if (rd->attenuation_cb != 200) {
+		printf("FAILED attenuation: region D cB=%d want 200\n",
+			rd->attenuation_cb);
+		return false;
+	}
+
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 1);
+	assert(sf64_synth_set_program(synth, 0, 0, 1));
+	int16_t save = rd->attenuation_cb;
+
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 60, 127);
+	mix(256);
+	int quiet = peak_n(256);
+	rd->attenuation_cb = 0;
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 60, 127);
+	mix(256);
+	int loud = peak_n(256);
+	rd->attenuation_cb = save;
+
+	// 200 cB = 20 dB → amplitude ≈ 10× (band for mixer / hermite).
+	if (loud < 1024 || quiet * 5 > loud || quiet * 20 < loud) {
+		printf("FAILED attenuation: quiet %d loud %d (want ~10×)\n",
+			quiet, loud);
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
 }
 
 int main(void)
@@ -1913,6 +2322,15 @@ int main(void)
 	fflush(stdout);
 	total++; if (!test_synth_sustain_pedal(bank)) failed++;
 	total++; if (!test_synth_exclusive(bank)) failed++;
+
+	printf("tests for fixed bugs\n");
+	fflush(stdout);
+	total++; if (!test_synth_delay_hold(bank)) failed++;
+	total++; if (!test_synth_multiphase(bank)) failed++;
+	total++; if (!test_synth_oneshot_reclaim(bank)) failed++;
+	total++; if (!test_synth_drum_channel(bank)) failed++;
+	total++; if (!test_synth_midi_reset(bank)) failed++;
+	total++; if (!test_synth_attenuation(bank)) failed++;
 
 	sf64_close(bank);
 

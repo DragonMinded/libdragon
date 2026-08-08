@@ -17,16 +17,17 @@
 #define _GNU_SOURCE
 #endif
 #include <math.h>
-#include <string.h>
 #include <vector>
 #include <map>
 #include <set>
 #include <string>
+#include <cstdint>
 
 #include "../common/binout.h"
 #include "../common/polyfill.h"
 #include "../common/utils.h"
 #include "../common/assetcomp.h"
+#include "../common/crc64.c"
 #include "audioconv64.h"
 #include "../../src/audio/sf64_internal.h"
 
@@ -35,23 +36,16 @@
 
 int flag_sf_compress = 1;
 
-static uint32_t fnv1a(uint32_t h, const void *data, size_t n)
-{
-	const uint8_t *p = (const uint8_t*)data;
-	for (size_t i = 0; i < n; i++)
-		h = (h ^ p[i]) * 16777619u;
-	return h;
-}
-
-static uint32_t hash_sample_variant(const int16_t *pcm, int cnt, int rate, int ch,
+/** CRC-64 over PCM + playback variant params (rate/channels/loop). */
+static uint64_t hash_sample_variant(const int16_t *pcm, int cnt, int rate, int ch,
 	int loop_start, int loop_end)
 {
-	uint32_t h = 2166136261u;
-	h = fnv1a(h, pcm, cnt * ch * sizeof(int16_t));
-	h = fnv1a(h, &rate, sizeof(rate));
-	h = fnv1a(h, &ch, sizeof(ch));
-	h = fnv1a(h, &loop_start, sizeof(loop_start));
-	h = fnv1a(h, &loop_end, sizeof(loop_end));
+	uint64_t h = 0;
+	h = crc64(h, (const unsigned char *)pcm, (uint64_t)cnt * ch * sizeof(int16_t));
+	h = crc64(h, (const unsigned char *)&rate, sizeof(rate));
+	h = crc64(h, (const unsigned char *)&ch, sizeof(ch));
+	h = crc64(h, (const unsigned char *)&loop_start, sizeof(loop_start));
+	h = crc64(h, (const unsigned char *)&loop_end, sizeof(loop_end));
 	return h;
 }
 
@@ -135,7 +129,7 @@ int sf_convert(const char *infn, const char *outfn)
 	std::vector<sf64_region_t> regions;
 	std::vector<sf64_sample_t> samples;
 	std::vector<std::string> names;
-	std::map<uint32_t, int> sample_by_hash;
+	std::map<uint64_t, int> sample_by_hash;
 	std::set<std::string> warn_seen;
 	int64_t raw_pcm_bytes = 0;
 	int64_t unique_pcm_bytes = 0;
@@ -146,7 +140,7 @@ int sf_convert(const char *infn, const char *outfn)
 	placeholder_clear();
 
 	wa(out, SF64_ID, 4);
-	w8(out, 1); // version
+	w8(out, SF64_VERSION);
 	w8(out, 0); // flags
 	w16_placeholderf(out, "num_presets");
 	w16_placeholderf(out, "num_regions");
@@ -209,8 +203,10 @@ int sf_convert(const char *infn, const char *outfn)
 				pcm[i] = (int16_t)lroundf(s * 32767.0f);
 			}
 
-			uint32_t hash = hash_sample_variant(pcm, cnt, (int)r->sample_rate, 1,
-				loop_start, loop_end);
+			int loop_start_meta = loop_mode != SF64_LOOP_NONE ? loop_start : 0;
+			int loop_end_meta = loop_mode != SF64_LOOP_NONE ? loop_end : 0;
+			uint64_t hash = hash_sample_variant(pcm, cnt, (int)r->sample_rate, 1,
+				loop_start_meta, loop_end_meta);
 			raw_pcm_bytes += (int64_t)cnt * 2;
 
 			int sample_index;
@@ -240,22 +236,28 @@ int sf_convert(const char *infn, const char *outfn)
 				uint32_t wav_sz = ftell(out) - wav_off;
 				embedded_wav += wav_sz;
 
+				if (samples.size() >= 0xffffu)
+					fatal("ERROR: too many unique samples (max 65535)\n");
+
 				sf64_sample_t ss = {};
 				ss.wav64_offset = wav_off;
 				ss.wav64_size = wav_sz;
 				ss.pcm_hash = hash;
 				ss.sample_start = 0;
-				ss.sample_end = wav.cnt;
-				ss.loop_start = wav.looping ? (uint32_t)wav.loopOffset : 0;
-				ss.loop_end = wav.looping
-					? (uint32_t)(wav.loopEnd ? wav.loopEnd : wav.cnt) : 0;
-				ss.sample_rate = wav.sampleRate;
+				// Keep the pre-padding logical length (wav64_write may pad cnt).
+				ss.sample_end = (uint32_t)cnt;
+				ss.loop_start = (uint32_t)loop_start_meta;
+				ss.loop_end = (uint32_t)loop_end_meta;
+				ss.sample_rate = (uint32_t)r->sample_rate;
 				ss.channels = 1;
 				sample_index = (int)samples.size();
 				samples.push_back(ss);
 				sample_by_hash[hash] = sample_index;
 				free(wav.samples);
 			}
+
+			if (regions.size() >= 0xffffu)
+				fatal("ERROR: too many regions (max 65535)\n");
 
 			sf64_region_t sr = {};
 			sr.sample_index = (uint16_t)sample_index;
@@ -269,7 +271,11 @@ int sf_convert(const char *infn, const char *outfn)
 			sr.coarse_tune = (int8_t)r->transpose;
 			sr.fine_tune = (int16_t)r->tune;
 			sr.pitch_keytrack = (int16_t)r->pitch_keytrack;
-			sr.attenuation_cb = (int16_t)lroundf(r->attenuation * 10.0f);
+			// TinySoundFont applies InitialAttenuation with factor 0.01 instead
+			// of the SF2 0.1 (cB→dB). Multiply by 100 to recover centibels.
+			sr.attenuation_cb = (int16_t)lroundf(r->attenuation * 100.0f);
+			if (sr.attenuation_cb < 0) sr.attenuation_cb = 0;
+			if (sr.attenuation_cb > 1440) sr.attenuation_cb = 1440;
 			sr.pan = (int16_t)lroundf(r->pan * 1000.0f);
 			copy_amp_env(&sr.amp_env, &r->ampenv);
 			regions.push_back(sr);
@@ -277,6 +283,8 @@ int sf_convert(const char *infn, const char *outfn)
 		}
 
 		if (sp.num_regions) {
+			if (presets.size() >= 0xffffu)
+				fatal("ERROR: too many presets (max 65535)\n");
 			names.push_back(p->presetName);
 			presets.push_back(sp);
 		}
@@ -327,7 +335,7 @@ int sf_convert(const char *infn, const char *outfn)
 	for (auto &s : samples) {
 		w32(meta, s.wav64_offset);
 		w32(meta, s.wav64_size);
-		w32(meta, s.pcm_hash);
+		w64(meta, s.pcm_hash);
 		w32(meta, s.sample_start);
 		w32(meta, s.sample_end);
 		w32(meta, s.loop_start);

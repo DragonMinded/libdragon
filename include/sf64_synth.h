@@ -25,10 +25,14 @@
  * their region. SF2 exclusive class: starting a region with a non-zero group
  * immediately stops other voices of the same preset and group.
  *
- * Amp envelopes use the mixer's volume ramps. Advance them with
+ * Amp envelopes use the mixer's volume ramps (delay → attack → hold → decay →
+ * sustain → release, with SF2 keynum scaling on hold/decay). Advance them with
  * #sf64_synth_process by the same output-sample counts you pass to
- * #mixer_poll. There is no voice stealing: when every reserved channel is in
- * use, further note-ons return 0 and leave existing voices alone.
+ * #mixer_poll; a single call drains every overdue phase. One-shot samples that
+ * finish early free their mixer channel on the next process. There is no voice
+ * stealing: when every reserved channel is in use, further note-ons return 0
+ * and leave existing voices alone (exclusive-class victims are only choked
+ * after allocation is known to succeed).
  */
 #ifndef LIBDRAGON_SF64_SYNTH_H
 #define LIBDRAGON_SF64_SYNTH_H
@@ -62,7 +66,8 @@ midi_target_t *sf64_synth_midi_target(sf64_synth_t *synth);
  * @brief Create a synthesizer that plays from @p bank.
  *
  * The bank is borrowed, not copied. Each of the #SF64_MIDI_CHANNELS starts
- * at bank/program 0 (resolved if present), volume/expression 127, pan center,
+ * at bank/program 0 (resolved if present), except MIDI channel 10 (index 9)
+ * which defaults to percussion bank 128. Volume/expression 127, pan center,
  * pitch bend center, pitch range ±200 cents. Call #sf64_synth_set_channels
  * before the first #sf64_synth_note_on. Free with #sf64_synth_close.
  *
@@ -184,8 +189,10 @@ void sf64_synth_note_off(sf64_synth_t *synth, int midi_channel, int key);
  * @brief Tell the synthesizer that @p num_samples of audio have elapsed.
  *
  * Call this with the same sample counts you feed to #mixer_poll (or from a
- * #mixer_add_event callback). It finishes attack, decay, or release when their
- * time is up. Pass 0 to only query the next deadline without advancing time.
+ * #mixer_add_event callback). It finishes delay/attack/hold/decay/release when
+ * their time is up (catching up multiple phases if needed) and reclaims
+ * channels whose oneshot playback has ended. Pass 0 to only query the next
+ * deadline without advancing time.
  *
  * @param synth        Synthesizer
  * @param num_samples  Elapsed output samples (`>= 0`)

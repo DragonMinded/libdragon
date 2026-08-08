@@ -17,6 +17,7 @@ typedef struct wav64_s wav64_t;
 ///@endcond
 
 #define SF64_ID              "SF64"		///< SF64 file identifier
+#define SF64_VERSION         2			///< On-disk format version
 
 /** Loop modes for #sf64_region_t::loop_mode (SF2 SampleModes). */
 #define SF64_LOOP_NONE       0			///< No loop
@@ -82,7 +83,7 @@ typedef struct __attribute__((packed)) {
 typedef struct __attribute__((packed)) {
 	uint32_t wav64_offset;      ///< Absolute file offset of the WAV64 blob
 	uint32_t wav64_size;        ///< Size of the WAV64 blob in bytes
-	uint32_t pcm_hash;          ///< Hash of the PCM variant (for deduplication)
+	uint64_t pcm_hash;          ///< CRC-64 of the PCM variant (for deduplication)
 	uint32_t sample_start;      ///< Start sample (always 0 in v1; WAV64 already cropped)
 	uint32_t sample_end;        ///< End sample (exclusive length of the waveform)
 	uint32_t loop_start;        ///< Inclusive loop start (0 if no loop)
@@ -115,13 +116,13 @@ static_assert(sizeof(sf64_header_t) == 24, "invalid sf64_header size");
 static_assert(sizeof(sf64_preset_t) == 12, "invalid sf64_preset size");
 static_assert(sizeof(sf64_envelope_t) == 16, "invalid sf64_envelope size");
 static_assert(sizeof(sf64_region_t) == 44, "invalid sf64_region size");
-static_assert(sizeof(sf64_sample_t) == 36, "invalid sf64_sample size");
+static_assert(sizeof(sf64_sample_t) == 40, "invalid sf64_sample size");
 #else
 _Static_assert(sizeof(sf64_header_t) == 24, "invalid sf64_header size");
 _Static_assert(sizeof(sf64_preset_t) == 12, "invalid sf64_preset size");
 _Static_assert(sizeof(sf64_envelope_t) == 16, "invalid sf64_envelope size");
 _Static_assert(sizeof(sf64_region_t) == 44, "invalid sf64_region size");
-_Static_assert(sizeof(sf64_sample_t) == 36, "invalid sf64_sample size");
+_Static_assert(sizeof(sf64_sample_t) == 40, "invalid sf64_sample size");
 #endif
 
 #endif
