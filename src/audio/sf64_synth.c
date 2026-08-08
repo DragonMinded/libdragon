@@ -15,32 +15,35 @@
 #include <stdint.h>
 #include <assert.h>
 
+/** @brief Envelope phase of a synth voice. */
 typedef enum {
-	SF64_VOICE_OFF,
-	SF64_VOICE_ATTACK,
-	SF64_VOICE_DECAY,
-	SF64_VOICE_SUSTAIN,
-	SF64_VOICE_RELEASE,
+	SF64_VOICE_OFF,      ///< Idle; mixer channel is free
+	SF64_VOICE_ATTACK,   ///< Ramping to peak gain
+	SF64_VOICE_DECAY,    ///< Ramping from peak to the sustain level
+	SF64_VOICE_SUSTAIN,  ///< Holding the sustain level until note-off
+	SF64_VOICE_RELEASE,  ///< Ramping to silence after note-off
 } sf64_voice_phase_t;
 
+/** @brief One voice bound to a mixer channel. */
 typedef struct {
-	sf64_voice_phase_t phase;
-	int key;
-	int region_index;
-	int64_t deadline;   ///< Absolute sample time; INT64_MAX = none
-	float lvol, rvol;   ///< Peak gain after attack (pre-sustain)
-	bool sustain_loop;
+	sf64_voice_phase_t phase; ///< Current envelope phase
+	int key;                  ///< MIDI key that started this voice, or -1
+	int region_index;         ///< Index into sf64_bank_t::regions
+	int64_t deadline;         ///< Absolute sample time of the next phase change; INT64_MAX = none
+	float lvol, rvol;         ///< Peak gain after attack (pre-sustain)
+	bool sustain_loop;        ///< True if the region uses #SF64_LOOP_SUSTAIN
 } sf64_voice_t;
 
-struct sf64_synth_s {
-	sf64_bank_t *bank;
-	int first_channel;
-	int num_channels;
-	int preset_index;
-	int64_t now;
-	uint32_t used_channel_mask;
-	sf64_voice_t voices[MIXER_MAX_CHANNELS];
-};
+/** @brief Opaque synthesizer state (see #sf64_synth_t). */
+typedef struct sf64_synth_s {
+	sf64_bank_t *bank;            ///< Bank this synth plays from
+	int first_channel;            ///< First mixer channel of the allocated range
+	int num_channels;             ///< Number of mixer channels reserved for voices
+	int preset_index;             ///< Active preset, or -1 if unset
+	int64_t now;                  ///< Absolute sample time advanced by #sf64_synth_process
+	uint32_t used_channel_mask;   ///< Bitmask of busy channels in the allocated range
+	sf64_voice_t voices[MIXER_MAX_CHANNELS]; ///< Per-channel voice state (indexed by mixer channel)
+} sf64_synth_t;
 
 static void voice_stop(sf64_synth_t *synth, int ch)
 {
