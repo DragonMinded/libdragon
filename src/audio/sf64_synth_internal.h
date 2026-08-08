@@ -35,7 +35,9 @@ typedef enum {
 
 /** @brief Per-MIDI-channel controllers and program */
 typedef struct {
-	uint16_t bank;              ///< MIDI bank select
+	uint16_t bank;              ///< SF2 bank for program change (0–128)
+	uint8_t bank_msb;           ///< CC0 bank select MSB
+	uint8_t bank_lsb;           ///< CC32 bank select LSB
 	uint8_t program;            ///< MIDI program
 	int16_t preset_index;       ///< Index into sf64_bank_t.presets, or -1
 	uint8_t volume;             ///< CC7 (0–127); not cleared by CC121
@@ -45,6 +47,8 @@ typedef struct {
 	uint8_t sustain;            ///< CC64 sustain pedal (`>= 64` = down)
 	uint8_t rpn_msb;            ///< CC101; 0x7F/0x7F = null
 	uint8_t rpn_lsb;            ///< CC100
+	uint8_t data_entry_msb;     ///< CC6 Data Entry MSB
+	uint8_t data_entry_lsb;     ///< CC38 Data Entry LSB
 	uint16_t pitch_bend;        ///< 14-bit bend (center 8192)
 	int16_t pitch_range_cents;  ///< Full bend span in cents (default 200)
 } sf64_midi_channel_t;
@@ -74,6 +78,7 @@ struct sf64_synth_s {
 	int64_t now;                  ///< Absolute sample time advanced by #sf64_synth_process
 	uint32_t used_channel_mask;   ///< Bitmask of busy channels in the allocated range
 	uint32_t next_note_id;        ///< Next note identity to assign (`>= 1`)
+	sf64_synth_mode_t mode;       ///< Native vs GM1 channel semantics
 	sf64_midi_channel_t midi[SF64_MIDI_CHANNELS]; ///< Per-MIDI-channel state
 	sf64_voice_t voices[MIXER_MAX_CHANNELS]; ///< Per-mixer-channel voice state
 };

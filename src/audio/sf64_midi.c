@@ -5,8 +5,8 @@
  * @ingroup mixer
  *
  * Implements #midi_target_t callbacks, per-channel controllers, Channel Mode
- * Messages (CC120/121/123), and program/controller reset. Voice lifecycle
- * stays in sf64_synth.c.
+ * Messages (CC120/121/123), RPN pitch-bend sensitivity, bank select, Native/GM1
+ * mode, and GM1 System On. Voice lifecycle stays in sf64_synth.c.
  */
 #include "sf64_synth_internal.h"
 #include "debug.h"
@@ -41,10 +41,24 @@ static void midi_all_notes_off(sf64_synth_t *s, int midi_channel)
 	}
 }
 
+static void midi_rpn_apply_data_entry(sf64_synth_t *s, int midi_channel)
+{
+	sf64_midi_channel_t *mc = &s->midi[midi_channel];
+	if (mc->rpn_msb != 0 || mc->rpn_lsb != 0)
+		return;
+	int cents = (int)mc->data_entry_msb * 100 + (int)mc->data_entry_lsb;
+	if (cents > 12700) cents = 12700;
+	mc->pitch_range_cents = (int16_t)cents;
+	if (s->num_channels > 0)
+		midi_apply_bend(s, midi_channel);
+}
+
 static void midi_channel_reset_program(sf64_synth_t *s, int midi_channel)
 {
 	sf64_midi_channel_t *mc = &s->midi[midi_channel];
 	mc->bank = (midi_channel == SF64_DRUM_CHANNEL) ? SF64_DRUM_BANK : 0;
+	mc->bank_msb = 0;
+	mc->bank_lsb = 0;
 	mc->program = 0;
 	mc->preset_index = (int16_t)sf64_find_preset(s->bank, mc->bank, 0);
 }
@@ -59,6 +73,8 @@ static void midi_channel_reset_controllers(sf64_synth_t *s, int midi_channel)
 	mc->sustain = 0;
 	mc->rpn_msb = 0x7F;
 	mc->rpn_lsb = 0x7F;
+	mc->data_entry_msb = 0;
+	mc->data_entry_lsb = 0;
 	mc->pitch_bend = 8192;
 	mc->pitch_range_cents = 200;
 	if (s->num_channels <= 0)
@@ -103,12 +119,35 @@ static void sf64_mt_cc(midi_target_t *t, int ch, int cc, int value, int64_t now)
 {
 	(void)now;
 	sf64_synth_t *s = (sf64_synth_t *)t;
+	sf64_midi_channel_t *mc = &s->midi[ch];
 	switch (cc) {
 	case 7:   sf64_synth_set_volume(s, ch, value); break;
 	case 11:  sf64_synth_set_expression(s, ch, value); break;
 	case 10:  sf64_synth_set_pan(s, ch, value); break;
 	case 64:  sf64_synth_set_sustain(s, ch, value); break;
-	case 0:   s->midi[ch].bank = (uint16_t)value; break;
+	case 0:
+		mc->bank_msb = (uint8_t)value;
+		// GM1: melodic presets stay on bank 0; drum channel stays on 128.
+		if (s->mode == SF64_MODE_NATIVE)
+			mc->bank = (uint16_t)value;
+		break;
+	case 32:
+		mc->bank_lsb = (uint8_t)value;
+		break;
+	case 6:
+		mc->data_entry_msb = (uint8_t)value;
+		midi_rpn_apply_data_entry(s, ch);
+		break;
+	case 38:
+		mc->data_entry_lsb = (uint8_t)value;
+		midi_rpn_apply_data_entry(s, ch);
+		break;
+	case 100:
+		mc->rpn_lsb = (uint8_t)value;
+		break;
+	case 101:
+		mc->rpn_msb = (uint8_t)value;
+		break;
 	case 120: midi_all_sound_off(s, ch); break;
 	case 121: midi_channel_reset_controllers(s, ch); break;
 	case 123: midi_all_notes_off(s, ch); break;
@@ -119,7 +158,10 @@ static void sf64_mt_program(midi_target_t *t, int ch, int program, int64_t now)
 {
 	(void)now;
 	sf64_synth_t *s = (sf64_synth_t *)t;
-	sf64_synth_set_program(s, ch, s->midi[ch].bank, program);
+	if (s->mode == SF64_MODE_GM1 && ch == SF64_DRUM_CHANNEL)
+		return;
+	int bank = (s->mode == SF64_MODE_GM1) ? 0 : (int)s->midi[ch].bank;
+	sf64_synth_set_program(s, ch, bank, program);
 }
 
 static void sf64_mt_pitch_bend(midi_target_t *t, int ch, int value, int64_t now)
@@ -134,6 +176,14 @@ static void sf64_mt_reset(midi_target_t *t, int64_t now)
 	voices_stop_all(s);
 	midi_channels_reset(s);
 	s->now = now;
+}
+
+static void sf64_mt_system_reset(midi_target_t *t, midi_system_t system, int64_t now)
+{
+	sf64_synth_t *s = (sf64_synth_t *)t;
+	assert(system == MIDI_SYSTEM_GM1);
+	s->mode = SF64_MODE_GM1;
+	sf64_mt_reset(t, now);
 }
 
 static void sf64_mt_finish(midi_target_t *t, int64_t now)
@@ -171,6 +221,7 @@ const midi_target_ops_t sf64_midi_ops = {
 	.channel_pressure = NULL,
 	.finish = sf64_mt_finish,
 	.reset = sf64_mt_reset,
+	.system_reset = sf64_mt_system_reset,
 	.process = sf64_mt_process,
 };
 
@@ -178,6 +229,18 @@ midi_target_t *sf64_synth_midi_target(sf64_synth_t *synth)
 {
 	assert(synth);
 	return &synth->midi_target;
+}
+
+void sf64_synth_set_mode(sf64_synth_t *synth, sf64_synth_mode_t mode)
+{
+	assert(synth);
+	synth->mode = mode;
+}
+
+sf64_synth_mode_t sf64_synth_get_mode(sf64_synth_t *synth)
+{
+	assert(synth);
+	return synth->mode;
 }
 
 bool sf64_synth_set_program(sf64_synth_t *synth, int midi_channel,
@@ -190,6 +253,7 @@ bool sf64_synth_set_program(sf64_synth_t *synth, int midi_channel,
 		return false;
 	sf64_midi_channel_t *mc = &synth->midi[midi_channel];
 	mc->bank = (uint16_t)bank;
+	mc->bank_msb = (bank > 127) ? 0 : (uint8_t)bank;
 	mc->program = (uint8_t)program;
 	mc->preset_index = (int16_t)idx;
 	return true;

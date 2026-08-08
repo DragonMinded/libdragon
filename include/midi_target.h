@@ -23,6 +23,11 @@ extern "C" {
 
 struct midi_target_s;
 
+/** @brief System-level MIDI reset kind (Universal SysEx, etc.). */
+typedef enum {
+	MIDI_SYSTEM_GM1,	///< General MIDI Level 1 System On
+} midi_system_t;
+
 /** @brief Operations implemented by a MIDI target. */
 typedef struct midi_target_ops_s {
 	/**
@@ -119,6 +124,15 @@ typedef struct midi_target_ops_s {
 	 * @param now  Absolute time (see file overview)
 	 */
 	void (*reset)(struct midi_target_s *t, int64_t now);
+
+	/**
+	 * @brief Apply a system-level reset (e.g. GM1 System On). May be NULL.
+	 *
+	 * @param t       Target
+	 * @param system  Which system reset was received
+	 * @param now     Absolute time (see file overview)
+	 */
+	void (*system_reset)(struct midi_target_s *t, midi_system_t system, int64_t now);
 
 	/**
 	 * @brief Advance the target to absolute time @p now. May be NULL.

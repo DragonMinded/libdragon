@@ -167,6 +167,14 @@ static bool mid64_dispatch_pending(mid64player_t *p, int64_t now)
 		return true;
 	}
 
+	if (b == MID64_OP_GM1_SYSTEM_ON) {
+		p->running_status = 0;
+		if (p->target->ops->system_reset)
+			p->target->ops->system_reset(p->target, MIDI_SYSTEM_GM1, now);
+		mid64_peek_next(p);
+		return true;
+	}
+
 	uint8_t status, data1;
 	if (b & MIDI_STATUS_BIT) {
 		status = b;
@@ -326,6 +334,13 @@ bool mid64player_decode_next(mid64player_t *player, midi_target_t *target)
 		assertf(tempo != 0, "MID64: tempo is zero");
 		player->tempo_us = tempo;
 		player->running_status = 0;
+		return true;
+	}
+
+	if (b == MID64_OP_GM1_SYSTEM_ON) {
+		player->running_status = 0;
+		if (target->ops->system_reset)
+			target->ops->system_reset(target, MIDI_SYSTEM_GM1, now);
 		return true;
 	}
 

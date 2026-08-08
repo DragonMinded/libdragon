@@ -27,6 +27,7 @@ int flag_mid_compress = DEFAULT_COMPRESSION;
 #define MID64_VERSION 1
 #define MID64_HEADER_SIZE 32
 #define MID64_OP_SET_TEMPO 0xF0
+#define MID64_OP_GM1_SYSTEM_ON 0xF1
 #define MID64_OP_END 0xFF
 
 #define MIDI_STATUS_MASK       0xF0
@@ -45,7 +46,7 @@ int flag_mid_compress = DEFAULT_COMPRESSION;
 #define MIDI_META_EOT          0x2F
 #define MIDI_META_TEMPO        0x51
 
-enum class midi_event_type { CHANNEL, TEMPO };
+enum class midi_event_type { CHANNEL, TEMPO, GM1_SYSTEM_ON };
 
 struct midi_event_t {
 	uint64_t tick;
@@ -65,6 +66,7 @@ struct mid_stats_t {
 	int input_events;
 	int output_events;
 	int tempo_changes;
+	int gm1_system_on;
 	int sysex_stripped;
 	int meta_stripped;
 	long input_size;
@@ -180,13 +182,21 @@ static void parse_track(const uint8_t *&p, uint32_t len, unsigned track,
 			continue;
 		}
 
-		// SysEx: parse length and discard payload (not used in MID64 v1).
+		// SysEx: keep GM1 System On (F0 7E dd 09 01 F7); strip the rest.
 		if (b == MIDI_SYSEX || b == MIDI_SYSEX_ESCAPE) {
 			uint32_t slen = read_vlq(p);
 			if (p + slen > end) fatal("ERROR: truncated SysEx");
+			bool gm1 = b == MIDI_SYSEX && slen >= 4
+				&& p[0] == 0x7E && p[2] == 0x09 && p[3] == 0x01;
+			if (gm1) {
+				events.push_back({tick, seq++, (uint16_t)track,
+					midi_event_type::GM1_SYSTEM_ON, 0, 0, 0, 0});
+				st.gm1_system_on++;
+			} else {
+				st.sysex_stripped++;
+			}
 			p += slen;
 			running = 0; // SysEx cancels running status
-			st.sysex_stripped++;
 			continue;
 		}
 
@@ -341,6 +351,9 @@ int mid_convert(const char *infn, const char *outfn)
 			w8(tmp, (ev.tempo_us >> 8) & 0xff);
 			w8(tmp, ev.tempo_us & 0xff);
 			running = 0;
+		} else if (ev.type == midi_event_type::GM1_SYSTEM_ON) {
+			w8(tmp, MID64_OP_GM1_SYSTEM_ON);
+			running = 0;
 		} else {
 			if (ev.status != running) {
 				w8(tmp, ev.status);
@@ -391,6 +404,7 @@ int mid_convert(const char *infn, const char *outfn)
 		fprintf(stderr, "  Input events:          %d\n", st.input_events);
 		fprintf(stderr, "  Output events:         %d\n", st.output_events);
 		fprintf(stderr, "  Tempo changes:         %d\n", st.tempo_changes);
+		fprintf(stderr, "  GM1 System On:         %d\n", st.gm1_system_on);
 		fprintf(stderr, "  SysEx stripped:        %d\n", st.sysex_stripped);
 		fprintf(stderr, "  Meta events stripped:  %d\n", st.meta_stripped);
 		fprintf(stderr, "  Input MIDI:            %.1f KiB\n", st.input_size / 1024.0);

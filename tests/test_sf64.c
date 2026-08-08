@@ -2398,6 +2398,125 @@ fail_cm:
 	return false;
 }
 
+/** GM1 mode: ch10 ignores Program Change / Bank Select; melodic PC uses bank 0. */
+static bool test_synth_gm_mode(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 2);
+	midi_target_t *mt = sf64_synth_midi_target(synth);
+	sf64_region_t *rd = &bank->regions[bank->presets[5].first_region];
+	sf64_region_t *ra = &bank->regions[bank->presets[0].first_region];
+
+	if (sf64_synth_get_mode(synth) != SF64_MODE_NATIVE) {
+		printf("FAILED gm mode: create is not NATIVE\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Defaults after create/reset: ch0 program 0, ch9 percussion.
+	synth_silence(synth, 2);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	sf64_synth_note_on(synth, 9, 60, 100);
+	if (mixer_ch_playing_waveform(0) != &bank->waves[ra->sample_index]->wave ||
+		mixer_ch_playing_waveform(1) != &bank->waves[rd->sample_index]->wave) {
+		printf("FAILED gm mode: default programs wrong\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_set_mode(synth, SF64_MODE_GM1);
+	if (sf64_synth_get_mode(synth) != SF64_MODE_GM1) {
+		printf("FAILED gm mode: set_mode\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Program Change on ch10 ignored; bank select must not make it melodic.
+	synth_silence(synth, 2);
+	mt->ops->control_change(mt, 9, 0, 0, 0);
+	mt->ops->program_change(mt, 9, 0, 0);
+	sf64_synth_note_on(synth, 9, 60, 100);
+	if (mixer_ch_playing_waveform(0) != &bank->waves[rd->sample_index]->wave) {
+		printf("FAILED gm mode: ch10 became melodic\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// Melodic Program Change still works (bank 0 regardless of CC0).
+	synth_silence(synth, 2);
+	mt->ops->control_change(mt, 0, 0, 5, 0);
+	mt->ops->program_change(mt, 0, 1, 0); // VelSplit
+	sf64_synth_note_on(synth, 0, 60, 100);
+	sf64_region_t *rvel = &bank->regions[bank->presets[1].first_region + 1];
+	if (mixer_ch_playing_waveform(0) != &bank->waves[rvel->sample_index]->wave) {
+		printf("FAILED gm mode: melodic PC ignored bank incorrectly\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	// system_reset → GM1 + hard silence + default programs.
+	synth_silence(synth, 2);
+	sf64_synth_set_mode(synth, SF64_MODE_NATIVE);
+	assert(sf64_synth_set_program(synth, 9, 0, 0)); // force melodic
+	sf64_synth_note_on(synth, 9, 48, 100);
+	assert(mixer_ch_playing(0));
+	mt->ops->system_reset(mt, MIDI_SYSTEM_GM1, 0);
+	mix(64);
+	if (sf64_synth_get_mode(synth) != SF64_MODE_GM1 || mixer_ch_playing(0)) {
+		printf("FAILED gm mode: system_reset mode/silence\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	sf64_synth_note_on(synth, 9, 60, 100);
+	if (mixer_ch_playing_waveform(0) != &bank->waves[rd->sample_index]->wave) {
+		printf("FAILED gm mode: system_reset did not restore drums\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
+}
+
+/** RPN 0,0 pitch bend sensitivity; CC121 restores default range. */
+static bool test_synth_rpn(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 1);
+	midi_target_t *mt = sf64_synth_midi_target(synth);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_region_t *rc = &bank->regions[bank->presets[0].first_region + 1];
+	sf64_sample_t *sc = &bank->samples[rc->sample_index];
+
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 72, 100);
+	mt->ops->control_change(mt, 0, 101, 0, 0); // RPN MSB
+	mt->ops->control_change(mt, 0, 100, 0, 0); // RPN LSB
+	mt->ops->control_change(mt, 0, 6, 12, 0);  // 12 semitones
+	sf64_synth_set_pitch_bend(synth, 0, 16383);
+	if (!check_freq(synth, "rpn +12",
+			expect_freq_bend(rc, sc, 72, 16383, 1200))) {
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	mt->ops->control_change(mt, 0, 121, 0, 0);
+	if (!check_freq(synth, "rpn CC121 range",
+			expect_freq_bend(rc, sc, 72, 8192, 200))) {
+		sf64_synth_close(synth);
+		return false;
+	}
+	sf64_synth_set_pitch_bend(synth, 0, 16383);
+	if (!check_freq(synth, "rpn after CC121",
+			expect_freq_bend(rc, sc, 72, 16383, 200))) {
+		sf64_synth_close(synth);
+		return false;
+	}
+
+	sf64_synth_close(synth);
+	return true;
+}
+
 static bool test_synth_attenuation(sf64_bank_t *bank)
 {
 	// Converter writes 200 cB (not ~20 from the old 10× TSF factor).
@@ -2507,6 +2626,8 @@ int main(void)
 	total++; if (!test_synth_drum_channel(bank)) failed++;
 	total++; if (!test_synth_midi_reset(bank)) failed++;
 	total++; if (!test_synth_channel_mode(bank)) failed++;
+	total++; if (!test_synth_gm_mode(bank)) failed++;
+	total++; if (!test_synth_rpn(bank)) failed++;
 	total++; if (!test_synth_attenuation(bank)) failed++;
 
 	sf64_close(bank);

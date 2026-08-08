@@ -6,6 +6,23 @@
  *
  * Owns mixer-channel allocation, DAHDSR envelopes, exclusive class, and
  * #sf64_synth_process. The MIDI control plane lives in sf64_midi.c.
+ *
+ * A note-on can start several regions (SF2 layers). Those voices share one
+ * note identity; note-off releases the oldest still-held identity for that
+ * key on that MIDI channel. Allocation is atomic: if there are not enough
+ * free channels for every matching region, nothing starts. There is no voice
+ * stealing — saturated note-ons return 0. Exclusive-class victims are choked
+ * only after allocation is known to succeed.
+ *
+ * Amp envelopes use the mixer's volume ramps (delay → attack → hold → decay →
+ * sustain → release), with SF2 keynum scaling on hold/decay. Volume/expression
+ * /pan updates apply sustain levels immediately; attack, decay, and release
+ * keep their remaining ramp time. Pitch bend recalculates #mixer_ch_set_freq
+ * on sounding voices. Sustain-loop regions stay in loop until release begins.
+ *
+ * #sf64_synth_process advances absolute sample time, drains every overdue
+ * envelope phase in one call, and reclaims mixer channels whose one-shot
+ * samples finished early. Pass the same sample counts used with #mixer_poll.
  */
 #include "sf64_synth_internal.h"
 #include "wav64.h"
