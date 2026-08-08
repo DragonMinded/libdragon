@@ -286,6 +286,27 @@ int mid_convert(const char *infn, const char *outfn)
 		return a.sequence < b.sequence;
 	});
 
+	// Wall-clock length via the tempo map (same rule as the runtime player:
+	// a SET_TEMPO applies to the following delta).
+	uint32_t tempo_us = 500000;
+	uint64_t cur_us_tick = 0;
+	uint64_t us_rem = 0;
+	uint64_t duration_us = 0;
+	auto add_us = [&](uint64_t delta) {
+		unsigned __int128 num = us_rem + (unsigned __int128)delta * tempo_us;
+		duration_us += (uint64_t)(num / division);
+		us_rem = (uint64_t)(num % division);
+	};
+	for (auto &ev : events) {
+		add_us(ev.tick - cur_us_tick);
+		cur_us_tick = ev.tick;
+		if (ev.type == midi_event_type::TEMPO)
+			tempo_us = ev.tempo_us;
+	}
+	add_us(duration - cur_us_tick);
+	uint64_t ms64 = duration_us / 1000;
+	uint32_t duration_ms = ms64 > 0xffffffffu ? 0xffffffffu : (uint32_t)ms64;
+
 	// Build the uncompressed MID64 in a temp file, then wrap with asset compression.
 	FILE *tmp = tmpfile();
 	if (!tmp) fatal("ERROR: cannot create temporary file");
@@ -298,8 +319,8 @@ int mid_convert(const char *infn, const char *outfn)
 	int events_size_pos = w32_placeholder(tmp);
 	int num_events_pos = w32_placeholder(tmp);
 	w32(tmp, duration > 0xffffffffu ? 0xffffffffu : (uint32_t)duration);
+	w32(tmp, duration_ms);
 	w32(tmp, 0); // reserved
-	w32(tmp, 0);
 
 	// Encode the merged stream: delta VLQ + event, with running status.
 	uint64_t cur_tick = 0;
@@ -365,6 +386,8 @@ int mid_convert(const char *infn, const char *outfn)
 		fprintf(stderr, "  MIDI format:           %d\n", st.format);
 		fprintf(stderr, "  Tracks:                %d\n", st.tracks);
 		fprintf(stderr, "  PPQN:                  %d\n", st.ppqn);
+		fprintf(stderr, "  Duration:              %u ms (%u ticks)\n",
+			duration_ms, duration > 0xffffffffu ? 0xffffffffu : (uint32_t)duration);
 		fprintf(stderr, "  Input events:          %d\n", st.input_events);
 		fprintf(stderr, "  Output events:         %d\n", st.output_events);
 		fprintf(stderr, "  Tempo changes:         %d\n", st.tempo_changes);

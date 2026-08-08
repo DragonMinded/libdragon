@@ -35,6 +35,7 @@ struct mid64player_s {
 	uint8_t running_status;
 	uint32_t tempo_us;
 	uint32_t duration_ticks;
+	uint32_t duration_ms;
 	uint64_t midi_tick;
 
 	uint32_t sample_rate;		///< From #audio_get_frequency at play
@@ -42,6 +43,7 @@ struct mid64player_s {
 	int64_t event_sample;		///< Absolute sample of last peeked delta
 	int64_t next_midi_sample;	///< Absolute sample of next MIDI event
 	int64_t scheduled_sample;	///< Absolute sample of current MixerEvent
+	int64_t song_start_sample;	///< Absolute sample at start of this loop iter
 	bool pending;				///< VLQ peeked; payload not yet dispatched
 
 	midi_target_t *target;
@@ -191,6 +193,7 @@ static void mid64_loop_restart(mid64player_t *p, int64_t now)
 	p->midi_tick = 0;
 	p->timing_remainder = 0;
 	p->event_sample = now;
+	p->song_start_sample = now;
 	p->pending = false;
 	mid64_peek_next(p);
 }
@@ -265,6 +268,7 @@ mid64player_t *mid64player_load(const char *fn)
 	player->events_size = head->events_size;
 	player->ppqn = head->ppqn;
 	player->duration_ticks = head->duration_ticks;
+	player->duration_ms = head->duration_ms;
 	mid64player_rewind(player);
 	return player;
 }
@@ -347,6 +351,7 @@ void mid64player_play(mid64player_t *player, midi_target_t *target)
 	player->timing_remainder = 0;
 	player->event_sample = 0;
 	player->scheduled_sample = 0;
+	player->song_start_sample = 0;
 	mid64_peek_next(player);
 
 	if (target->ops->reset)
@@ -380,8 +385,27 @@ uint32_t mid64player_get_duration_ticks(mid64player_t *player)
 	return player->duration_ticks;
 }
 
+uint32_t mid64player_get_duration_ms(mid64player_t *player)
+{
+	assert(player);
+	return player->duration_ms;
+}
+
 uint32_t mid64player_get_tempo(mid64player_t *player)
 {
 	assert(player);
 	return player->tempo_us;
+}
+
+uint32_t mid64player_tell_ms(mid64player_t *player)
+{
+	assert(player);
+	int64_t samples = player->scheduled_sample - player->song_start_sample;
+	uint32_t rate = player->sample_rate;
+	if (rate == 0 || samples <= 0)
+		return 0;
+	uint64_t ms = (uint64_t)samples * 1000ull / rate;
+	if (ms > 0xffffffffu)
+		return 0xffffffffu;
+	return (uint32_t)ms;
 }

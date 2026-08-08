@@ -84,9 +84,9 @@ void mid64player_stop(mid64player_t *player);
  *
  * @return true if an event was decoded (including tempo); false on END
  */
- bool mid64player_decode_next(mid64player_t *player, midi_target_t *target);
+bool mid64player_decode_next(mid64player_t *player, midi_target_t *target);
 
- /**
+/**
  * @brief Loop the whole sequence from the start when END is reached.
  *
  * Default is false. Loop points inside the file are not supported.
@@ -99,8 +99,23 @@ uint16_t mid64player_get_ppqn(mid64player_t *player);
 /** @brief Sequence length in ticks. */
 uint32_t mid64player_get_duration_ticks(mid64player_t *player);
 
+/**
+ * @brief Wall-clock length of the sequence in milliseconds.
+ *
+ * Computed by audioconv64 from the tempo map and stored in the MID64 header.
+ */
+uint32_t mid64player_get_duration_ms(mid64player_t *player);
+
 /** @brief Current tempo in microseconds per quarter note. */
 uint32_t mid64player_get_tempo(mid64player_t *player);
+
+/**
+ * @brief Current playback position within the sequence, in milliseconds.
+ *
+ * When looping, this is the position in the current iteration. Safe to call
+ * from the main thread while the mixer callback is running.
+ */
+uint32_t mid64player_tell_ms(mid64player_t *player);
 
 #ifdef __cplusplus
 }

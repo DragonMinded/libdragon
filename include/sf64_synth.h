@@ -19,9 +19,11 @@
  * is atomic: if there are not enough free channels for every matching region,
  * nothing starts.
  *
- * Channel controllers (volume, expression, pan, pitch bend) apply to future
- * notes and to voices already sounding on that MIDI channel. A program change
- * affects only subsequent note-ons; sounding voices keep their region.
+ * Channel controllers (volume, expression, pan, sustain pedal, pitch bend)
+ * apply to future notes and to voices already sounding on that MIDI channel.
+ * A program change affects only subsequent note-ons; sounding voices keep
+ * their region. SF2 exclusive class: starting a region with a non-zero group
+ * immediately stops other voices of the same preset and group.
  *
  * Amp envelopes use the mixer's volume ramps. Advance them with
  * #sf64_synth_process by the same output-sample counts you pass to
@@ -50,9 +52,9 @@ typedef struct sf64_synth_s sf64_synth_t;
  * @brief Return the synthesizer as a #midi_target_t for MID64 playback.
  *
  * The synth embeds a #midi_target_t as its first member. Controllers mapped:
- * CC7 volume, CC11 expression, CC10 pan, CC0 bank MSB (applied on the next
- * program change). #midi_target_ops_t::process advances #sf64_synth_process
- * to the absolute sample clock used by MID64.
+ * CC7 volume, CC11 expression, CC10 pan, CC64 sustain, CC0 bank MSB (applied
+ * on the next program change). #midi_target_ops_t::process advances
+ * #sf64_synth_process to the absolute sample clock used by MID64.
  */
 midi_target_t *sf64_synth_midi_target(sf64_synth_t *synth);
 
@@ -135,6 +137,15 @@ void sf64_synth_set_pan(sf64_synth_t *synth, int midi_channel, int pan);
 void sf64_synth_set_pitch_bend(sf64_synth_t *synth, int midi_channel, int pitch_bend);
 
 /**
+ * @brief Set MIDI CC64 sustain pedal for @p midi_channel (0–127).
+ *
+ * Values `>= 64` hold the pedal. Note-offs while held mark voices but do not
+ * enter release until the pedal is released (`< 64`). Sustain loops stay
+ * enabled until release actually begins.
+ */
+void sf64_synth_set_sustain(sf64_synth_t *synth, int midi_channel, int value);
+
+/**
  * @brief Start a note on @p midi_channel's current program.
  *
  * Starts every region that matches @p key and @p velocity, each on its own
@@ -157,10 +168,11 @@ uint32_t sf64_synth_note_on(sf64_synth_t *synth, int midi_channel,
 /**
  * @brief Release the oldest still-held note identity for @p key on @p midi_channel.
  *
- * All voices that share that identity enter release together. Call
- * #sf64_synth_process until those fades end so the channels are freed.
- * A zero-length release stops at once. Repeated calls peel stacked
- * note-ons on the same key from oldest to newest.
+ * All voices that share that identity enter release together, unless the
+ * sustain pedal is down — then they keep sounding until
+ * #sf64_synth_set_sustain releases the pedal. Call #sf64_synth_process until
+ * fades end so the channels are freed. A zero-length release stops at once.
+ * Repeated calls peel stacked note-ons on the same key from oldest to newest.
  *
  * @param synth          Synthesizer
  * @param midi_channel   MIDI channel (0–15)

@@ -33,6 +33,7 @@ typedef struct {
 	uint8_t volume;             ///< CC7 (0–127)
 	uint8_t expression;         ///< CC11 (0–127)
 	uint8_t pan;                ///< CC10 (0–127, 64 = center)
+	uint8_t sustain;            ///< CC64 sustain pedal (`>= 64` = down)
 	uint16_t pitch_bend;        ///< 14-bit bend (center 8192)
 	int16_t pitch_range_cents;  ///< Full bend span in cents (default 200)
 } sf64_midi_channel_t;
@@ -43,11 +44,14 @@ typedef struct {
 	int8_t midi_channel;      ///< MIDI channel that owns this voice, or -1
 	int8_t key;               ///< MIDI key that started this voice, or -1
 	int8_t velocity;          ///< Note-on velocity (for controller recalcs)
+	int16_t preset_index;     ///< Preset used at note-on (for exclusive class)
 	int region_index;         ///< Index into sf64_bank_t.regions
 	uint32_t note_id;         ///< Note identity shared by layered voices; 0 if off
 	int64_t deadline;         ///< Absolute sample time of the next phase change; INT64_MAX = none
 	float lvol, rvol;         ///< Peak gain after attack (pre-sustain)
 	bool sustain_loop;        ///< True if the region uses #SF64_LOOP_SUSTAIN
+	bool key_released;        ///< Note-off received (may still be held by pedal)
+	bool held_by_sustain;     ///< Sounding only because the sustain pedal is down
 } sf64_voice_t;
 
 /** @brief Opaque synthesizer state (see #sf64_synth_t). */
@@ -67,38 +71,34 @@ static void voices_stop_all(sf64_synth_t *synth);
 
 static void sf64_mt_note_on(midi_target_t *t, int ch, int key, int vel, int64_t now)
 {
-	(void)now;
 	sf64_synth_note_on((sf64_synth_t *)t, ch, key, vel);
 }
 
 static void sf64_mt_note_off(midi_target_t *t, int ch, int key, int vel, int64_t now)
 {
-	(void)vel; (void)now;
 	sf64_synth_note_off((sf64_synth_t *)t, ch, key);
 }
 
 static void sf64_mt_cc(midi_target_t *t, int ch, int cc, int value, int64_t now)
 {
-	(void)now;
 	sf64_synth_t *s = (sf64_synth_t *)t;
 	switch (cc) {
 	case 7:  sf64_synth_set_volume(s, ch, value); break;
 	case 11: sf64_synth_set_expression(s, ch, value); break;
 	case 10: sf64_synth_set_pan(s, ch, value); break;
+	case 64: sf64_synth_set_sustain(s, ch, value); break;
 	case 0:  s->midi[ch].bank = (uint16_t)value; break;
 	}
 }
 
 static void sf64_mt_program(midi_target_t *t, int ch, int program, int64_t now)
 {
-	(void)now;
 	sf64_synth_t *s = (sf64_synth_t *)t;
 	sf64_synth_set_program(s, ch, s->midi[ch].bank, program);
 }
 
 static void sf64_mt_pitch_bend(midi_target_t *t, int ch, int value, int64_t now)
 {
-	(void)now;
 	sf64_synth_set_pitch_bend((sf64_synth_t *)t, ch, value);
 }
 
@@ -143,9 +143,12 @@ static void voice_stop(sf64_synth_t *synth, int ch)
 	v->midi_channel = -1;
 	v->key = -1;
 	v->velocity = 0;
+	v->preset_index = -1;
 	v->region_index = -1;
 	v->note_id = 0;
 	v->sustain_loop = false;
+	v->key_released = false;
+	v->held_by_sustain = false;
 	synth->used_channel_mask &= ~(1u << ch);
 }
 
@@ -181,12 +184,18 @@ static int count_free_channels(sf64_synth_t *synth)
 	return n;
 }
 
-/** True while the key is still held (not yet released). */
-static bool voice_held(const sf64_voice_t *v)
+/** True while the voice is in a pre-release envelope phase. */
+static bool voice_sounding(const sf64_voice_t *v)
 {
 	return v->phase == SF64_VOICE_ATTACK ||
 		v->phase == SF64_VOICE_DECAY ||
 		v->phase == SF64_VOICE_SUSTAIN;
+}
+
+/** True while the key is still down (note-off not yet received). */
+static bool voice_key_down(const sf64_voice_t *v)
+{
+	return voice_sounding(v) && !v->key_released;
 }
 
 /** SF2 timecents -> output samples; <= -12000 is instant. */
@@ -318,6 +327,7 @@ sf64_synth_t *sf64_synth_create(sf64_bank_t *bank)
 		mc->volume = 127;
 		mc->expression = 127;
 		mc->pan = 64;
+		mc->sustain = 0;
 		mc->pitch_bend = 8192;
 		mc->pitch_range_cents = 200;
 	}
@@ -326,6 +336,7 @@ sf64_synth_t *sf64_synth_create(sf64_bank_t *bank)
 		synth->voices[i].deadline = INT64_MAX;
 		synth->voices[i].midi_channel = -1;
 		synth->voices[i].key = -1;
+		synth->voices[i].preset_index = -1;
 		synth->voices[i].region_index = -1;
 	}
 	return synth;
@@ -404,6 +415,57 @@ void sf64_synth_set_pitch_bend(sf64_synth_t *synth, int midi_channel, int pitch_
 		midi_apply_bend(synth, midi_channel);
 }
 
+/** Begin the release envelope (and leave a sustain loop if present). */
+static void voice_enter_release(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	sf64_sample_t *s = &synth->bank->samples[r->sample_index];
+	int release = timecents_to_samples(r->amp_env.release_timecents);
+
+	v->key_released = true;
+	v->held_by_sustain = false;
+
+	// Exit sustain loops so the SF2 release tail can play. Tiny leading
+	// loops are the "release sample" idiom (silence until note-off):
+	// without a low-pass filter, leaving them reveals a pitched body that
+	// sounds like a second note (e.g. GeneralUser Clavinet_rel). Keep
+	// looping silence for those until filters exist.
+	if (v->sustain_loop && s->loop_end > s->loop_start &&
+		s->loop_end - s->loop_start >= 128)
+		mixer_ch_set_loop(ch, false);
+
+	if (release <= 0) {
+		voice_stop(synth, ch);
+		return;
+	}
+
+	mixer_ch_set_vol_ramp(ch, 0, 0, release);
+	v->phase = SF64_VOICE_RELEASE;
+	v->deadline = synth->now + release;
+}
+
+void sf64_synth_set_sustain(sf64_synth_t *synth, int midi_channel, int value)
+{
+	assert(synth);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
+	assert(value >= 0 && value <= 127);
+
+	bool was_down = synth->midi[midi_channel].sustain >= 64;
+	synth->midi[midi_channel].sustain = (uint8_t)value;
+	bool down = value >= 64;
+	if (down || !was_down || synth->num_channels <= 0)
+		return;
+
+	// Pedal up: voices held only by the pedal enter real release.
+	for (int ch = synth->first_channel;
+		 ch < synth->first_channel + synth->num_channels; ch++) {
+		sf64_voice_t *v = &synth->voices[ch];
+		if (v->midi_channel == midi_channel && v->held_by_sustain)
+			voice_enter_release(synth, ch);
+	}
+}
+
 /** After attack: decay to the sustain level, or enter sustain immediately. */
 static void voice_enter_decay(sf64_synth_t *synth, int ch)
 {
@@ -426,7 +488,7 @@ static void voice_enter_decay(sf64_synth_t *synth, int ch)
 
 /** Start a held voice on an already-reserved channel. */
 static void voice_start(sf64_synth_t *synth, int ch, int midi_channel,
-	int ri, int key, int velocity, uint32_t note_id)
+	int preset_index, int ri, int key, int velocity, uint32_t note_id)
 {
 	sf64_region_t *r = &synth->bank->regions[ri];
 	int attack = timecents_to_samples(r->amp_env.attack_timecents);
@@ -435,9 +497,12 @@ static void voice_start(sf64_synth_t *synth, int ch, int midi_channel,
 	v->midi_channel = (int8_t)midi_channel;
 	v->key = (int8_t)key;
 	v->velocity = (int8_t)velocity;
+	v->preset_index = (int16_t)preset_index;
 	v->region_index = ri;
 	v->note_id = note_id;
 	v->sustain_loop = (r->loop_mode == SF64_LOOP_SUSTAIN);
+	v->key_released = false;
+	v->held_by_sustain = false;
 	voice_peak_vols(synth, ch, &v->lvol, &v->rvol);
 
 	// #mixer_ch_set_vol declicks; duration 0 is a true immediate mute.
@@ -451,6 +516,25 @@ static void voice_start(sf64_synth_t *synth, int ch, int midi_channel,
 		v->deadline = synth->now + attack;
 	} else {
 		voice_enter_decay(synth, ch);
+	}
+}
+
+/** Stop active voices that share preset + exclusive class with @p matches. */
+static void choke_exclusive(sf64_synth_t *synth, int preset_index,
+	const int *matches, int nmatch)
+{
+	for (int i = 0; i < nmatch; i++) {
+		uint8_t group = synth->bank->regions[matches[i]].exclusive_group;
+		if (group == 0)
+			continue;
+		for (int ch = synth->first_channel;
+			 ch < synth->first_channel + synth->num_channels; ch++) {
+			sf64_voice_t *v = &synth->voices[ch];
+			if (v->phase == SF64_VOICE_OFF || v->preset_index != preset_index)
+				continue;
+			if (synth->bank->regions[v->region_index].exclusive_group == group)
+				voice_stop(synth, ch);
+		}
 	}
 }
 
@@ -483,6 +567,12 @@ uint32_t sf64_synth_note_on(sf64_synth_t *synth, int midi_channel,
 	}
 	if (nmatch == 0)
 		return 0;
+
+	// Free exclusive-class victims before checking allocation so a choked
+	// channel can be reused by this note-on. Done before any of the new
+	// layers start, so siblings in the same note-on do not choke each other.
+	choke_exclusive(synth, preset_index, matches, nmatch);
+
 	if (count_free_channels(synth) < nmatch)
 		return 0;
 
@@ -493,7 +583,8 @@ uint32_t sf64_synth_note_on(sf64_synth_t *synth, int midi_channel,
 	for (int i = 0; i < nmatch; i++) {
 		int ch = alloc_channel(synth);
 		assert(ch >= 0);
-		voice_start(synth, ch, midi_channel, matches[i], key, velocity, note_id);
+		voice_start(synth, ch, midi_channel, preset_index,
+			matches[i], key, velocity, note_id);
 	}
 	return note_id;
 }
@@ -505,12 +596,12 @@ void sf64_synth_note_off(sf64_synth_t *synth, int midi_channel, int key)
 	if (synth->num_channels <= 0)
 		return;
 
-	// Oldest still-held identity for this key on this MIDI channel.
+	// Oldest identity that still has the key down on this MIDI channel.
 	uint32_t oldest = 0;
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
 		sf64_voice_t *v = &synth->voices[ch];
-		if (!voice_held(v) || v->midi_channel != midi_channel || v->key != key)
+		if (!voice_key_down(v) || v->midi_channel != midi_channel || v->key != key)
 			continue;
 		if (oldest == 0 || v->note_id < oldest)
 			oldest = v->note_id;
@@ -518,34 +609,21 @@ void sf64_synth_note_off(sf64_synth_t *synth, int midi_channel, int key)
 	if (oldest == 0)
 		return;
 
+	bool pedal = synth->midi[midi_channel].sustain >= 64;
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
 		sf64_voice_t *v = &synth->voices[ch];
-		if (!voice_held(v) || v->midi_channel != midi_channel ||
+		if (!voice_key_down(v) || v->midi_channel != midi_channel ||
 			v->key != key || v->note_id != oldest)
 			continue;
 
-		sf64_region_t *r = &synth->bank->regions[v->region_index];
-		sf64_sample_t *s = &synth->bank->samples[r->sample_index];
-		int release = timecents_to_samples(r->amp_env.release_timecents);
-
-		// Exit sustain loops so the SF2 release tail can play. Tiny leading
-		// loops are the "release sample" idiom (silence until note-off):
-		// without a low-pass filter, leaving them reveals a pitched body that
-		// sounds like a second note (e.g. GeneralUser Clavinet_rel). Keep
-		// looping silence for those until filters exist.
-		if (v->sustain_loop && s->loop_end > s->loop_start &&
-			s->loop_end - s->loop_start >= 128)
-			mixer_ch_set_loop(ch, false);
-
-		if (release <= 0) {
-			voice_stop(synth, ch);
+		if (pedal) {
+			// Sustain loop stays on until the pedal releases.
+			v->key_released = true;
+			v->held_by_sustain = true;
 			continue;
 		}
-
-		mixer_ch_set_vol_ramp(ch, 0, 0, release);
-		v->phase = SF64_VOICE_RELEASE;
-		v->deadline = synth->now + release;
+		voice_enter_release(synth, ch);
 	}
 }
 

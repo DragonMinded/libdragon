@@ -18,7 +18,7 @@
 
 #define SAMPLE_RATE  22050
 #define CH           0
-#define NCH          4
+#define NCH          8
 #define AMP          16000
 #define SQ           16
 #define A_LEN        4096
@@ -1570,6 +1570,287 @@ static bool test_synth_midi_controllers(sf64_bank_t *bank)
 	return true;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// Sustain pedal / exclusive class
+//////////////////////////////////////////////////////////////////////////////
+
+static int count_playing_n(int n)
+{
+	int c = 0;
+	for (int i = 0; i < n; i++)
+		if (mixer_ch_playing(i))
+			c++;
+	return c;
+}
+
+static bool test_synth_sustain_pedal(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 4);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
+	int16_t save_rel = r->amp_env.release_timecents;
+	r->amp_env.release_timecents = samples_to_timecents(400);
+	int rel = env_samples(r->amp_env.release_timecents);
+
+	// Note-off without pedal → immediate release.
+	synth_silence(synth, 4);
+	sf64_synth_set_sustain(synth, 0, 0);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	sf64_synth_note_off(synth, 0, 60);
+	int dl = sf64_synth_process(synth, 0);
+	if (dl != rel || !mixer_ch_playing(0)) {
+		printf("FAILED pedal: note-off without pedal remaining %d\n", dl);
+		goto fail_pedal;
+	}
+	sf64_synth_process(synth, rel);
+	mix(64);
+	if (mixer_ch_playing(0)) {
+		printf("FAILED pedal: still playing after release\n");
+		goto fail_pedal;
+	}
+
+	// Note-off with pedal → keep sounding; pedal up → release.
+	synth_silence(synth, 4);
+	sf64_synth_set_sustain(synth, 0, 127);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	sf64_synth_note_off(synth, 0, 60);
+	if (!mixer_ch_playing(0) || sf64_synth_process(synth, 0) >= 0) {
+		printf("FAILED pedal: note-off with pedal entered release\n");
+		goto fail_pedal;
+	}
+	sf64_synth_set_sustain(synth, 0, 0);
+	dl = sf64_synth_process(synth, 0);
+	if (dl != rel || !mixer_ch_playing(0)) {
+		printf("FAILED pedal: pedal-up remaining %d want %d\n", dl, rel);
+		goto fail_pedal;
+	}
+	sf64_synth_process(synth, rel);
+	mix(64);
+	if (mixer_ch_playing(0)) {
+		printf("FAILED pedal: not stopped after pedal-up release\n");
+		goto fail_pedal;
+	}
+
+	// Multiple notes held by pedal; pedal up releases all.
+	synth_silence(synth, 4);
+	sf64_synth_set_sustain(synth, 0, 127);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	sf64_synth_note_off(synth, 0, 48);
+	sf64_synth_note_off(synth, 0, 60);
+	if (count_playing_n(4) != 2) {
+		printf("FAILED pedal: expected 2 held notes, got %d\n",
+			count_playing_n(4));
+		goto fail_pedal;
+	}
+	sf64_synth_set_sustain(synth, 0, 0);
+	sf64_synth_process(synth, rel);
+	mix(64);
+	if (count_playing_n(4) != 0) {
+		printf("FAILED pedal: multi hold not cleared\n");
+		goto fail_pedal;
+	}
+
+	// Stacked same key: peel under pedal, then pedal-up releases remaining.
+	synth_silence(synth, 4);
+	sf64_synth_set_sustain(synth, 0, 127);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	sf64_synth_note_off(synth, 0, 60); // first identity held by pedal
+	if (count_playing_n(4) != 2) {
+		printf("FAILED pedal: stack note-off dropped a voice\n");
+		goto fail_pedal;
+	}
+	sf64_synth_note_off(synth, 0, 60); // second identity also held
+	if (count_playing_n(4) != 2) {
+		printf("FAILED pedal: second stack note-off dropped a voice\n");
+		goto fail_pedal;
+	}
+	sf64_synth_set_sustain(synth, 0, 0);
+	sf64_synth_process(synth, rel);
+	mix(64);
+	if (count_playing_n(4) != 0) {
+		printf("FAILED pedal: stacked identities not released\n");
+		goto fail_pedal;
+	}
+
+	// Sustain loop: pedal note-off must NOT leave the loop; pedal-up does.
+	assert(sf64_synth_set_program(synth, 0, 0, 2));
+	sf64_region_t *rb = &bank->regions[bank->presets[2].first_region];
+	int16_t save_rel_b = rb->amp_env.release_timecents;
+	uint8_t save_mode = rb->loop_mode;
+	rb->amp_env.release_timecents = samples_to_timecents(600);
+	int rel_b = env_samples(rb->amp_env.release_timecents);
+	synth_silence(synth, 4);
+	sf64_synth_set_sustain(synth, 0, 127);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	mixer_ch_set_freq(0, 0);
+	mixer_ch_set_pos(0, B_INTRO + 8);
+	mix(2048);
+	mixer_ch_set_freq(0, SAMPLE_RATE);
+	sf64_synth_note_off(synth, 0, 60);
+	mix(B_LOOP + 256);
+	double pos = mixer_ch_get_pos(0);
+	if (pos < B_INTRO || pos >= B_INTRO + B_LOOP) {
+		printf("FAILED pedal: sustain loop left early (pos %.1f)\n", pos);
+		rb->amp_env.release_timecents = save_rel_b;
+		rb->loop_mode = save_mode;
+		goto fail_pedal;
+	}
+	sf64_synth_set_sustain(synth, 0, 0);
+	mix(B_LOOP);
+	pos = mixer_ch_get_pos(0);
+	if (pos < B_INTRO + B_LOOP) {
+		printf("FAILED pedal: sustain loop still on after pedal-up (pos %.1f)\n",
+			pos);
+		rb->amp_env.release_timecents = save_rel_b;
+		rb->loop_mode = save_mode;
+		goto fail_pedal;
+	}
+	sf64_synth_process(synth, rel_b);
+	mix(64);
+
+	// Continuous loop: stays in loop through real release after pedal-up.
+	rb->loop_mode = SF64_LOOP_CONTINUOUS;
+	synth_silence(synth, 4);
+	sf64_synth_set_sustain(synth, 0, 127);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	mixer_ch_set_freq(0, 0);
+	mixer_ch_set_pos(0, B_INTRO + 8);
+	mix(2048);
+	mixer_ch_set_freq(0, SAMPLE_RATE);
+	sf64_synth_note_off(synth, 0, 60);
+	sf64_synth_set_sustain(synth, 0, 0);
+	mix(B_LOOP + 256);
+	pos = mixer_ch_get_pos(0);
+	if (pos < B_INTRO || pos >= B_INTRO + B_LOOP) {
+		printf("FAILED pedal: continuous loop left during release (pos %.1f)\n",
+			pos);
+		rb->amp_env.release_timecents = save_rel_b;
+		rb->loop_mode = save_mode;
+		goto fail_pedal;
+	}
+	sf64_synth_process(synth, rel_b);
+	mix(64);
+
+	rb->amp_env.release_timecents = save_rel_b;
+	rb->loop_mode = save_mode;
+	r->amp_env.release_timecents = save_rel;
+	sf64_synth_close(synth);
+	return true;
+
+fail_pedal:
+	r->amp_env.release_timecents = save_rel;
+	sf64_synth_close(synth);
+	return false;
+}
+
+static bool test_synth_exclusive(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 6);
+	sf64_region_t *r0 = &bank->regions[bank->presets[0].first_region];
+	sf64_region_t *r1 = &bank->regions[bank->presets[1].first_region];
+	uint8_t g0a = r0[0].exclusive_group, g0c = r0[1].exclusive_group;
+	uint8_t g1a = r1[0].exclusive_group, g1d = r1[1].exclusive_group;
+
+	// Same group + same preset → choke.
+	r0[0].exclusive_group = 1;
+	r0[1].exclusive_group = 1;
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	synth_silence(synth, 6);
+	sf64_synth_note_on(synth, 0, 48, 100); // region A
+	sf64_synth_note_on(synth, 0, 72, 100); // region C chokes A (reuses ch0)
+	mix(64);
+	if (count_playing_n(6) != 1) {
+		printf("FAILED excl: bitmap after choke has %d voices\n",
+			count_playing_n(6));
+		goto fail_excl;
+	}
+	if (mixer_ch_playing_waveform(0) != &bank->waves[r0[1].sample_index]->wave) {
+		printf("FAILED excl: same group did not leave region C\n");
+		goto fail_excl;
+	}
+
+	// Different groups → no choke.
+	r0[0].exclusive_group = 1;
+	r0[1].exclusive_group = 2;
+	synth_silence(synth, 6);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	sf64_synth_note_on(synth, 0, 72, 100);
+	if (!mixer_ch_playing(0) || !mixer_ch_playing(1)) {
+		printf("FAILED excl: different groups choked\n");
+		goto fail_excl;
+	}
+
+	// Same group, different presets → no choke.
+	r0[0].exclusive_group = 1;
+	r1[1].exclusive_group = 1; // VelSplit high-vel → D
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	assert(sf64_synth_set_program(synth, 1, 0, 1));
+	synth_silence(synth, 6);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	sf64_synth_note_on(synth, 1, 60, 100);
+	if (!mixer_ch_playing(0) || !mixer_ch_playing(1)) {
+		printf("FAILED excl: different presets choked\n");
+		goto fail_excl;
+	}
+
+	// Multiple victims in the same group.
+	r0[0].exclusive_group = 1;
+	r0[1].exclusive_group = 1;
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	synth_silence(synth, 6);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	sf64_synth_note_on(synth, 0, 60, 100); // also A (same region), both group 1
+	// Second note-on of key 60 also matches region A only — both on group 1.
+	// A third note at 72 chokes both.
+	sf64_synth_note_on(synth, 0, 72, 100);
+	mix(64);
+	if (count_playing_n(6) != 1) {
+		printf("FAILED excl: multi-victim left %d voices\n", count_playing_n(6));
+		goto fail_excl;
+	}
+	if (mixer_ch_playing_waveform(0) != &bank->waves[r0[1].sample_index]->wave) {
+		printf("FAILED excl: multi-victim survivor is not region C\n");
+		goto fail_excl;
+	}
+
+	// Same note-on layers sharing a group must not choke each other.
+	sf64_region_t *rl = &bank->regions[bank->presets[3].first_region];
+	uint8_t gl0 = rl[0].exclusive_group, gl1 = rl[1].exclusive_group;
+	rl[0].exclusive_group = 5;
+	rl[1].exclusive_group = 5;
+	assert(sf64_synth_set_program(synth, 0, 0, 3));
+	synth_silence(synth, 6);
+	uint32_t id = sf64_synth_note_on(synth, 0, 60, 100);
+	if (!id || count_playing_n(6) != 2) {
+		printf("FAILED excl: layered same-group note-on playing=%d id=%lu\n",
+			count_playing_n(6), (unsigned long)id);
+		rl[0].exclusive_group = gl0;
+		rl[1].exclusive_group = gl1;
+		goto fail_excl;
+	}
+	rl[0].exclusive_group = gl0;
+	rl[1].exclusive_group = gl1;
+
+	r0[0].exclusive_group = g0a;
+	r0[1].exclusive_group = g0c;
+	r1[0].exclusive_group = g1a;
+	r1[1].exclusive_group = g1d;
+	sf64_synth_close(synth);
+	return true;
+
+fail_excl:
+	r0[0].exclusive_group = g0a;
+	r0[1].exclusive_group = g0c;
+	r1[0].exclusive_group = g1a;
+	r1[1].exclusive_group = g1d;
+	sf64_synth_close(synth);
+	return false;
+}
+
 int main(void)
 {
 	debug_init_emulog();
@@ -1627,6 +1908,11 @@ int main(void)
 	fflush(stdout);
 	total++; if (!test_synth_midi_channels(bank)) failed++;
 	total++; if (!test_synth_midi_controllers(bank)) failed++;
+
+	printf("sustain / exclusive\n");
+	fflush(stdout);
+	total++; if (!test_synth_sustain_pedal(bank)) failed++;
+	total++; if (!test_synth_exclusive(bank)) failed++;
 
 	sf64_close(bank);
 
