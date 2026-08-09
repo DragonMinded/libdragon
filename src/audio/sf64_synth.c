@@ -9,10 +9,12 @@
  *
  * A note-on can start several regions (SF2 layers). Those voices share one
  * note identity; note-off releases the oldest still-held identity for that
- * key on that MIDI channel. Allocation is atomic: if there are not enough
- * free channels for every matching region, nothing starts. There is no voice
- * stealing — saturated note-ons return 0. Exclusive-class victims are choked
- * only after allocation is known to succeed.
+ * key on that MIDI channel. Allocation is atomic: #mixer_ch_alloc plans the
+ * slots, and if fewer than the matching regions are available nothing starts.
+ * Saturated pools steal existing voices (release before sustain before attack,
+ * then quieter/older), expanding each victim to its full note identity.
+ * Exclusive-class victims are advertised to the planner at
+ * #MIXER_PRIORITY_MIN and choked only after the plan succeeds.
  *
  * Amp envelopes use the mixer's volume ramps (delay → attack → hold → decay →
  * sustain → release), with SF2 keynum scaling on hold/decay. Volume/expression
@@ -49,7 +51,6 @@ void voice_stop(sf64_synth_t *synth, int ch)
 	v->sustain_loop = false;
 	v->key_released = false;
 	v->held_by_sustain = false;
-	synth->used_channel_mask &= ~(1u << ch);
 }
 
 void voices_stop_all(sf64_synth_t *synth)
@@ -61,27 +62,44 @@ void voices_stop_all(sf64_synth_t *synth)
 		voice_stop(synth, ch);
 }
 
-static int alloc_channel(sf64_synth_t *synth)
+/** Stealing priority for the current envelope phase (above #sf64_synth_s::priority). */
+static int voice_priority(sf64_synth_t *synth, const sf64_voice_t *v)
 {
-	for (int ch = synth->first_channel;
-		 ch < synth->first_channel + synth->num_channels; ch++) {
-		if (!(synth->used_channel_mask & (1u << ch))) {
-			synth->used_channel_mask |= 1u << ch;
-			return ch;
-		}
+	int base = synth->priority;
+	switch (v->phase) {
+	case SF64_VOICE_OFF:
+		return MIXER_PRIORITY_MIN;
+	case SF64_VOICE_RELEASE:
+		return base + 1;
+	case SF64_VOICE_SUSTAIN:
+		return v->held_by_sustain ? base + 2 : base + 3;
+	default:
+		return base + 4; // DELAY / ATTACK / HOLD / DECAY
 	}
-	return -1;
 }
 
-static int count_free_channels(sf64_synth_t *synth)
+/** Push phase (and exclusive-class) priorities into the mixer for this range. */
+static void refresh_priorities(sf64_synth_t *synth, uint32_t exclusive_mask)
 {
-	int n = 0;
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
-		if (!(synth->used_channel_mask & (1u << ch)))
-			n++;
+		int prio = (exclusive_mask & (1u << ch))
+			? MIXER_PRIORITY_MIN
+			: voice_priority(synth, &synth->voices[ch]);
+		mixer_ch_set_priority(ch, prio);
 	}
-	return n;
+}
+
+/** Stop every voice that shares @p note_id (layered note identity). */
+static void voice_stop_note(sf64_synth_t *synth, uint32_t note_id)
+{
+	if (note_id == 0)
+		return;
+	for (int ch = synth->first_channel;
+		 ch < synth->first_channel + synth->num_channels; ch++) {
+		if (synth->voices[ch].note_id == note_id)
+			voice_stop(synth, ch);
+	}
 }
 
 /** SF2 timecents -> output samples; <= -12000 is instant. */
@@ -234,15 +252,20 @@ void sf64_synth_close(sf64_synth_t *synth)
 	free(synth);
 }
 
-void sf64_synth_set_channels(sf64_synth_t *synth, int first_channel, int num_channels)
+void sf64_synth_set_channels(sf64_synth_t *synth, int first_channel,
+	int num_channels, int priority)
 {
 	assert(synth);
 	assert(first_channel >= 0);
 	assert(num_channels >= 1);
 	assert(first_channel + num_channels <= MIXER_MAX_CHANNELS);
+	assertf(priority >= MIXER_PRIORITY_MIN && priority <= MIXER_PRIORITY_MAX - 4,
+		"sf64_synth_set_channels: priority %d leaves no room for phase offsets",
+		priority);
 	voices_stop_all(synth);
 	synth->first_channel = first_channel;
 	synth->num_channels = num_channels;
+	synth->priority = priority;
 }
 
 void voice_enter_release(sf64_synth_t *synth, int ch)
@@ -372,11 +395,11 @@ static bool match_has_group(sf64_bank_t *bank, const int *matches, int nmatch,
 	return false;
 }
 
-/** Count voices that #choke_exclusive would stop (without mutating). */
-static int count_exclusive_victims(sf64_synth_t *synth, int preset_index,
+/** Bitmask of voices that share preset + exclusive class with @p matches. */
+static uint32_t exclusive_victim_mask(sf64_synth_t *synth, int preset_index,
 	const int *matches, int nmatch)
 {
-	int n = 0;
+	uint32_t mask = 0;
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
 		sf64_voice_t *v = &synth->voices[ch];
@@ -384,22 +407,17 @@ static int count_exclusive_victims(sf64_synth_t *synth, int preset_index,
 			continue;
 		uint8_t g = synth->bank->regions[v->region_index].exclusive_group;
 		if (match_has_group(synth->bank, matches, nmatch, g))
-			n++;
+			mask |= 1u << ch;
 	}
-	return n;
+	return mask;
 }
 
-/** Stop active voices that share preset + exclusive class with @p matches. */
-static void choke_exclusive(sf64_synth_t *synth, int preset_index,
-	const int *matches, int nmatch)
+/** Stop every voice listed in @p mask (absolute channel bits). */
+static void choke_exclusive_mask(sf64_synth_t *synth, uint32_t mask)
 {
 	for (int ch = synth->first_channel;
 		 ch < synth->first_channel + synth->num_channels; ch++) {
-		sf64_voice_t *v = &synth->voices[ch];
-		if (v->phase == SF64_VOICE_OFF || v->preset_index != preset_index)
-			continue;
-		uint8_t g = synth->bank->regions[v->region_index].exclusive_group;
-		if (match_has_group(synth->bank, matches, nmatch, g))
+		if (mask & (1u << ch))
 			voice_stop(synth, ch);
 	}
 }
@@ -435,23 +453,33 @@ uint32_t sf64_synth_note_on(sf64_synth_t *synth, int midi_channel,
 	if (nmatch == 0)
 		return 0;
 
-	// Exclusive victims are reclaimable for this note-on, but only choke them
-	// once allocation is known to succeed (all-or-nothing).
-	int free = count_free_channels(synth)
-		+ count_exclusive_victims(synth, preset_index, matches, nmatch);
-	if (free < nmatch)
+	// Advertise exclusive victims as free to the planner; choke only after
+	// the plan succeeds so a rejected note-on leaves them untouched.
+	uint32_t excl = exclusive_victim_mask(synth, preset_index, matches, nmatch);
+	refresh_priorities(synth, excl);
+
+	int plan[MIXER_MAX_CHANNELS];
+	int nplan = mixer_ch_alloc(synth->first_channel, synth->num_channels,
+		nmatch, false, synth->priority + 4, NULL, plan);
+	if (nplan < nmatch)
 		return 0;
 
-	choke_exclusive(synth, preset_index, matches, nmatch);
+	choke_exclusive_mask(synth, excl);
+
+	// Steal: expand each still-occupied planned channel to its note identity
+	// so a layered victim is never cut in half.
+	for (int i = 0; i < nmatch; i++) {
+		sf64_voice_t *v = &synth->voices[plan[i]];
+		if (v->phase != SF64_VOICE_OFF)
+			voice_stop_note(synth, v->note_id);
+	}
 
 	uint32_t note_id = synth->next_note_id++;
 	if (synth->next_note_id == 0)
 		synth->next_note_id = 1;
 
 	for (int i = 0; i < nmatch; i++) {
-		int ch = alloc_channel(synth);
-		assert(ch >= 0);
-		voice_start(synth, ch, midi_channel, preset_index,
+		voice_start(synth, plan[i], midi_channel, preset_index,
 			matches[i], key, velocity, note_id);
 	}
 	return note_id;

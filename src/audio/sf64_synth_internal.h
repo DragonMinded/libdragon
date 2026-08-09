@@ -75,8 +75,8 @@ struct sf64_synth_s {
 	sf64_bank_t *bank;            ///< Bank this synth plays from
 	int first_channel;            ///< First mixer channel of the allocated range
 	int num_channels;             ///< Number of mixer channels reserved for voices
+	int priority;                 ///< Base voice-stealing priority for this synth
 	int64_t now;                  ///< Absolute sample time advanced by #sf64_synth_process
-	uint32_t used_channel_mask;   ///< Bitmask of busy channels in the allocated range
 	uint32_t next_note_id;        ///< Next note identity to assign (`>= 1`)
 	sf64_synth_mode_t mode;       ///< Native vs GM1 channel semantics
 	sf64_midi_channel_t midi[SF64_MIDI_CHANNELS]; ///< Per-MIDI-channel state

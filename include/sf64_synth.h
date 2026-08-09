@@ -19,6 +19,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "sf64.h"
+#include "mixer.h"
 #include "midi_target.h"
 
 #ifdef __cplusplus
@@ -92,13 +93,18 @@ void sf64_synth_close(sf64_synth_t *synth);
  * @brief Reserve a contiguous range of mixer channels for this synthesizer.
  *
  * Stops any notes currently sounding. Must be called before
- * #sf64_synth_note_on. Polyphony is limited to @p num_channels (no stealing).
+ * #sf64_synth_note_on. Polyphony is limited to @p num_channels; when the pool
+ * is full, older or quieter voices are stolen. @p priority is the base
+ * voice-stealing priority for this synthesizer (e.g. #MIXER_PRIORITY_MUSIC);
+ * envelope phase adds a small offset above it.
  *
  * @param synth           Synthesizer
  * @param first_channel   First mixer channel index (see #mixer_init)
  * @param num_channels    Number of channels to reserve (`>= 1`)
+ * @param priority        Base stealing priority for this synth's voices
  */
-void sf64_synth_set_channels(sf64_synth_t *synth, int first_channel, int num_channels);
+void sf64_synth_set_channels(sf64_synth_t *synth, int first_channel,
+	int num_channels, int priority);
 
 /**
  * @brief Select bank and program for subsequent notes on @p midi_channel.
@@ -175,10 +181,11 @@ void sf64_synth_set_sustain(sf64_synth_t *synth, int midi_channel, int value);
  * @brief Start a note on @p midi_channel's current program.
  *
  * Starts every matching region for @p key and @p velocity as one note.
- * Allocation is all-or-nothing: if any matching region cannot get a free
- * channel, none are started. A velocity of 0 is treated as #sf64_synth_note_off.
- * Starting a region with a non-zero exclusive class silences other sounding
- * regions of the same preset and class.
+ * Allocation is all-or-nothing: either every matching region starts, or none
+ * do. When the channel pool is full, existing voices are stolen (preferring
+ * released, held-by-sustain, sustain, then quieter/older voices). A velocity
+ * of 0 is treated as #sf64_synth_note_off. Starting a region with a non-zero
+ * exclusive class silences other sounding regions of the same preset and class.
  *
  * @param synth          Synthesizer
  * @param midi_channel   MIDI channel (0–15)

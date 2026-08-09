@@ -81,7 +81,7 @@ static void synth_silence(sf64_synth_t *synth, int nch)
 	for (int i = 0; i < nch; i++)
 		mixer_ch_stop(i);
 	mix(2048);
-	sf64_synth_set_channels(synth, 0, nch);
+	sf64_synth_set_channels(synth, 0, nch, MIXER_PRIORITY_MUSIC);
 }
 
 // Settle the volume ramp at step 0 so the playhead stays on @p start.
@@ -405,7 +405,7 @@ static bool check_freq(sf64_synth_t *synth, const char *tag, float want)
 static bool test_synth_pitch(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 
 	sf64_region_t *ra = &bank->regions[bank->presets[0].first_region];
@@ -496,7 +496,7 @@ static bool test_synth_pitch(sf64_bank_t *bank)
 static bool test_synth_key_split(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
@@ -553,7 +553,7 @@ static bool test_synth_key_split(sf64_bank_t *bank)
 static bool test_synth_vel_split(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 1));
 
 	sf64_region_t *r = &bank->regions[bank->presets[1].first_region];
@@ -617,15 +617,31 @@ static int peak_n(int n)
 	return peak;
 }
 
+static int count_playing(int nch)
+{
+	int n = 0;
+	for (int i = 0; i < nch; i++)
+		if (mixer_ch_playing(i)) n++;
+	return n;
+}
+
+static bool wave_playing(int nch, waveform_t *w)
+{
+	for (int i = 0; i < nch; i++)
+		if (mixer_ch_playing(i) && mixer_ch_playing_waveform(i) == w)
+			return true;
+	return false;
+}
+
 //////////////////////////////////////////////////////////////////////////////
-// Step 4 — polyphony without voice stealing
+// Step 4 — polyphony and voice stealing
 //////////////////////////////////////////////////////////////////////////////
 
-/** Sequential alloc, free, reuse of the lowest free channel, exhaustion, range. */
+/** Sequential alloc, free, reuse of the lowest free channel, range. */
 static bool test_synth_allocator(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 3);
+	sf64_synth_set_channels(synth, 0, 3, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 
 	synth_silence(synth, 3);
@@ -634,11 +650,6 @@ static bool test_synth_allocator(sf64_bank_t *bank)
 		!sf64_synth_note_on(synth, 0, 72, 100) ||
 		!mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2)) {
 		printf("FAILED alloc: sequential fill of ch0-2\n");
-		sf64_synth_close(synth);
-		return false;
-	}
-	if (sf64_synth_note_on(synth, 0, 64, 100)) {
-		printf("FAILED alloc: accepted a note with no free channel\n");
 		sf64_synth_close(synth);
 		return false;
 	}
@@ -660,13 +671,21 @@ static bool test_synth_allocator(sf64_bank_t *bank)
 
 	// first_channel=1, num=2 → only ch1/ch2, never ch0 or ch3.
 	synth_silence(synth, NCH);
-	sf64_synth_set_channels(synth, 1, 2);
+	sf64_synth_set_channels(synth, 1, 2, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_synth_note_on(synth, 0, 48, 100);
 	sf64_synth_note_on(synth, 0, 60, 100);
 	if (mixer_ch_playing(0) || !mixer_ch_playing(1) || !mixer_ch_playing(2) ||
-		mixer_ch_playing(3) || sf64_synth_note_on(synth, 0, 72, 100)) {
-		printf("FAILED alloc: out-of-range channel used or accepted\n");
+		mixer_ch_playing(3)) {
+		printf("FAILED alloc: out-of-range channel used\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	// Saturated range: steals inside [1,2], still never touches ch0/ch3.
+	if (!sf64_synth_note_on(synth, 0, 72, 100) || mixer_ch_playing(0) ||
+		mixer_ch_playing(3) ||
+		(int)mixer_ch_playing(1) + (int)mixer_ch_playing(2) != 2) {
+		printf("FAILED alloc: steal escaped the reserved range\n");
 		sf64_synth_close(synth);
 		return false;
 	}
@@ -679,7 +698,7 @@ static bool test_synth_allocator(sf64_bank_t *bank)
 static bool test_synth_polyphony(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 3);
+	sf64_synth_set_channels(synth, 0, 3, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 
 	synth_silence(synth, 3);
@@ -744,7 +763,7 @@ static bool test_synth_polyphony(sf64_bank_t *bank)
 
 	// note-off wrong key ignored; velocity 0 == note-off; repeated off ok.
 	synth_silence(synth, 3);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_synth_note_on(synth, 0, 60, 100);
 	sf64_synth_note_off(synth, 0, 48);
@@ -767,11 +786,11 @@ static bool test_synth_polyphony(sf64_bank_t *bank)
 	return true;
 }
 
-/** Full pool: new note discarded, existing voices left untouched. */
+/** Full pool: new note steals a voice; polyphony stays at the limit. */
 static bool test_synth_saturation(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 3);
+	sf64_synth_set_channels(synth, 0, 3, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 
 	synth_silence(synth, 3);
@@ -779,25 +798,15 @@ static bool test_synth_saturation(sf64_bank_t *bank)
 	sf64_synth_note_on(synth, 0, 60, 100);
 	sf64_synth_note_on(synth, 0, 72, 100);
 	mix(128);
-	waveform_t *w0 = mixer_ch_playing_waveform(0);
-	waveform_t *w1 = mixer_ch_playing_waveform(1);
-	waveform_t *w2 = mixer_ch_playing_waveform(2);
-	double p0 = mixer_ch_get_pos(0);
-	double p1 = mixer_ch_get_pos(1);
-	double p2 = mixer_ch_get_pos(2);
 
-	if (sf64_synth_note_on(synth, 0, 64, 100)) {
-		printf("FAILED sat: note accepted with no free channel\n");
+	uint32_t id = sf64_synth_note_on(synth, 0, 64, 100);
+	if (!id) {
+		printf("FAILED sat: note rejected with full pool (stealing expected)\n");
 		sf64_synth_close(synth);
 		return false;
 	}
-	if (mixer_ch_playing_waveform(0) != w0 ||
-		mixer_ch_playing_waveform(1) != w1 ||
-		mixer_ch_playing_waveform(2) != w2 ||
-		mixer_ch_get_pos(0) != p0 ||
-		mixer_ch_get_pos(1) != p1 ||
-		mixer_ch_get_pos(2) != p2) {
-		printf("FAILED sat: discarded note disturbed an existing voice\n");
+	if (count_playing(3) != 3) {
+		printf("FAILED sat: after steal playing=%d, want 3\n", count_playing(3));
 		sf64_synth_close(synth);
 		return false;
 	}
@@ -806,19 +815,148 @@ static bool test_synth_saturation(sf64_bank_t *bank)
 	return true;
 }
 
-static int count_playing(int nch)
+/** Voice stealing: phase order, age tie-break, layers, exclusive, stress. */
+static bool test_synth_voice_steal(sf64_bank_t *bank)
 {
-	int n = 0;
-	for (int i = 0; i < nch; i++)
-		if (mixer_ch_playing(i)) n++;
-	return n;
-}
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_region_t *r0 = &bank->regions[bank->presets[0].first_region];
+	int16_t save_rel0 = r0[0].amp_env.release_timecents;
+	int16_t save_rel1 = r0[1].amp_env.release_timecents;
+	int16_t save_atk1 = r0[1].amp_env.attack_timecents;
+	waveform_t *wc = &bank->waves[r0[1].sample_index]->wave;
 
-static bool wave_playing(int nch, waveform_t *w)
-{
-	for (int i = 0; i < nch; i++)
-		if (mixer_ch_playing(i) && mixer_ch_playing_waveform(i) == w)
-			return true;
+	// Release is cheaper than sustain.
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	r0[0].amp_env.release_timecents = samples_to_timecents(2000);
+	r0[1].amp_env.release_timecents = samples_to_timecents(2000);
+	synth_silence(synth, 2);
+	sf64_synth_note_on(synth, 0, 48, 100); // A
+	sf64_synth_note_on(synth, 0, 72, 100); // C
+	sf64_synth_note_off(synth, 0, 48);     // A → RELEASE
+	if (!sf64_synth_note_on(synth, 0, 60, 100) || count_playing(2) != 2 ||
+		!wave_playing(2, wc)) {
+		printf("FAILED steal: release was not preferred over sustain\n");
+		goto fail_steal;
+	}
+
+	// Sustain is cheaper than attack.
+	r0[1].amp_env.attack_timecents = samples_to_timecents(2000);
+	synth_silence(synth, 2);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_synth_note_on(synth, 0, 48, 100); // A sustain
+	sf64_synth_note_on(synth, 0, 72, 100); // C attack
+	if (!sf64_synth_note_on(synth, 0, 60, 100) || count_playing(2) != 2 ||
+		!wave_playing(2, wc)) {
+		printf("FAILED steal: sustain was not preferred over attack\n");
+		goto fail_steal;
+	}
+	r0[1].amp_env.attack_timecents = save_atk1;
+
+	// Same phase: oldest is stolen.
+	r0[0].amp_env.release_timecents = save_rel0;
+	r0[1].amp_env.release_timecents = save_rel1;
+	synth_silence(synth, 2);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_synth_note_on(synth, 0, 48, 100);
+	mix(512);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	if (!sf64_synth_note_on(synth, 0, 64, 100)) {
+		printf("FAILED steal: oldest tie-break note rejected\n");
+		goto fail_steal;
+	}
+	sf64_synth_note_off(synth, 0, 60);
+	mix(64);
+	if (count_playing(2) != 1) {
+		printf("FAILED steal: expected oldest (48) stolen, playing=%d\n",
+			count_playing(2));
+		goto fail_steal;
+	}
+
+	// Layer3 needs 3 slots: steals a full pool of mono notes.
+	sf64_synth_set_channels(synth, 0, 3, MIXER_PRIORITY_MUSIC);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	synth_silence(synth, 3);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	sf64_synth_note_on(synth, 0, 65, 100);
+	assert(sf64_synth_set_program(synth, 0, 0, 4)); // Layer3
+	uint32_t lid = sf64_synth_note_on(synth, 0, 72, 100);
+	if (!lid || count_playing(3) != 3) {
+		printf("FAILED steal: Layer3 did not claim 3 slots (id=%lu playing=%d)\n",
+			(unsigned long)lid, count_playing(3));
+		goto fail_steal;
+	}
+
+	// Stealing a layered identity removes all of its layers.
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
+	assert(sf64_synth_set_program(synth, 0, 0, 3)); // Layer2
+	synth_silence(synth, 2);
+	sf64_synth_note_on(synth, 0, 60, 100); // fills both channels
+	mix(64);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	// Mono note steals one layer channel; expansion must clear the other too.
+	if (!sf64_synth_note_on(synth, 0, 64, 100) || count_playing(2) != 1) {
+		printf("FAILED steal: layered victim not expanded (playing=%d)\n",
+			count_playing(2));
+		goto fail_steal;
+	}
+
+	// Exclusive victim is preferred (advertised at MIN).
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
+	uint8_t g0 = r0[0].exclusive_group, g1 = r0[1].exclusive_group;
+	r0[0].exclusive_group = 1;
+	r0[1].exclusive_group = 1;
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	synth_silence(synth, 2);
+	sf64_synth_note_on(synth, 0, 48, 100); // A group 1
+	sf64_synth_note_on(synth, 0, 60, 100); // A group 1
+	if (!sf64_synth_note_on(synth, 0, 72, 100) || count_playing(2) != 1 ||
+		!wave_playing(2, wc)) {
+		printf("FAILED steal: exclusive victims not reclaimed (playing=%d)\n",
+			count_playing(2));
+		r0[0].exclusive_group = g0;
+		r0[1].exclusive_group = g1;
+		goto fail_steal;
+	}
+	r0[0].exclusive_group = g0;
+	r0[1].exclusive_group = g1;
+
+	// Stress: rapid note-on/off must not stick or over-allocate.
+	sf64_synth_set_channels(synth, 0, 4, MIXER_PRIORITY_MUSIC);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	synth_silence(synth, 4);
+	for (int i = 0; i < 2000; i++) {
+		int key = 48 + (i % 24);
+		sf64_synth_note_on(synth, 0, key, 100);
+		if ((i & 3) == 3)
+			sf64_synth_note_off(synth, 0, 48 + ((i - 3) % 24));
+		if ((i & 15) == 15) {
+			sf64_synth_process(synth, 64);
+			mix(64);
+		}
+	}
+	if (count_playing(4) > 4) {
+		printf("FAILED steal: stress over-allocated (%d)\n", count_playing(4));
+		goto fail_steal;
+	}
+	synth_silence(synth, 4);
+	if (count_playing(4) != 0) {
+		printf("FAILED steal: stress left stuck voices\n");
+		goto fail_steal;
+	}
+
+	r0[0].amp_env.release_timecents = save_rel0;
+	r0[1].amp_env.release_timecents = save_rel1;
+	r0[1].amp_env.attack_timecents = save_atk1;
+	sf64_synth_close(synth);
+	return true;
+
+fail_steal:
+	r0[0].amp_env.release_timecents = save_rel0;
+	r0[1].amp_env.release_timecents = save_rel1;
+	r0[1].amp_env.attack_timecents = save_atk1;
+	sf64_synth_close(synth);
 	return false;
 }
 
@@ -830,7 +968,7 @@ static bool wave_playing(int nch, waveform_t *w)
 static bool test_synth_layers(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 4);
+	sf64_synth_set_channels(synth, 0, 4, MIXER_PRIORITY_MUSIC);
 
 	// Layer2: two full-range regions → two voices, distinct samples.
 	assert(sf64_synth_set_program(synth, 0, 0, 3));
@@ -877,42 +1015,45 @@ static bool test_synth_layers(sf64_bank_t *bank)
 	return true;
 }
 
-/** Not enough free channels → no layer starts, existing voices untouched. */
+/**
+ * Layered note that needs more channels than the pool has is rejected with
+ * no partial state. With room to steal, a layered note takes free + stolen.
+ */
 static bool test_synth_layer_atomic(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 3);
+	sf64_synth_set_channels(synth, 0, 3, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 
 	synth_silence(synth, 3);
-	// Occupy two channels with mono notes; one free left.
+	// Occupy two channels; one free. Layer2 needs two → steals one.
 	sf64_synth_note_on(synth, 0, 48, 100);
 	sf64_synth_note_on(synth, 0, 60, 100);
 	mix(64);
-	waveform_t *w0 = mixer_ch_playing_waveform(0);
-	waveform_t *w1 = mixer_ch_playing_waveform(1);
-	double p0 = mixer_ch_get_pos(0);
-	double p1 = mixer_ch_get_pos(1);
-	uint32_t mask_before = (mixer_ch_playing(0) ? 1 : 0) |
-		(mixer_ch_playing(1) ? 2 : 0) |
-		(mixer_ch_playing(2) ? 4 : 0);
-
-	// Layer2 needs two channels; only one is free → reject entirely.
 	assert(sf64_synth_set_program(synth, 0, 0, 3));
-	if (sf64_synth_note_on(synth, 0, 72, 100) != 0) {
-		printf("FAILED atomic: layered note started with one free channel\n");
+	if (!sf64_synth_note_on(synth, 0, 72, 100) || count_playing(3) != 3) {
+		printf("FAILED atomic: layered note should steal to start (playing=%d)\n",
+			count_playing(3));
 		sf64_synth_close(synth);
 		return false;
 	}
-	if (mixer_ch_playing_waveform(0) != w0 ||
-		mixer_ch_playing_waveform(1) != w1 ||
-		mixer_ch_get_pos(0) != p0 ||
-		mixer_ch_get_pos(1) != p1 ||
-		mixer_ch_playing(2) ||
-		((mixer_ch_playing(0) ? 1 : 0) |
-		 (mixer_ch_playing(1) ? 2 : 0) |
-		 (mixer_ch_playing(2) ? 4 : 0)) != mask_before) {
-		printf("FAILED atomic: rejected layer disturbed existing voices\n");
+
+	// Pool smaller than the layer count → reject, leave the mono note alone.
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 48, 100);
+	mix(64);
+	waveform_t *w0 = mixer_ch_playing_waveform(0);
+	double p0 = mixer_ch_get_pos(0);
+	assert(sf64_synth_set_program(synth, 0, 0, 3));
+	if (sf64_synth_note_on(synth, 0, 72, 100) != 0) {
+		printf("FAILED atomic: layered note started with pool size 1\n");
+		sf64_synth_close(synth);
+		return false;
+	}
+	if (mixer_ch_playing_waveform(0) != w0 || mixer_ch_get_pos(0) != p0) {
+		printf("FAILED atomic: rejected layer disturbed the existing voice\n");
 		sf64_synth_close(synth);
 		return false;
 	}
@@ -928,7 +1069,7 @@ static bool test_synth_layer_atomic(sf64_bank_t *bank)
 static bool test_synth_note_identity(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 4);
+	sf64_synth_set_channels(synth, 0, 4, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 3)); // Layer2
 	sf64_region_t *r = &bank->regions[bank->presets[3].first_region];
 	waveform_t *wa = &bank->waves[r[0].sample_index]->wave;
@@ -982,7 +1123,7 @@ static bool test_synth_note_identity(sf64_bank_t *bank)
 static bool test_synth_deadlines(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 2);
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_region_t *r0 = &bank->regions[bank->presets[0].first_region];
 	sf64_region_t *r1 = r0 + 1;
@@ -1072,7 +1213,7 @@ fail_dl:
 static bool test_synth_preset(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 2);
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
 
 	if (sf64_synth_set_program(synth, 0, 0, 99)) {
 		printf("FAILED preset: missing program accepted\n");
@@ -1122,7 +1263,7 @@ static bool test_synth_preset(sf64_bank_t *bank)
 static bool test_synth_attack(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	int16_t save_atk = r->amp_env.attack_timecents;
@@ -1207,7 +1348,7 @@ static bool test_synth_attack(sf64_bank_t *bank)
 static bool test_synth_release(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	int16_t save_atk = r->amp_env.attack_timecents;
@@ -1303,7 +1444,7 @@ static bool test_synth_release(sf64_bank_t *bank)
 static bool test_synth_loop_env(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 
 	// Sustain loop (preset 2 / sample B): note-off disables loop, pos leaves the loop.
 	assert(sf64_synth_set_program(synth, 0, 0, 2));
@@ -1438,7 +1579,7 @@ static float expect_freq_bend(const sf64_region_t *r, const sf64_sample_t *s,
 static bool test_synth_midi_channels(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 4);
+	sf64_synth_set_channels(synth, 0, 4, MIXER_PRIORITY_MUSIC);
 
 	// Different programs on ch 0 / ch 1.
 	assert(sf64_synth_set_program(synth, 0, 0, 0)); // KeySplit → A at 48
@@ -1490,7 +1631,7 @@ static bool test_synth_midi_channels(sf64_bank_t *bank)
 static bool test_synth_midi_controllers(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 2);
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	assert(sf64_synth_set_program(synth, 1, 0, 0));
 
@@ -1617,7 +1758,7 @@ static int count_playing_n(int n)
 static bool test_synth_sustain_pedal(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 4);
+	sf64_synth_set_channels(synth, 0, 4, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	int16_t save_rel = r->amp_env.release_timecents;
@@ -1780,7 +1921,7 @@ fail_pedal:
 static bool test_synth_exclusive(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 6);
+	sf64_synth_set_channels(synth, 0, 6, MIXER_PRIORITY_MUSIC);
 	sf64_region_t *r0 = &bank->regions[bank->presets[0].first_region];
 	sf64_region_t *r1 = &bank->regions[bank->presets[1].first_region];
 	uint8_t g0a = r0[0].exclusive_group, g0c = r0[1].exclusive_group;
@@ -1792,14 +1933,15 @@ static bool test_synth_exclusive(sf64_bank_t *bank)
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	synth_silence(synth, 6);
 	sf64_synth_note_on(synth, 0, 48, 100); // region A
-	sf64_synth_note_on(synth, 0, 72, 100); // region C chokes A (reuses ch0)
+	sf64_synth_note_on(synth, 0, 72, 100); // region C chokes A
 	mix(64);
+	waveform_t *wave_c = &bank->waves[r0[1].sample_index]->wave;
 	if (count_playing_n(6) != 1) {
 		printf("FAILED excl: bitmap after choke has %d voices\n",
 			count_playing_n(6));
 		goto fail_excl;
 	}
-	if (mixer_ch_playing_waveform(0) != &bank->waves[r0[1].sample_index]->wave) {
+	if (!wave_playing(6, wave_c)) {
 		printf("FAILED excl: same group did not leave region C\n");
 		goto fail_excl;
 	}
@@ -1843,7 +1985,7 @@ static bool test_synth_exclusive(sf64_bank_t *bank)
 		printf("FAILED excl: multi-victim left %d voices\n", count_playing_n(6));
 		goto fail_excl;
 	}
-	if (mixer_ch_playing_waveform(0) != &bank->waves[r0[1].sample_index]->wave) {
+	if (!wave_playing(6, wave_c)) {
 		printf("FAILED excl: multi-victim survivor is not region C\n");
 		goto fail_excl;
 	}
@@ -1867,33 +2009,26 @@ static bool test_synth_exclusive(sf64_bank_t *bank)
 	rl[1].exclusive_group = gl1;
 
 	// Rejected layered note-on must not choke victims (atomic with exclusive).
-	// Fill both channels with Layer2 (only layer0 in group 1). A second layered
-	// note needs 2 channels but exclusive reclaims only the group-1 voice.
-	sf64_synth_set_channels(synth, 0, 2);
-	rl[0].exclusive_group = 1;
-	rl[1].exclusive_group = 0;
-	assert(sf64_synth_set_program(synth, 0, 0, 3));
-	synth_silence(synth, 2);
-	sf64_synth_note_on(synth, 0, 60, 100);
+	// Pool of 1 with a group-1 mono voice: Layer2 needs 2 channels so the plan
+	// fails, and the exclusive victim must still be sounding.
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
+	r0[0].exclusive_group = 1;
+	r0[1].exclusive_group = 0;
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 48, 100);
 	mix(64);
 	waveform_t *w0 = mixer_ch_playing_waveform(0);
-	waveform_t *w1 = mixer_ch_playing_waveform(1);
-	if (count_playing_n(2) != 2) {
-		printf("FAILED excl: setup for atomic reject playing=%d\n",
-			count_playing_n(2));
-		rl[0].exclusive_group = gl0;
-		rl[1].exclusive_group = gl1;
-		goto fail_excl;
-	}
+	assert(sf64_synth_set_program(synth, 0, 0, 3));
+	rl[0].exclusive_group = 1;
+	rl[1].exclusive_group = 0;
 	if (sf64_synth_note_on(synth, 0, 61, 100) != 0) {
 		printf("FAILED excl: layered note should have been rejected\n");
 		rl[0].exclusive_group = gl0;
 		rl[1].exclusive_group = gl1;
 		goto fail_excl;
 	}
-	if (count_playing_n(2) != 2 ||
-		mixer_ch_playing_waveform(0) != w0 ||
-		mixer_ch_playing_waveform(1) != w1) {
+	if (!mixer_ch_playing(0) || mixer_ch_playing_waveform(0) != w0) {
 		printf("FAILED excl: rejected note-on choked a victim\n");
 		rl[0].exclusive_group = gl0;
 		rl[1].exclusive_group = gl1;
@@ -1925,7 +2060,7 @@ fail_excl:
 static bool test_synth_delay_hold(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	sf64_envelope_t save = r->amp_env;
@@ -2035,7 +2170,7 @@ fail_dh:
 static bool test_synth_multiphase(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	sf64_envelope_t save = r->amp_env;
@@ -2076,7 +2211,7 @@ static bool test_synth_multiphase(sf64_bank_t *bank)
 static bool test_synth_oneshot_reclaim(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	sf64_envelope_t save = r->amp_env;
@@ -2097,14 +2232,22 @@ static bool test_synth_oneshot_reclaim(sf64_bank_t *bank)
 		printf("FAILED oneshot reclaim: mixer still playing after sample end\n");
 		goto fail_os;
 	}
-	// Voice still reserved until process reclaims it.
-	if (sf64_synth_note_on(synth, 0, 48, 100) != 0) {
-		printf("FAILED oneshot reclaim: note_on before process should fail\n");
+	// Mixer channel is free but the voice is not yet reclaimed: note_on steals
+	// it (same path as an occupied slot with phase != OFF). Same key so the
+	// oneshot still finishes in A_LEN samples at 1:1.
+	if (!sf64_synth_note_on(synth, 0, 60, 100) || !mixer_ch_playing(0)) {
+		printf("FAILED oneshot reclaim: note_on did not reuse finished voice\n");
+		goto fail_os;
+	}
+	// process() also reclaims finished voices when no note_on intervenes.
+	mix(A_LEN + 512);
+	if (mixer_ch_playing(0)) {
+		printf("FAILED oneshot reclaim: second oneshot still playing\n");
 		goto fail_os;
 	}
 	sf64_synth_process(synth, 0);
-	if (!sf64_synth_note_on(synth, 0, 48, 100) || !mixer_ch_playing(0)) {
-		printf("FAILED oneshot reclaim: process did not free the channel\n");
+	if (sf64_synth_process(synth, 0) >= 0) {
+		printf("FAILED oneshot reclaim: process left a pending deadline\n");
 		goto fail_os;
 	}
 
@@ -2121,7 +2264,7 @@ fail_os:
 static bool test_synth_drum_channel(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 2);
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
 	sf64_region_t *rd = &bank->regions[bank->presets[5].first_region];
 	sf64_region_t *ra = &bank->regions[bank->presets[0].first_region];
 
@@ -2157,7 +2300,7 @@ static bool test_synth_drum_channel(sf64_bank_t *bank)
 static bool test_synth_midi_reset(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 2);
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
 	midi_target_t *mt = sf64_synth_midi_target(synth);
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	int16_t save_rel = r->amp_env.release_timecents;
@@ -2226,7 +2369,7 @@ fail_mr:
 static bool test_synth_channel_mode(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 4);
+	sf64_synth_set_channels(synth, 0, 4, MIXER_PRIORITY_MUSIC);
 	midi_target_t *mt = sf64_synth_midi_target(synth);
 	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
 	sf64_region_t *rc = &bank->regions[bank->presets[0].first_region + 1];
@@ -2402,7 +2545,7 @@ fail_cm:
 static bool test_synth_gm_mode(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 2);
+	sf64_synth_set_channels(synth, 0, 2, MIXER_PRIORITY_MUSIC);
 	midi_target_t *mt = sf64_synth_midi_target(synth);
 	sf64_region_t *rd = &bank->regions[bank->presets[5].first_region];
 	sf64_region_t *ra = &bank->regions[bank->presets[0].first_region];
@@ -2482,7 +2625,7 @@ static bool test_synth_gm_mode(sf64_bank_t *bank)
 static bool test_synth_rpn(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	midi_target_t *mt = sf64_synth_midi_target(synth);
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	sf64_region_t *rc = &bank->regions[bank->presets[0].first_region + 1];
@@ -2528,7 +2671,7 @@ static bool test_synth_attenuation(sf64_bank_t *bank)
 	}
 
 	sf64_synth_t *synth = sf64_synth_create(bank);
-	sf64_synth_set_channels(synth, 0, 1);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 1));
 	int16_t save = rd->attenuation_cb;
 
@@ -2596,6 +2739,7 @@ int main(void)
 	total++; if (!test_synth_allocator(bank)) failed++;
 	total++; if (!test_synth_polyphony(bank)) failed++;
 	total++; if (!test_synth_saturation(bank)) failed++;
+	total++; if (!test_synth_voice_steal(bank)) failed++;
 	total++; if (!test_synth_deadlines(bank)) failed++;
 	total++; if (!test_synth_preset(bank)) failed++;
 	total++; if (!test_synth_layers(bank)) failed++;
