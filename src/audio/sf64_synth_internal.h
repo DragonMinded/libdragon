@@ -58,12 +58,13 @@ typedef struct {
 	sf64_voice_phase_t phase; ///< Current envelope phase
 	int8_t midi_channel;      ///< MIDI channel that owns this voice, or -1
 	int8_t key;               ///< MIDI key that started this voice, or -1
-	int8_t velocity;          ///< Note-on velocity (for controller recalcs)
 	int16_t preset_index;     ///< Preset used at note-on (for exclusive class)
 	int region_index;         ///< Index into sf64_bank_t.regions
 	uint32_t note_id;         ///< Note identity shared by layered voices; 0 if off
 	int64_t deadline;         ///< Absolute sample time of the next phase change; INT64_MAX = none
-	float lvol, rvol;         ///< Peak gain after attack (pre-sustain)
+	float base_gain;          ///< Region × velocity gain, fixed at note-on
+	float channel_gain;       ///< MIDI volume × expression
+	float envelope_gain;      ///< Envelope target level for the current phase
 	bool sustain_loop;        ///< True if the region uses #SF64_LOOP_SUSTAIN
 	bool key_released;        ///< Note-off received (may still be held by pedal)
 	bool held_by_sustain;     ///< Sounding only because the sustain pedal is down

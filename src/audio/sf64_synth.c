@@ -17,10 +17,14 @@
  * #MIXER_PRIORITY_MIN and choked only after the plan succeeds.
  *
  * Amp envelopes use the mixer's volume ramps (delay → attack → hold → decay →
- * sustain → release), with SF2 keynum scaling on hold/decay. Volume/expression
- * /pan updates apply sustain levels immediately; attack, decay, and release
- * keep their remaining ramp time. Pitch bend recalculates #mixer_ch_set_freq
- * on sounding voices. Sustain-loop regions stay in loop until release begins.
+ * sustain → release), with SF2 keynum scaling on hold/decay. Gain is factored
+ * as region×velocity × volume×expression × envelope; the SF2.01 default
+ * modulators for velocity/CC7/CC11 collapse to `(x/127)²`, and region/sustain
+ * attenuation is preconverted by audioconv64 so note-on never runs `powf` for
+ * amplitude. Volume/expression/pan updates reapply the current envelope target
+ * immediately; attack, decay, and release keep their remaining ramp time.
+ * Pitch bend recalculates #mixer_ch_set_freq on sounding voices. Sustain-loop
+ * regions stay in loop until release begins.
  *
  * #sf64_synth_process advances absolute sample time, drains every overdue
  * envelope phase in one call, and reclaims mixer channels whose one-shot
@@ -34,6 +38,17 @@
 #include <stdlib.h>
 #include <assert.h>
 
+/**
+ * SF2.01 default modulators for note-on velocity, CC7 and CC11 → initial
+ * attenuation (concave, decreasing, unipolar, amount 960 cB) collapse to
+ * `(x/127)²` in linear gain.
+ */
+static float sf2_gain(int x)
+{
+	float t = x * (1.0f / 127.0f);
+	return t * t;
+}
+
 void voice_stop(sf64_synth_t *synth, int ch)
 {
 	sf64_voice_t *v = &synth->voices[ch];
@@ -44,7 +59,6 @@ void voice_stop(sf64_synth_t *synth, int ch)
 	v->deadline = INT64_MAX;
 	v->midi_channel = -1;
 	v->key = -1;
-	v->velocity = 0;
 	v->preset_index = -1;
 	v->region_index = -1;
 	v->note_id = 0;
@@ -125,28 +139,28 @@ static int env_scaled_samples(int16_t base_tc, int16_t keynum_scale, int key)
 	return timecents_to_samples((int16_t)tc);
 }
 
-static float sustain_factor(int16_t centibels)
-{
-	if (centibels <= 0) return 1.0f;
-	if (centibels >= 1440) return 0.0f;
-	return powf(10.0f, -centibels / 200.0f);
-}
-
-static void voice_peak_vols(sf64_synth_t *synth, int ch, float *lvol, float *rvol)
+/** Absolute L/R mixer volumes for the current gains × @p env_gain and pan. */
+static void voice_abs_vols(sf64_synth_t *synth, int ch, float env_gain,
+	float *lvol, float *rvol)
 {
 	sf64_voice_t *v = &synth->voices[ch];
 	sf64_midi_channel_t *mc = &synth->midi[v->midi_channel];
 	sf64_region_t *r = &synth->bank->regions[v->region_index];
-	float gain = (v->velocity / 127.0f)
-		* (mc->volume / 127.0f)
-		* (mc->expression / 127.0f)
-		* powf(10.0f, -r->attenuation_cb / 200.0f);
+	float gain = v->base_gain * v->channel_gain * env_gain;
 	int pan_sf = r->pan + (int)lroundf((mc->pan - 64) * (500.0f / 64.0f));
 	if (pan_sf < -500) pan_sf = -500;
 	if (pan_sf > 500) pan_sf = 500;
 	float pan = (pan_sf + 500) / 1000.0f;
 	*lvol = gain * (1.0f - pan);
 	*rvol = gain * pan;
+}
+
+/** Refresh #sf64_voice_t::channel_gain from the owning MIDI channel. */
+static void voice_refresh_channel_gain(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_midi_channel_t *mc = &synth->midi[v->midi_channel];
+	v->channel_gain = sf2_gain(mc->volume) * sf2_gain(mc->expression);
 }
 
 static float voice_freq(sf64_synth_t *synth, int ch)
@@ -166,13 +180,10 @@ static float voice_freq(sf64_synth_t *synth, int ch)
 static void voice_apply_vol(sf64_synth_t *synth, int ch)
 {
 	sf64_voice_t *v = &synth->voices[ch];
-	sf64_region_t *r = &synth->bank->regions[v->region_index];
 	float l, rvol;
-	voice_peak_vols(synth, ch, &l, &rvol);
-	v->lvol = l;
-	v->rvol = rvol;
-	float sf = sustain_factor(r->amp_env.sustain_centibels);
 	int rem = 0;
+
+	voice_refresh_channel_gain(synth, ch);
 	if (v->deadline != INT64_MAX) {
 		rem = (int)(v->deadline - synth->now);
 		if (rem < 0) rem = 0;
@@ -183,16 +194,14 @@ static void voice_apply_vol(sf64_synth_t *synth, int ch)
 		mixer_ch_set_vol_ramp(ch, 0, 0, 0);
 		break;
 	case SF64_VOICE_ATTACK:
+	case SF64_VOICE_DECAY:
+		voice_abs_vols(synth, ch, v->envelope_gain, &l, &rvol);
 		mixer_ch_set_vol_ramp(ch, l, rvol, rem);
 		break;
 	case SF64_VOICE_HOLD:
-		mixer_ch_set_vol_ramp(ch, l, rvol, 0);
-		break;
-	case SF64_VOICE_DECAY:
-		mixer_ch_set_vol_ramp(ch, l * sf, rvol * sf, rem);
-		break;
 	case SF64_VOICE_SUSTAIN:
-		mixer_ch_set_vol_ramp(ch, l * sf, rvol * sf, 0);
+		voice_abs_vols(synth, ch, v->envelope_gain, &l, &rvol);
+		mixer_ch_set_vol_ramp(ch, l, rvol, 0);
 		break;
 	case SF64_VOICE_RELEASE:
 		mixer_ch_set_vol_ramp(ch, 0, 0, rem);
@@ -292,6 +301,7 @@ void voice_enter_release(sf64_synth_t *synth, int ch)
 		return;
 	}
 
+	v->envelope_gain = 0;
 	mixer_ch_set_vol_ramp(ch, 0, 0, release);
 	v->phase = SF64_VOICE_RELEASE;
 	v->deadline = synth->now + release;
@@ -304,15 +314,20 @@ static void voice_enter_decay(sf64_synth_t *synth, int ch, int64_t at)
 	sf64_region_t *r = &synth->bank->regions[v->region_index];
 	int decay = env_scaled_samples(r->amp_env.decay_timecents,
 		r->amp_env.keynum_to_decay, v->key);
-	float sf = sustain_factor(r->amp_env.sustain_centibels);
+	float sus = r->amp_env.sustain_gain;
+	float l, rvol;
 
-	if (decay > 0 && sf < 1.0f) {
-		mixer_ch_set_vol_ramp(ch, v->lvol * sf, v->rvol * sf, decay);
+	v->envelope_gain = sus;
+	if (decay > 0 && sus < 1.0f) {
+		voice_abs_vols(synth, ch, sus, &l, &rvol);
+		mixer_ch_set_vol_ramp(ch, l, rvol, decay);
 		v->phase = SF64_VOICE_DECAY;
 		v->deadline = at + decay;
 	} else {
-		if (sf < 1.0f)
-			mixer_ch_set_vol_ramp(ch, v->lvol * sf, v->rvol * sf, 0);
+		if (sus < 1.0f) {
+			voice_abs_vols(synth, ch, sus, &l, &rvol);
+			mixer_ch_set_vol_ramp(ch, l, rvol, 0);
+		}
 		v->phase = SF64_VOICE_SUSTAIN;
 		v->deadline = INT64_MAX;
 	}
@@ -325,8 +340,11 @@ static void voice_enter_hold_or_decay(sf64_synth_t *synth, int ch, int64_t at)
 	sf64_region_t *r = &synth->bank->regions[v->region_index];
 	int hold = env_scaled_samples(r->amp_env.hold_timecents,
 		r->amp_env.keynum_to_hold, v->key);
+	float l, rvol;
 
-	mixer_ch_set_vol_ramp(ch, v->lvol, v->rvol, 0);
+	v->envelope_gain = 1.0f;
+	voice_abs_vols(synth, ch, 1.0f, &l, &rvol);
+	mixer_ch_set_vol_ramp(ch, l, rvol, 0);
 	if (hold > 0) {
 		v->phase = SF64_VOICE_HOLD;
 		v->deadline = at + hold;
@@ -343,7 +361,10 @@ static void voice_enter_attack(sf64_synth_t *synth, int ch, int64_t at)
 	int attack = timecents_to_samples(r->amp_env.attack_timecents);
 
 	if (attack > 0) {
-		mixer_ch_set_vol_ramp(ch, v->lvol, v->rvol, attack);
+		float l, rvol;
+		v->envelope_gain = 1.0f;
+		voice_abs_vols(synth, ch, 1.0f, &l, &rvol);
+		mixer_ch_set_vol_ramp(ch, l, rvol, attack);
 		v->phase = SF64_VOICE_ATTACK;
 		v->deadline = at + attack;
 	} else {
@@ -361,14 +382,15 @@ static void voice_start(sf64_synth_t *synth, int ch, int midi_channel,
 
 	v->midi_channel = (int8_t)midi_channel;
 	v->key = (int8_t)key;
-	v->velocity = (int8_t)velocity;
 	v->preset_index = (int16_t)preset_index;
 	v->region_index = ri;
 	v->note_id = note_id;
 	v->sustain_loop = (r->loop_mode == SF64_LOOP_SUSTAIN);
 	v->key_released = false;
 	v->held_by_sustain = false;
-	voice_peak_vols(synth, ch, &v->lvol, &v->rvol);
+	v->base_gain = r->gain * sf2_gain(velocity);
+	voice_refresh_channel_gain(synth, ch);
+	v->envelope_gain = 0;
 
 	// #mixer_ch_set_vol declicks; duration 0 is a true immediate mute.
 	mixer_ch_set_vol_ramp(ch, 0, 0, 0);
@@ -542,7 +564,7 @@ static void voice_advance_overdue(sf64_synth_t *synth, int ch)
 		case SF64_VOICE_DECAY: {
 			sf64_region_t *r = &synth->bank->regions[v->region_index];
 			// Sustain at silence: reclaim the channel (common for piano).
-			if (sustain_factor(r->amp_env.sustain_centibels) <= 0.0f) {
+			if (r->amp_env.sustain_gain <= 0.0f) {
 				voice_stop(synth, ch);
 				return;
 			}

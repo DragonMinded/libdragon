@@ -5,8 +5,8 @@
  *
  * Loads the deterministic sf64test bank, checks preset/region/sample layout,
  * plays embedded waveforms through the real mixer, and exercises the
- * synthesizer through step 5 (pitch, matching, envelopes, polyphony, layers
- * and note identity).
+ * synthesizer through step 5 (pitch, matching, envelopes, polyphony, layers,
+ * note identity, voice stealing, and the SF2 gain model).
  */
 #include <libdragon.h>
 #include <math.h>
@@ -205,13 +205,13 @@ static bool test_bank_layout(sf64_bank_t *bank)
 		return false;
 	}
 
-	// Preset 1: A vel 0-79, D vel 80-127 (D has 200 cB attenuation).
+	// Preset 1: A vel 0-79, D vel 80-127 (D has 200 cB → gain 0.1).
 	r = &bank->regions[p1->first_region];
 	if (r[0].velocity_min != 0 || r[0].velocity_max != 79 ||
 		r[0].sample_index != 0 ||
 		r[1].velocity_min != 80 || r[1].velocity_max != 127 ||
-		r[1].sample_index != 2 || r[1].attenuation_cb != 200) {
-		printf("FAILED preset1 velocity split (attnD=%d)\n", r[1].attenuation_cb);
+		r[1].sample_index != 2 || r[1].gain < 0.09f || r[1].gain > 0.11f) {
+		printf("FAILED preset1 velocity split (gainD=%f)\n", r[1].gain);
 		return false;
 	}
 
@@ -1635,7 +1635,8 @@ static bool test_synth_midi_controllers(sf64_bank_t *bank)
 	assert(sf64_synth_set_program(synth, 0, 0, 0));
 	assert(sf64_synth_set_program(synth, 1, 0, 0));
 
-	// Volume: half CC7 ≈ half peak on constant-amplitude sample C (key 72).
+	// Volume follows the SF2 (x/127)² curve, not a linear CC/127: half CC7 is
+	// a quarter of the peak on constant-amplitude sample C (key 72).
 	sf64_synth_set_volume(synth, 0, 127);
 	synth_silence(synth, 2);
 	sf64_synth_note_on(synth, 0, 72, 127);
@@ -1643,9 +1644,9 @@ static bool test_synth_midi_controllers(sf64_bank_t *bank)
 	int full = peak_n(256);
 	sf64_synth_set_volume(synth, 0, 64);
 	mix(256);
-	int half = peak_n(256);
-	if (full < 1024 || half * 2 < full * 3 / 4 || half * 2 > full * 5 / 4) {
-		printf("FAILED midi vol: full %d half %d\n", full, half);
+	int quarter = peak_n(256);
+	if (full < 1024 || quarter * 3 > full || quarter * 5 < full) {
+		printf("FAILED midi vol: full %d vol64 %d (want ~4×)\n", full, quarter);
 		sf64_synth_close(synth);
 		return false;
 	}
@@ -2070,7 +2071,7 @@ static bool test_synth_delay_hold(sf64_bank_t *bank)
 	r->amp_env.attack_timecents = samples_to_timecents(128);
 	r->amp_env.hold_timecents = -12000;
 	r->amp_env.decay_timecents = -12000;
-	r->amp_env.sustain_centibels = 0;
+	r->amp_env.sustain_gain = 1.0f;
 	r->amp_env.keynum_to_hold = 0;
 	r->amp_env.keynum_to_decay = 0;
 	int delay = env_samples(r->amp_env.delay_timecents);
@@ -2098,7 +2099,7 @@ static bool test_synth_delay_hold(sf64_bank_t *bank)
 	r->amp_env.attack_timecents = samples_to_timecents(64);
 	r->amp_env.hold_timecents = samples_to_timecents(256);
 	r->amp_env.decay_timecents = samples_to_timecents(64);
-	r->amp_env.sustain_centibels = 1440;
+	r->amp_env.sustain_gain = 0.0f;
 	atk = env_samples(r->amp_env.attack_timecents);
 	int hold = env_samples(r->amp_env.hold_timecents);
 	synth_silence(synth, 1);
@@ -2128,7 +2129,7 @@ static bool test_synth_delay_hold(sf64_bank_t *bank)
 	r->amp_env.hold_timecents = samples_to_timecents(400);
 	r->amp_env.keynum_to_hold = 100;
 	r->amp_env.decay_timecents = -12000;
-	r->amp_env.sustain_centibels = 0;
+	r->amp_env.sustain_gain = 1.0f;
 	int hold60 = env_scaled_samples_tc(r->amp_env.hold_timecents,
 		r->amp_env.keynum_to_hold, 60);
 	int hold72 = env_scaled_samples_tc(r->amp_env.hold_timecents,
@@ -2179,7 +2180,7 @@ static bool test_synth_multiphase(sf64_bank_t *bank)
 	r->amp_env.attack_timecents = samples_to_timecents(100);
 	r->amp_env.hold_timecents = samples_to_timecents(100);
 	r->amp_env.decay_timecents = -12000;
-	r->amp_env.sustain_centibels = 0;
+	r->amp_env.sustain_gain = 1.0f;
 	r->amp_env.keynum_to_hold = 0;
 	r->amp_env.keynum_to_decay = 0;
 	int delay = env_samples(r->amp_env.delay_timecents);
@@ -2662,29 +2663,29 @@ static bool test_synth_rpn(sf64_bank_t *bank)
 
 static bool test_synth_attenuation(sf64_bank_t *bank)
 {
-	// Converter writes 200 cB (not ~20 from the old 10× TSF factor).
+	// Converter bakes 200 cB → linear gain 0.1 (not ~20 from the old 10× TSF factor).
 	sf64_region_t *rd = &bank->regions[bank->presets[1].first_region + 1];
-	if (rd->attenuation_cb != 200) {
-		printf("FAILED attenuation: region D cB=%d want 200\n",
-			rd->attenuation_cb);
+	if (rd->gain < 0.09f || rd->gain > 0.11f) {
+		printf("FAILED attenuation: region D gain=%f want ~0.1\n",
+			rd->gain);
 		return false;
 	}
 
 	sf64_synth_t *synth = sf64_synth_create(bank);
 	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
 	assert(sf64_synth_set_program(synth, 0, 0, 1));
-	int16_t save = rd->attenuation_cb;
+	float save = rd->gain;
 
 	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 0, 60, 127);
 	mix(256);
 	int quiet = peak_n(256);
-	rd->attenuation_cb = 0;
+	rd->gain = 1.0f;
 	synth_silence(synth, 1);
 	sf64_synth_note_on(synth, 0, 60, 127);
 	mix(256);
 	int loud = peak_n(256);
-	rd->attenuation_cb = save;
+	rd->gain = save;
 
 	// 200 cB = 20 dB → amplitude ≈ 10× (band for mixer / hermite).
 	if (loud < 1024 || quiet * 5 > loud || quiet * 20 < loud) {
@@ -2696,6 +2697,111 @@ static bool test_synth_attenuation(sf64_bank_t *bank)
 
 	sf64_synth_close(synth);
 	return true;
+}
+
+/** Step 5: SF2 velocity/volume/expression/sustain gain model (no linear /127). */
+static bool test_synth_gain_model(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_region_t *rc = &bank->regions[bank->presets[0].first_region + 1];
+	sf64_envelope_t save = rc->amp_env;
+	float save_gain = rc->gain;
+
+	// Constant-amplitude sample C (key 72), zero attack, full sustain.
+	rc->amp_env.delay_timecents = -12000;
+	rc->amp_env.attack_timecents = -12000;
+	rc->amp_env.hold_timecents = -12000;
+	rc->amp_env.decay_timecents = -12000;
+	rc->amp_env.sustain_gain = 1.0f;
+	rc->gain = 1.0f;
+	sf64_synth_set_volume(synth, 0, 127);
+	sf64_synth_set_expression(synth, 0, 127);
+
+	// Velocity follows (x/127)²: 96 is 1.75× down, 64 a full 4× (a linear
+	// velocity/127 would only halve it).
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 72, 127);
+	mix(256);
+	int v127 = peak_n(256);
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 72, 96);
+	mix(256);
+	int v96 = peak_n(256);
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 72, 64);
+	mix(256);
+	int v64 = peak_n(256);
+	if (v127 < 1024 || v127 * 2 < v96 * 3 || v127 * 10 > v96 * 21) {
+		printf("FAILED gain vel: 127=%d 96=%d (want ~1.75×)\n", v127, v96);
+		goto fail_gain;
+	}
+	if (v64 * 3 > v127 || v64 * 5 < v127) {
+		printf("FAILED gain vel: 127=%d 64=%d (want ~4×)\n", v127, v64);
+		goto fail_gain;
+	}
+
+	// Region attenuation halves amplitude when gain = 0.5.
+	rc->gain = 0.5f;
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 72, 127);
+	mix(256);
+	int half_attn = peak_n(256);
+	rc->gain = 1.0f;
+	if (half_attn * 2 < v127 * 3 / 4 || half_attn * 2 > v127 * 5 / 4) {
+		printf("FAILED gain attn: half %d full %d\n", half_attn, v127);
+		goto fail_gain;
+	}
+
+	// Sustain at half peak: after instant decay, peak ≈ half.
+	rc->amp_env.sustain_gain = 0.5f;
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 72, 127);
+	mix(256);
+	int sus = peak_n(256);
+	rc->amp_env.sustain_gain = 1.0f;
+	if (sus * 2 < v127 * 3 / 4 || sus * 2 > v127 * 5 / 4) {
+		printf("FAILED gain sustain: sus %d full %d\n", sus, v127);
+		goto fail_gain;
+	}
+
+	// Expression shares the SF2 curve with volume: 64 → a quarter.
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 72, 127);
+	mix(128);
+	sf64_synth_set_expression(synth, 0, 64);
+	mix(256);
+	int expr = peak_n(256);
+	sf64_synth_set_expression(synth, 0, 127);
+	if (expr * 3 > v127 || expr * 5 < v127) {
+		printf("FAILED gain expr: full %d expr64 %d (want ~4×)\n", v127, expr);
+		goto fail_gain;
+	}
+
+	// Combined: velocity 64 × volume 64 → a quarter of a quarter.
+	sf64_synth_set_volume(synth, 0, 64);
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 72, 64);
+	mix(256);
+	int combo = peak_n(256);
+	sf64_synth_set_volume(synth, 0, 127);
+	if (combo * 12 > v127 || combo * 22 < v127) {
+		printf("FAILED gain combo: full %d vel64×vol64 %d (want ~16×)\n",
+			v127, combo);
+		goto fail_gain;
+	}
+
+	rc->amp_env = save;
+	rc->gain = save_gain;
+	sf64_synth_close(synth);
+	return true;
+
+fail_gain:
+	rc->amp_env = save;
+	rc->gain = save_gain;
+	sf64_synth_close(synth);
+	return false;
 }
 
 int main(void)
@@ -2773,6 +2879,7 @@ int main(void)
 	total++; if (!test_synth_gm_mode(bank)) failed++;
 	total++; if (!test_synth_rpn(bank)) failed++;
 	total++; if (!test_synth_attenuation(bank)) failed++;
+	total++; if (!test_synth_gain_model(bank)) failed++;
 
 	sf64_close(bank);
 

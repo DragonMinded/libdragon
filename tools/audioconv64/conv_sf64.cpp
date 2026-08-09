@@ -58,14 +58,12 @@ static int16_t secs_to_timecents(float sec)
 	return (int16_t)lroundf(tc);
 }
 
-static int16_t gain_to_centibels(float gain)
+/** Centibels of attenuation → linear gain in [0,1]. */
+static float centibels_to_gain(int cb)
 {
-	if (gain >= 1.0f) return 0;
-	if (gain <= 0.0f) return 1440;
-	float cb = -200.0f * log10f(gain);
-	if (cb < 0.0f) return 0;
-	if (cb > 1440.0f) return 1440;
-	return (int16_t)lroundf(cb);
+	if (cb <= 0) return 1.0f;
+	if (cb >= 1440) return 0.0f;
+	return powf(10.0f, -cb / 200.0f);
 }
 
 /** Hold/decay may still be in timecents when keynum scaling is active. */
@@ -82,7 +80,8 @@ static void copy_amp_env(sf64_envelope_t *dst, const struct tsf_envelope *src)
 	dst->attack_timecents = secs_to_timecents(src->attack);
 	dst->hold_timecents = env_time_field(src->hold, src->keynumToHold);
 	dst->decay_timecents = env_time_field(src->decay, src->keynumToDecay);
-	dst->sustain_centibels = gain_to_centibels(src->sustain);
+	dst->sustain_gain = src->sustain < 0.0f ? 0.0f :
+		(src->sustain > 1.0f ? 1.0f : src->sustain);
 	dst->release_timecents = secs_to_timecents(src->release);
 	dst->keynum_to_hold = (int16_t)lroundf(src->keynumToHold);
 	dst->keynum_to_decay = (int16_t)lroundf(src->keynumToDecay);
@@ -111,7 +110,7 @@ static void write_env(FILE *f, const sf64_envelope_t *e)
 	w16(f, e->attack_timecents);
 	w16(f, e->hold_timecents);
 	w16(f, e->decay_timecents);
-	w16(f, e->sustain_centibels);
+	wf32(f, e->sustain_gain);
 	w16(f, e->release_timecents);
 	w16(f, e->keynum_to_hold);
 	w16(f, e->keynum_to_decay);
@@ -272,10 +271,12 @@ int sf_convert(const char *infn, const char *outfn)
 			sr.fine_tune = (int16_t)r->tune;
 			sr.pitch_keytrack = (int16_t)r->pitch_keytrack;
 			// TinySoundFont applies InitialAttenuation with factor 0.01 instead
-			// of the SF2 0.1 (cB→dB). Multiply by 100 to recover centibels.
-			sr.attenuation_cb = (int16_t)lroundf(r->attenuation * 100.0f);
-			if (sr.attenuation_cb < 0) sr.attenuation_cb = 0;
-			if (sr.attenuation_cb > 1440) sr.attenuation_cb = 1440;
+			// of the SF2 0.1 (cB→dB). Multiply by 100 to recover centibels,
+			// then bake the linear gain once so the N64 never runs powf for it.
+			int attn_cb = (int)lroundf(r->attenuation * 100.0f);
+			if (attn_cb < 0) attn_cb = 0;
+			if (attn_cb > 1440) attn_cb = 1440;
+			sr.gain = centibels_to_gain(attn_cb);
 			sr.pan = (int16_t)lroundf(r->pan * 1000.0f);
 			copy_amp_env(&sr.amp_env, &r->ampenv);
 			regions.push_back(sr);
@@ -326,8 +327,8 @@ int sf_convert(const char *infn, const char *outfn)
 		w8(meta, r.coarse_tune);
 		w16(meta, r.fine_tune);
 		w16(meta, r.pitch_keytrack);
-		w16(meta, r.attenuation_cb);
 		w16(meta, r.pan);
+		wf32(meta, r.gain);
 		write_env(meta, &r.amp_env);
 		w16(meta, r.reserved_flags);
 		for (int i = 0; i < 4; i++) w16(meta, r.reserved[i]);

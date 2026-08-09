@@ -17,20 +17,20 @@ typedef struct wav64_s wav64_t;
 ///@endcond
 
 #define SF64_ID              "SF64"		///< SF64 file identifier
-#define SF64_VERSION         2			///< On-disk format version
+#define SF64_VERSION         3			///< On-disk format version
 
 /** Loop modes for #sf64_region_t::loop_mode (SF2 SampleModes). */
 #define SF64_LOOP_NONE       0			///< No loop
 #define SF64_LOOP_CONTINUOUS 1			///< Continuous loop
 #define SF64_LOOP_SUSTAIN    2			///< Sustain loop
 
-/** @brief Amp envelope in SF2 units (timecents / centibels). */
+/** @brief Amp envelope in SF2 units (timecents) with preconverted sustain gain. */
 typedef struct __attribute__((packed)) {
 	int16_t delay_timecents;    ///< Delay before attack (timecents)
 	int16_t attack_timecents;   ///< Attack duration (timecents)
 	int16_t hold_timecents;     ///< Hold duration (timecents)
 	int16_t decay_timecents;    ///< Decay duration (timecents)
-	int16_t sustain_centibels;  ///< Sustain level (centibels below peak)
+	float sustain_gain;         ///< Sustain level as linear gain (1.0 = peak)
 	int16_t release_timecents;  ///< Release duration (timecents)
 	int16_t keynum_to_hold;     ///< Key-number scaling of hold (timecents/key)
 	int16_t keynum_to_decay;    ///< Key-number scaling of decay (timecents/key)
@@ -72,8 +72,8 @@ typedef struct __attribute__((packed)) {
 	int8_t coarse_tune;         ///< Coarse tune in semitones
 	int16_t fine_tune;          ///< Fine tune in cents
 	int16_t pitch_keytrack;     ///< Pitch key tracking (cents per key, SF2 ScaleTuning)
-	int16_t attenuation_cb;     ///< Initial attenuation (centibels)
 	int16_t pan;                ///< Pan in SF2 units (−500…500)
+	float gain;                 ///< Initial attenuation as linear gain (1.0 = full)
 	sf64_envelope_t amp_env;    ///< Amplitude envelope
 	uint16_t reserved_flags;    ///< Reserved flags for future generators
 	uint16_t reserved[4];       ///< Reserved for future generators
@@ -114,14 +114,14 @@ typedef struct sf64_bank_s {
 #ifdef __cplusplus
 static_assert(sizeof(sf64_header_t) == 24, "invalid sf64_header size");
 static_assert(sizeof(sf64_preset_t) == 12, "invalid sf64_preset size");
-static_assert(sizeof(sf64_envelope_t) == 16, "invalid sf64_envelope size");
-static_assert(sizeof(sf64_region_t) == 44, "invalid sf64_region size");
+static_assert(sizeof(sf64_envelope_t) == 18, "invalid sf64_envelope size");
+static_assert(sizeof(sf64_region_t) == 48, "invalid sf64_region size");
 static_assert(sizeof(sf64_sample_t) == 40, "invalid sf64_sample size");
 #else
 _Static_assert(sizeof(sf64_header_t) == 24, "invalid sf64_header size");
 _Static_assert(sizeof(sf64_preset_t) == 12, "invalid sf64_preset size");
-_Static_assert(sizeof(sf64_envelope_t) == 16, "invalid sf64_envelope size");
-_Static_assert(sizeof(sf64_region_t) == 44, "invalid sf64_region size");
+_Static_assert(sizeof(sf64_envelope_t) == 18, "invalid sf64_envelope size");
+_Static_assert(sizeof(sf64_region_t) == 48, "invalid sf64_region size");
 _Static_assert(sizeof(sf64_sample_t) == 40, "invalid sf64_sample size");
 #endif
 
