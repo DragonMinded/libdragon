@@ -2548,6 +2548,310 @@ static bool test_mixer_resident_vadpcm_loop(void)
     return test_mixer_loop_exact(&rf_wave_resident, RF_LOOP_START - 64);
 }
 
+//////////////////////////////////////////////////////////////////////////////
+// Channel allocation / mixer_play
+//////////////////////////////////////////////////////////////////////////////
+
+static void alloc_silence(void)
+{
+	for (int i = 0; i < 8; i++)
+		mixer_ch_stop(i);
+	sv_mix(256);
+}
+
+/** Free preferred over steal; quieter over louder; older over newer. */
+static bool test_mixer_alloc_order(void)
+{
+	alloc_silence();
+	int out[4];
+
+	// Fill ch0-2; ch3 free → alloc prefers the free channel.
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_set_priority(1, MIXER_PRIORITY_SFX);
+	mixer_ch_play(2, &bl_wave_loop_res);
+	mixer_ch_set_priority(2, MIXER_PRIORITY_SFX);
+	if (mixer_ch_alloc(0, 4, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 3) {
+		printf("FAILED alloc order: free channel not preferred (got %d)\n",
+			out[0]);
+		return false;
+	}
+
+	// All busy, same prio: quieter wins.
+	mixer_ch_play(3, &bl_wave_loop_res);
+	mixer_ch_set_priority(3, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(0, 1.0f, 1.0f, 0);
+	mixer_ch_set_vol_ramp(1, 0.25f, 0.25f, 0);
+	mixer_ch_set_vol_ramp(2, 0.75f, 0.75f, 0);
+	mixer_ch_set_vol_ramp(3, 0.5f, 0.5f, 0);
+	if (mixer_ch_alloc(0, 4, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 1) {
+		printf("FAILED alloc order: quietest not preferred (got %d)\n", out[0]);
+		return false;
+	}
+
+	// Equal volume: oldest wins. Restart 1/2/3 after aging ch0.
+	alloc_silence();
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(0, 0.5f, 0.5f, 0);
+	sv_mix(512);
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_set_priority(1, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(1, 0.5f, 0.5f, 0);
+	mixer_ch_play(2, &bl_wave_loop_res);
+	mixer_ch_set_priority(2, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(2, 0.5f, 0.5f, 0);
+	if (mixer_ch_alloc(0, 3, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 0) {
+		printf("FAILED alloc order: oldest not preferred (got %d)\n", out[0]);
+		return false;
+	}
+
+	return true;
+}
+
+/** Victims with prio > request are not stealable. */
+static bool test_mixer_alloc_priority(void)
+{
+	alloc_silence();
+	int out[2];
+
+	for (int i = 0; i < 4; i++) {
+		mixer_ch_play(i, &bl_wave_loop_res);
+		// Leave default MIXER_PRIORITY_MAX from mixer_ch_play.
+	}
+	if (mixer_ch_alloc(0, 4, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 0) {
+		printf("FAILED alloc prio: stole a MAX-priority channel\n");
+		return false;
+	}
+
+	mixer_ch_set_priority(2, MIXER_PRIORITY_SFX);
+	if (mixer_ch_alloc(0, 4, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 2) {
+		printf("FAILED alloc prio: expected ch2 (got n=%d ch=%d)\n",
+			out[0] >= 0 ? 1 : 0, out[0]);
+		return false;
+	}
+
+	// Equal priority is stealable.
+	mixer_ch_set_priority(0, 100);
+	mixer_ch_set_priority(1, 100);
+	mixer_ch_set_priority(2, 100);
+	mixer_ch_set_priority(3, 100);
+	if (mixer_ch_alloc(0, 4, 1, false, 100, NULL, out) != 1) {
+		printf("FAILED alloc prio: equal priority should be stealable\n");
+		return false;
+	}
+	return true;
+}
+
+/** count larger than availability returns a partial plan. */
+static bool test_mixer_alloc_partial(void)
+{
+	alloc_silence();
+	int out[8];
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_set_priority(1, MIXER_PRIORITY_SFX);
+	// Only 2 free in a window of 4.
+	int n = mixer_ch_alloc(0, 4, 4, false, MIXER_PRIORITY_MIN, NULL, out);
+	if (n != 2 || out[0] != 2 || out[1] != 3) {
+		printf("FAILED alloc partial: n=%d out=%d,%d (want 2: 2,3)\n",
+			n, out[0], out[1]);
+		return false;
+	}
+	return true;
+}
+
+/** Plan-only: channels keep playing; repeated calls are stable. */
+static bool test_mixer_alloc_plan_only(void)
+{
+	alloc_silence();
+	int out1[2], out2[2];
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(0, 0.5f, 0.5f, 0);
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_set_priority(1, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(1, 0.5f, 0.5f, 0);
+
+	if (mixer_ch_alloc(0, 2, 1, false, MIXER_PRIORITY_SFX, NULL, out1) != 1) {
+		printf("FAILED alloc plan-only: first plan empty\n");
+		return false;
+	}
+	if (!mixer_ch_playing(0) || !mixer_ch_playing(1)) {
+		printf("FAILED alloc plan-only: plan stopped a channel\n");
+		return false;
+	}
+	if (mixer_ch_alloc(0, 2, 1, false, MIXER_PRIORITY_SFX, NULL, out2) != 1 ||
+		out2[0] != out1[0]) {
+		printf("FAILED alloc plan-only: second plan differs (%d vs %d)\n",
+			out1[0], out2[0]);
+		return false;
+	}
+	return true;
+}
+
+/** Stereo pairs: contiguous primary, never last channel, never scattered. */
+static bool test_mixer_alloc_stereo(void)
+{
+	alloc_silence();
+	int out[4];
+
+	// Free window: lowest contiguous pair.
+	if (mixer_ch_alloc(0, 8, 1, true, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 0) {
+		printf("FAILED alloc stereo: expected primary 0, got %d\n", out[0]);
+		return false;
+	}
+
+	// Occupy 0; next pair is 1-2? Actually 0-1 is busy if 0 plays stereo.
+	mixer_ch_play(0, &bl_wave_loop_stereo);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	if (mixer_ch_alloc(0, 8, 1, true, MIXER_PRIORITY_MIN, NULL, out) != 1 ||
+		out[0] != 2) {
+		printf("FAILED alloc stereo: expected next free pair at 2, got %d\n",
+			out[0]);
+		return false;
+	}
+
+	// Never return the stereo sub as a primary (mono alloc over a stereo pair).
+	if (mixer_ch_alloc(0, 8, 1, false, MIXER_PRIORITY_MIN, NULL, out) != 1 ||
+		out[0] == 1) {
+		printf("FAILED alloc stereo: returned STEREO_SUB as primary (%d)\n",
+			out[0]);
+		return false;
+	}
+
+	// Window with no contiguous free pair even if scattered frees exist.
+	alloc_silence();
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_play(3, &bl_wave_loop_res);
+	// Free: 0,2,4,5,6,7 — but in window [0,4) free are 0 and 2 (not a pair).
+	if (mixer_ch_alloc(0, 4, 1, true, MIXER_PRIORITY_MIN, NULL, out) != 0) {
+		printf("FAILED alloc stereo: found pair in scattered window (ch=%d)\n",
+			out[0]);
+		return false;
+	}
+
+	// Last mixer channel cannot be a stereo primary.
+	alloc_silence();
+	for (int i = 0; i < 7; i++)
+		mixer_ch_play(i, &bl_wave_loop_res);
+	if (mixer_ch_alloc(0, 8, 1, true, MIXER_PRIORITY_MIN, NULL, out) != 0) {
+		printf("FAILED alloc stereo: planned last channel as stereo primary\n");
+		return false;
+	}
+	return true;
+}
+
+/** Channels whose limits reject the waveform are skipped. */
+static bool test_mixer_alloc_limits(void)
+{
+	alloc_silence();
+	int out[2];
+
+	mixer_ch_set_limits(0, 8, BL_FREQ, 0);
+	mixer_ch_set_limits(1, 16, 8000, 0);
+	// ch2 keeps defaults (16-bit, full rate) and is free.
+	if (mixer_ch_alloc(0, 3, 1, false, MIXER_PRIORITY_SFX,
+		&bl_wave_loop_res, out) != 1 || out[0] != 2) {
+		printf("FAILED alloc limits: expected ch2, got %d\n", out[0]);
+		mixer_ch_set_limits(0, 16, BL_FREQ, 0);
+		mixer_ch_set_limits(1, 16, BL_FREQ, 0);
+		return false;
+	}
+	mixer_ch_set_limits(0, 16, BL_FREQ, 0);
+	mixer_ch_set_limits(1, 16, BL_FREQ, 0);
+	return true;
+}
+
+/** mixer_play: free channel, steal SFX, refuse music, stereo, state reset. */
+static bool test_mixer_play(void)
+{
+	alloc_silence();
+
+	int ch = mixer_play(&bl_wave_oneshot_res, MIXER_PRIORITY_SFX);
+	if (ch < 0 || !mixer_ch_playing(ch)) {
+		printf("FAILED mixer_play: free-channel play failed (ch=%d)\n", ch);
+		return false;
+	}
+
+	// Saturate with SFX; next play steals one of them.
+	alloc_silence();
+	int occupied[8];
+	for (int i = 0; i < 8; i++) {
+		occupied[i] = mixer_play(&bl_wave_loop_res, MIXER_PRIORITY_SFX);
+		if (occupied[i] < 0) {
+			printf("FAILED mixer_play: could not fill channel %d\n", i);
+			return false;
+		}
+	}
+	int stolen = mixer_play(&bl_wave_oneshot_res, MIXER_PRIORITY_SFX);
+	if (stolen < 0) {
+		printf("FAILED mixer_play: failed to steal another SFX\n");
+		return false;
+	}
+
+	// Music-priority channels are not stolen by SFX.
+	alloc_silence();
+	for (int i = 0; i < 8; i++) {
+		mixer_ch_play(i, &bl_wave_loop_res);
+		mixer_ch_set_priority(i, MIXER_PRIORITY_MUSIC);
+	}
+	if (mixer_play(&bl_wave_oneshot_res, MIXER_PRIORITY_SFX) != -1) {
+		printf("FAILED mixer_play: stole a MUSIC-priority channel\n");
+		return false;
+	}
+
+	// Stereo picks a contiguous pair.
+	alloc_silence();
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	ch = mixer_play(&bl_wave_loop_stereo, MIXER_PRIORITY_SFX);
+	if (ch != 1) {
+		printf("FAILED mixer_play: stereo expected ch1, got %d\n", ch);
+		return false;
+	}
+	if (!mixer_ch_playing(1) || !mixer_ch_playing(2)) {
+		printf("FAILED mixer_play: stereo pair not both playing\n");
+		return false;
+	}
+
+	// Volume/pan and force_mono are reset before play.
+	alloc_silence();
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_vol_pan(0, 0.25f, 1.0f);
+	mixer_ch_set_force_mono(0, true);
+	mixer_ch_stop(0);
+	ch = mixer_play(&bl_wave_oneshot_res, MIXER_PRIORITY_SFX);
+	if (ch != 0) {
+		printf("FAILED mixer_play: reset test expected ch0, got %d\n", ch);
+		return false;
+	}
+	if (mixer_ch_get_force_mono(0)) {
+		printf("FAILED mixer_play: force_mono not cleared\n");
+		return false;
+	}
+	// Settled volume should be full (1,1): mix a little and check amplitude.
+	sv_mix(256);
+	int peak = 0;
+	for (int i = 0; i < 256; i++) {
+		int a = sv_out[i * 2];
+		if (a < 0) a = -a;
+		if (a > peak) peak = a;
+	}
+	if (peak < BL_AMP * 3 / 4) {
+		printf("FAILED mixer_play: volume not reset (peak=%d)\n", peak);
+		return false;
+	}
+	return true;
+}
+
 int main(void)
 {
     debug_init_emulog();
@@ -2792,6 +3096,16 @@ int main(void)
     total++; if (!test_mixer_stop_mid()) failed++;
     rf_init(4);
     total++; if (!test_mixer_resident_vadpcm_loop()) failed++;
+
+    printf("Channel allocation\n");
+    fflush(stdout);
+    total++; if (!test_mixer_alloc_order()) failed++;
+    total++; if (!test_mixer_alloc_priority()) failed++;
+    total++; if (!test_mixer_alloc_partial()) failed++;
+    total++; if (!test_mixer_alloc_plan_only()) failed++;
+    total++; if (!test_mixer_alloc_stereo()) failed++;
+    total++; if (!test_mixer_alloc_limits()) failed++;
+    total++; if (!test_mixer_play()) failed++;
 
     sv_silence();
     mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);

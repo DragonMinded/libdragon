@@ -233,6 +233,8 @@ static struct {
 	mixer_fx15_t lvol[MIXER_MAX_CHANNELS];
 	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
 	mixer_ramp_t ramp[MIXER_MAX_CHANNELS];
+	uint8_t prio[MIXER_MAX_CHANNELS];       ///< Voice-stealing priority
+	int64_t start_tick[MIXER_MAX_CHANNELS]; ///< Absolute tick of last #mixer_ch_play
 
 	uint32_t chtbl_dirty;   ///< VADPCM channels whose SETCHANNEL is out of date
 	uint32_t vstate_dirty;  ///< VADPCM channels the CPU has re-seeded (see #mixer_vstate)
@@ -1079,6 +1081,8 @@ void mixer_ch_play(int ch, waveform_t *wave)
 			Mixer.vstate_dirty |= mixer_bit(ch+1);
 		}
 	}
+	Mixer.start_tick[ch] = Mixer.ticks;
+	Mixer.prio[ch] = MIXER_PRIORITY_MAX;
 	mixer_refresh_max_ns(ch);
 }
 
@@ -1145,6 +1149,7 @@ void mixer_ch_stop(int ch) {
 	c->ptr = 0;
 	c->pos = 0;
 	Mixer.ramp[ch].duration = 0;
+	Mixer.prio[ch] = MIXER_PRIORITY_MIN;
 	Mixer.chtbl_dirty &= ~mixer_bit(ch);
 	Mixer.vstate_dirty &= ~mixer_bit(ch);
 
@@ -1168,6 +1173,204 @@ waveform_t *mixer_ch_playing_waveform(int ch) {
 
 bool mixer_ch_playing(int ch) {
 	return mixer_ch_playing_waveform(ch) != NULL;
+}
+
+void mixer_ch_set_priority(int ch, int priority) {
+	assert(ch >= 0 && ch < Mixer.num_channels);
+	assertf(priority >= MIXER_PRIORITY_MIN && priority <= MIXER_PRIORITY_MAX,
+		"mixer_ch_set_priority: priority %d out of range on channel %d", priority, ch);
+	assertf(!(Mixer.channels[ch].flags & CH_FLAGS_STEREO_SUB),
+		"mixer_ch_set_priority: cannot call on secondary stereo channel %d", ch);
+	Mixer.prio[ch] = (uint8_t)priority;
+}
+
+/** Instantaneous loudness of @p ch (max of L/R, never negative). */
+static int mixer_ch_loudness(int ch)
+{
+	mixer_fx15_t l, r;
+	mixer_ch_vol_at(ch, Mixer.ticks, &l, &r);
+	int v = l > r ? l : r;
+	return v > 0 ? v : 0;
+}
+
+/** True if @p ch (and @p ch+1 when stereo) can play @p wave within its limits. */
+static bool mixer_ch_fits_wave(int ch, bool stereo, waveform_t *wave)
+{
+	if (!wave)
+		return true;
+	channel_limit_t *lim = &Mixer.limits[ch];
+	if (wave->bits > lim->max_bits)
+		return false;
+	if (wave->frequency > lim->max_frequency * 1.01f)
+		return false;
+	if (stereo && ch + 1 < Mixer.num_channels) {
+		lim = &Mixer.limits[ch + 1];
+		if (wave->bits > lim->max_bits)
+			return false;
+		if (wave->frequency > lim->max_frequency * 1.01f)
+			return false;
+	}
+	return true;
+}
+
+/** Ranking key bit set on an occupied slot: free slots sort before any steal. */
+#define MIXER_ALLOC_BUSY    (1ull << 63)
+/** Ranking key of a slot that cannot be used at all. */
+#define MIXER_ALLOC_NOKEY   UINT64_MAX
+
+/**
+ * Ranking key of the slot starting at @p ch: the smallest key wins.
+ *
+ * The whole ordering is packed into one integer, so selecting a slot is a
+ * plain compare and the volume ramps are evaluated once per channel instead
+ * of once per comparison:
+ *
+ *     bit 63     busy      free slots sort before any steal
+ *     bits 62-55 priority  cheapest to steal first
+ *     bits 54-40 loudness  quietest first
+ *     bits 39-8  age       oldest first (stored inverted)
+ *     bits 7-0   channel   lowest index breaks every tie
+ *
+ * A free slot leaves every middle field at zero, so its key is just the
+ * channel index: the stale volume and start tick of a previous occupant
+ * never affect it. Returns #MIXER_ALLOC_NOKEY if the slot is unusable
+ * (wrong geometry, limits too small, or an occupant above @p priority);
+ * that value is out of reach for a real key because the low byte holds a
+ * channel index below #MIXER_MAX_CHANNELS.
+ */
+static uint64_t mixer_alloc_key(int ch, bool stereo, int priority, waveform_t *wave)
+{
+	if (Mixer.channels[ch].flags & CH_FLAGS_STEREO_SUB)
+		return MIXER_ALLOC_NOKEY;
+	if (!mixer_ch_fits_wave(ch, stereo, wave))
+		return MIXER_ALLOC_NOKEY;
+
+	// Stopping a stereo primary frees its own sub, so that half is not an
+	// independent occupant. The sub of a pair starting at ch-1 is untouchable.
+	bool own_sub = stereo &&
+		(Mixer.channels[ch].flags & CH_FLAGS_STEREO) &&
+		(Mixer.channels[ch + 1].flags & CH_FLAGS_STEREO_SUB);
+	if (stereo && !own_sub && (Mixer.channels[ch + 1].flags & CH_FLAGS_STEREO_SUB))
+		return MIXER_ALLOC_NOKEY;
+
+	bool busy = false;
+	int prio = 0, loud = 0;
+	int64_t start = INT64_MIN;   // only read once "busy", so always assigned
+
+	if (mixer_ch_playing(ch)) {
+		if (Mixer.prio[ch] > priority)
+			return MIXER_ALLOC_NOKEY;
+		busy = true;
+		prio = Mixer.prio[ch];
+		loud = mixer_ch_loudness(ch);
+		start = Mixer.start_tick[ch];
+	}
+	if (stereo && !own_sub && mixer_ch_playing(ch + 1)) {
+		if (Mixer.prio[ch + 1] > priority)
+			return MIXER_ALLOC_NOKEY;
+		// Taking the pair costs whatever the more expensive half costs.
+		busy = true;
+		if (Mixer.prio[ch + 1] > prio) prio = Mixer.prio[ch + 1];
+		int l1 = mixer_ch_loudness(ch + 1);
+		if (l1 > loud) loud = l1;
+		if (Mixer.start_tick[ch + 1] > start) start = Mixer.start_tick[ch + 1];
+	}
+
+	if (!busy)
+		return (uint64_t)ch;
+
+	uint64_t age = Mixer.ticks - start;
+	if (age > 0xFFFFFFFFull) age = 0xFFFFFFFFull;
+	return MIXER_ALLOC_BUSY | ((uint64_t)prio << 55) | ((uint64_t)loud << 40) |
+		((0xFFFFFFFFull - age) << 8) | (uint64_t)ch;
+}
+
+/**
+ * Drop @p ch from the candidate set of #mixer_ch_alloc, together with the
+ * neighbouring slots that a stereo pair would overlap.
+ */
+static void mixer_alloc_retire(uint64_t *keys, int ch, int first_ch, int end,
+	bool stereo)
+{
+	keys[ch] = MIXER_ALLOC_NOKEY;
+	if (stereo) {
+		if (ch > first_ch) keys[ch - 1] = MIXER_ALLOC_NOKEY;
+		if (ch + 1 < end)  keys[ch + 1] = MIXER_ALLOC_NOKEY;
+	}
+}
+
+int mixer_ch_alloc(int first_ch, int num_ch, int count, bool stereo,
+	int priority, waveform_t *wave, int *out)
+{
+	assert(mixer_initialized());
+	assert(first_ch >= 0 && num_ch >= 0);
+	assert(first_ch + num_ch <= Mixer.num_channels);
+	assert(count >= 0);
+	assert(out || count == 0);
+	assertf(priority >= MIXER_PRIORITY_MIN && priority <= MIXER_PRIORITY_MAX,
+		"mixer_ch_alloc: priority %d out of range", priority);
+	if (count == 0)
+		return 0;
+
+	// A stereo slot also needs ch+1, so it cannot start on the last channel
+	// of the window.
+	int end = first_ch + num_ch - (stereo ? 1 : 0);
+	uint64_t keys[MIXER_MAX_CHANNELS];
+	int chosen = 0;
+
+	// Free slots outrank every steal and are ranked by index, so while walking
+	// upwards we can commit to them on the spot. When they are enough we never
+	// even look at the rest of the window.
+	for (int ch = first_ch; ch < end; ch++) {
+		uint64_t key = mixer_alloc_key(ch, stereo, priority, wave);
+		keys[ch] = key;
+		if (key & MIXER_ALLOC_BUSY)
+			continue;
+		out[chosen++] = ch;
+		if (chosen == count)
+			return chosen;
+		mixer_alloc_retire(keys, ch, first_ch, end, stereo);
+		if (stereo)
+			ch++;   // ch+1 is now part of this pair, skip it
+	}
+
+	// Not enough free slots: the rest has to be stolen from the cheapest
+	// occupants left in the window.
+	while (chosen < count) {
+		int best = -1;
+		for (int ch = first_ch; ch < end; ch++)
+			if (keys[ch] != MIXER_ALLOC_NOKEY && (best < 0 || keys[ch] < keys[best]))
+				best = ch;
+		if (best < 0)
+			break;
+		out[chosen++] = best;
+		mixer_alloc_retire(keys, best, first_ch, end, stereo);
+	}
+	return chosen;
+}
+
+int mixer_play(waveform_t *wave, int priority)
+{
+	assert(mixer_initialized());
+	assert(wave);
+	assertf(priority >= MIXER_PRIORITY_MIN && priority <= MIXER_PRIORITY_MAX,
+		"mixer_play: priority %d out of range", priority);
+
+	bool stereo = wave->channels == 2;
+	int ch;
+	if (!mixer_ch_alloc(0, Mixer.num_channels, 1, stereo, priority, wave, &ch))
+		return -1;
+
+	if (mixer_ch_playing(ch))
+		mixer_ch_stop(ch);
+	if (stereo && mixer_ch_playing(ch + 1))
+		mixer_ch_stop(ch + 1);
+
+	mixer_ch_set_vol_ramp(ch, 1.0f, 1.0f, 0);
+	mixer_ch_set_force_mono(ch, false);
+	mixer_ch_play(ch, wave);
+	mixer_ch_set_priority(ch, priority);
+	return ch;
 }
 
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz) {

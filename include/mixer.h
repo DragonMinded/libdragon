@@ -58,6 +58,15 @@ extern "C" {
 /** @brief Maximum number of channels supported by the mixer */
 #define MIXER_MAX_CHANNELS      32
 
+/** @brief Priority: always reusable / cheapest to steal. */
+#define MIXER_PRIORITY_MIN       0
+/** @brief Base priority recommended for one-shot sound effects. */
+#define MIXER_PRIORITY_SFX      64
+/** @brief Base priority recommended for music players (e.g. SF64). */
+#define MIXER_PRIORITY_MUSIC   192
+/** @brief Priority: never stolen (default after #mixer_ch_play). */
+#define MIXER_PRIORITY_MAX     255
+
 /**
  * Number of bytes in sample buffers that must be over-read to make the
  * RSP ucode safe.
@@ -325,6 +334,60 @@ bool mixer_ch_playing(int ch);
 waveform_t* mixer_ch_playing_waveform(int ch);
 
 /**
+ * @brief Set the voice-stealing priority of a channel.
+ *
+ * Higher values are more expensive to steal. Valid range is
+ * [#MIXER_PRIORITY_MIN]..[#MIXER_PRIORITY_MAX]. #mixer_ch_play resets the
+ * channel to #MIXER_PRIORITY_MAX; #mixer_ch_stop resets it to
+ * #MIXER_PRIORITY_MIN. Players that participate in stealing (e.g. SF64)
+ * lower the priority of their channels before calling #mixer_ch_alloc.
+ *
+ * @param[in]   ch              Channel index
+ * @param[in]   priority        Stealing priority
+ */
+void mixer_ch_set_priority(int ch, int priority);
+
+/**
+ * @brief Plan up to @p count channels inside `[first_ch, first_ch+num_ch)`.
+ *
+ * Plan-only: nothing is stopped or started. Occupied channels returned in
+ * @p out must be stopped by the caller before reuse. Free channels are
+ * preferred; among occupied ones, lower priority, then quieter instantaneous
+ * volume, then older start time. A channel is stealable only when its
+ * priority is `<= @p priority`.
+ *
+ * If @p stereo is true, each entry in @p out is the primary of a contiguous
+ * pair (`ch`, `ch+1`); the secondary of an existing stereo pair is never
+ * returned as a primary. If @p wave is non-NULL, channels whose configured
+ * limits cannot play it are skipped.
+ *
+ * @param[in]   first_ch        First channel of the search window
+ * @param[in]   num_ch          Size of the search window
+ * @param[in]   count           Maximum number of channels to plan
+ * @param[in]   stereo          Request contiguous stereo pairs
+ * @param[in]   priority        Maximum victim priority that may be stolen
+ * @param[in]   wave            Waveform for limit filtering, or NULL
+ * @param[out]  out             Buffer of at least @p count ints
+ * @return                      Number of channels planned (0..@p count)
+ */
+int mixer_ch_alloc(int first_ch, int num_ch, int count, bool stereo,
+	int priority, waveform_t *wave, int *out);
+
+/**
+ * @brief Play @p wave on an automatically chosen mixer channel.
+ *
+ * Allocates with #mixer_ch_alloc over the full mixer (stereo deduced from
+ * `wave->channels`), stops any victim, resets volume/pan to `(1,1)` and
+ * clears force-mono, then calls #mixer_ch_play and sets the channel priority
+ * to @p priority.
+ *
+ * @param[in]   wave            Waveform to play
+ * @param[in]   priority        Stealing priority for the new voice
+ * @return                      Channel index, or -1 if none available
+ */
+int mixer_play(waveform_t *wave, int priority);
+
+/**
  * @brief Configure the limits of a channel with respect to sample bit size, and
  *        frequency.
  *
@@ -453,7 +516,7 @@ void mixer_poll(int16_t *out, int nsamples);
  * object) as many times as necessary. Not polling the audio subsystem often
  * enough will result in audio stutter. 
  */
-void mixer_try_play();
+void mixer_try_play(void);
 
 /**
  * @brief Callback invoked by mixer_poll at a specified time
