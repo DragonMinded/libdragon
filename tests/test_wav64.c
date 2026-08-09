@@ -7,6 +7,7 @@
  */
 #include <libdragon.h>
 #include <malloc.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -2474,6 +2475,61 @@ static bool test_mixer_vol_ramp_land(void)
     return true;
 }
 
+// Mono gain ramps are independent of L/R volume: a linear gain fade matches
+// vol_ramp shape, a dB fade follows exp(-9.226·t/T) toward silence, and a
+// mid-ramp set_vol scales the envelope without restarting it.
+static bool test_mixer_gain_ramp(void)
+{
+	const int nramp = 4096, ntail = 1024;
+
+	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, MIXER_GAIN_RAMP_LINEAR);
+	sv_mix(nramp + ntail);
+	if (!vr_check_linear("gain ramp linear", nramp, 1.0f, 0.0f, vr_amp))
+		return false;
+	if (!vr_check_level("gain ramp linear", nramp + 512, nramp + ntail, 0.0f, vr_amp))
+		return false;
+
+	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, MIXER_GAIN_RAMP_DB);
+	sv_mix(nramp + ntail);
+	// Piecewise-linear per round: check a few interior points against the
+	// SF2 silence curve, not every sample.
+	for (int k = 1; k <= 3; k++) {
+		int i = nramp * k / 4;
+		float g = expf(-9.226f * (float)i / (float)nramp);
+		int want = (int)(BL_AMP * g);
+		int d = vr_amp(i) - want; if (d < 0) d = -d;
+		if (d > VR_TOL_LEVEL * 2) {
+			printf("FAILED gain ramp db: amp %d at %d, expected %d\n",
+				vr_amp(i), i, want);
+			return false;
+		}
+	}
+	if (!vr_check_level("gain ramp db", nramp + 512, nramp + ntail, 0.0f, vr_amp))
+		return false;
+
+	// Vol can move under a running gain ramp without restarting it.
+	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, MIXER_GAIN_RAMP_LINEAR);
+	sv_mix(nramp / 2);
+	int a_full = vr_amp(nramp / 2 - 32);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	sv_mix(256); // past #MIXER_DECLICK_SAMPLES
+	int a_half = vr_amp(200);
+	// Must be quieter than before set_vol (gain also keeps falling), but not
+	// silent: a tight absolute curve is hard here because the RSP walks the
+	// product of two ramps as one linear chord per round.
+	if (a_half > a_full * 3 / 4 || a_half < a_full / 5) {
+		printf("FAILED gain×vol: amp %d after set_vol 0.5 (was %d)\n",
+			a_half, a_full);
+		return false;
+	}
+	sv_mix(nramp / 2 - 256 + ntail);
+	return vr_check_level("gain×vol", nramp / 2 - 256 + 512,
+		nramp / 2 - 256 + ntail, 0.0f, vr_amp);
+}
+
 // The ramp moves at every output sample, and not once per group of eight: a
 // steep ramp comes out as a line and not as a staircase. What this looks for
 // is the jump between two neighbouring samples, which stepping once per group
@@ -3090,6 +3146,7 @@ int main(void)
     total++; if (!test_mixer_vol_ramp_replace()) failed++;
     total++; if (!test_mixer_vol_ramp_land()) failed++;
     total++; if (!test_mixer_vol_ramp_smooth()) failed++;
+    total++; if (!test_mixer_gain_ramp()) failed++;
     total++; if (!test_mixer_declick()) failed++;
 
     total++; if (!test_mixer_freq_change()) failed++;

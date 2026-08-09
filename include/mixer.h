@@ -117,19 +117,28 @@ void mixer_close(void);
 void mixer_set_vol(float vol);
 
 /**
+ * @brief Curve of a #mixer_ch_set_gain_ramp.
+ */
+typedef enum {
+	MIXER_GAIN_RAMP_LINEAR = 0,  ///< Linear in amplitude
+	MIXER_GAIN_RAMP_DB     = 1,  ///< Linear in dB (exponential in amplitude)
+} mixer_gain_ramp_curve_t;
+
+/**
  * @brief Set channel volume (as left/right).
- * 
+ *
  * Configure channel volume for the specified channel, specifying two values:
- * one for the left output and one for the right output.
- * 
+ * one for the left output and one for the right output. The mixed level is
+ * #mixer_ch_set_gain times these volumes (gain defaults to 1.0).
+ *
  * The volume is an attenuation (no amplification is performed).
  * Valid volume range in [0..1], where 0 is silence and 1 is original
  * channel sample volume (no attenuation performed).
- * 
+ *
  * Notice that it's perfectly valid to set left/right volumes even if the
  * channel itself will play a mono waveforms, as it allows to balance a mono
  * sample between the two final output channels.
- * 
+ *
  * @param[in]   ch              Channel index
  * @param[in]   lvol            Left volume (range [0..1])
  * @param[in]   rvol            Right volume (range [0..1])
@@ -141,18 +150,18 @@ void mixer_ch_set_vol(int ch, float lvol, float rvol);
  *
  * This is the same as #mixer_ch_set_vol, but instead of changing the volume
  * right away, the mixer walks it linearly from its current value to the
- * specified one over @p duration output samples.
+ * specified one over @p duration output samples. Independent of
+ * #mixer_ch_set_gain_ramp: both apply at once (gain × volume).
  *
  * The ramp is run by the mixer itself, across RSP rounds and audio buffers: it
  * does not need any #mixer_add_event callback while it is in progress, and it
- * is smooth well below the granularity of a mix round. It is the intended way
- * to implement volume envelopes, fade in / fade out, and to avoid the click of
- * stopping a channel abruptly.
+ * is smooth well below the granularity of a mix round. Use it for stereo fades
+ * and crossfades; for a mono amplitude envelope prefer #mixer_ch_set_gain_ramp.
  *
- * A ramp replaces whatever ramp was running on the channel, starting from the
- * volume that one had reached. Calling #mixer_ch_set_vol (or passing a
- * @p duration of 0 here) cancels the ramp and sets the volume immediately;
- * stopping the channel cancels it as well.
+ * A ramp replaces whatever volume ramp was running on the channel, starting
+ * from the volume that one had reached. Calling #mixer_ch_set_vol (or passing
+ * a @p duration of 0 here) cancels the volume ramp and sets the volume
+ * immediately; stopping the channel cancels it as well.
  *
  * The RSP walks the volume one output sample at a time, in steps it recomputes
  * every four of them, so @p duration is effectively rounded up to a multiple
@@ -164,6 +173,42 @@ void mixer_ch_set_vol(int ch, float lvol, float rvol);
  * @param[in]   duration        Length of the ramp, in output samples
  */
 void mixer_ch_set_vol_ramp(int ch, float lvol, float rvol, int duration);
+
+/**
+ * @brief Set the mono gain of a channel.
+ *
+ * Gain is a per-channel attenuation in [0..1] (default 1.0), multiplied with
+ * #mixer_ch_set_vol when mixing. The change is immediate: it cancels a running
+ * gain ramp, and does not affect a running volume ramp.
+ *
+ * @param[in]   ch              Channel index
+ * @param[in]   gain            Target gain (range [0..1])
+ */
+void mixer_ch_set_gain(int ch, float gain);
+
+/**
+ * @brief Ramp the mono gain of a channel.
+ *
+ * Walks gain from its current value to @p gain over @p duration output samples,
+ * independently of #mixer_ch_set_vol_ramp. The mixer runs the ramp by itself
+ * (no #mixer_add_event while it is in progress).
+ *
+ * With #MIXER_GAIN_RAMP_LINEAR the level moves linearly in amplitude. With
+ * #MIXER_GAIN_RAMP_DB it moves linearly in decibels (exponential in amplitude),
+ * as used by SoundFont decay/release; a target of 0 fades to silence over the
+ * duration.
+ *
+ * A new gain ramp replaces any previous one, starting from the gain already
+ * reached. Duration 0, or #mixer_ch_set_gain, cancels the ramp and sets the
+ * gain immediately; stopping the channel cancels it as well.
+ *
+ * @param[in]   ch              Channel index
+ * @param[in]   gain            Target gain (range [0..1])
+ * @param[in]   duration        Length of the ramp, in output samples
+ * @param[in]   curve           #MIXER_GAIN_RAMP_LINEAR or #MIXER_GAIN_RAMP_DB
+ */
+void mixer_ch_set_gain_ramp(int ch, float gain, int duration,
+	mixer_gain_ramp_curve_t curve);
 
 /**
  * @brief Set channel volume (as volume and panning).

@@ -1,7 +1,7 @@
 /**
  * @file mixer.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @brief RSP Audio mixer 
+ * @brief RSP Audio mixer
  * @ingroup mixer
  */
 
@@ -149,18 +149,21 @@ typedef struct mixer_channel_s {
 	int max_round_ns;      ///< Max round length from step + samplebuffer margin (streamed)
 } mixer_channel_t;
 
-/** @brief Volume ramp running on a channel (see #mixer_ch_set_vol_ramp).
+/**
+ * @brief One scalar level ramp (volume L, volume R, or gain).
  *
- * The target of the ramp is the channel volume itself (Mixer.lvol/rvol): what
- * is recorded here is where the ramp started from, so that any point of it can
- * be derived from the absolute tick and nothing is ever accumulated.
+ * Target lives next to the ramp in Mixer (`lvol` / `rvol` / `gain`); this
+ * only stores where the ramp started, so any point is `f(start, target, t)`.
  */
 typedef struct {
-	mixer_fx15_t start_l;  ///< Left volume at #start_tick
-	mixer_fx15_t start_r;  ///< Right volume at #start_tick
+	float start;           ///< Value at #start_tick
 	int64_t start_tick;    ///< Absolute tick the ramp started at
-	int32_t duration;      ///< Length in output samples, 0 if no ramp is running
+	int32_t duration;      ///< Length in output samples, 0 if idle
+	uint8_t curve;         ///< #mixer_gain_ramp_curve_t (vol always LINEAR)
 } mixer_ramp_t;
+
+/** SF2 / LinuxSampler "to silence" exponent: gain *= e^{-9.226} over a full fade. */
+#define MIXER_GAIN_DB_SILENCE  9.226f
 
 /** @brief Volumes a channel is mixed with over one round.
  *
@@ -230,9 +233,12 @@ static struct {
 
 	mixer_channel_t channels[MIXER_MAX_CHANNELS];
 	mixer_chtbl_t chtbl[MIXER_MAX_CHANNELS];
-	mixer_fx15_t lvol[MIXER_MAX_CHANNELS];
-	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
-	mixer_ramp_t ramp[MIXER_MAX_CHANNELS];
+	float lvol[MIXER_MAX_CHANNELS];         ///< Target left volume [0..1]
+	float rvol[MIXER_MAX_CHANNELS];         ///< Target right volume [0..1]
+	float gain[MIXER_MAX_CHANNELS];         ///< Target mono gain [0..1] (default 1)
+	mixer_ramp_t lvol_ramp[MIXER_MAX_CHANNELS];
+	mixer_ramp_t rvol_ramp[MIXER_MAX_CHANNELS];
+	mixer_ramp_t gain_ramp[MIXER_MAX_CHANNELS];
 	uint8_t prio[MIXER_MAX_CHANNELS];       ///< Voice-stealing priority
 	int64_t start_tick[MIXER_MAX_CHANNELS]; ///< Absolute tick of last #mixer_ch_play
 
@@ -289,6 +295,7 @@ void mixer_init(int num_channels) {
 	Mixer.vol = 1.0f;
 
 	for (int ch=0;ch<MIXER_MAX_CHANNELS;ch++) {
+		Mixer.gain[ch] = 1.0f;
 		mixer_ch_set_vol(ch, 1.0f, 1.0f);
 		mixer_ch_set_limits(ch, 16, Mixer.sample_rate, 0);
 	}
@@ -491,54 +498,105 @@ void mixer_ch_set_freq(int ch, float frequency) {
 	mixer_refresh_max_ns(ch);
 }
 
-/** @brief Volume of a channel at absolute tick @p t, following its ramp. */
-static void mixer_ch_vol_at(int ch, int64_t t, mixer_fx15_t *lvol, mixer_fx15_t *rvol)
+/** Value of a scalar ramp at absolute tick @p t (target @p end). */
+static float mixer_ramp_at(const mixer_ramp_t *rmp, float end, int64_t t)
 {
-	mixer_ramp_t *rmp = &Mixer.ramp[ch];
 	int64_t d = t - rmp->start_tick;
-	if (!rmp->duration || d >= rmp->duration) {
-		*lvol = Mixer.lvol[ch];
-		*rvol = Mixer.rvol[ch];
-		return;
-	}
+	if (!rmp->duration || d >= rmp->duration)
+		return end;
 	if (d < 0) d = 0;
-	*lvol = rmp->start_l + (int64_t)(Mixer.lvol[ch] - rmp->start_l) * d / rmp->duration;
-	*rvol = rmp->start_r + (int64_t)(Mixer.rvol[ch] - rmp->start_r) * d / rmp->duration;
+	float u = (float)d / (float)rmp->duration;
+	float start = rmp->start;
+	if (rmp->curve == MIXER_GAIN_RAMP_LINEAR)
+		return start + (end - start) * u;
+	// dB: linear in log-amplitude. Target 0 fades toward silence at the SF2
+	// rate and snaps to 0 when the ramp completes (duration check above).
+	if (start <= 0.0f)
+		return end * u;
+	if (end <= 0.0f)
+		end = start * expf(-MIXER_GAIN_DB_SILENCE);
+	return start * powf(end / start, u);
 }
 
-// Point a channel at a new volume, walking there over @p duration output
-// samples (0 = at once). A ramp starts from the volume the channel has right
-// now, which is not its target if another one is still running.
-static void mixer_ch_vol_to(int ch, mixer_fx15_t l, mixer_fx15_t r, int duration)
+/** Arm or replace a scalar ramp toward @p target over @p duration (0 = now). */
+static void mixer_ramp_to(mixer_ramp_t *rmp, float *end, float target,
+	int duration, mixer_gain_ramp_curve_t curve)
 {
-	mixer_ramp_t *rmp = &Mixer.ramp[ch];
-	if (Mixer.lvol[ch] == l && Mixer.rvol[ch] == r && !rmp->duration)
+	if (target < 0.0f) target = 0.0f;
+	if (target > 1.0f) target = 1.0f;
+	if (*end == target && !rmp->duration)
 		return;
-	mixer_fx15_t cl, cr;
-	mixer_ch_vol_at(ch, Mixer.ticks, &cl, &cr);
-	if (duration && (cl != l || cr != r))
+	float cur = mixer_ramp_at(rmp, *end, Mixer.ticks);
+	if (duration && cur != target)
 		*rmp = (mixer_ramp_t){
-			.start_l = cl, .start_r = cr,
+			.start = cur,
 			.start_tick = Mixer.ticks,
 			.duration = duration,
+			.curve = (uint8_t)curve,
 		};
 	else
 		rmp->duration = 0;
-	Mixer.lvol[ch] = l;
-	Mixer.rvol[ch] = r;
+	*end = target;
+}
+
+/** True while @p rmp still has samples to run at @p t; retires it when done. */
+static bool mixer_ramp_active(mixer_ramp_t *rmp, int64_t t)
+{
+	if (!rmp->duration)
+		return false;
+	if (t < rmp->start_tick + rmp->duration)
+		return true;
+	rmp->duration = 0;
+	return false;
+}
+
+static void mixer_ch_vol_at(int ch, int64_t t, mixer_fx15_t *lvol, mixer_fx15_t *rvol)
+{
+	*lvol = MIXER_FX15(mixer_ramp_at(&Mixer.lvol_ramp[ch], Mixer.lvol[ch], t));
+	*rvol = MIXER_FX15(mixer_ramp_at(&Mixer.rvol_ramp[ch], Mixer.rvol[ch], t));
+}
+
+static void mixer_ch_vol_to(int ch, float l, float r, int duration)
+{
+	mixer_ramp_to(&Mixer.lvol_ramp[ch], &Mixer.lvol[ch], l, duration,
+		MIXER_GAIN_RAMP_LINEAR);
+	mixer_ramp_to(&Mixer.rvol_ramp[ch], &Mixer.rvol[ch], r, duration,
+		MIXER_GAIN_RAMP_LINEAR);
 }
 
 void mixer_ch_set_vol(int ch, float lvol, float rvol) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_vol: cannot call on secondary stereo channel %d", ch);
-	mixer_ch_vol_to(ch, MIXER_FX15(lvol), MIXER_FX15(rvol), MIXER_DECLICK_SAMPLES);
+	mixer_ch_vol_to(ch, lvol, rvol, MIXER_DECLICK_SAMPLES);
 }
 
 void mixer_ch_set_vol_ramp(int ch, float lvol, float rvol, int duration) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_vol_ramp: cannot call on secondary stereo channel %d", ch);
 	assertf(duration >= 0, "mixer_ch_set_vol_ramp: negative duration %d on channel %d", duration, ch);
-	mixer_ch_vol_to(ch, MIXER_FX15(lvol), MIXER_FX15(rvol), duration);
+	mixer_ch_vol_to(ch, lvol, rvol, duration);
+}
+
+void mixer_ch_set_gain(int ch, float gain)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
+		"mixer_ch_set_gain: cannot call on secondary stereo channel %d", ch);
+	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, 0,
+		MIXER_GAIN_RAMP_LINEAR);
+}
+
+void mixer_ch_set_gain_ramp(int ch, float gain, int duration,
+	mixer_gain_ramp_curve_t curve)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
+		"mixer_ch_set_gain_ramp: cannot call on secondary stereo channel %d", ch);
+	assertf(duration >= 0,
+		"mixer_ch_set_gain_ramp: negative duration %d on channel %d", duration, ch);
+	assertf(curve == MIXER_GAIN_RAMP_LINEAR || curve == MIXER_GAIN_RAMP_DB,
+		"mixer_ch_set_gain_ramp: invalid curve %d", (int)curve);
+	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, duration, curve);
 }
 
 void mixer_ch_set_vol_pan(int ch, float vol, float pan) {
@@ -1148,7 +1206,10 @@ void mixer_ch_stop(int ch) {
 
 	c->ptr = 0;
 	c->pos = 0;
-	Mixer.ramp[ch].duration = 0;
+	Mixer.lvol_ramp[ch].duration = 0;
+	Mixer.rvol_ramp[ch].duration = 0;
+	Mixer.gain_ramp[ch].duration = 0;
+	Mixer.gain[ch] = 1.0f;
 	Mixer.prio[ch] = MIXER_PRIORITY_MIN;
 	Mixer.chtbl_dirty &= ~mixer_bit(ch);
 	Mixer.vstate_dirty &= ~mixer_bit(ch);
@@ -1819,18 +1880,11 @@ static void mixer_fold_volumes(uint32_t flags, bool sub, mixer_fx16_t gvol,
 	}
 }
 
-// True while the ramp of a channel still has samples to run at tick @p t. A
-// ramp that has expired is retired here, so that the rounds after it go back
-// to the plain volume path.
-static bool mixer_ramp_active(int ch, int64_t t)
+static mixer_fx15_t mixer_fx15_scale(mixer_fx15_t v, float g)
 {
-	mixer_ramp_t *rmp = &Mixer.ramp[ch];
-	if (!rmp->duration)
-		return false;
-	if (t < rmp->start_tick + rmp->duration)
-		return true;
-	rmp->duration = 0;
-	return false;
+	if (g >= 1.0f) return v;
+	if (g <= 0.0f) return 0;
+	return (mixer_fx15_t)lroundf((float)v * g);
 }
 
 // Increment the ucode adds every 4 samples to walk @p delta units in @p
@@ -1847,22 +1901,29 @@ static mixer_fx15_t mixer_ramp_step(int delta, int nblocks)
 // tick @p tick: the value at its first sample, the value it stops on, and the
 // increment that walks from one to the other every 4 samples. All are derived
 // from the absolute tick, so a round never inherits the rounding of the ones
-// before it.
+// before it. Mono gain is folded in here; the RSP still sees a plain linear
+// L/R walk for the round.
 static mixer_round_vol_t mixer_channel_volumes(int ch, uint32_t flags, bool sub,
 	mixer_fx16_t gvol, int64_t tick, int ns)
 {
-	// A stereo sub channel is a plane of its owner, and follows its ramp.
+	// A stereo sub channel is a plane of its owner, and follows its ramps.
 	int och = sub ? ch-1 : ch;
 	mixer_round_vol_t vol = {0};
 	mixer_fx15_t vl, vr;
+	float g0 = mixer_ramp_at(&Mixer.gain_ramp[och], Mixer.gain[och], tick);
 
 	mixer_ch_vol_at(och, tick, &vl, &vr);
+	vl = mixer_fx15_scale(vl, g0);
+	vr = mixer_fx15_scale(vr, g0);
 	mixer_fold_volumes(flags, sub, gvol, vl, vr, &vol.l, &vol.r);
 	vol.tl = vol.l;
 	vol.tr = vol.r;
 
-	if (mixer_ramp_active(och, tick)) {
-		// The slice of the ramp this round covers, and nothing beyond it: the
+	bool l_ramping = mixer_ramp_active(&Mixer.lvol_ramp[och], tick);
+	bool r_ramping = mixer_ramp_active(&Mixer.rvol_ramp[och], tick);
+	bool gain_ramping = mixer_ramp_active(&Mixer.gain_ramp[och], tick);
+	if (l_ramping || r_ramping || gain_ramping) {
+		// The slice of the ramp(s) this round covers, and nothing beyond it: the
 		// volume it ends on is what the ucode clamps to, and the increment
 		// walks the round's own blocks. The increment is a whole number of
 		// fx15 units, so a ramp shallower than one unit per block cannot be
@@ -1871,13 +1932,25 @@ static mixer_round_vol_t mixer_channel_volumes(int ch, uint32_t flags, bool sub,
 		// and be pulled back to the right value at the next one, which is an
 		// audible flutter on any ramp of more than a couple of seconds. Held
 		// to the round, it lands early and waits there, and the round after
-		// it picks up exactly where it stopped.
-		mixer_ramp_t *rmp = &Mixer.ramp[och];
+		// it picks up exactly where it stopped. With several ramps, walk until
+		// the later of their ends (within the round).
+		int64_t end = tick + ns;
+		int64_t last = tick;
+		if (l_ramping)
+			last = MAX(last, MIN(Mixer.lvol_ramp[och].start_tick + Mixer.lvol_ramp[och].duration, end));
+		if (r_ramping)
+			last = MAX(last, MIN(Mixer.rvol_ramp[och].start_tick + Mixer.rvol_ramp[och].duration, end));
+		if (gain_ramping)
+			last = MAX(last, MIN(Mixer.gain_ramp[och].start_tick + Mixer.gain_ramp[och].duration, end));
+		if (last <= tick) last = end;
+
 		mixer_fx15_t el, er;
-		mixer_ch_vol_at(och, tick + ns, &el, &er);
+		float g1 = mixer_ramp_at(&Mixer.gain_ramp[och], Mixer.gain[och], last);
+		mixer_ch_vol_at(och, last, &el, &er);
+		el = mixer_fx15_scale(el, g1);
+		er = mixer_fx15_scale(er, g1);
 		mixer_fold_volumes(flags, sub, gvol, el, er, &vol.tl, &vol.tr);
-		int64_t end = MIN(rmp->start_tick + rmp->duration, tick + ns);
-		int nblocks = MAX(DIVIDE_CEIL((int)(end - tick), 4), 1);
+		int nblocks = MAX(DIVIDE_CEIL((int)(last - tick), 4), 1);
 		vol.dl = mixer_ramp_step(vol.tl - vol.l, nblocks);
 		vol.dr = mixer_ramp_step(vol.tr - vol.r, nblocks);
 	}
