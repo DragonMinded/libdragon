@@ -16,15 +16,14 @@
  * Exclusive-class victims are advertised to the planner at
  * #MIXER_PRIORITY_MIN and choked only after the plan succeeds.
  *
- * Amp envelopes use the mixer's volume ramps (delay → attack → hold → decay →
- * sustain → release), with SF2 keynum scaling on hold/decay. Gain is factored
- * as region×velocity × volume×expression × envelope; the SF2.01 default
+ * Amp envelopes use #mixer_ch_set_gain_ramp (linear attack, dB decay/release)
+ * while region×velocity×CC7×CC11×pan stay on #mixer_ch_set_vol. The two are
+ * independent, so volume/expression/pan updates never rebuild the envelope
+ * ramp. SF2 keynum scaling applies to hold/decay. The SF2.01 default
  * modulators for velocity/CC7/CC11 collapse to `(x/127)²`, and region/sustain
  * attenuation is preconverted by audioconv64 so note-on never runs `powf` for
- * amplitude. Volume/expression/pan updates reapply the current envelope target
- * immediately; attack, decay, and release keep their remaining ramp time.
- * Pitch bend recalculates #mixer_ch_set_freq on sounding voices. Sustain-loop
- * regions stay in loop until release begins.
+ * amplitude. Pitch bend recalculates #mixer_ch_set_freq on sounding voices.
+ * Sustain-loop regions stay in loop until release begins.
  *
  * #sf64_synth_process advances absolute sample time, drains every overdue
  * envelope phase in one call, and reclaims mixer channels whose one-shot
@@ -139,28 +138,29 @@ static int env_scaled_samples(int16_t base_tc, int16_t keynum_scale, int key)
 	return timecents_to_samples((int16_t)tc);
 }
 
-/** Absolute L/R mixer volumes for the current gains × @p env_gain and pan. */
-static void voice_abs_vols(sf64_synth_t *synth, int ch, float env_gain,
-	float *lvol, float *rvol)
-{
-	sf64_voice_t *v = &synth->voices[ch];
-	sf64_midi_channel_t *mc = &synth->midi[v->midi_channel];
-	sf64_region_t *r = &synth->bank->regions[v->region_index];
-	float gain = v->base_gain * v->channel_gain * env_gain;
-	int pan_sf = r->pan + (int)lroundf((mc->pan - 64) * (500.0f / 64.0f));
-	if (pan_sf < -500) pan_sf = -500;
-	if (pan_sf > 500) pan_sf = 500;
-	float pan = (pan_sf + 500) / 1000.0f;
-	*lvol = gain * (1.0f - pan);
-	*rvol = gain * pan;
-}
-
 /** Refresh #sf64_voice_t::channel_gain from the owning MIDI channel. */
 static void voice_refresh_channel_gain(sf64_synth_t *synth, int ch)
 {
 	sf64_voice_t *v = &synth->voices[ch];
 	sf64_midi_channel_t *mc = &synth->midi[v->midi_channel];
 	v->channel_gain = sf2_gain(mc->volume) * sf2_gain(mc->expression);
+}
+
+/** Push region×velocity×CC7×CC11×pan into #mixer_ch_set_vol (not the envelope). */
+static void voice_set_vol(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_midi_channel_t *mc = &synth->midi[v->midi_channel];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	float gain = v->base_gain * v->channel_gain;
+	int pan_sf = r->pan + (int)lroundf((mc->pan - 64) * (500.0f / 64.0f));
+	if (pan_sf < -500) pan_sf = -500;
+	if (pan_sf > 500) pan_sf = 500;
+	float pan = (pan_sf + 500) / 1000.0f;
+	// Duration 0: immediate (no #mixer_ch_set_vol declick). Note-on and CC
+	// updates must land before the next mixed sample or peak tests see the
+	// tail of the previous level.
+	mixer_ch_set_vol_ramp(ch, gain * (1.0f - pan), gain * pan, 0);
 }
 
 static float voice_freq(sf64_synth_t *synth, int ch)
@@ -176,39 +176,13 @@ static float voice_freq(sf64_synth_t *synth, int ch)
 	return s->sample_rate * powf(2.0f, cents / 1200.0f);
 }
 
-/** Reapply volume for the current envelope phase (controller change). */
+/** Reapply #mixer_ch_set_vol after a MIDI volume/expression/pan change. */
 static void voice_apply_vol(sf64_synth_t *synth, int ch)
 {
-	sf64_voice_t *v = &synth->voices[ch];
-	float l, rvol;
-	int rem = 0;
-
+	if (synth->voices[ch].phase == SF64_VOICE_OFF)
+		return;
 	voice_refresh_channel_gain(synth, ch);
-	if (v->deadline != INT64_MAX) {
-		rem = (int)(v->deadline - synth->now);
-		if (rem < 0) rem = 0;
-	}
-
-	switch (v->phase) {
-	case SF64_VOICE_DELAY:
-		mixer_ch_set_vol_ramp(ch, 0, 0, 0);
-		break;
-	case SF64_VOICE_ATTACK:
-	case SF64_VOICE_DECAY:
-		voice_abs_vols(synth, ch, v->envelope_gain, &l, &rvol);
-		mixer_ch_set_vol_ramp(ch, l, rvol, rem);
-		break;
-	case SF64_VOICE_HOLD:
-	case SF64_VOICE_SUSTAIN:
-		voice_abs_vols(synth, ch, v->envelope_gain, &l, &rvol);
-		mixer_ch_set_vol_ramp(ch, l, rvol, 0);
-		break;
-	case SF64_VOICE_RELEASE:
-		mixer_ch_set_vol_ramp(ch, 0, 0, rem);
-		break;
-	default:
-		break;
-	}
+	voice_set_vol(synth, ch);
 }
 
 void midi_apply_vol(sf64_synth_t *synth, int midi_channel)
@@ -302,7 +276,7 @@ void voice_enter_release(sf64_synth_t *synth, int ch)
 	}
 
 	v->envelope_gain = 0;
-	mixer_ch_set_vol_ramp(ch, 0, 0, release);
+	mixer_ch_set_gain_ramp(ch, 0, release, MIXER_GAIN_RAMP_DB);
 	v->phase = SF64_VOICE_RELEASE;
 	v->deadline = synth->now + release;
 }
@@ -315,19 +289,14 @@ static void voice_enter_decay(sf64_synth_t *synth, int ch, int64_t at)
 	int decay = env_scaled_samples(r->amp_env.decay_timecents,
 		r->amp_env.keynum_to_decay, v->key);
 	float sus = r->amp_env.sustain_gain;
-	float l, rvol;
 
 	v->envelope_gain = sus;
 	if (decay > 0 && sus < 1.0f) {
-		voice_abs_vols(synth, ch, sus, &l, &rvol);
-		mixer_ch_set_vol_ramp(ch, l, rvol, decay);
+		mixer_ch_set_gain_ramp(ch, sus, decay, MIXER_GAIN_RAMP_DB);
 		v->phase = SF64_VOICE_DECAY;
 		v->deadline = at + decay;
 	} else {
-		if (sus < 1.0f) {
-			voice_abs_vols(synth, ch, sus, &l, &rvol);
-			mixer_ch_set_vol_ramp(ch, l, rvol, 0);
-		}
+		mixer_ch_set_gain(ch, sus);
 		v->phase = SF64_VOICE_SUSTAIN;
 		v->deadline = INT64_MAX;
 	}
@@ -340,11 +309,9 @@ static void voice_enter_hold_or_decay(sf64_synth_t *synth, int ch, int64_t at)
 	sf64_region_t *r = &synth->bank->regions[v->region_index];
 	int hold = env_scaled_samples(r->amp_env.hold_timecents,
 		r->amp_env.keynum_to_hold, v->key);
-	float l, rvol;
 
 	v->envelope_gain = 1.0f;
-	voice_abs_vols(synth, ch, 1.0f, &l, &rvol);
-	mixer_ch_set_vol_ramp(ch, l, rvol, 0);
+	mixer_ch_set_gain(ch, 1.0f);
 	if (hold > 0) {
 		v->phase = SF64_VOICE_HOLD;
 		v->deadline = at + hold;
@@ -361,10 +328,8 @@ static void voice_enter_attack(sf64_synth_t *synth, int ch, int64_t at)
 	int attack = timecents_to_samples(r->amp_env.attack_timecents);
 
 	if (attack > 0) {
-		float l, rvol;
 		v->envelope_gain = 1.0f;
-		voice_abs_vols(synth, ch, 1.0f, &l, &rvol);
-		mixer_ch_set_vol_ramp(ch, l, rvol, attack);
+		mixer_ch_set_gain_ramp(ch, 1.0f, attack, MIXER_GAIN_RAMP_LINEAR);
 		v->phase = SF64_VOICE_ATTACK;
 		v->deadline = at + attack;
 	} else {
@@ -392,8 +357,8 @@ static void voice_start(sf64_synth_t *synth, int ch, int midi_channel,
 	voice_refresh_channel_gain(synth, ch);
 	v->envelope_gain = 0;
 
-	// #mixer_ch_set_vol declicks; duration 0 is a true immediate mute.
-	mixer_ch_set_vol_ramp(ch, 0, 0, 0);
+	mixer_ch_set_gain(ch, 0);
+	voice_set_vol(synth, ch);
 	mixer_ch_play(ch, &synth->bank->waves[r->sample_index]->wave);
 	mixer_ch_set_freq(ch, voice_freq(synth, ch));
 
