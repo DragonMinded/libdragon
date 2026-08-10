@@ -2260,6 +2260,15 @@ static bool test_synth_modenv(sf64_bank_t *bank)
 		goto fail_me;
 	}
 
+	// A new note must pin the base pitch before arming the mod ramp: the ramp
+	// starts from the channel frequency, which is still the previous note's
+	// peak target (and right after mixer_ch_play, the waveform's own rate).
+	r->mod_env.attack_timecents = samples_to_timecents(262144);
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	if (!check_freq(synth, "modenv attack start", base))
+		goto fail_me;
+
 	r->amp_env = save_amp;
 	r->mod_env = save_mod;
 	r->mod_env_to_pitch = save_pitch;

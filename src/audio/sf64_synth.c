@@ -376,17 +376,18 @@ static void voice_mod_start(sf64_synth_t *synth, int ch)
 	sf64_voice_t *v = &synth->voices[ch];
 	sf64_region_t *r = &synth->bank->regions[v->region_index];
 
+	// Pin the base pitch first: #mixer_ch_play just reset the channel to the
+	// waveform's own rate, and a ramp would otherwise start from there.
+	voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp);
+
 	if (r->mod_env_to_pitch == 0) {
 		v->mod_phase = SF64_VOICE_OFF;
 		v->mod_deadline = INT64_MAX;
-		v->mod_env_level = 0;
-		mixer_ch_set_freq(ch, voice_freq_at(synth, ch, 0));
 		return;
 	}
 
 	int delay = timecents_to_samples(r->mod_env.delay_timecents);
 	if (delay > 0) {
-		voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp);
 		v->mod_phase = SF64_VOICE_DELAY;
 		v->mod_deadline = synth->now + delay;
 	} else {
