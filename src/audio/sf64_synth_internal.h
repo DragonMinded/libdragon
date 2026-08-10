@@ -51,6 +51,7 @@ typedef struct {
 	uint8_t data_entry_lsb;     ///< CC38 Data Entry LSB
 	uint16_t pitch_bend;        ///< 14-bit bend (center 8192)
 	int16_t pitch_range_cents;  ///< Full bend span in cents (default 200)
+	bool muted;                 ///< User mute; not cleared by MIDI reset
 } sf64_midi_channel_t;
 
 /** @brief One voice bound to a mixer channel. */

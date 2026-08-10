@@ -269,6 +269,15 @@ void sf64_synth_set_volume(sf64_synth_t *synth, int midi_channel, int volume)
 		midi_apply_vol(synth, midi_channel);
 }
 
+void sf64_synth_mute_channel(sf64_synth_t *synth, int midi_channel, bool mute)
+{
+	assert(synth);
+	assert(midi_channel >= 0 && midi_channel < SF64_MIDI_CHANNELS);
+	synth->midi[midi_channel].muted = mute;
+	if (mute)
+		midi_all_sound_off(synth, midi_channel);
+}
+
 void sf64_synth_set_expression(sf64_synth_t *synth, int midi_channel, int expression)
 {
 	assert(synth);

@@ -618,6 +618,8 @@ uint32_t sf64_synth_note_on(sf64_synth_t *synth, int midi_channel,
 		sf64_synth_note_off(synth, midi_channel, key);
 		return 0;
 	}
+	if (synth->midi[midi_channel].muted)
+		return 0;
 
 	int preset_index = synth->midi[midi_channel].preset_index;
 	if (preset_index < 0)

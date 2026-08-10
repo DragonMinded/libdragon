@@ -132,6 +132,18 @@ bool sf64_synth_set_program(sf64_synth_t *synth, int midi_channel,
 void sf64_synth_set_volume(sf64_synth_t *synth, int midi_channel, int volume);
 
 /**
+ * @brief Mute or unmute a MIDI channel (debug / mixer-style solo).
+ *
+ * When muted, new note-ons are ignored and sounding voices on that channel
+ * are hard-cut. Survives MIDI resets and CC7 volume; not part of GM protocol.
+ *
+ * @param synth          Synthesizer
+ * @param midi_channel   MIDI channel (0–15)
+ * @param mute           true to mute, false to unmute
+ */
+void sf64_synth_mute_channel(sf64_synth_t *synth, int midi_channel, bool mute);
+
+/**
  * @brief Set MIDI CC11 expression for @p midi_channel (0–127).
  *
  * Same voice-update rules as #sf64_synth_set_volume.
