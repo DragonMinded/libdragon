@@ -95,6 +95,27 @@ float fm_expf(float x){
     return BITCAST_I2F(i);
 }
 
+float fm_exp2f(float x)
+{
+    // 2^x = 2^(n+f) = 2^n · 2^f, with f ∈ [0, 1). 2^n is a bit-shift of the
+    // IEEE754 exponent; 2^f is a degree-5 Remez polynomial (rel. err. ~1e-5).
+    int32_t n = (int32_t)x;
+    if ((float)n > x) n--;
+    float f = x - (float)n;
+
+    // Remez minimax for 2^f on [0, 1], degree 5.
+    const float c0 = 1.0000000000e+00f;
+    const float c1 = 6.9314718056e-01f;
+    const float c2 = 2.4022650696e-01f;
+    const float c3 = 5.5503486648e-02f;
+    const float c4 = 9.6183710763e-03f;
+    const float c5 = 1.3333558146e-03f;
+    float y = c0 + f * (c1 + f * (c2 + f * (c3 + f * (c4 + f * c5))));
+
+    uint32_t bits = (uint32_t)(n + 127) << 23;
+    return y * BITCAST_I2F(bits);
+}
+
 float fm_lerp_angle(float a, float b, float t)
 {
     float diff = fm_fmodf((b - a), FM_PI*2);

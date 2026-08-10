@@ -258,6 +258,18 @@ float fm_atan2f(float y, float x);
 float fm_expf(float x);
 
 /**
+ * @brief Faster version of exp2f (2^x).
+ *
+ * Splits @p x into an integer power of two (via the IEEE754 exponent field)
+ * and a fractional part evaluated with a degree-5 minimax polynomial on
+ * `[0, 1]`. Relative error is about `1e-5` — several times more accurate
+ * than #fm_expf, and far cheaper than newlib `exp2f` / `powf`.
+ *
+ * No bounds check: overflows if @p x is outside roughly `(-126, 128)`.
+ */
+float fm_exp2f(float x);
+
+/**
  * @brief Linearly interpolate between two scalar values.
  */
 inline float fm_lerp(float a, float b, float t)
@@ -301,6 +313,7 @@ float fm_wrap_angle(float angle);
     #define sincosf(x,s,c)  (__builtin_constant_p(x) ? sincosf(x,s,c) : fm_sincosf(x,s,c))
     #define atan2f(y, x)    ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? atan2f(y, x) : fm_atan2f(y, x))
     #define expf(x)         (__builtin_constant_p(x) ? expf(x) : fm_expf(x))
+    #define exp2f(x)        (__builtin_constant_p(x) ? exp2f(x) : fm_exp2f(x))
 #endif
 
 #ifdef __cplusplus
