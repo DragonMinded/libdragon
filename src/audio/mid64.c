@@ -9,6 +9,8 @@
 #include "asset.h"
 #include "audio.h"
 #include "mixer.h"
+#include "mixer_internal.h"
+#include "profile.h"
 #include "debug.h"
 #include <assert.h>
 #include <limits.h>
@@ -221,48 +223,61 @@ static int mid64_tick(void *arg)
 {
 	mid64player_t *p = arg;
 	int64_t now = p->scheduled_sample;
+	int delay;
 
+	PROFILE_SCOPE(PS_MID_TICK) {
 	if (p->stop_requested) {
 		mid64_do_stop(p, now);
-		return 0;
+		delay = 0;
+		goto done;
 	}
 
 	// Sync synth clock / envelopes to this sample before MIDI at `now`.
+	PROFILE_START(PS_MID_PROCESS);
 	if (p->target->ops->process)
 		p->target->ops->process(p->target, now);
+	PROFILE_STOP(PS_MID_PROCESS);
 
-	while (p->next_midi_sample <= now) {
-		if (!mid64_dispatch_pending(p, now)) {
-			if (p->looping) {
-				if (p->target->ops->reset)
-					p->target->ops->reset(p->target, now);
-				mid64_loop_restart(p, now);
-				continue;
+	PROFILE_SCOPE(PS_MID_DISPATCH) {
+		while (p->next_midi_sample <= now) {
+			if (!mid64_dispatch_pending(p, now)) {
+				if (p->looping) {
+					if (p->target->ops->reset)
+						p->target->ops->reset(p->target, now);
+					mid64_loop_restart(p, now);
+					continue;
+				}
+				// Natural end: release musically, then keep scheduling process()
+				// until the synth has no pending deadlines.
+				if (p->target->ops->finish)
+					p->target->ops->finish(p->target, now);
+				p->next_midi_sample = INT64_MAX;
+				break;
 			}
-			// Natural end: release musically, then keep scheduling process()
-			// until the synth has no pending deadlines.
-			if (p->target->ops->finish)
-				p->target->ops->finish(p->target, now);
-			p->next_midi_sample = INT64_MAX;
-			break;
 		}
 	}
 
 	int64_t synth_next = INT64_MAX;
+	PROFILE_START(PS_MID_PROCESS, 1);
 	if (p->target->ops->process)
 		synth_next = p->target->ops->process(p->target, now);
+	PROFILE_STOP(PS_MID_PROCESS, 1);
 
 	int64_t next = p->next_midi_sample < synth_next ? p->next_midi_sample : synth_next;
 	if (next == INT64_MAX) {
 		p->playing = false;
-		return 0;
+		delay = 0;
+		goto done;
 	}
 
-	int64_t delay = next - now;
-	assertf(delay > 0, "MID64: non-positive mixer delay");
-	if (delay > INT_MAX) delay = INT_MAX;
+	int64_t d = next - now;
+	assertf(d > 0, "MID64: non-positive mixer delay");
+	if (d > INT_MAX) d = INT_MAX;
 	p->scheduled_sample = next;
-	return (int)delay;
+	delay = (int)d;
+done: ;
+	}
+	return delay;
 }
 
 mid64player_t *mid64player_load(const char *fn)

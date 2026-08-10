@@ -11,22 +11,31 @@
 /** @brief RSPQ overlay ID assigned to the mixer ucode */
 extern uint32_t __mixer_overlay_id;
 
-/** @brief Profile slots for mixer / xm64 / vadpcm (see #__mixer_profile_init). */
+/** @brief Profile slots for mixer / xm64 / mid64 / vadpcm (see #__mixer_profile_init). */
 enum {
 	PS_MIXER = 0,       ///< mixer_try_play
 	PS_XM_TICK,         ///< xm64 tick callback (sequencing + channel sync)
 	PS_XM_GETPOS,       ///< xm64: sync sample_position from mixer
 	PS_XM_LIBXM,        ///< xm64: xm_tick (libxm sequencer)
 	PS_XM_SYNC,         ///< xm64: play/pos/freq/vol sync to mixer
+	PS_MID_TICK,        ///< mid64 tick callback (MIDI + synth process)
+	PS_MID_PROCESS,     ///< mid64: midi_target process (sf64 envelopes)
+	PS_MID_DISPATCH,    ///< mid64: decode + dispatch MIDI events
 	PS_MIXER_EXEC,      ///< mixer_exec
 	PS_MIXER_PREP,      ///< update_loops + refresh_chtbl + round_length
-	PS_MIXER_EMIT,      ///< mixer_emit_round (rspq write + fetch)
+	PS_MIXER_EMIT,      ///< mixer_emit_round
+	PS_MIXER_FETCH,     ///< emit phase A: freq sync + samplebuffer fetch
 	PS_SBUF_GET,        ///< samplebuffer_get
 	PS_VADPCM_READ,     ///< waveform_vadpcm_read_compressed
 	PS_VADPCM_HUFF,     ///< huffv_decompress
 	PS_VADPCM_IO,       ///< plain VADPCM DMA/read
+	PS_MIXER_CMD,       ///< emit phase B: volumes + rspq MIX_CHANNEL/FLUSH
+	PS_MIXER_VOL,       ///< cmd: mixer_channel_volumes
+	PS_MIXER_DMAWAIT,   ///< cmd: mixer_wait_channel_dma (should be ~0 user time)
+	PS_MIXER_RSPQ,      ///< cmd: rspq MIX_CHANNEL / SETSTATE / FLUSH
 	PS_MIXER_ADVANCE,   ///< mixer_advance
 	PS_MIXER_SEEK,      ///< mixer_ch_seek
+	PS_MIXER_PREFETCH,  ///< mixer_prefetch_next
 };
 
 /**
