@@ -117,12 +117,33 @@ void mixer_close(void);
 void mixer_set_vol(float vol);
 
 /**
- * @brief Curve of a #mixer_ch_set_gain_ramp.
+ * @brief Scalar ramp curve: value at normalized time @p u ∈ [0, 1].
+ *
+ * Used by #mixer_ch_set_gain_ramp and #mixer_ch_set_freq_ramp. The mixer
+ * samples the curve once per mix round and walks linearly between those
+ * points on the RSP. Built-ins: #mixer_ramp_linear, #mixer_ramp_exp.
+ * Sequencers may pass their own (e.g. SoundFont convex attack).
+ *
+ * @param[in]  start   Value at u = 0 (already reached when the ramp arms)
+ * @param[in]  end     Value at u = 1 (the ramp target)
+ * @param[in]  u       Progress in [0, 1]
+ * @return             Interpolated value
  */
-typedef enum {
-	MIXER_GAIN_RAMP_LINEAR = 0,  ///< Linear in amplitude
-	MIXER_GAIN_RAMP_DB     = 1,  ///< Linear in dB (exponential in amplitude)
-} mixer_gain_ramp_curve_t;
+typedef float (*mixer_ramp_fn_t)(float start, float end, float u);
+
+/**
+ * @brief Linear ramp: `start + (end - start) * u`.
+ */
+float mixer_ramp_linear(float start, float end, float u);
+
+/**
+ * @brief Exponential ramp (linear in log): `start * (end/start)^u`.
+ *
+ * For amplitude this is a constant-dB fade; for frequency, linear in cents.
+ * If @p end is ≤ 0, fades toward silence over the duration (then snaps to 0
+ * when the ramp completes). If @p start is ≤ 0, rises as `end * u`.
+ */
+float mixer_ramp_exp(float start, float end, float u);
 
 /**
  * @brief Set channel volume (as left/right).
@@ -193,10 +214,8 @@ void mixer_ch_set_gain(int ch, float gain);
  * independently of #mixer_ch_set_vol_ramp. The mixer runs the ramp by itself
  * (no #mixer_add_event while it is in progress).
  *
- * With #MIXER_GAIN_RAMP_LINEAR the level moves linearly in amplitude. With
- * #MIXER_GAIN_RAMP_DB it moves linearly in decibels (exponential in amplitude),
- * as used by SoundFont decay/release; a target of 0 fades to silence over the
- * duration.
+ * @p curve maps normalized time to the gain value (#mixer_ramp_linear,
+ * #mixer_ramp_exp, or a custom #mixer_ramp_fn_t).
  *
  * A new gain ramp replaces any previous one, starting from the gain already
  * reached. Duration 0, or #mixer_ch_set_gain, cancels the ramp and sets the
@@ -205,10 +224,10 @@ void mixer_ch_set_gain(int ch, float gain);
  * @param[in]   ch              Channel index
  * @param[in]   gain            Target gain (range [0..1])
  * @param[in]   duration        Length of the ramp, in output samples
- * @param[in]   curve           #MIXER_GAIN_RAMP_LINEAR or #MIXER_GAIN_RAMP_DB
+ * @param[in]   curve           Ramp curve (must not be NULL if duration > 0)
  */
 void mixer_ch_set_gain_ramp(int ch, float gain, int duration,
-	mixer_gain_ramp_curve_t curve);
+	mixer_ramp_fn_t curve);
 
 /**
  * @brief Set channel volume (as volume and panning).
@@ -310,17 +329,38 @@ void mixer_ch_play(int ch, waveform_t *wave);
 
 /**
  * @brief Change the frequency for the specified channel.
- * 
+ *
  * By default, the frequency is the one required by the waveform associated
- * to the channel, but this function allows to override.
- * 
+ * to the channel, but this function allows to override. The change is
+ * immediate and cancels a running #mixer_ch_set_freq_ramp.
+ *
  * This function must be called after #mixer_ch_play, as otherwise the
  * frequency is reset to the default of the waveform.
- * 
+ *
  * @param[in]   ch              Channel index
  * @param[in]   frequency       Playback frequency (in Hz / samples per second)
  */
 void mixer_ch_set_freq(int ch, float frequency);
+
+/**
+ * @brief Ramp the playback frequency of a channel.
+ *
+ * Walks frequency from its current value to @p frequency over @p duration
+ * output samples. The mixer runs the ramp by itself (no #mixer_add_event
+ * while it is in progress). @p curve selects the shape (#mixer_ramp_linear
+ * in Hz, #mixer_ramp_exp for linear cents, or a custom #mixer_ramp_fn_t).
+ *
+ * A new ramp replaces any previous one, starting from the frequency already
+ * reached. Duration 0, or #mixer_ch_set_freq, cancels the ramp and sets the
+ * frequency immediately; stopping the channel cancels it as well.
+ *
+ * @param[in]   ch              Channel index
+ * @param[in]   frequency       Target playback frequency (Hz)
+ * @param[in]   duration        Length of the ramp, in output samples
+ * @param[in]   curve           Ramp curve (must not be NULL if duration > 0)
+ */
+void mixer_ch_set_freq_ramp(int ch, float frequency, int duration,
+	mixer_ramp_fn_t curve);
 
 /**
  * @brief Enable or disable the sustain loop on a mixer channel.

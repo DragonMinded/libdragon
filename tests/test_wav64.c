@@ -2251,6 +2251,57 @@ static bool test_mixer_freq_change(void)
     return true;
 }
 
+// A frequency ramp is piecewise-constant per mix round: the waveform position
+// must advance faster in the second half than in the first. Use a oneshot so
+// the playhead cannot wrap mid-measurement.
+static bool test_mixer_freq_ramp(void)
+{
+	const int nramp = 2048, half = nramp / 2;
+
+	bl_init();
+	sv_silence();
+	mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+	mixer_ch_play(SV_CHANNEL, &bl_wave_oneshot_res);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	mixer_ch_set_pos(SV_CHANNEL, 0);
+	mixer_ch_set_freq(SV_CHANNEL, BL_FREQ / 2);
+	sv_mix(128);
+
+	mixer_ch_set_freq_ramp(SV_CHANNEL, BL_FREQ, nramp, mixer_ramp_linear);
+	double p0 = mixer_ch_get_pos(SV_CHANNEL);
+	sv_mix(half);
+	double p1 = mixer_ch_get_pos(SV_CHANNEL);
+	sv_mix(half);
+	double p2 = mixer_ch_get_pos(SV_CHANNEL);
+
+	if (!mixer_ch_playing(SV_CHANNEL)) {
+		printf("FAILED freq ramp: oneshot ended early (pos %.1f)\n", p2);
+		return false;
+	}
+
+	double a0 = p1 - p0, a1 = p2 - p1;
+	if (a0 >= a1) {
+		printf("FAILED freq ramp: first-half advance %.2f >= second-half %.2f\n",
+			a0, a1);
+		return false;
+	}
+	// Ideal mean rates 0.625 and 0.875 of output rate; allow round granularity.
+	if (a0 < half * 0.50 || a0 > half * 0.75 ||
+		a1 < half * 0.75 || a1 > half * 1.05) {
+		printf("FAILED freq ramp: advances %.2f / %.2f (half=%d)\n", a0, a1, half);
+		return false;
+	}
+
+	double p3 = mixer_ch_get_pos(SV_CHANNEL);
+	sv_mix(256);
+	double a2 = mixer_ch_get_pos(SV_CHANNEL) - p3;
+	if (a2 < 256 - 4 || a2 > 256 + 4) {
+		printf("FAILED freq ramp: post-ramp advance %.2f, expected ~256\n", a2);
+		return false;
+	}
+	return true;
+}
+
 // Stop while the playhead is still inside the waveform, not at the end.
 static bool test_mixer_stop_mid(void)
 {
@@ -2483,7 +2534,7 @@ static bool test_mixer_gain_ramp(void)
 	const int nramp = 4096, ntail = 1024;
 
 	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
-	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, MIXER_GAIN_RAMP_LINEAR);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_linear);
 	sv_mix(nramp + ntail);
 	if (!vr_check_linear("gain ramp linear", nramp, 1.0f, 0.0f, vr_amp))
 		return false;
@@ -2491,7 +2542,7 @@ static bool test_mixer_gain_ramp(void)
 		return false;
 
 	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
-	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, MIXER_GAIN_RAMP_DB);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_exp);
 	sv_mix(nramp + ntail);
 	// Piecewise-linear per round: check a few interior points against the
 	// SF2 silence curve, not every sample.
@@ -2511,7 +2562,7 @@ static bool test_mixer_gain_ramp(void)
 
 	// Vol can move under a running gain ramp without restarting it.
 	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
-	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, MIXER_GAIN_RAMP_LINEAR);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_linear);
 	sv_mix(nramp / 2);
 	int a_full = vr_amp(nramp / 2 - 32);
 	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
@@ -3150,6 +3201,7 @@ int main(void)
     total++; if (!test_mixer_declick()) failed++;
 
     total++; if (!test_mixer_freq_change()) failed++;
+    total++; if (!test_mixer_freq_ramp()) failed++;
     total++; if (!test_mixer_stop_mid()) failed++;
     rf_init(4);
     total++; if (!test_mixer_resident_vadpcm_loop()) failed++;

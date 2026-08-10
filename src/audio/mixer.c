@@ -150,20 +150,34 @@ typedef struct mixer_channel_s {
 } mixer_channel_t;
 
 /**
- * @brief One scalar level ramp (volume L, volume R, or gain).
+ * @brief One scalar level ramp (volume L/R, gain, or frequency).
  *
- * Target lives next to the ramp in Mixer (`lvol` / `rvol` / `gain`); this
- * only stores where the ramp started, so any point is `f(start, target, t)`.
+ * Target lives next to the ramp in Mixer; this stores the start value and the
+ * #mixer_ramp_fn_t so any point is `fn(start, target, u(t))`.
  */
 typedef struct {
 	float start;           ///< Value at #start_tick
 	int64_t start_tick;    ///< Absolute tick the ramp started at
 	int32_t duration;      ///< Length in output samples, 0 if idle
-	uint8_t curve;         ///< #mixer_gain_ramp_curve_t (vol always LINEAR)
+	mixer_ramp_fn_t fn;    ///< Curve (ignored when #duration is 0)
 } mixer_ramp_t;
 
-/** SF2 / LinuxSampler "to silence" exponent: gain *= e^{-9.226} over a full fade. */
-#define MIXER_GAIN_DB_SILENCE  9.226f
+/** Fade-to-silence exponent for #mixer_ramp_exp when the target is 0. */
+#define MIXER_RAMP_EXP_SILENCE  9.226f
+
+float mixer_ramp_linear(float start, float end, float u)
+{
+	return start + (end - start) * u;
+}
+
+float mixer_ramp_exp(float start, float end, float u)
+{
+	if (start <= 0.0f)
+		return end * u;
+	if (end <= 0.0f)
+		end = start * expf(-MIXER_RAMP_EXP_SILENCE);
+	return start * powf(end / start, u);
+}
 
 /** @brief Volumes a channel is mixed with over one round.
  *
@@ -236,9 +250,11 @@ static struct {
 	float lvol[MIXER_MAX_CHANNELS];         ///< Target left volume [0..1]
 	float rvol[MIXER_MAX_CHANNELS];         ///< Target right volume [0..1]
 	float gain[MIXER_MAX_CHANNELS];         ///< Target mono gain [0..1] (default 1)
+	float freq[MIXER_MAX_CHANNELS];         ///< Target playback frequency (Hz)
 	mixer_ramp_t lvol_ramp[MIXER_MAX_CHANNELS];
 	mixer_ramp_t rvol_ramp[MIXER_MAX_CHANNELS];
 	mixer_ramp_t gain_ramp[MIXER_MAX_CHANNELS];
+	mixer_ramp_t freq_ramp[MIXER_MAX_CHANNELS];
 	uint8_t prio[MIXER_MAX_CHANNELS];       ///< Voice-stealing priority
 	int64_t start_tick[MIXER_MAX_CHANNELS]; ///< Absolute tick of last #mixer_ch_play
 
@@ -482,22 +498,6 @@ void mixer_close(void) {
 	Mixer.num_channels = 0;
 }
 
-void mixer_ch_set_freq(int ch, float frequency) {
-	mixer_channel_t *c = &Mixer.channels[ch];
-	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "cannot call on secondary stereo channel %d", ch);
-	assertf(frequency >= 0, "cannot set negative frequency on channel %d: %f", ch, frequency);
-	// Check if the frequency is within the configured limit. Allow for a 1% margin because of rounding errors
-	// for default maximum frequency being the output sample rate converted from fixed point.
-	assertf(frequency <= Mixer.limits[ch].max_frequency*1.01f, "frequency %.1f exceeds configured limit %.1f on channel %d; use mixer_ch_set_limit to change the limit for this channel", frequency, Mixer.limits[ch].max_frequency, ch);
-	mixer_fx64_t step = MIXER_FX64(frequency / (float)Mixer.sample_rate);
-	if (!(c->flags & CH_FLAGS_VADPCM))
-		step <<= (c->flags & CH_FLAGS_BPS_SHIFT);
-	if (c->step == step)
-		return;
-	c->step = step;
-	mixer_refresh_max_ns(ch);
-}
-
 /** Value of a scalar ramp at absolute tick @p t (target @p end). */
 static float mixer_ramp_at(const mixer_ramp_t *rmp, float end, int64_t t)
 {
@@ -506,36 +506,27 @@ static float mixer_ramp_at(const mixer_ramp_t *rmp, float end, int64_t t)
 		return end;
 	if (d < 0) d = 0;
 	float u = (float)d / (float)rmp->duration;
-	float start = rmp->start;
-	if (rmp->curve == MIXER_GAIN_RAMP_LINEAR)
-		return start + (end - start) * u;
-	// dB: linear in log-amplitude. Target 0 fades toward silence at the SF2
-	// rate and snaps to 0 when the ramp completes (duration check above).
-	if (start <= 0.0f)
-		return end * u;
-	if (end <= 0.0f)
-		end = start * expf(-MIXER_GAIN_DB_SILENCE);
-	return start * powf(end / start, u);
+	return rmp->fn(rmp->start, end, u);
 }
 
 /** Arm or replace a scalar ramp toward @p target over @p duration (0 = now). */
 static void mixer_ramp_to(mixer_ramp_t *rmp, float *end, float target,
-	int duration, mixer_gain_ramp_curve_t curve)
+	int duration, mixer_ramp_fn_t fn)
 {
-	if (target < 0.0f) target = 0.0f;
-	if (target > 1.0f) target = 1.0f;
 	if (*end == target && !rmp->duration)
 		return;
 	float cur = mixer_ramp_at(rmp, *end, Mixer.ticks);
-	if (duration && cur != target)
+	if (duration && cur != target) {
+		assertf(fn, "mixer ramp: NULL curve with duration %d", duration);
 		*rmp = (mixer_ramp_t){
 			.start = cur,
 			.start_tick = Mixer.ticks,
 			.duration = duration,
-			.curve = (uint8_t)curve,
+			.fn = fn,
 		};
-	else
+	} else {
 		rmp->duration = 0;
+	}
 	*end = target;
 }
 
@@ -550,6 +541,58 @@ static bool mixer_ramp_active(mixer_ramp_t *rmp, int64_t t)
 	return false;
 }
 
+/** Push @p frequency (Hz) into #mixer_channel_t::step for channel @p ch. */
+static void mixer_ch_apply_freq(int ch, float frequency)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(frequency >= 0, "cannot set negative frequency on channel %d: %f", ch, frequency);
+	// Check if the frequency is within the configured limit. Allow for a 1%
+	// margin because of rounding errors for the default maximum frequency.
+	assertf(frequency <= Mixer.limits[ch].max_frequency * 1.01f,
+		"frequency %.1f exceeds configured limit %.1f on channel %d; use mixer_ch_set_limit to change the limit for this channel",
+		frequency, Mixer.limits[ch].max_frequency, ch);
+	mixer_fx64_t step = MIXER_FX64(frequency / (float)Mixer.sample_rate);
+	if (!(c->flags & CH_FLAGS_VADPCM))
+		step <<= (c->flags & CH_FLAGS_BPS_SHIFT);
+	if (c->step == step)
+		return;
+	c->step = step;
+	mixer_refresh_max_ns(ch);
+}
+
+/** Sample the freq ramp at @p tick into the channel step (owners only). */
+static void mixer_ch_sync_freq(int ch, int64_t tick)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	if (c->flags & CH_FLAGS_STEREO_SUB)
+		return;
+	float f = mixer_ramp_at(&Mixer.freq_ramp[ch], Mixer.freq[ch], tick);
+	mixer_ramp_active(&Mixer.freq_ramp[ch], tick);
+	mixer_ch_apply_freq(ch, f);
+}
+
+void mixer_ch_set_freq(int ch, float frequency)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "cannot call on secondary stereo channel %d", ch);
+	mixer_ramp_to(&Mixer.freq_ramp[ch], &Mixer.freq[ch], frequency, 0,
+		mixer_ramp_linear);
+	mixer_ch_apply_freq(ch, Mixer.freq[ch]);
+}
+
+void mixer_ch_set_freq_ramp(int ch, float frequency, int duration,
+	mixer_ramp_fn_t curve)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
+		"mixer_ch_set_freq_ramp: cannot call on secondary stereo channel %d", ch);
+	assertf(duration >= 0,
+		"mixer_ch_set_freq_ramp: negative duration %d on channel %d", duration, ch);
+	mixer_ramp_to(&Mixer.freq_ramp[ch], &Mixer.freq[ch], frequency, duration, curve);
+	mixer_ch_apply_freq(ch,
+		mixer_ramp_at(&Mixer.freq_ramp[ch], Mixer.freq[ch], Mixer.ticks));
+}
+
 static void mixer_ch_vol_at(int ch, int64_t t, mixer_fx15_t *lvol, mixer_fx15_t *rvol)
 {
 	*lvol = MIXER_FX15(mixer_ramp_at(&Mixer.lvol_ramp[ch], Mixer.lvol[ch], t));
@@ -558,10 +601,14 @@ static void mixer_ch_vol_at(int ch, int64_t t, mixer_fx15_t *lvol, mixer_fx15_t 
 
 static void mixer_ch_vol_to(int ch, float l, float r, int duration)
 {
+	if (l < 0.0f) l = 0.0f;
+	if (l > 1.0f) l = 1.0f;
+	if (r < 0.0f) r = 0.0f;
+	if (r > 1.0f) r = 1.0f;
 	mixer_ramp_to(&Mixer.lvol_ramp[ch], &Mixer.lvol[ch], l, duration,
-		MIXER_GAIN_RAMP_LINEAR);
+		mixer_ramp_linear);
 	mixer_ramp_to(&Mixer.rvol_ramp[ch], &Mixer.rvol[ch], r, duration,
-		MIXER_GAIN_RAMP_LINEAR);
+		mixer_ramp_linear);
 }
 
 void mixer_ch_set_vol(int ch, float lvol, float rvol) {
@@ -582,20 +629,22 @@ void mixer_ch_set_gain(int ch, float gain)
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
 		"mixer_ch_set_gain: cannot call on secondary stereo channel %d", ch);
+	if (gain < 0.0f) gain = 0.0f;
+	if (gain > 1.0f) gain = 1.0f;
 	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, 0,
-		MIXER_GAIN_RAMP_LINEAR);
+		mixer_ramp_linear);
 }
 
 void mixer_ch_set_gain_ramp(int ch, float gain, int duration,
-	mixer_gain_ramp_curve_t curve)
+	mixer_ramp_fn_t curve)
 {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
 		"mixer_ch_set_gain_ramp: cannot call on secondary stereo channel %d", ch);
 	assertf(duration >= 0,
 		"mixer_ch_set_gain_ramp: negative duration %d on channel %d", duration, ch);
-	assertf(curve == MIXER_GAIN_RAMP_LINEAR || curve == MIXER_GAIN_RAMP_DB,
-		"mixer_ch_set_gain_ramp: invalid curve %d", (int)curve);
+	if (gain < 0.0f) gain = 0.0f;
+	if (gain > 1.0f) gain = 1.0f;
 	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, duration, curve);
 }
 
@@ -1209,6 +1258,7 @@ void mixer_ch_stop(int ch) {
 	Mixer.lvol_ramp[ch].duration = 0;
 	Mixer.rvol_ramp[ch].duration = 0;
 	Mixer.gain_ramp[ch].duration = 0;
+	Mixer.freq_ramp[ch].duration = 0;
 	Mixer.gain[ch] = 1.0f;
 	Mixer.prio[ch] = MIXER_PRIORITY_MIN;
 	Mixer.chtbl_dirty &= ~mixer_bit(ch);
@@ -2097,6 +2147,11 @@ static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol, int64_t ti
 	// The windows fetched below belong to this round, and stay live until the
 	// RSP publishes its id back (see MIX_FLUSH / #__mixer_round_done).
 	uint32_t round_id = ++Mixer.round_id;
+
+	// Frequency ramps are piecewise-constant per round: sample Hz at @p tick
+	// into step before sizing fetches and emitting MIX_CHANNEL.
+	for (int ch = 0; ch < Mixer.hi_ch; ch++)
+		mixer_ch_sync_freq(ch, tick);
 
 	// Phase A: enqueue all PI DMAs back-to-back.
 	for (int ch = 0; ch < Mixer.hi_ch; ch++) {
