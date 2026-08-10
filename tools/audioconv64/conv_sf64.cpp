@@ -162,12 +162,12 @@ int sf_convert(const char *infn, const char *outfn)
 		for (int ri = 0; ri < p->regionNum; ri++) {
 			struct tsf_region *r = &p->regions[ri];
 
-			if (env_used(&r->modenv))
-				warn_unsupported(p->presetName, ri, "modulation envelope", warn_seen);
 			if (r->initialFilterFc != 13500 || r->initialFilterQ != 0)
 				warn_unsupported(p->presetName, ri, "filter", warn_seen);
-			if (r->modEnvToPitch || r->modEnvToFilterFc)
-				warn_unsupported(p->presetName, ri, "modEnvToPitch/FilterFc", warn_seen);
+			if (r->modEnvToFilterFc)
+				warn_unsupported(p->presetName, ri, "modEnvToFilterFc", warn_seen);
+			if (env_used(&r->modenv) && !r->modEnvToPitch && !r->modEnvToFilterFc)
+				warn_unsupported(p->presetName, ri, "modulation envelope", warn_seen);
 			if (r->modLfoToPitch || r->modLfoToFilterFc || r->modLfoToVolume || r->freqModLFO)
 				warn_unsupported(p->presetName, ri, "modulation LFO", warn_seen);
 			if (r->vibLfoToPitch || r->freqVibLFO)
@@ -279,6 +279,8 @@ int sf_convert(const char *infn, const char *outfn)
 			sr.gain = centibels_to_gain(attn_cb);
 			sr.pan = (int16_t)lroundf(r->pan * 1000.0f);
 			copy_amp_env(&sr.amp_env, &r->ampenv);
+			copy_amp_env(&sr.mod_env, &r->modenv);
+			sr.mod_env_to_pitch = (int16_t)r->modEnvToPitch;
 			regions.push_back(sr);
 			sp.num_regions++;
 		}
@@ -330,8 +332,9 @@ int sf_convert(const char *infn, const char *outfn)
 		w16(meta, r.pan);
 		wf32(meta, r.gain);
 		write_env(meta, &r.amp_env);
+		write_env(meta, &r.mod_env);
+		w16(meta, r.mod_env_to_pitch);
 		w16(meta, r.reserved_flags);
-		for (int i = 0; i < 4; i++) w16(meta, r.reserved[i]);
 	}
 	for (auto &s : samples) {
 		w32(meta, s.wav64_offset);

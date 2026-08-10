@@ -16,18 +16,25 @@
  * Exclusive-class victims are advertised to the planner at
  * #MIXER_PRIORITY_MIN and choked only after the plan succeeds.
  *
- * Amp envelopes use #mixer_ch_set_gain_ramp (linear attack, dB decay/release)
- * while region×velocity×CC7×CC11×pan stay on #mixer_ch_set_vol. The two are
- * independent, so volume/expression/pan updates never rebuild the envelope
- * ramp. SF2 keynum scaling applies to hold/decay. The SF2.01 default
- * modulators for velocity/CC7/CC11 collapse to `(x/127)²`, and region/sustain
- * attenuation is preconverted by audioconv64 so note-on never runs `powf` for
- * amplitude. Pitch bend recalculates #mixer_ch_set_freq on sounding voices.
- * Sustain-loop regions stay in loop until release begins.
+ * Two mixer controls, kept independent so CC updates never rebuild envelopes:
+ *   - Amp envelope → #mixer_ch_set_gain_ramp
+ *   - Region × velocity × CC7 × CC11 × pan → #mixer_ch_set_vol
+ * Amp attack is #mixer_ramp_linear (SF2's "convex in dB" intent: linear
+ * amplitude). Decay and release use #mixer_ramp_exp. Hold/decay honor SF2
+ * keynum scaling. Sustain-loop regions keep looping until release begins.
+ *
+ * When #sf64_region_t::mod_env_to_pitch is set, a second DAHDSR drives
+ * #mixer_ch_set_freq_ramp. Mod attack is SF2 convex in level, then linear in
+ * cents; later phases use #mixer_ramp_exp. Pitch bend re-targets the current
+ * mod frequency without cancelling the remaining ramp duration.
+ *
+ * Velocity / CC7 / CC11 use the SF2.01 default `(x/127)²` gain curve. Region
+ * attenuation is preconverted by audioconv64 so note-on never runs `powf`.
  *
  * #sf64_synth_process advances absolute sample time, drains every overdue
- * envelope phase in one call, and reclaims mixer channels whose one-shot
- * samples finished early. Pass the same sample counts used with #mixer_poll.
+ * amp and mod envelope phase in one call, and reclaims mixer channels whose
+ * one-shot samples finished early. Pass the same sample counts used with
+ * #mixer_poll.
  */
 #include "sf64_synth_internal.h"
 #include "wav64.h"
@@ -64,6 +71,9 @@ void voice_stop(sf64_synth_t *synth, int ch)
 	v->sustain_loop = false;
 	v->key_released = false;
 	v->held_by_sustain = false;
+	v->mod_phase = SF64_VOICE_OFF;
+	v->mod_deadline = INT64_MAX;
+	v->mod_env_level = 0;
 }
 
 void voices_stop_all(sf64_synth_t *synth)
@@ -163,7 +173,8 @@ static void voice_set_vol(sf64_synth_t *synth, int ch)
 	mixer_ch_set_vol_ramp(ch, gain * (1.0f - pan), gain * pan, 0);
 }
 
-static float voice_freq(sf64_synth_t *synth, int ch)
+/** Playback Hz for @p mod_level in [0,1] (modEnvToPitch × level). */
+static float voice_freq_at(sf64_synth_t *synth, int ch, float mod_level)
 {
 	sf64_voice_t *v = &synth->voices[ch];
 	sf64_midi_channel_t *mc = &synth->midi[v->midi_channel];
@@ -172,8 +183,59 @@ static float voice_freq(sf64_synth_t *synth, int ch)
 	float bend = (mc->pitch_bend - 8192) *
 		(float)mc->pitch_range_cents / 8192.0f;
 	float cents = (v->key - r->root_key) * (float)r->pitch_keytrack
-		+ r->coarse_tune * 100.0f + r->fine_tune + bend;
+		+ r->coarse_tune * 100.0f + r->fine_tune + bend
+		+ r->mod_env_to_pitch * mod_level;
 	return s->sample_rate * powf(2.0f, cents / 1200.0f);
+}
+
+/**
+ * SF2.01 / FluidSynth unipolar convex on [0, 1] (see fluid_convex).
+ * Used for envelope attacks
+ */
+static float sf64_convex(float u)
+{
+	if (u <= 0.0f) return 0.0f;
+	if (u >= 1.0f) return 1.0f;
+	float c = 1.0f - (-20.0f / 96.0f) * log10f(u * u);
+	if (c < 0.0f) c = 0.0f;
+	if (c > 1.0f) c = 1.0f;
+	return c;
+}
+
+/** Mod-env attack → pitch: SF2 convex level, then linear cents. */
+static float sf64_ramp_mod_attack(float start, float end, float u)
+{
+	return mixer_ramp_exp(start, end, sf64_convex(u));
+}
+
+/** Push mod-env target @p level into the mixer (immediate or curved ramp). */
+static void voice_apply_mod_freq(sf64_synth_t *synth, int ch, float level,
+	int duration, mixer_ramp_fn_t curve)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	v->mod_env_level = level;
+	float hz = voice_freq_at(synth, ch, level);
+	if (duration > 0)
+		mixer_ch_set_freq_ramp(ch, hz, duration, curve);
+	else
+		mixer_ch_set_freq(ch, hz);
+}
+
+/** Retarget frequency after pitch bend, preserving a running mod ramp. */
+static void voice_retarget_freq(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	int rem = 0;
+	mixer_ramp_fn_t curve = mixer_ramp_exp;
+	if (v->mod_phase == SF64_VOICE_ATTACK || v->mod_phase == SF64_VOICE_DECAY ||
+		v->mod_phase == SF64_VOICE_RELEASE) {
+		int64_t left = v->mod_deadline - synth->now;
+		if (left > 0)
+			rem = (int)left;
+		if (v->mod_phase == SF64_VOICE_ATTACK)
+			curve = sf64_ramp_mod_attack;
+	}
+	voice_apply_mod_freq(synth, ch, v->mod_env_level, rem, curve);
 }
 
 /** Reapply #mixer_ch_set_vol after a MIDI volume/expression/pan change. */
@@ -201,7 +263,7 @@ void midi_apply_bend(sf64_synth_t *synth, int midi_channel)
 		 ch < synth->first_channel + synth->num_channels; ch++) {
 		if (synth->voices[ch].phase != SF64_VOICE_OFF &&
 			synth->voices[ch].midi_channel == midi_channel)
-			mixer_ch_set_freq(ch, voice_freq(synth, ch));
+			voice_retarget_freq(synth, ch);
 	}
 }
 
@@ -219,7 +281,9 @@ sf64_synth_t *sf64_synth_create(sf64_bank_t *bank)
 	midi_channels_reset(synth);
 	for (int i = 0; i < MIXER_MAX_CHANNELS; i++) {
 		synth->voices[i].phase = SF64_VOICE_OFF;
+		synth->voices[i].mod_phase = SF64_VOICE_OFF;
 		synth->voices[i].deadline = INT64_MAX;
+		synth->voices[i].mod_deadline = INT64_MAX;
 		synth->voices[i].midi_channel = -1;
 		synth->voices[i].key = -1;
 		synth->voices[i].preset_index = -1;
@@ -251,6 +315,139 @@ void sf64_synth_set_channels(sf64_synth_t *synth, int first_channel,
 	synth->priority = priority;
 }
 
+/** Begin mod-env decay (or sustain) at absolute sample @p at. */
+static void voice_mod_enter_decay(sf64_synth_t *synth, int ch, int64_t at)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	int decay = env_scaled_samples(r->mod_env.decay_timecents,
+		r->mod_env.keynum_to_decay, v->key);
+	float sus = r->mod_env.sustain_gain;
+	// SF2/TSF: decay time is to zero; linear segment ends at sustain earlier.
+	int dur = (int)lroundf((float)decay * (1.0f - sus));
+
+	if (dur > 0 && sus < 1.0f) {
+		voice_apply_mod_freq(synth, ch, sus, dur, mixer_ramp_exp);
+		v->mod_phase = SF64_VOICE_DECAY;
+		v->mod_deadline = at + dur;
+	} else {
+		voice_apply_mod_freq(synth, ch, sus, 0, mixer_ramp_exp);
+		v->mod_phase = SF64_VOICE_SUSTAIN;
+		v->mod_deadline = INT64_MAX;
+	}
+}
+
+/** After mod attack: hold at peak, or go straight to decay. */
+static void voice_mod_enter_hold_or_decay(sf64_synth_t *synth, int ch, int64_t at)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	int hold = env_scaled_samples(r->mod_env.hold_timecents,
+		r->mod_env.keynum_to_hold, v->key);
+
+	voice_apply_mod_freq(synth, ch, 1.0f, 0, mixer_ramp_exp);
+	if (hold > 0) {
+		v->mod_phase = SF64_VOICE_HOLD;
+		v->mod_deadline = at + hold;
+	} else {
+		voice_mod_enter_decay(synth, ch, at);
+	}
+}
+
+/** Begin the mod-env attack at absolute sample @p at. */
+static void voice_mod_enter_attack(sf64_synth_t *synth, int ch, int64_t at)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	int attack = timecents_to_samples(r->mod_env.attack_timecents);
+
+	if (attack > 0) {
+		voice_apply_mod_freq(synth, ch, 1.0f, attack, sf64_ramp_mod_attack);
+		v->mod_phase = SF64_VOICE_ATTACK;
+		v->mod_deadline = at + attack;
+	} else {
+		voice_mod_enter_hold_or_decay(synth, ch, at);
+	}
+}
+
+/** Start the mod envelope, or pin base pitch when modEnvToPitch is unused. */
+static void voice_mod_start(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+
+	if (r->mod_env_to_pitch == 0) {
+		v->mod_phase = SF64_VOICE_OFF;
+		v->mod_deadline = INT64_MAX;
+		v->mod_env_level = 0;
+		mixer_ch_set_freq(ch, voice_freq_at(synth, ch, 0));
+		return;
+	}
+
+	int delay = timecents_to_samples(r->mod_env.delay_timecents);
+	if (delay > 0) {
+		voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp);
+		v->mod_phase = SF64_VOICE_DELAY;
+		v->mod_deadline = synth->now + delay;
+	} else {
+		voice_mod_enter_attack(synth, ch, synth->now);
+	}
+}
+
+/** Note-off for the mod envelope (independent of amp release length). */
+static void voice_mod_enter_release(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	if (v->mod_phase == SF64_VOICE_OFF || v->mod_phase == SF64_VOICE_RELEASE)
+		return;
+
+	sf64_region_t *r = &synth->bank->regions[v->region_index];
+	int release = timecents_to_samples(r->mod_env.release_timecents);
+	if (release <= 0) {
+		voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp);
+		v->mod_phase = SF64_VOICE_OFF;
+		v->mod_deadline = INT64_MAX;
+		return;
+	}
+	voice_apply_mod_freq(synth, ch, 0, release, mixer_ramp_exp);
+	v->mod_phase = SF64_VOICE_RELEASE;
+	v->mod_deadline = synth->now + release;
+}
+
+/** Drain overdue mod-envelope phases. */
+static void voice_mod_advance_overdue(sf64_synth_t *synth, int ch)
+{
+	sf64_voice_t *v = &synth->voices[ch];
+	while (v->mod_phase != SF64_VOICE_OFF && v->mod_deadline <= synth->now) {
+		int64_t at = v->mod_deadline;
+		switch (v->mod_phase) {
+		case SF64_VOICE_DELAY:
+			voice_mod_enter_attack(synth, ch, at);
+			break;
+		case SF64_VOICE_ATTACK:
+			voice_mod_enter_hold_or_decay(synth, ch, at);
+			break;
+		case SF64_VOICE_HOLD:
+			voice_mod_enter_decay(synth, ch, at);
+			break;
+		case SF64_VOICE_DECAY: {
+			sf64_region_t *r = &synth->bank->regions[v->region_index];
+			voice_apply_mod_freq(synth, ch, r->mod_env.sustain_gain, 0, mixer_ramp_exp);
+			v->mod_phase = SF64_VOICE_SUSTAIN;
+			v->mod_deadline = INT64_MAX;
+			break;
+		}
+		case SF64_VOICE_RELEASE:
+			voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp);
+			v->mod_phase = SF64_VOICE_OFF;
+			v->mod_deadline = INT64_MAX;
+			return;
+		default:
+			return;
+		}
+	}
+}
+
 void voice_enter_release(sf64_synth_t *synth, int ch)
 {
 	sf64_voice_t *v = &synth->voices[ch];
@@ -260,6 +457,7 @@ void voice_enter_release(sf64_synth_t *synth, int ch)
 
 	v->key_released = true;
 	v->held_by_sustain = false;
+	voice_mod_enter_release(synth, ch);
 
 	// Exit sustain loops so the SF2 release tail can play. Tiny leading
 	// loops are the "release sample" idiom (silence until note-off):
@@ -276,7 +474,7 @@ void voice_enter_release(sf64_synth_t *synth, int ch)
 	}
 
 	v->envelope_gain = 0;
-	mixer_ch_set_gain_ramp(ch, 0, release, MIXER_GAIN_RAMP_DB);
+	mixer_ch_set_gain_ramp(ch, 0, release, mixer_ramp_exp);
 	v->phase = SF64_VOICE_RELEASE;
 	v->deadline = synth->now + release;
 }
@@ -292,7 +490,7 @@ static void voice_enter_decay(sf64_synth_t *synth, int ch, int64_t at)
 
 	v->envelope_gain = sus;
 	if (decay > 0 && sus < 1.0f) {
-		mixer_ch_set_gain_ramp(ch, sus, decay, MIXER_GAIN_RAMP_DB);
+		mixer_ch_set_gain_ramp(ch, sus, decay, mixer_ramp_exp);
 		v->phase = SF64_VOICE_DECAY;
 		v->deadline = at + decay;
 	} else {
@@ -329,7 +527,7 @@ static void voice_enter_attack(sf64_synth_t *synth, int ch, int64_t at)
 
 	if (attack > 0) {
 		v->envelope_gain = 1.0f;
-		mixer_ch_set_gain_ramp(ch, 1.0f, attack, MIXER_GAIN_RAMP_LINEAR);
+		mixer_ch_set_gain_ramp(ch, 1.0f, attack, mixer_ramp_linear);
 		v->phase = SF64_VOICE_ATTACK;
 		v->deadline = at + attack;
 	} else {
@@ -360,7 +558,7 @@ static void voice_start(sf64_synth_t *synth, int ch, int midi_channel,
 	mixer_ch_set_gain(ch, 0);
 	voice_set_vol(synth, ch);
 	mixer_ch_play(ch, &synth->bank->waves[r->sample_index]->wave);
-	mixer_ch_set_freq(ch, voice_freq(synth, ch));
+	voice_mod_start(synth, ch);
 
 	if (delay > 0) {
 		v->phase = SF64_VOICE_DELAY;
@@ -567,8 +765,11 @@ int sf64_synth_process(sf64_synth_t *synth, int num_samples)
 		voice_advance_overdue(synth, ch);
 		if (v->phase == SF64_VOICE_OFF)
 			continue;
+		voice_mod_advance_overdue(synth, ch);
 		if (v->deadline < next)
 			next = v->deadline;
+		if (v->mod_deadline < next)
+			next = v->mod_deadline;
 	}
 
 	if (next == INT64_MAX)

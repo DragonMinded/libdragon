@@ -2168,6 +2168,112 @@ fail_dh:
 	return false;
 }
 
+// modEnvToPitch: instant attack → octave-up peak, then linear decay to base.
+static bool test_synth_modenv(sf64_bank_t *bank)
+{
+	sf64_synth_t *synth = sf64_synth_create(bank);
+	sf64_synth_set_channels(synth, 0, 1, MIXER_PRIORITY_MUSIC);
+	assert(sf64_synth_set_program(synth, 0, 0, 0));
+	sf64_region_t *r = &bank->regions[bank->presets[0].first_region];
+	sf64_sample_t *s = &bank->samples[r->sample_index];
+	sf64_envelope_t save_amp = r->amp_env;
+	sf64_envelope_t save_mod = r->mod_env;
+	int16_t save_pitch = r->mod_env_to_pitch;
+
+	r->amp_env.delay_timecents = -12000;
+	r->amp_env.attack_timecents = -12000;
+	r->amp_env.hold_timecents = -12000;
+	r->amp_env.decay_timecents = -12000;
+	r->amp_env.sustain_gain = 1.0f;
+	r->amp_env.release_timecents = samples_to_timecents(64);
+	r->amp_env.keynum_to_hold = 0;
+	r->amp_env.keynum_to_decay = 0;
+
+	r->mod_env_to_pitch = 1200;
+	r->mod_env.delay_timecents = -12000;
+	r->mod_env.attack_timecents = -12000;
+	r->mod_env.hold_timecents = samples_to_timecents(600);
+	r->mod_env.decay_timecents = samples_to_timecents(1024);
+	r->mod_env.sustain_gain = 0.0f;
+	r->mod_env.release_timecents = -12000;
+	r->mod_env.keynum_to_hold = 0;
+	r->mod_env.keynum_to_decay = 0;
+
+	float base = expect_freq(r, s, 60);
+	float peak = base * 2.0f;
+	int hold = env_samples(r->mod_env.hold_timecents);
+	int decay = env_samples(r->mod_env.decay_timecents);
+
+	synth_silence(synth, 1);
+	if (!sf64_synth_note_on(synth, 0, 60, 100)) {
+		printf("FAILED modenv: note_on\n");
+		goto fail_me;
+	}
+	int dl = sf64_synth_process(synth, 0);
+	if (dl != hold) {
+		printf("FAILED modenv: deadline %d want hold %d\n", dl, hold);
+		goto fail_me;
+	}
+	// Measure during hold so the playhead is not averaging a running Hz ramp.
+	if (!check_freq(synth, "modenv peak", peak))
+		goto fail_me;
+	// Keep synth time in sync with the samples just mixed by check_freq.
+	sf64_synth_process(synth, 512);
+
+	int left = hold - 512;
+	if (left > 0) {
+		mix(left);
+		sf64_synth_process(synth, left);
+	}
+	dl = sf64_synth_process(synth, 0);
+	if (dl != decay) {
+		printf("FAILED modenv: after hold deadline %d want decay %d\n", dl, decay);
+		goto fail_me;
+	}
+	mix(decay);
+	sf64_synth_process(synth, decay);
+	if (!check_freq(synth, "modenv after decay", base))
+		goto fail_me;
+
+	// Attack 0→peak: first half slower than second (SF2 convex in cents).
+	r->mod_env.attack_timecents = samples_to_timecents(2048);
+	r->mod_env.hold_timecents = -12000;
+	r->mod_env.decay_timecents = -12000;
+	r->mod_env.sustain_gain = 1.0f;
+	int attack = env_samples(r->mod_env.attack_timecents);
+	synth_silence(synth, 1);
+	sf64_synth_note_on(synth, 0, 60, 100);
+	dl = sf64_synth_process(synth, 0);
+	if (dl != attack) {
+		printf("FAILED modenv attack: deadline %d want %d\n", dl, attack);
+		goto fail_me;
+	}
+	double p0 = mixer_ch_get_pos(CH);
+	mix(attack / 2);
+	double p1 = mixer_ch_get_pos(CH);
+	mix(attack / 2);
+	double p2 = mixer_ch_get_pos(CH);
+	double a0 = p1 - p0, a1 = p2 - p1;
+	if (a0 >= a1) {
+		printf("FAILED modenv attack: first-half advance %.2f >= second %.2f\n",
+			a0, a1);
+		goto fail_me;
+	}
+
+	r->amp_env = save_amp;
+	r->mod_env = save_mod;
+	r->mod_env_to_pitch = save_pitch;
+	sf64_synth_close(synth);
+	return true;
+
+fail_me:
+	r->amp_env = save_amp;
+	r->mod_env = save_mod;
+	r->mod_env_to_pitch = save_pitch;
+	sf64_synth_close(synth);
+	return false;
+}
+
 static bool test_synth_multiphase(sf64_bank_t *bank)
 {
 	sf64_synth_t *synth = sf64_synth_create(bank);
@@ -2871,6 +2977,7 @@ int main(void)
 	printf("tests for fixed bugs\n");
 	fflush(stdout);
 	total++; if (!test_synth_delay_hold(bank)) failed++;
+	total++; if (!test_synth_modenv(bank)) failed++;
 	total++; if (!test_synth_multiphase(bank)) failed++;
 	total++; if (!test_synth_oneshot_reclaim(bank)) failed++;
 	total++; if (!test_synth_drum_channel(bank)) failed++;
