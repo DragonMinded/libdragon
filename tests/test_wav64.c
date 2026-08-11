@@ -866,6 +866,208 @@ static bool test_mixer_loop(void)
 }
 
 //////////////////////////////////////////////////////////////////////////////
+// Reconfigure after the samplebuffer is no longer configured for the wave
+//
+// mixer_ch_play skips set_unit_bytes when wave_uuid still matches. Several
+// paths close/reinit the ring (or just the stereo-R one) without clearing that
+// uuid: the next play of the same waveform then leaves unit_bytes at 0 and
+// mixer_channel_window divides by it. The start hook records the ring so the
+// tests can observe the state without going through Mixer internals.
+//////////////////////////////////////////////////////////////////////////////
+
+static samplebuffer_t *ru_sbuf;
+
+static void ru_start(void *ctx, samplebuffer_t *sbuf)
+{
+	(void)ctx;
+	ru_sbuf = sbuf;
+}
+
+// Drop any ring left by a previous test and forget the waveform uuid so the
+// next play is a full configure. set_limits closes the buffer when the limit
+// actually changes.
+static void ru_reset(waveform_t *w)
+{
+	sv_silence();
+	w->__uuid = 0;
+	w->start = ru_start;
+	mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 2048);
+	mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+	mixer_ch_set_limits(SV_CHANNEL + 1, 0, 48000, 2048);
+	mixer_ch_set_limits(SV_CHANNEL + 1, 0, 0, 0);
+	ru_sbuf = NULL;
+}
+
+// End state of "ring closed and reinited, configure skipped": uuid and wave
+// pointer still say this waveform, but unit_bytes is 0. Replay must restore it.
+static bool test_mixer_stale_unit_bytes(void)
+{
+	waveform_t *w = &sv_wave;
+	WaveformStart prev = w->start;
+	ru_reset(w);
+
+	mixer_ch_play(SV_CHANNEL, w);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	if (!ru_sbuf || ru_sbuf->unit_bytes == 0) {
+		printf("FAILED stale unit_bytes: first play did not configure the ring\n");
+		w->start = prev;
+		return false;
+	}
+	samplebuffer_t *sbuf = ru_sbuf;
+	int ub = sbuf->unit_bytes;
+
+	mixer_ch_stop(SV_CHANNEL);
+	// step=0 so mixer_refresh_max_ns does not divide by the zeroed unit_bytes
+	// during the next play (the bug would otherwise teq there already).
+	mixer_ch_set_freq(SV_CHANNEL, 0);
+	sbuf->unit_bytes = 0;
+
+	ru_sbuf = NULL;
+	mixer_ch_play(SV_CHANNEL, w);
+	w->start = prev;
+
+	if (sbuf->unit_bytes == 0) {
+		printf("FAILED stale unit_bytes: replay of %s left unit_bytes=0 "
+			"(uuid reuse without reconfigure)\n", w->name);
+		sbuf->unit_bytes = ub;
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+	if (sbuf->unit_bytes != ub) {
+		printf("FAILED stale unit_bytes: unit_bytes %d, expected %d\n",
+			sbuf->unit_bytes, ub);
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+
+	mixer_ch_set_freq(SV_CHANNEL, SV_FREQ);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	sv_mix(2048);
+	sv_mix(4096);
+	if (!sv_check_lr("stale unit_bytes", 4096))
+		return false;
+	return true;
+}
+
+// mixer_ch_set_limits on the secondary channel frees its ring and clears only
+// that channel's uuid. Replaying the same stereo VADPCM on the owner used to
+// keep the owner's uuid, skip reconfigure, and leave R with unit_bytes=0.
+static bool test_mixer_stereo_r_reopen(void)
+{
+	waveform_t *w = &sv_wave;
+	WaveformStart prev = w->start;
+	ru_reset(w);
+
+	mixer_ch_play(SV_CHANNEL, w);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	if (!ru_sbuf || !samplebuffer_is_inited(ru_sbuf + 1) ||
+		(ru_sbuf + 1)->unit_bytes == 0) {
+		printf("FAILED stereo R reopen: first play did not configure R\n");
+		w->start = prev;
+		return false;
+	}
+	samplebuffer_t *sbuf = ru_sbuf;
+
+	mixer_ch_stop(SV_CHANNEL);
+	// Any real change closes the ring; max_buf_sz is independent of the
+	// output rate so this stays a no-op-free trigger across audio_init values.
+	mixer_ch_set_limits(SV_CHANNEL + 1, 0, 0, 2048);
+	if (samplebuffer_is_inited(sbuf + 1)) {
+		printf("FAILED stereo R reopen: set_limits did not free R\n");
+		w->start = prev;
+		return false;
+	}
+
+	ru_sbuf = NULL;
+	mixer_ch_play(SV_CHANNEL, w);
+	w->start = prev;
+
+	samplebuffer_t *cur = ru_sbuf ? ru_sbuf : sbuf;
+	if (!samplebuffer_is_inited(cur + 1) || (cur + 1)->unit_bytes == 0) {
+		printf("FAILED stereo R reopen: replay of %s left R unconfigured "
+			"(owner uuid kept after secondary ring was freed)\n", w->name);
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	sv_mix(2048);
+	sv_mix(4096);
+	if (!sv_check_lr("stereo R reopen", 4096))
+		return false;
+	return true;
+}
+
+// Same waveform again after the ring was closed and reinited while wave_uuid
+// was kept: the capacity_bytes < need path inside mixer_ch_play does exactly
+// that. We replay the end state here (close+init, wave pointer restored so the
+// debug assertf does not fire first) and require that play reconfigures.
+static bool test_mixer_realloc_same_wave(void)
+{
+	waveform_t *w = &sv_wave;
+	WaveformStart prev = w->start;
+	ru_reset(w);
+
+	mixer_ch_play(SV_CHANNEL, w);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	if (!ru_sbuf || ru_sbuf->unit_bytes == 0) {
+		printf("FAILED realloc same wave: first play did not configure the ring\n");
+		w->start = prev;
+		return false;
+	}
+	samplebuffer_t *sbuf = ru_sbuf;
+	int ub = sbuf->unit_bytes;
+	int cap = sbuf->capacity_bytes;
+	int state_size = sbuf->state_size;
+
+	mixer_ch_stop(SV_CHANNEL);
+	// End state of the capacity-too-small branch: ring reinited, unit_bytes 0,
+	// channel uuid still matching. Restoring wave avoids the assertf that
+	// currently guards this path in debug builds; without a reconfigure,
+	// unit_bytes stays 0 either way.
+	samplebuffer_close(sbuf);
+	void *ptr = malloc_uncached(cap + state_size);
+	if (!ptr) {
+		printf("FAILED realloc same wave: out of memory\n");
+		w->start = prev;
+		return false;
+	}
+	samplebuffer_init(sbuf, ptr, cap, state_size);
+	sbuf->wave = w;
+
+	ru_sbuf = NULL;
+	mixer_ch_set_freq(SV_CHANNEL, 0);
+	mixer_ch_play(SV_CHANNEL, w);
+	w->start = prev;
+
+	if (sbuf->unit_bytes == 0) {
+		printf("FAILED realloc same wave: replay of %s left unit_bytes=0 "
+			"after close+reinit with uuid kept\n", w->name);
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+	if (sbuf->unit_bytes != ub) {
+		printf("FAILED realloc same wave: unit_bytes %d, expected %d\n",
+			sbuf->unit_bytes, ub);
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+	if (!ru_sbuf) {
+		printf("FAILED realloc same wave: configure/start did not run on replay\n");
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+
+	mixer_ch_set_freq(SV_CHANNEL, SV_FREQ);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	sv_mix(2048);
+	sv_mix(4096);
+	if (!sv_check_lr("realloc same wave", 4096))
+		return false;
+	return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // Streamed mono PCM through the mixer
 //
 // Covers two bugs that only show up with uncompressed PCM (the path XM takes
@@ -3069,6 +3271,9 @@ int main(void)
     total++; if (!test_mixer_stop_releases_sub()) failed++;
     total++; if (!test_mixer_switch_waveform()) failed++;
     total++; if (!test_mixer_loop()) failed++;
+    total++; if (!test_mixer_stale_unit_bytes()) failed++;
+    total++; if (!test_mixer_stereo_r_reopen()) failed++;
+    total++; if (!test_mixer_realloc_same_wave()) failed++;
 
     // The same stream at the narrower widths. Frames get shorter, so every
     // size and offset the mixer derives from them changes with the width.

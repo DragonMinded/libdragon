@@ -1016,8 +1016,9 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		(c->flags & (CH_FLAGS_VADPCM|CH_FLAGS_STEREO)) == (CH_FLAGS_VADPCM|CH_FLAGS_STEREO);
 	if (!resident && stereo_vadpcm) {
 		// Only reuse the pair if it was allocated as a pair and is still intact
-		// (mixer_ch_set_limits frees just the primary ring).
-		if (!was_stereo_vadpcm || !samplebuffer_is_inited(sbuf)) {
+		// (mixer_ch_set_limits frees one ring of the pair, either of them).
+		if (!was_stereo_vadpcm || !samplebuffer_is_inited(sbuf) ||
+			!samplebuffer_is_inited(&Mixer.ch_buf[ch+1])) {
 			rspq_highpri_sync();
 			samplebuffer_close(sbuf);
 			samplebuffer_close(&Mixer.ch_buf[ch+1]);
@@ -1071,8 +1072,13 @@ void mixer_ch_play(int ch, waveform_t *wave)
 		}
 	}
 
-	// Configure the waveform on this channel, if we have not already.
-	if (wave->__uuid != c->wave_uuid || (c->flags & CH_FLAGS_RESIDENT) != (resident ? CH_FLAGS_RESIDENT : 0)) {
+	// Configure the waveform on this channel, if we have not already. The uuid
+	// alone is not enough: the ring can have been closed and reallocated just
+	// above, and is then no longer configured for this waveform even though the
+	// channel still remembers playing it.
+	bool configured = resident || (sbuf->wave == wave && sbuf->unit_bytes);
+	if (!configured || wave->__uuid != c->wave_uuid ||
+		(c->flags & CH_FLAGS_RESIDENT) != (resident ? CH_FLAGS_RESIDENT : 0)) {
 		if (!resident) {
 			samplebuffer_flush(sbuf);
 			// Stereo VADPCM keeps a second ring on ch+1, which is reconfigured
