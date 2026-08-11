@@ -302,10 +302,22 @@ int mid_convert(const char *infn, const char *outfn)
 	uint64_t cur_us_tick = 0;
 	uint64_t us_rem = 0;
 	uint64_t duration_us = 0;
+	// (us_rem + delta * tempo_us) / division without __int128 (MinGW).
+	// division ≤ 0x7FFF and tempo_us ≤ 0xFFFFFF, so the tick remainder
+	// times tempo always fits in 64 bits; only the quotient term can
+	// overflow on pathological files, in which case we saturate.
 	auto add_us = [&](uint64_t delta) {
-		unsigned __int128 num = us_rem + (unsigned __int128)delta * tempo_us;
-		duration_us += (uint64_t)(num / division);
-		us_rem = (uint64_t)(num % division);
+		uint64_t q = delta / division;
+		uint64_t r = delta % division;
+		if (q && tempo_us > UINT64_MAX / q)
+			duration_us = UINT64_MAX;
+		else if (duration_us > UINT64_MAX - q * tempo_us)
+			duration_us = UINT64_MAX;
+		else
+			duration_us += q * tempo_us;
+		uint64_t num = us_rem + r * tempo_us;
+		duration_us += num / division;
+		us_rem = num % division;
 	};
 	for (auto &ev : events) {
 		add_us(ev.tick - cur_us_tick);
