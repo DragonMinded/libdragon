@@ -55,6 +55,7 @@ static float sf2_gain(int x)
 	return t * t;
 }
 
+/** Stop one mixer voice and mark it free. */
 void voice_stop(sf64_synth_t *synth, int ch)
 {
 	sf64_voice_t *v = &synth->voices[ch];
@@ -76,6 +77,7 @@ void voice_stop(sf64_synth_t *synth, int ch)
 	v->mod_env_level = 0;
 }
 
+/** Stop every voice in the synthesizer's channel range. */
 void voices_stop_all(sf64_synth_t *synth)
 {
 	if (synth->num_channels <= 0)
@@ -85,7 +87,7 @@ void voices_stop_all(sf64_synth_t *synth)
 		voice_stop(synth, ch);
 }
 
-/** Stealing priority for the current envelope phase (above #sf64_synth_s::priority). */
+/** Stealing priority for the current envelope phase (above #sf64_synth_t::priority). */
 static int voice_priority(sf64_synth_t *synth, const sf64_voice_t *v)
 {
 	int base = synth->priority;
@@ -247,6 +249,7 @@ static void voice_apply_vol(sf64_synth_t *synth, int ch)
 	voice_set_vol(synth, ch);
 }
 
+/** Reapply volume×expression×pan to all voices on a MIDI channel. */
 void midi_apply_vol(sf64_synth_t *synth, int midi_channel)
 {
 	for (int ch = synth->first_channel;
@@ -257,6 +260,7 @@ void midi_apply_vol(sf64_synth_t *synth, int midi_channel)
 	}
 }
 
+/** Retarget pitch for all voices on a MIDI channel after a bend change. */
 void midi_apply_bend(sf64_synth_t *synth, int midi_channel)
 {
 	for (int ch = synth->first_channel;
@@ -449,6 +453,7 @@ static void voice_mod_advance_overdue(sf64_synth_t *synth, int ch)
 	}
 }
 
+/** Begin the amp (and mod) release phase for a sounding voice. */
 void voice_enter_release(sf64_synth_t *synth, int ch)
 {
 	sf64_voice_t *v = &synth->voices[ch];

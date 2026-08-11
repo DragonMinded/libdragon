@@ -74,8 +74,13 @@ typedef struct {
 	bool held_by_sustain;     ///< Sounding only because the sustain pedal is down
 } sf64_voice_t;
 
-/** @brief Opaque synthesizer state (see #sf64_synth_t). */
-struct sf64_synth_s {
+/**
+ * @brief Opaque synthesizer state.
+ *
+ * Immutable bank pointer; mutable MIDI channels and mixer voices. Not part of
+ * the public API — clients use the typedef in sf64_synth.h.
+ */
+typedef struct sf64_synth_s {
 	midi_target_t midi_target;    ///< Must be first; see #sf64_synth_midi_target
 	sf64_bank_t *bank;            ///< Bank this synth plays from
 	int first_channel;            ///< First mixer channel of the allocated range
@@ -86,7 +91,7 @@ struct sf64_synth_s {
 	sf64_synth_mode_t mode;       ///< Native vs GM1 channel semantics
 	sf64_midi_channel_t midi[SF64_MIDI_CHANNELS]; ///< Per-MIDI-channel state
 	sf64_voice_t voices[MIXER_MAX_CHANNELS]; ///< Per-mixer-channel voice state
-};
+} sf64_synth_t;
 
 /** True while the voice is in a pre-release envelope phase. */
 static inline bool voice_sounding(const sf64_voice_t *v)
@@ -107,12 +112,18 @@ static inline bool voice_key_down(const sf64_voice_t *v)
 /** #midi_target_ops_t for this synthesizer (defined in sf64_midi.c). */
 extern const midi_target_ops_t sf64_midi_ops;
 
+/** Reset every MIDI channel's program and controllers to defaults. */
 void midi_channels_reset(sf64_synth_t *synth);
 
+/** Stop one mixer voice and mark it free. */
 void voice_stop(sf64_synth_t *synth, int ch);
+/** Stop every voice in the synthesizer's channel range. */
 void voices_stop_all(sf64_synth_t *synth);
+/** Begin the amp (and mod) release phase for a sounding voice. */
 void voice_enter_release(sf64_synth_t *synth, int ch);
+/** Reapply volume×expression×pan to all voices on a MIDI channel. */
 void midi_apply_vol(sf64_synth_t *synth, int midi_channel);
+/** Retarget pitch for all voices on a MIDI channel after a bend change. */
 void midi_apply_bend(sf64_synth_t *synth, int midi_channel);
 
 #endif

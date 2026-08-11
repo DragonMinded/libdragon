@@ -97,6 +97,7 @@ static void midi_channel_reset_all(sf64_synth_t *s, int midi_channel)
 	midi_channel_reset_controllers(s, midi_channel);
 }
 
+/** Reset every MIDI channel's program and controllers to defaults. */
 void midi_channels_reset(sf64_synth_t *synth)
 {
 	for (int i = 0; i < SF64_MIDI_CHANNELS; i++)
