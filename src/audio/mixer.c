@@ -1075,8 +1075,16 @@ void mixer_ch_play(int ch, waveform_t *wave)
 	// Configure the waveform on this channel, if we have not already. The uuid
 	// alone is not enough: the ring can have been closed and reallocated just
 	// above, and is then no longer configured for this waveform even though the
-	// channel still remembers playing it.
+	// channel still remembers playing it. VADPCM residual width can also change
+	// on the same waveform object (same uuid): unit_bytes and vbits must track it.
 	bool configured = resident || (sbuf->wave == wave && sbuf->unit_bytes);
+	if (configured && !resident && vadpcm) {
+		int ub = mixer_vadpcm_frame_bytes(wave);
+		int bits = ((const waveform_vadpcm_t *)wave->codec)->bits;
+		if (sbuf->unit_bytes != ub || c->vbits != bits ||
+			(stereo_vadpcm && Mixer.ch_buf[ch+1].unit_bytes != ub))
+			configured = false;
+	}
 	if (!configured || wave->__uuid != c->wave_uuid ||
 		(c->flags & CH_FLAGS_RESIDENT) != (resident ? CH_FLAGS_RESIDENT : 0)) {
 		if (!resident) {

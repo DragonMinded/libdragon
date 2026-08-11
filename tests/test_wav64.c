@@ -591,7 +591,8 @@ static void sv_init(void)
 }
 
 // The frames are generated on the fly, so switching the residual width of the
-// streamed waveforms is just a matter of telling generator and mixer about it.
+// streamed waveforms updates the shared codec; mixer_ch_play must pick up the
+// new VADPCM frame size even though the waveform uuid is unchanged.
 static void sv_set_bits(int bits)
 {
     sv_bits = bits;
