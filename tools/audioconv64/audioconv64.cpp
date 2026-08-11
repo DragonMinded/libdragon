@@ -27,7 +27,7 @@
 #include "../common/assetcomp.h"
 #include "audioconv64.h"
 
-bool flag_verbose = false;
+int flag_verbose = 0;
 bool flag_debug = false;
 static bool had_error = false;
 
@@ -235,7 +235,7 @@ int main(int argc, char *argv[]) {
 	for (i=1; i<argc; i++) {
 		if (argv[i][0] == '-') {	
 			if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
-				flag_verbose = true;
+				flag_verbose++;
 			} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 				usage();
 				return 0;

@@ -60,7 +60,7 @@ typedef struct {
 } wav_data_t;
 
 // Global options
-extern bool flag_verbose;
+extern int flag_verbose;
 extern bool flag_debug;
 
 // WAV options

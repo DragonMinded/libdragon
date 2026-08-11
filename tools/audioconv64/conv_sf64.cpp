@@ -96,12 +96,31 @@ static bool env_used(const struct tsf_envelope *e)
 	return e->sustain < 0.999f;
 }
 
-static void warn_unsupported(const char *preset, int region, const char *feat, std::set<std::string> &seen)
+static void note_unsupported(const char *preset, const char *feat,
+	std::map<std::string, std::set<std::string>> &warns)
 {
-	std::string key = std::string(feat) + "@" + preset;
-	if (!seen.insert(key).second) return;
-	fprintf(stderr, "WARNING: SF2 preset '%s' region %d: ignoring unsupported %s\n",
-		preset, region, feat);
+	warns[feat].insert(preset);
+}
+
+static void flush_unsupported(const std::map<std::string, std::set<std::string>> &warns)
+{
+	const size_t max_names = flag_verbose >= 2 ? SIZE_MAX : 10;
+	for (auto &kv : warns) {
+		fprintf(stderr, "WARNING: SF2 ignoring unsupported %s (%zu instruments):",
+			kv.first.c_str(), kv.second.size());
+		const char *sep = " ";
+		size_t n = 0;
+		for (auto &name : kv.second) {
+			if (n >= max_names) {
+				fprintf(stderr, ", ...");
+				break;
+			}
+			fprintf(stderr, "%s%s", sep, name.c_str());
+			sep = ", ";
+			n++;
+		}
+		fprintf(stderr, "\n");
+	}
 }
 
 static void write_env(FILE *f, const sf64_envelope_t *e)
@@ -129,7 +148,7 @@ int sf_convert(const char *infn, const char *outfn)
 	std::vector<sf64_sample_t> samples;
 	std::vector<std::string> names;
 	std::map<uint64_t, int> sample_by_hash;
-	std::set<std::string> warn_seen;
+	std::map<std::string, std::set<std::string>> warn_feats;
 	int64_t raw_pcm_bytes = 0;
 	int64_t unique_pcm_bytes = 0;
 	int64_t embedded_wav = 0;
@@ -163,15 +182,15 @@ int sf_convert(const char *infn, const char *outfn)
 			struct tsf_region *r = &p->regions[ri];
 
 			if (r->initialFilterFc != 13500 || r->initialFilterQ != 0)
-				warn_unsupported(p->presetName, ri, "filter", warn_seen);
+				note_unsupported(p->presetName, "filter", warn_feats);
 			if (r->modEnvToFilterFc)
-				warn_unsupported(p->presetName, ri, "modEnvToFilterFc", warn_seen);
+				note_unsupported(p->presetName, "modEnvToFilterFc", warn_feats);
 			if (env_used(&r->modenv) && !r->modEnvToPitch && !r->modEnvToFilterFc)
-				warn_unsupported(p->presetName, ri, "modulation envelope", warn_seen);
+				note_unsupported(p->presetName, "modulation envelope", warn_feats);
 			if (r->modLfoToPitch || r->modLfoToFilterFc || r->modLfoToVolume || r->freqModLFO)
-				warn_unsupported(p->presetName, ri, "modulation LFO", warn_seen);
+				note_unsupported(p->presetName, "modulation LFO", warn_feats);
 			if (r->vibLfoToPitch || r->freqVibLFO)
-				warn_unsupported(p->presetName, ri, "vibrato LFO", warn_seen);
+				note_unsupported(p->presetName, "vibrato LFO", warn_feats);
 
 			unsigned int start = r->offset;
 			unsigned int end = r->end;
@@ -367,7 +386,12 @@ int sf_convert(const char *infn, const char *outfn)
 	placeholder_clear();
 	fclose(out);
 
+	flush_unsupported(warn_feats);
+
 	if (flag_verbose) {
+		int nwarn = 0;
+		for (auto &kv : warn_feats)
+			nwarn += (int)kv.second.size();
 		fprintf(stderr, "Converting: %s => %s\n", infn, outfn);
 		fprintf(stderr, "  SF2 presets selected:     %zu\n", presets.size());
 		fprintf(stderr, "  resolved regions:         %zu\n", regions.size());
@@ -375,7 +399,7 @@ int sf_convert(const char *infn, const char *outfn)
 		fprintf(stderr, "  embedded WAV64 size:      %lld KiB\n", (long long)(embedded_wav / 1024));
 		fprintf(stderr, "  deduplicated size saved:  %lld KiB\n",
 			(long long)((raw_pcm_bytes - unique_pcm_bytes) / 1024));
-		fprintf(stderr, "  unsupported generators:   %d\n", (int)warn_seen.size());
+		fprintf(stderr, "  unsupported generators:   %d\n", nwarn);
 		fprintf(stderr, "  stereo voices:            0\n");
 	}
 
