@@ -971,13 +971,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				fprintf(stderr, "  writing uncompressed file %s\n", wav2fn);
 
 			out = fopen(outfn, "rb");
-			fseek(out, 20, SEEK_SET);
-			int start_offset = 0;
-			start_offset |= fgetc(out) << 24;
-			start_offset |= fgetc(out) << 16;
-			start_offset |= fgetc(out) << 8;
-			start_offset |= fgetc(out);
-			fseek(out, start_offset, SEEK_SET);
+			fseek(out, samples_start, SEEK_SET);
 			OpusCustomDecoder *dec = opus_custom_decoder_create(
 					custom_mode, wav->channels, &err);
 			if (err != OPUS_OK) {
