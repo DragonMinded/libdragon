@@ -258,8 +258,8 @@ inline void __profile_record(int slot, int32_t len) {
 			   __profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot); }))
 #else
 	///@cond
-	#define PROFILE_START(slot, ...)  ((void)(false), false)
-	#define PROFILE_STOP(slot, ...)   ((void)(false), false)
+	#define PROFILE_START(slot, ...)  ((void)0)
+	#define PROFILE_STOP(slot, ...)   ((void)0)
 	#define PROFILE_SCOPE(slot)     for (bool __prof_once_##slot = true; __prof_once_##slot; __prof_once_##slot = false)
 	///@endcond
 
