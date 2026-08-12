@@ -47,12 +47,14 @@ struct mid64player_s {
 	int64_t event_sample;		///< Absolute sample of last peeked delta
 	int64_t next_midi_sample;	///< Absolute sample of next MIDI event
 	int64_t scheduled_sample;	///< Absolute sample of current MixerEvent
+	int64_t soft_sample;		///< Absolute sample advanced by soft events
 	int64_t song_start_sample;	///< Absolute sample at start of this loop iter
 	bool pending;				///< VLQ peeked; payload not yet dispatched
 
 	midi_target_t *target;
 	bool playing;
 	bool stop_requested;
+	bool soft_on;				///< Soft event currently registered
 	bool looping;
 };
 
@@ -210,13 +212,41 @@ static void mid64_loop_restart(mid64player_t *p, int64_t now)
 	mid64_peek_next(p);
 }
 
-/** Tear down playback state; caller must already have removed the MixerEvent. */
+static void mid64_soft(void *arg, int round_ns);
+
+/** Tear down playback state; caller must already have removed the hard MixerEvent. */
 static void mid64_do_stop(mid64player_t *p, int64_t now)
 {
+	if (p->soft_on) {
+		mixer_remove_soft_event(mid64_soft, p);
+		p->soft_on = false;
+	}
 	if (p->target->ops->reset)
 		p->target->ops->reset(p->target, now);
 	p->playing = false;
 	p->stop_requested = false;
+}
+
+/** Per-round soft: advance synth envelopes without splitting mix rounds. */
+static void mid64_soft(void *arg, int round_ns)
+{
+	mid64player_t *p = arg;
+	if (!p->playing)
+		return;
+
+	p->soft_sample += round_ns;
+	int64_t next = INT64_MAX;
+	PROFILE_START(PS_MID_PROCESS);
+	if (p->target->ops->process)
+		next = p->target->ops->process(p->target, p->soft_sample);
+	PROFILE_STOP(PS_MID_PROCESS);
+
+	// MIDI finished: keep soft until release tails drain, then deregister.
+	if (p->next_midi_sample == INT64_MAX && next == INT64_MAX) {
+		p->playing = false;
+		p->soft_on = false;
+		mixer_remove_soft_event(mid64_soft, p);
+	}
 }
 
 static int mid64_tick(void *arg)
@@ -232,11 +262,13 @@ static int mid64_tick(void *arg)
 		goto done;
 	}
 
-	// Sync synth clock / envelopes to this sample before MIDI at `now`.
-	PROFILE_START(PS_MID_PROCESS);
-	if (p->target->ops->process)
+	// Soft may not have reached this hard boundary yet (e.g. first tick at 0).
+	if (p->soft_sample < now && p->target->ops->process) {
+		PROFILE_START(PS_MID_PROCESS);
 		p->target->ops->process(p->target, now);
-	PROFILE_STOP(PS_MID_PROCESS);
+		PROFILE_STOP(PS_MID_PROCESS);
+	}
+	p->soft_sample = now;
 
 	PROFILE_SCOPE(PS_MID_DISPATCH) {
 		while (p->next_midi_sample <= now) {
@@ -247,8 +279,7 @@ static int mid64_tick(void *arg)
 					mid64_loop_restart(p, now);
 					continue;
 				}
-				// Natural end: release musically, then keep scheduling process()
-				// until the synth has no pending deadlines.
+				// Natural end: release musically; soft drains envelope tails.
 				if (p->target->ops->finish)
 					p->target->ops->finish(p->target, now);
 				p->next_midi_sample = INT64_MAX;
@@ -257,23 +288,16 @@ static int mid64_tick(void *arg)
 		}
 	}
 
-	int64_t synth_next = INT64_MAX;
-	PROFILE_START(PS_MID_PROCESS, 1);
-	if (p->target->ops->process)
-		synth_next = p->target->ops->process(p->target, now);
-	PROFILE_STOP(PS_MID_PROCESS, 1);
-
-	int64_t next = p->next_midi_sample < synth_next ? p->next_midi_sample : synth_next;
-	if (next == INT64_MAX) {
-		p->playing = false;
+	if (p->next_midi_sample == INT64_MAX) {
+		// Hard MIDI done; soft keeps running until the synth is idle.
 		delay = 0;
 		goto done;
 	}
 
-	int64_t d = next - now;
+	int64_t d = p->next_midi_sample - now;
 	assertf(d > 0, "MID64: non-positive mixer delay");
 	if (d > INT_MAX) d = INT_MAX;
-	p->scheduled_sample = next;
+	p->scheduled_sample = p->next_midi_sample;
 	delay = (int)d;
 done: ;
 	}
@@ -393,6 +417,7 @@ void mid64player_play(mid64player_t *player, midi_target_t *target)
 	player->timing_remainder = 0;
 	player->event_sample = 0;
 	player->scheduled_sample = 0;
+	player->soft_sample = 0;
 	player->song_start_sample = 0;
 	mid64_peek_next(player);
 
@@ -400,6 +425,8 @@ void mid64player_play(mid64player_t *player, midi_target_t *target)
 		target->ops->reset(target, 0);
 
 	player->playing = true;
+	player->soft_on = true;
+	mixer_add_soft_event(mid64_soft, player);
 	mixer_add_event(0, mid64_tick, player);
 }
 
