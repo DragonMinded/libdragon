@@ -59,8 +59,7 @@ void vadpcm_make_codebook(size_t frame_count, int predictor_count,
     for (int i = 0; i < predictor_count; i++) {
         if (count[i] > 0) {
             double coeff[2];
-            vadpcm_solve(pcorr[i], coeff);
-            vadpcm_stabilize(coeff);
+            vadpcm_solve_stable(pcorr[i], coeff);
             vadpcm_make_vectors(coeff, codebook + 2 * i);
         } else {
             memset(codebook + 2 * i, 0, sizeof(struct vadpcm_vector) * 2);
@@ -83,6 +82,7 @@ void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                         const int16_t *restrict src,
                         const uint8_t *restrict predictors,
                         const struct vadpcm_vector *restrict codebook,
+                        vadpcm_dither dither,
                         int min_residual, int max_residual,
                         struct vadpcm_stats *restrict stats,
                         struct vadpcm_encoder_state *restrict encoder_state) {
@@ -144,6 +144,10 @@ void vadpcm_encode_data(size_t frame_count, void *restrict dest,
             rng_state = init_state;
             uint8_t fout[8];
             double error = 0.0;
+            // Half a quantization step, which turns the truncating shift below
+            // into a round to nearest. Dither replaces this with a random
+            // value covering the same range.
+            int round_bias = shift > 0 ? 1 << (shift - 1) : 0;
             s0 = state[0];
             s1 = state[1];
             for (int vector = 0; vector < 2; vector++) {
@@ -154,8 +158,17 @@ void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                     s = src[frame * 16 + vector * 8 + i];
                     a = accumulator[i] >> 11;
                     // Calculate the residual, encode as 4 bits.
-                    int bias = (rng_state >> 16) >> (16 - shift);
-                    rng_state = vadpcm_rng(rng_state);
+                    int bias;
+                    if (dither == kVADPCMDitherRectangular) {
+                        // Uniform over [0, 2^shift), which makes the
+                        // truncating shift below round up with a probability
+                        // equal to how far the residual sits between its two
+                        // representable neighbors.
+                        bias = (rng_state >> 16) >> (16 - shift);
+                        rng_state = vadpcm_rng(rng_state);
+                    } else {
+                        bias = round_bias;
+                    }
                     r = (s - a + bias) >> shift;
                     if (r > max_residual) {
                         r = max_residual;
@@ -220,6 +233,10 @@ vadpcm_error vadpcm_encode(const struct vadpcm_params *restrict params,
     if (predictor_count < 1 || kVADPCMMaxPredictorCount < predictor_count) {
         return kVADPCMErrInvalidParams;
     }
+    vadpcm_dither dither = params->dither;
+    if (dither != kVADPCMDitherNone && dither != kVADPCMDitherRectangular) {
+        return kVADPCMErrInvalidParams;
+    }
     if (min_residual < -8 || max_residual > 7 || min_residual > max_residual) {
         return kVADPCMErrInvalidParams;
     }
@@ -266,7 +283,7 @@ vadpcm_error vadpcm_encode(const struct vadpcm_params *restrict params,
         // Encode.
         struct vadpcm_stats stats_buf;
         struct vadpcm_encoder_state encoder_state = {{0, 0}, 0};
-        vadpcm_encode_data(frame_count, dest, src, predictors, codebook,
+        vadpcm_encode_data(frame_count, dest, src, predictors, codebook, dither,
                            min_residual, max_residual,
                            stats != NULL ? stats : &stats_buf, &encoder_state);
     }

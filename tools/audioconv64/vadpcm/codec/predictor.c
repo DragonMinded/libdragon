@@ -5,6 +5,7 @@
 
 #include "codec/vadpcm.h"
 
+#include <float.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -40,9 +41,8 @@ void vadpcm_best_error(size_t frame_count, const float (*restrict corr)[6],
             fcorr[i] = (double)corr[frame][i];
         }
         double coeff[2];
-        vadpcm_solve(fcorr, coeff);
         float error;
-        if (vadpcm_stabilize(coeff) == 0) {
+        if (vadpcm_solve_stable(fcorr, coeff) == 0) {
             error = (float)vadpcm_eval_solved(fcorr, coeff);
         } else {
             float fcoeff[2] = {(float)coeff[0], (float)coeff[1]};
@@ -98,7 +98,14 @@ void vadpcm_solve(const double *restrict corr, double *restrict coeff) {
     //
     // D v + C = 0.
 
-    double rel_epsilon = 1.0 / 4096.0;
+    // The autocorrelation matrix is accumulated in single precision, so its
+    // entries carry roughly 1e-7 relative accuracy, and a pivot smaller than
+    // that is noise. This solve runs in double precision, so there is no
+    // reason to give up any earlier than that. Bailing out sooner is not
+    // conservative: a smooth signal is an ill-conditioned system precisely
+    // because consecutive samples are correlated, which is when second-order
+    // prediction is worth the most.
+    double rel_epsilon = 1.0e-5;
     coeff[0] = 0.0;
     coeff[1] = 0.0;
 
@@ -204,6 +211,83 @@ int vadpcm_stabilize(double *restrict coeff) {
     return 0;
 }
 
+// Calculate the square error for a pair of coefficients. This is vadpcm_eval,
+// in double precision.
+static double vadpcm_eval_at(const double *restrict corr, double c0,
+                             double c1) {
+    return corr[0] + corr[2] * c0 * c0 + corr[5] * c1 * c1 +
+           2.0 * (corr[4] * c0 * c1 - corr[1] * c0 - corr[3] * c1);
+}
+
+// Minimize the square error over the segment from (x0,y0) to (x1,y1). If the
+// minimum is lower than *best_error, record it there and in coeff.
+static void vadpcm_solve_edge(const double *restrict corr, double x0, double y0,
+                              double x1, double y1,
+                              double *restrict best_error,
+                              double *restrict coeff) {
+    // Writing the matrix as [k B^T; B A], the error along p + t v is a
+    // quadratic in t,
+    //
+    // g(t) = g(0) + 2 t (v^T A p - B^T v) + t^2 v^T A v
+    //
+    // which is minimized at t = v^T (B - A p) / (v^T A v).
+    double vx = x1 - x0, vy = y1 - y0;
+    double apx = corr[2] * x0 + corr[4] * y0;
+    double apy = corr[4] * x0 + corr[5] * y0;
+    double num = vx * (corr[1] - apx) + vy * (corr[3] - apy);
+    double den = vx * (corr[2] * vx + corr[4] * vy) +
+                 vy * (corr[4] * vx + corr[5] * vy);
+    double t;
+    if (den > 0.0) {
+        t = num / den;
+        if (t < 0.0) {
+            t = 0.0;
+        } else if (t > 1.0) {
+            t = 1.0;
+        }
+    } else {
+        // The matrix is positive semidefinite, so v^T A v is never negative,
+        // and zero means the error is linear along this edge. Take whichever
+        // endpoint the gradient points toward.
+        t = num > 0.0 ? 1.0 : 0.0;
+    }
+    double c0 = x0 + t * vx, c1 = y0 + t * vy;
+    double error = vadpcm_eval_at(corr, c0, c1);
+    if (error < *best_error) {
+        *best_error = error;
+        coeff[0] = c0;
+        coeff[1] = c1;
+    }
+}
+
+int vadpcm_solve_stable(const double *restrict corr, double *restrict coeff) {
+    vadpcm_solve(corr, coeff);
+    // A second-order predictor is stable exactly when its coefficients lie
+    // within the triangle with vertices (2,-1), (-2,-1), and (0,1).
+    if (coeff[1] >= -1.0 && coeff[0] + coeff[1] <= 1.0 &&
+        coeff[1] - coeff[0] <= 1.0) {
+        return 0;
+    }
+    // The error is a convex quadratic and the triangle is convex, so the
+    // constrained minimum lies on an edge. Minimize along each of the three
+    // edges and keep the best result.
+    //
+    // Note that the coefficients land on the boundary of the triangle, which
+    // is marginally stable rather than strictly stable. Contracting the
+    // triangle to leave a margin is not worthwhile: vadpcm_make_vectors
+    // rounds the coefficients onto a 1/2048 grid, and near the (2,-1) vertex
+    // the poles move as the square root of that perturbation, so no margin
+    // survives quantization until it is large enough to cost real accuracy on
+    // low-frequency signals.
+    double best_error = DBL_MAX;
+    coeff[0] = 0.0;
+    coeff[1] = 0.0;
+    vadpcm_solve_edge(corr, -2.0, -1.0, 2.0, -1.0, &best_error, coeff);
+    vadpcm_solve_edge(corr, 2.0, -1.0, 0.0, 1.0, &best_error, coeff);
+    vadpcm_solve_edge(corr, 0.0, 1.0, -2.0, -1.0, &best_error, coeff);
+    return 1;
+}
+
 // Refine (improve) the existing predictor assignments. Does not assign
 // unassigned predictors. Record the amount of error, squared, for each frame.
 // Returns the index of an unassigned predictor, or predictor_count, if no
@@ -223,8 +307,7 @@ static int vadpcm_refine_predictors(size_t frame_count, int predictor_count,
     for (int i = 0; i < predictor_count; i++) {
         if (count[i] > 0) {
             double dcoeff[2];
-            vadpcm_solve(pcorr[i], dcoeff);
-            vadpcm_stabilize(dcoeff);
+            vadpcm_solve_stable(pcorr[i], dcoeff);
             for (int j = 0; j < 2; j++) {
                 coeff[active_count][j] = (float)dcoeff[j];
             }
