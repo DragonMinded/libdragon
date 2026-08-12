@@ -3,20 +3,24 @@ include $(N64_INST)/include/n64.mk
 
 OBJS = $(BUILD_DIR)/audioplayer.o
 
-assets_xm1 = $(wildcard assets/*.xm)
-assets_xm2 = $(wildcard assets/*.XM)
-assets_ym1 = $(wildcard assets/*.ym)
-assets_ym2 = $(wildcard assets/*.YM)
-assets_mid = $(wildcard assets/*.MID) $(wildcard assets/*.mid)
+assets_xm = $(wildcard assets/*.xm) $(wildcard assets/*.XM)
+assets_ym = $(wildcard assets/*.ym) $(wildcard assets/*.YM)
+assets_mid = $(wildcard assets/*.mid) $(wildcard assets/*.MID)
 assets_sf2 = $(wildcard assets/*.sf2) $(wildcard assets/*.SF2)
+
+assets_xm64 = $(patsubst assets/%.xm,filesystem/%.xm64,$(filter %.xm,$(assets_xm))) \
+			   $(patsubst assets/%.XM,filesystem/%.xm64,$(filter %.XM,$(assets_xm)))
+assets_ym64 = $(patsubst assets/%.ym,filesystem/%.ym64,$(filter %.ym,$(assets_ym))) \
+			   $(patsubst assets/%.YM,filesystem/%.ym64,$(filter %.YM,$(assets_ym)))
 assets_mid64 = $(patsubst assets/%.mid,filesystem/%.mid64,$(filter %.mid,$(assets_mid))) \
                $(patsubst assets/%.MID,filesystem/%.mid64,$(filter %.MID,$(assets_mid)))
-assets_conv = $(addprefix filesystem/,$(notdir $(assets_xm1:%.xm=%.xm64))) \
-              $(addprefix filesystem/,$(notdir $(assets_xm2:%.XM=%.xm64))) \
-              $(addprefix filesystem/,$(notdir $(assets_ym1:%.ym=%.ym64))) \
-              $(addprefix filesystem/,$(notdir $(assets_ym2:%.YM=%.ym64))) \
+assets_sf64 = $(patsubst assets/%.sf2,filesystem/%.sf64,$(filter %.sf2,$(assets_sf2))) \
+               $(patsubst assets/%.SF2,filesystem/%.sf64,$(filter %.SF2,$(assets_sf2)))
+
+assets_conv = $(assets_xm64) \
+			  $(assets_ym64) \
               $(assets_mid64) \
-              $(addprefix filesystem/,$(notdir $(assets_sf2:%.sf2=%.sf64)))
+              $(assets_sf64)
 
 #AUDIOCONV_FLAGS ?= --xm-ext-samples filesystem/samples
 
@@ -54,6 +58,10 @@ filesystem/%.mid64: assets/%.MID
 
 # Hardcoded GM bank for MID64 playback (samples stream from ROM).
 filesystem/%.sf64: assets/%.sf2
+	@mkdir -p $(dir $@)
+	@echo "    [AUDIO] $@"
+	@$(N64_AUDIOCONV) --sf-compress 1 -o filesystem "$<"
+filesystem/%.sf64: assets/%.SF2
 	@mkdir -p $(dir $@)
 	@echo "    [AUDIO] $@"
 	@$(N64_AUDIOCONV) --sf-compress 1 -o filesystem "$<"
