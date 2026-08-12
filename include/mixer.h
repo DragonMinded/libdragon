@@ -221,13 +221,18 @@ void mixer_ch_set_gain(int ch, float gain);
  * reached. Duration 0, or #mixer_ch_set_gain, cancels the ramp and sets the
  * gain immediately; stopping the channel cancels it as well.
  *
+ * @p started_ago is how many output samples ago this ramp should be treated
+ * as having begun (0 = start now). Use it when catching up an envelope that
+ * was due earlier than the current mixer time.
+ *
  * @param[in]   ch              Channel index
  * @param[in]   gain            Target gain (range [0..1])
  * @param[in]   duration        Length of the ramp, in output samples
  * @param[in]   curve           Ramp curve (must not be NULL if duration > 0)
+ * @param[in]   started_ago     Samples since the ramp's logical start (>= 0)
  */
 void mixer_ch_set_gain_ramp(int ch, float gain, int duration,
-	mixer_ramp_fn_t curve);
+	mixer_ramp_fn_t curve, int started_ago);
 
 /**
  * @brief Set channel volume (as volume and panning).
@@ -354,13 +359,18 @@ void mixer_ch_set_freq(int ch, float frequency);
  * reached. Duration 0, or #mixer_ch_set_freq, cancels the ramp and sets the
  * frequency immediately; stopping the channel cancels it as well.
  *
+ * @p started_ago is how many output samples ago this ramp should be treated
+ * as having begun (0 = start now). Use it when catching up an envelope that
+ * was due earlier than the current mixer time.
+ *
  * @param[in]   ch              Channel index
  * @param[in]   frequency       Target playback frequency (Hz)
  * @param[in]   duration        Length of the ramp, in output samples
  * @param[in]   curve           Ramp curve (must not be NULL if duration > 0)
+ * @param[in]   started_ago     Samples since the ramp's logical start (>= 0)
  */
 void mixer_ch_set_freq_ramp(int ch, float frequency, int duration,
-	mixer_ramp_fn_t curve);
+	mixer_ramp_fn_t curve, int started_ago);
 
 /**
  * @brief Enable or disable the sustain loop on a mixer channel.
@@ -651,6 +661,38 @@ void mixer_add_event(int64_t delay, MixerEvent cb, void *ctx);
  * @param[in]    ctx            Opaque pointer that was registered with the callback.
  */
 void mixer_remove_event(MixerEvent cb, void *ctx);
+
+/**
+ * @brief Callback invoked after every mixer round
+ *
+ * A soft event does not force the mixer to split a round or poll segment.
+ * After each round of @p round_ns output samples has been mixed, every
+ * registered soft callback is invoked with that length so clients can advance
+ * their own clocks (envelopes, sequencers) without affecting mix granularity.
+ *
+ * @param[in]   ctx             Opaque pointer from #mixer_add_soft_event
+ * @param[in]   round_ns        Output samples mixed in the round that just ended
+ */
+typedef void (*MixerSoftEvent)(void *ctx, int round_ns);
+
+/**
+ * @brief Register a per-round soft callback
+ *
+ * The callback is invoked after every mixer round until removed. It must not
+ * call #mixer_poll / #mixer_try_play.
+ *
+ * @param[in]   cb              Soft callback
+ * @param[in]   ctx             Opaque pointer passed to @p cb
+ */
+void mixer_add_soft_event(MixerSoftEvent cb, void *ctx);
+
+/**
+ * @brief Deregister a soft callback
+ *
+ * @param[in]   cb              Callback registered via #mixer_add_soft_event
+ * @param[in]   ctx             Opaque pointer registered with the callback
+ */
+void mixer_remove_soft_event(MixerSoftEvent cb, void *ctx);
 
 
 /*********************************************************************

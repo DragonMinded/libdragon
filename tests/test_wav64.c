@@ -2470,7 +2470,7 @@ static bool test_mixer_freq_ramp(void)
 	mixer_ch_set_freq(SV_CHANNEL, BL_FREQ / 2);
 	sv_mix(128);
 
-	mixer_ch_set_freq_ramp(SV_CHANNEL, BL_FREQ, nramp, mixer_ramp_linear);
+	mixer_ch_set_freq_ramp(SV_CHANNEL, BL_FREQ, nramp, mixer_ramp_linear, 0);
 	double p0 = mixer_ch_get_pos(SV_CHANNEL);
 	sv_mix(half);
 	double p1 = mixer_ch_get_pos(SV_CHANNEL);
@@ -2737,7 +2737,7 @@ static bool test_mixer_gain_ramp(void)
 	const int nramp = 4096, ntail = 1024;
 
 	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
-	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_linear);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_linear, 0);
 	sv_mix(nramp + ntail);
 	if (!vr_check_linear("gain ramp linear", nramp, 1.0f, 0.0f, vr_amp))
 		return false;
@@ -2745,7 +2745,7 @@ static bool test_mixer_gain_ramp(void)
 		return false;
 
 	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
-	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_exp);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_exp, 0);
 	sv_mix(nramp + ntail);
 	// Piecewise-linear per round: check a few interior points against the
 	// SF2 silence curve, not every sample.
@@ -2765,7 +2765,7 @@ static bool test_mixer_gain_ramp(void)
 
 	// Vol can move under a running gain ramp without restarting it.
 	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
-	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_linear);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_linear, 0);
 	sv_mix(nramp / 2);
 	int a_full = vr_amp(nramp / 2 - 32);
 	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);

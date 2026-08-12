@@ -43,6 +43,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <limits.h>
 
 /**
  * SF2.01 default modulators for note-on velocity, CC7 and CC11 → initial
@@ -212,13 +213,13 @@ static float sf64_ramp_mod_attack(float start, float end, float u)
 
 /** Push mod-env target @p level into the mixer (immediate or curved ramp). */
 static void voice_apply_mod_freq(sf64_synth_t *synth, int ch, float level,
-	int duration, mixer_ramp_fn_t curve)
+	int duration, mixer_ramp_fn_t curve, int started_ago)
 {
 	sf64_voice_t *v = &synth->voices[ch];
 	v->mod_env_level = level;
 	float hz = voice_freq_at(synth, ch, level);
 	if (duration > 0)
-		mixer_ch_set_freq_ramp(ch, hz, duration, curve);
+		mixer_ch_set_freq_ramp(ch, hz, duration, curve, started_ago);
 	else
 		mixer_ch_set_freq(ch, hz);
 }
@@ -237,7 +238,7 @@ static void voice_retarget_freq(sf64_synth_t *synth, int ch)
 		if (v->mod_phase == SF64_VOICE_ATTACK)
 			curve = sf64_ramp_mod_attack;
 	}
-	voice_apply_mod_freq(synth, ch, v->mod_env_level, rem, curve);
+	voice_apply_mod_freq(synth, ch, v->mod_env_level, rem, curve, 0);
 }
 
 /** Reapply #mixer_ch_set_vol after a MIDI volume/expression/pan change. */
@@ -319,6 +320,15 @@ void sf64_synth_set_channels(sf64_synth_t *synth, int first_channel,
 	synth->priority = priority;
 }
 
+/** Samples since phase boundary @p at (for #mixer_ch_set_*_ramp started_ago). */
+static int voice_started_ago(sf64_synth_t *synth, int64_t at)
+{
+	int64_t d = synth->now - at;
+	assertf(d >= 0, "sf64: phase boundary in the future");
+	assertf(d <= INT_MAX, "sf64: started_ago overflow");
+	return (int)d;
+}
+
 /** Begin mod-env decay (or sustain) at absolute sample @p at. */
 static void voice_mod_enter_decay(sf64_synth_t *synth, int ch, int64_t at)
 {
@@ -329,13 +339,14 @@ static void voice_mod_enter_decay(sf64_synth_t *synth, int ch, int64_t at)
 	float sus = r->mod_env.sustain_gain;
 	// SF2/TSF: decay time is to zero; linear segment ends at sustain earlier.
 	int dur = (int)lroundf((float)decay * (1.0f - sus));
+	int ago = voice_started_ago(synth, at);
 
 	if (dur > 0 && sus < 1.0f) {
-		voice_apply_mod_freq(synth, ch, sus, dur, mixer_ramp_exp);
+		voice_apply_mod_freq(synth, ch, sus, dur, mixer_ramp_exp, ago);
 		v->mod_phase = SF64_VOICE_DECAY;
 		v->mod_deadline = at + dur;
 	} else {
-		voice_apply_mod_freq(synth, ch, sus, 0, mixer_ramp_exp);
+		voice_apply_mod_freq(synth, ch, sus, 0, mixer_ramp_exp, 0);
 		v->mod_phase = SF64_VOICE_SUSTAIN;
 		v->mod_deadline = INT64_MAX;
 	}
@@ -349,7 +360,7 @@ static void voice_mod_enter_hold_or_decay(sf64_synth_t *synth, int ch, int64_t a
 	int hold = env_scaled_samples(r->mod_env.hold_timecents,
 		r->mod_env.keynum_to_hold, v->key);
 
-	voice_apply_mod_freq(synth, ch, 1.0f, 0, mixer_ramp_exp);
+	voice_apply_mod_freq(synth, ch, 1.0f, 0, mixer_ramp_exp, 0);
 	if (hold > 0) {
 		v->mod_phase = SF64_VOICE_HOLD;
 		v->mod_deadline = at + hold;
@@ -366,7 +377,8 @@ static void voice_mod_enter_attack(sf64_synth_t *synth, int ch, int64_t at)
 	int attack = timecents_to_samples(r->mod_env.attack_timecents);
 
 	if (attack > 0) {
-		voice_apply_mod_freq(synth, ch, 1.0f, attack, sf64_ramp_mod_attack);
+		voice_apply_mod_freq(synth, ch, 1.0f, attack, sf64_ramp_mod_attack,
+			voice_started_ago(synth, at));
 		v->mod_phase = SF64_VOICE_ATTACK;
 		v->mod_deadline = at + attack;
 	} else {
@@ -382,7 +394,7 @@ static void voice_mod_start(sf64_synth_t *synth, int ch)
 
 	// Pin the base pitch first: #mixer_ch_play just reset the channel to the
 	// waveform's own rate, and a ramp would otherwise start from there.
-	voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp);
+	voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp, 0);
 
 	if (r->mod_env_to_pitch == 0) {
 		v->mod_phase = SF64_VOICE_OFF;
@@ -409,12 +421,12 @@ static void voice_mod_enter_release(sf64_synth_t *synth, int ch)
 	sf64_region_t *r = &synth->bank->regions[v->region_index];
 	int release = timecents_to_samples(r->mod_env.release_timecents);
 	if (release <= 0) {
-		voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp);
+		voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp, 0);
 		v->mod_phase = SF64_VOICE_OFF;
 		v->mod_deadline = INT64_MAX;
 		return;
 	}
-	voice_apply_mod_freq(synth, ch, 0, release, mixer_ramp_exp);
+	voice_apply_mod_freq(synth, ch, 0, release, mixer_ramp_exp, 0);
 	v->mod_phase = SF64_VOICE_RELEASE;
 	v->mod_deadline = synth->now + release;
 }
@@ -437,13 +449,13 @@ static void voice_mod_advance_overdue(sf64_synth_t *synth, int ch)
 			break;
 		case SF64_VOICE_DECAY: {
 			sf64_region_t *r = &synth->bank->regions[v->region_index];
-			voice_apply_mod_freq(synth, ch, r->mod_env.sustain_gain, 0, mixer_ramp_exp);
+			voice_apply_mod_freq(synth, ch, r->mod_env.sustain_gain, 0, mixer_ramp_exp, 0);
 			v->mod_phase = SF64_VOICE_SUSTAIN;
 			v->mod_deadline = INT64_MAX;
 			break;
 		}
 		case SF64_VOICE_RELEASE:
-			voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp);
+			voice_apply_mod_freq(synth, ch, 0, 0, mixer_ramp_exp, 0);
 			v->mod_phase = SF64_VOICE_OFF;
 			v->mod_deadline = INT64_MAX;
 			return;
@@ -480,7 +492,7 @@ void voice_enter_release(sf64_synth_t *synth, int ch)
 	}
 
 	v->envelope_gain = 0;
-	mixer_ch_set_gain_ramp(ch, 0, release, mixer_ramp_exp);
+	mixer_ch_set_gain_ramp(ch, 0, release, mixer_ramp_exp, 0);
 	v->phase = SF64_VOICE_RELEASE;
 	v->deadline = synth->now + release;
 }
@@ -496,7 +508,8 @@ static void voice_enter_decay(sf64_synth_t *synth, int ch, int64_t at)
 
 	v->envelope_gain = sus;
 	if (decay > 0 && sus < 1.0f) {
-		mixer_ch_set_gain_ramp(ch, sus, decay, mixer_ramp_exp);
+		mixer_ch_set_gain_ramp(ch, sus, decay, mixer_ramp_exp,
+			voice_started_ago(synth, at));
 		v->phase = SF64_VOICE_DECAY;
 		v->deadline = at + decay;
 	} else {
@@ -533,7 +546,8 @@ static void voice_enter_attack(sf64_synth_t *synth, int ch, int64_t at)
 
 	if (attack > 0) {
 		v->envelope_gain = 1.0f;
-		mixer_ch_set_gain_ramp(ch, 1.0f, attack, mixer_ramp_linear);
+		mixer_ch_set_gain_ramp(ch, 1.0f, attack, mixer_ramp_linear,
+			voice_started_ago(synth, at));
 		v->phase = SF64_VOICE_ATTACK;
 		v->deadline = at + attack;
 	} else {

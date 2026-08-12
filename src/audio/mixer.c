@@ -39,6 +39,8 @@
 
 /** @brief Maximum number of mixer events */
 #define MAX_EVENTS              32
+/** @brief Maximum number of soft (per-round) mixer callbacks */
+#define MAX_SOFT_EVENTS         8
 /** @brief Fallback samplebuffer depth when #audio_init has not been called yet.
  *
  * Sizing normally follows the AI queue (#audio_get_num_buffers ×
@@ -235,6 +237,12 @@ typedef struct {
 	void *ctx;              ///< Opaque context pointer to pass to the callback
 } mixer_event_t;
 
+/** @brief Per-round soft callback (does not split mix rounds) */
+typedef struct {
+	MixerSoftEvent cb;
+	void *ctx;
+} mixer_soft_event_t;
+
 static struct {
 	uint32_t sample_rate;
 	int num_channels;
@@ -246,6 +254,8 @@ static struct {
 	int64_t ticks;
 	int num_events;
 	mixer_event_t events[MAX_EVENTS];
+	int num_soft;
+	mixer_soft_event_t soft[MAX_SOFT_EVENTS];
 
 	samplebuffer_t ch_buf[MIXER_MAX_CHANNELS];
 	channel_limit_t limits[MIXER_MAX_CHANNELS];
@@ -530,13 +540,16 @@ static float mixer_ramp_at(const mixer_ramp_t *rmp, float end, int64_t t)
 	return rmp->fn(rmp->start, end, u);
 }
 
-/** Arm or replace a scalar ramp toward @p target over @p duration (0 = now). */
+/** Arm or replace a scalar ramp toward @p target over @p duration (0 = now).
+ * @p started_ago is how many samples before #Mixer.ticks the ramp began. */
 static void mixer_ramp_to(mixer_ramp_t *rmp, float *end, float target,
-	int duration, mixer_ramp_fn_t fn)
+	int duration, mixer_ramp_fn_t fn, int started_ago)
 {
+	assertf(started_ago >= 0, "mixer ramp: negative started_ago %d", started_ago);
+	int64_t start_tick = Mixer.ticks - started_ago;
 	if (*end == target && !rmp->duration)
 		return;
-	float cur = mixer_ramp_at(rmp, *end, Mixer.ticks);
+	float cur = mixer_ramp_at(rmp, *end, start_tick);
 	if (duration && cur != target) {
 		assertf(fn, "mixer ramp: NULL curve with duration %d", duration);
 		float k = 0.0f;
@@ -547,7 +560,7 @@ static void mixer_ramp_to(mixer_ramp_t *rmp, float *end, float target,
 		}
 		*rmp = (mixer_ramp_t){
 			.start = cur,
-			.start_tick = Mixer.ticks,
+			.start_tick = start_tick,
 			.duration = duration,
 			.inv_duration = 1.0f / (float)duration,
 			.k = k,
@@ -605,19 +618,22 @@ void mixer_ch_set_freq(int ch, float frequency)
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "cannot call on secondary stereo channel %d", ch);
 	mixer_ramp_to(&Mixer.freq_ramp[ch], &Mixer.freq[ch], frequency, 0,
-		mixer_ramp_linear);
+		mixer_ramp_linear, 0);
 	mixer_ch_apply_freq(ch, Mixer.freq[ch]);
 }
 
 void mixer_ch_set_freq_ramp(int ch, float frequency, int duration,
-	mixer_ramp_fn_t curve)
+	mixer_ramp_fn_t curve, int started_ago)
 {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
 		"mixer_ch_set_freq_ramp: cannot call on secondary stereo channel %d", ch);
 	assertf(duration >= 0,
 		"mixer_ch_set_freq_ramp: negative duration %d on channel %d", duration, ch);
-	mixer_ramp_to(&Mixer.freq_ramp[ch], &Mixer.freq[ch], frequency, duration, curve);
+	assertf(started_ago >= 0,
+		"mixer_ch_set_freq_ramp: negative started_ago %d on channel %d", started_ago, ch);
+	mixer_ramp_to(&Mixer.freq_ramp[ch], &Mixer.freq[ch], frequency, duration, curve,
+		started_ago);
 	mixer_ch_apply_freq(ch,
 		mixer_ramp_at(&Mixer.freq_ramp[ch], Mixer.freq[ch], Mixer.ticks));
 }
@@ -635,9 +651,9 @@ static void mixer_ch_vol_to(int ch, float l, float r, int duration)
 	if (r < 0.0f) r = 0.0f;
 	if (r > 1.0f) r = 1.0f;
 	mixer_ramp_to(&Mixer.lvol_ramp[ch], &Mixer.lvol[ch], l, duration,
-		mixer_ramp_linear);
+		mixer_ramp_linear, 0);
 	mixer_ramp_to(&Mixer.rvol_ramp[ch], &Mixer.rvol[ch], r, duration,
-		mixer_ramp_linear);
+		mixer_ramp_linear, 0);
 }
 
 void mixer_ch_set_vol(int ch, float lvol, float rvol) {
@@ -661,20 +677,23 @@ void mixer_ch_set_gain(int ch, float gain)
 	if (gain < 0.0f) gain = 0.0f;
 	if (gain > 1.0f) gain = 1.0f;
 	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, 0,
-		mixer_ramp_linear);
+		mixer_ramp_linear, 0);
 }
 
 void mixer_ch_set_gain_ramp(int ch, float gain, int duration,
-	mixer_ramp_fn_t curve)
+	mixer_ramp_fn_t curve, int started_ago)
 {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
 		"mixer_ch_set_gain_ramp: cannot call on secondary stereo channel %d", ch);
 	assertf(duration >= 0,
 		"mixer_ch_set_gain_ramp: negative duration %d on channel %d", duration, ch);
+	assertf(started_ago >= 0,
+		"mixer_ch_set_gain_ramp: negative started_ago %d on channel %d", started_ago, ch);
 	if (gain < 0.0f) gain = 0.0f;
 	if (gain > 1.0f) gain = 1.0f;
-	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, duration, curve);
+	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, duration, curve,
+		started_ago);
 }
 
 void mixer_ch_set_vol_pan(int ch, float vol, float pan) {
@@ -2351,35 +2370,37 @@ static void mixer_advance(int ns) {
 	}
 }
 
+static void mixer_invoke_soft(int round_ns);
+
 static void mixer_exec(int32_t *out, int num_samples) {
 	PROFILE_SCOPE(PS_MIXER_EXEC) {
 	tracef("mixer_exec: 0x%x samples\n", num_samples);
 
 	mixer_fx16_t gvol = mixer_global_volume();
 
-	rspq_highpri_begin();
 	for (int offset = 0; offset < num_samples; ) {
 		int ns;
+		rspq_highpri_begin();
 		PROFILE_SCOPE(PS_MIXER_PREP) {
 			mixer_update_loops();
 			mixer_refresh_chtbl();
 			ns = mixer_round_length(num_samples - offset);
 		}
 		PROFILE_SCOPE(PS_MIXER_EMIT) {
-			mixer_emit_round(out + offset, ns, gvol, Mixer.ticks + offset);
+			mixer_emit_round(out + offset, ns, gvol, Mixer.ticks);
 		}
 		PROFILE_SCOPE(PS_MIXER_ADVANCE) {
 			mixer_advance(ns);
+			Mixer.ticks += ns;
 		}
+		rspq_highpri_end();
+		mixer_invoke_soft(ns);
 		offset += ns;
 	}
-	rspq_highpri_end();
 
 	PROFILE_SCOPE(PS_MIXER_PREFETCH) {
 		mixer_prefetch_next(num_samples);
 	}
-
-	Mixer.ticks += num_samples;
 	}
 }
 
@@ -2393,6 +2414,7 @@ static mixer_event_t* mixer_next_event(void) {
 }
 
 void mixer_add_event(int64_t delay, MixerEvent cb, void *ctx) {
+	assertf(Mixer.num_events < MAX_EVENTS, "too many mixer events");
 	Mixer.events[Mixer.num_events++] = (mixer_event_t){
 		.cb = cb,
 		.ctx = ctx,
@@ -2409,6 +2431,38 @@ void mixer_remove_event(MixerEvent cb, void *ctx) {
 		}
 	}
 	assertf("mixer_remove_event: specified event does not exist\ncb:%p ctx:%p", (void*)cb, ctx);
+}
+
+static void mixer_invoke_soft(int round_ns)
+{
+	for (int i = 0; i < Mixer.num_soft; ) {
+		int n = Mixer.num_soft;
+		Mixer.soft[i].cb(Mixer.soft[i].ctx, round_ns);
+		if (Mixer.num_soft < n)
+			continue; // callback removed itself (or another); recheck index
+		i++;
+	}
+}
+
+void mixer_add_soft_event(MixerSoftEvent cb, void *ctx)
+{
+	assertf(cb, "mixer_add_soft_event: NULL callback");
+	assertf(Mixer.num_soft < MAX_SOFT_EVENTS, "too many soft mixer events");
+	Mixer.soft[Mixer.num_soft++] = (mixer_soft_event_t){ .cb = cb, .ctx = ctx };
+}
+
+void mixer_remove_soft_event(MixerSoftEvent cb, void *ctx)
+{
+	for (int i = 0; i < Mixer.num_soft; i++) {
+		if (Mixer.soft[i].cb == cb && Mixer.soft[i].ctx == ctx) {
+			memmove(&Mixer.soft[i], &Mixer.soft[i+1],
+				sizeof(mixer_soft_event_t) * (Mixer.num_soft - i - 1));
+			Mixer.num_soft--;
+			return;
+		}
+	}
+	assertf("mixer_remove_soft_event: specified event does not exist\ncb:%p ctx:%p",
+		(void*)cb, ctx);
 }
 
 void mixer_throttle(float num_samples) {
