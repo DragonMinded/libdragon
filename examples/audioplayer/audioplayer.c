@@ -33,6 +33,23 @@ static int bank_sel = 0;
 #define MID_VOICES  24
 
 static sf64_bank_t *g_sf64_bank;
+/** RDRAM held by #g_sf64_bank (heap delta across #sf64_load). */
+static int g_sf64_bank_ramsz;
+
+/** Heap bytes currently used (see #sys_get_heap_stats). */
+static int heap_used(void) {
+	heap_stats_t st;
+	sys_get_heap_stats(&st);
+	return st.used;
+}
+
+/** Load @p path as the current SF64 bank; updates #g_sf64_bank_ramsz. */
+static void load_sf64_bank(const char *path) {
+	int before = heap_used();
+	g_sf64_bank = sf64_load(path);
+	assertf(g_sf64_bank, "cannot load %s", path);
+	g_sf64_bank_ramsz = heap_used() - before;
+}
 
 /** Filename without "rom:/" prefix and extension (writes into @p out). */
 static void asset_basename(const char *path, char *out, int out_sz) {
@@ -199,7 +216,8 @@ enum Page page_song(void) {
 	sf64_synth_t *synth = NULL;
 	enum SONG_TYPE song_type;
 	const char *song_name; int song_channels;
-	int song_romsz=0, song_ramsz=0;
+	int song_romsz = 0;
+	int heap_base = 0;
 	static char mid_name[64];
 
 	if (strendswith(cur_rom, ".ym64") || strendswith(cur_rom, ".YM64"))
@@ -214,6 +232,11 @@ enum Page page_song(void) {
 		song_romsz = dfs_size(fh);
 		dfs_close(fh);
 	}
+
+	// Everything allocated for this song (player, synth, mixer rings, …)
+	// is measured as a heap delta from here. The SF64 bank is shared across
+	// MID songs and is added separately below.
+	heap_base = heap_used();
 
 	debugf("Loading %s\n", cur_rom);
 	if (song_type == SONG_XM) {
@@ -232,24 +255,12 @@ enum Page page_song(void) {
 		// 	}
 		// }
 		#endif
-
-		song_ramsz = sizeof(xm64player_t) + xm.ctx->ctx_size;
-		#if XM_STREAM_PATTERNS
-		song_ramsz -= xm.ctx->ctx_size_all_patterns;
-		song_ramsz += xm.ctx->ctx_size_stream_pattern_buf;
-		#endif
-		#if XM_STREAM_WAVEFORMS
-		song_ramsz -= xm.ctx->ctx_size_all_samples;
-		song_ramsz += xm.stream_ramsz;
-		#endif
 	} else if (song_type == SONG_YM) {
 		ym64player_open(&ym, cur_rom, &yminfo);
 		ym64player_play(&ym, 0);
 		song_name = yminfo.name;
 		song_channels = 3;
 		wrap(yminfo.comment, 40);
-		song_ramsz = sizeof(ym64player_t);
-		if (ym.decoder) song_ramsz += sizeof(*ym.decoder);
 	} else {
 		assertf(g_sf64_bank, "MID64: SF64 bank not loaded");
 		synth = sf64_synth_create(g_sf64_bank);
@@ -264,8 +275,6 @@ enum Page page_song(void) {
 		asset_basename(cur_rom, mid_name, sizeof(mid_name));
 		song_name = mid_name;
 		song_channels = SF64_MIDI_CHANNELS;
-		// Event stream is fully resident; samples stream from the SF64 bank.
-		song_ramsz = song_romsz;
 	}
 
 	// Unmute all channels
@@ -288,6 +297,11 @@ enum Page page_song(void) {
 			sprintf(sbuf, "Channels: %d", song_channels);
 		graphics_draw_text(disp, 20, 60, sbuf);
 
+		// Live heap delta: mixer rings are allocated lazily on first use.
+		int song_ramsz = heap_used() - heap_base;
+		if (song_type == SONG_MID)
+			song_ramsz += g_sf64_bank_ramsz;
+		if (song_ramsz < 0) song_ramsz = 0;
 		sprintf(sbuf, "ROM: %d KiB | RDRAM: %d KiB", (song_romsz+512)/1024, (song_ramsz+512)/1024);
 		graphics_draw_text(disp, 20, 70, sbuf);
 
@@ -472,8 +486,10 @@ enum Page page_song(void) {
 				for (int i = 0; i < MID_VOICES; i++)
 					mixer_ch_set_limits(i, 0, 0, 0);
 				sf64_close(g_sf64_bank);
-				g_sf64_bank = sf64_load(bankfiles[bank_sel]);
-				assertf(g_sf64_bank, "cannot load %s", bankfiles[bank_sel]);
+				load_sf64_bank(bankfiles[bank_sel]);
+				// Bank is already counted via g_sf64_bank_ramsz; reset the
+				// song baseline so mid/synth/mixer are measured afresh.
+				heap_base = heap_used();
 				synth = sf64_synth_create(g_sf64_bank);
 				sf64_synth_set_channels(synth, 0, MID_VOICES, MIXER_PRIORITY_MUSIC);
 				for (int i = 0; i < MID_VOICES; i++)
@@ -550,8 +566,7 @@ int main(void) {
 		}
 	}
 	assertf(num_banks > 0, "no SF64 banks in rom:/");
-	g_sf64_bank = sf64_load(bankfiles[bank_sel]);
-	assertf(g_sf64_bank, "cannot load %s", bankfiles[bank_sel]);
+	load_sf64_bank(bankfiles[bank_sel]);
 
 	profile_parms_t pparms = {
 		.num_slots = 32,
