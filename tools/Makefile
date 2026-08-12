@@ -12,8 +12,10 @@ C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
 LDFLAGS += -pthread
 
 # With mingw (even if crosscompiling), we need to link with ntdll
-# and produce .exe files
+# and produce .exe files. Also disable -Werror: MinGW updates at
+# random intervals and often emits extra warnings that break the build.
 ifeq ($(findstring mingw,$(TARGET)),mingw)
+C_CXX_FLAGS += -Wno-error
 LDLIBS += -lntdll
 EXE = .exe
 else
