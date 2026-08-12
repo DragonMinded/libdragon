@@ -322,6 +322,9 @@ void mixer_init(int num_channels) {
 	Mixer.num_channels = num_channels;
 	Mixer.sample_rate = audio_get_frequency();  // actual sample rate obtained via DAC clock
 	assertf(Mixer.sample_rate > 0, "audio_init() must be called before mixer_init()");
+	// Size AI buffers as a multiple of the mixer round cap so mixer_poll does
+	// not end on a remainder.
+	audio_set_buffer_granularity(MIXER_MAX_SAMPLES_PER_ROUND);
 	Mixer.vol = 1.0f;
 
 	for (int ch=0;ch<MIXER_MAX_CHANNELS;ch++) {

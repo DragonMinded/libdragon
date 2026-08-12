@@ -88,6 +88,21 @@ typedef void(*audio_fill_buffer_callback)(short *buffer, size_t numsamples);
 void audio_init(const int frequency, float latency);
 
 /**
+ * @brief Require AI buffer lengths to be a multiple of @p nsamples
+ *
+ * After this call, #audio_get_buffer_length returns a multiple of @p nsamples,
+ * chosen closest to the default size for the current frequency. The audio
+ * headroom configured in #audio_init is preserved.
+ *
+ * Must be called while no buffers are queued for playback (typically right
+ * after #audio_init). #mixer_init calls this automatically.
+ *
+ * @param[in] nsamples
+ *            Granularity in stereo samples; must be a positive multiple of 16
+ */
+void audio_set_buffer_granularity(int nsamples);
+
+/**
  * @brief Install a audio callback to fill the audio buffer when required.
  * 
  * This function allows to implement a pull-based audio system. It registers
