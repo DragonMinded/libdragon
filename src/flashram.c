@@ -24,10 +24,6 @@
  * and caches it, and the read path adapts accordingly. Because PGS cannot
  * express the word-indexed "divide by 2", we set PGS to its maximum (never
  * auto-split) and split every DMA manually at the 256-page boundary.
- *
- * The command protocol implemented here matches real hardware (as exercised by
- * libultra and homebrew such as N64-SwapDumper) and is compatible with both
- * SC64 and the ares emulator.
  */
 
 #include "flashram.h"
@@ -70,6 +66,10 @@
 // Blocking poll timeouts (milliseconds).
 #define FLASHRAM_PROGRAM_TIMEOUT_MS  1000
 #define FLASHRAM_ERASE_TIMEOUT_MS    3000
+
+/// Largest page the fixed-size program buffer can hold. All known parts use
+/// 128-byte pages; a detected layout with a larger page is not supported.
+#define FLASHRAM_MAX_PAGE_SIZE       128
 
 /// @endcond
 
@@ -127,20 +127,10 @@ static bool __flashram_present = false;
     assertf(__flashram_present, "flashram accessed, but no FlashRAM chip was detected"); \
 } while (0)
 
-/// Cached identity/layout of the detected chip. Defaults to a byte-indexed
-/// 1 Mibit part so the read path is safe even before flashram_init() runs.
-static flashram_info_t __flashram_info = {
-    .type_id         = 0,
-    .manufacturer_id = 0,
-    .device_id       = 0,
-    .layout          = FLASHRAM_LAYOUT_BYTE,
-    .name            = "unknown",
-    .total_size      = FLASHRAM_SIZE,
-    .sector_size     = FLASHRAM_SECTOR_SIZE,
-    .page_size       = FLASHRAM_PAGE_SIZE,
-    .num_sectors     = FLASHRAM_NUM_SECTORS,
-    .num_pages       = FLASHRAM_NUM_PAGES,
-};
+/// Cached identity/layout of the detected chip, fully populated by the probe in
+/// flashram_init(). It is only ever read after a successful probe (every
+/// read/write asserts a chip was detected), so it needs no meaningful default.
+static flashram_info_t __flashram_info;
 
 /// Logical-byte span a single DMA must not cross, derived from the current
 /// layout's read boundary. For every known part this is 0x8000 logical bytes.
@@ -417,7 +407,7 @@ bool flashram_program_page(unsigned int page, const void* data)
     // Copy into an aligned bounce so callers can pass any alignment. The bounce
     // is sized to the standard page (128 B), which caps the layouts we support.
     size_t page_size = __flashram_info.page_size;
-    uint8_t buffer[FLASHRAM_PAGE_SIZE] __attribute__((aligned(16)));
+    uint8_t buffer[FLASHRAM_MAX_PAGE_SIZE] __attribute__((aligned(16)));
     assertf(page_size <= sizeof(buffer),
             "flashram_program_page: page size 0x%X exceeds the buffer", (unsigned) page_size);
     memcpy(buffer, data, page_size);

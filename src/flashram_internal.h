@@ -5,15 +5,7 @@
  *
  * These operations map directly onto the FlashRAM command state machine. They
  * are kept internal for now: the public API (flashram.h) exposes only the
- * SRAM-like byte-range interface (#flashram_read / #flashram_write). If we
- * later decide to expose a low-level API, these are the entry points to
- * promote (which is also why the otherwise-unused chip-erase lives here).
- *
- * Following the hardware formalism (see https://n64brew.dev/wiki/Flash), erase
- * and program address the array by *page number* rather than sector index: the
- * sector-erase command itself takes a page and the chip derives the sector from
- * it. The sector containing a page is derived from the detected chip layout
- * (see #flashram_info_t).
+ * SRAM-like byte-range interface (#flashram_read / #flashram_write).
  */
 
 #ifndef LIBDRAGON_FLASHRAM_INTERNAL_H
@@ -49,7 +41,7 @@ void flashram_clear_status(void);
  * derives the enclosing sector from it. Sets every byte of that sector to 0xFF.
  * Blocking.
  *
- * @param page Any page number within the sector to erase (0 to #FLASHRAM_NUM_PAGES - 1).
+ * @param page Any page number within the sector to erase (0 to num_pages - 1).
  * @return true on success, false on erase timeout/failure. An out-of-range page asserts.
  */
 bool flashram_erase_sector_at_page(unsigned int page);
@@ -71,8 +63,8 @@ bool flashram_erase_chip(void);
  * The page's sector must have been erased first; programming can only clear
  * bits (1 -> 0). Blocking.
  *
- * @param page Page number (0 to #FLASHRAM_NUM_PAGES - 1).
- * @param data Pointer to #FLASHRAM_PAGE_SIZE bytes of data (any alignment).
+ * @param page Page number (0 to num_pages - 1).
+ * @param data Pointer to one page (page_size bytes) of data (any alignment).
  * @return true on success, false on program timeout/failure. An out-of-range page asserts.
  */
 bool flashram_program_page(unsigned int page, const void* data);
