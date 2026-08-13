@@ -22,14 +22,10 @@
  * FlashRAM is driven through a small command state machine on the PI bus and can
  * only be erased in 16 KiB sectors and programmed in 128-byte pages.
  *
- * The public API is an SRAM-like byte-range interface (#flashram_read /
+ * The API is an SRAM-like byte-range interface (#flashram_read /
  * #flashram_write) that accepts arbitrary offsets and lengths. #flashram_write
  * performs a read-modify-write over the affected sectors so that data outside
  * the written range (but within the same erase sector) is preserved.
- *
- * A lower-level page/sector interface that maps directly onto the chip command
- * protocol exists internally (src/flashram_internal.h), but it is not (yet)
- * part of the public API while its shape is being decided.
  *
  * Call #flashram_init once at boot before using any other function, and set
  * `N64_ROM_SAVETYPE = flashram` in your Makefile so emulators and flashcarts
@@ -50,63 +46,95 @@ extern "C" {
 #define FLASHRAM_NUM_SECTORS (FLASHRAM_SIZE / FLASHRAM_SECTOR_SIZE)   ///< Number of erase sectors (8).
 
 /**
- * @brief How a FlashRAM chip interprets array addresses.
+ * @brief FlashRAM chip layout, expressed as bits-per-component.
  *
- * "Older" Macronix parts are word-indexed: a PI-bus address selects a 16-bit
- * word, so a logical byte offset must be halved to reach the right word (and
- * the DMA no-cross boundary sits at half the byte value). Byte-indexed parts
- * address individual bytes, like SRAM. The addressing mode is a fixed property
- * of the silicon and is looked up from the chip's silicon ID.
+ * Encoding each dimension as a power of two describes both byte- and
+ * word-indexed parts uniformly and generalizes to other page/sector sizes.
+ * "Older" Macronix parts are word-indexed (@p unit_bits = 1): a PI-bus address
+ * selects a 16-bit word, so a logical byte offset is halved to reach the right
+ * word. Byte-indexed parts (@p unit_bits = 0) address individual bytes, like
+ * SRAM. The layout is a fixed property of the silicon, looked up from its
+ * silicon ID.
+ *
+ * Derived quantities (all powers of two):
+ *  - unit size (bytes)   = 1 << unit_bits
+ *  - page size (bytes)   = 1 << (unit_bits + offset_bits)
+ *  - pages per sector    = 1 << page_bits
+ *  - sector size (bytes) = 1 << (unit_bits + offset_bits + page_bits)
+ *  - sectors per chip    = 1 << sector_bits
+ *  - total size (bytes)  = 1 << (unit_bits + offset_bits + page_bits + sector_bits)
+ *  - DMA read boundary (bytes, not to be crossed by a single transfer)
+ *                        = 1 << (unit_bits + offset_bits + read_page_bits)
  */
-typedef enum
+typedef struct
 {
-    FLASHRAM_ADDRESSING_BYTE = 0,   ///< Addresses select bytes (SRAM-like).
-    FLASHRAM_ADDRESSING_WORD = 1,   ///< Addresses select 16-bit words (offset must be halved).
-} flashram_addressing_t;
+    uint8_t unit_bits;       ///< log2(bytes per addressable unit): 0 = byte-indexed, 1 = word-indexed.
+    uint8_t offset_bits;     ///< log2(addressable units per page).
+    uint8_t page_bits;       ///< log2(pages per sector).
+    uint8_t sector_bits;     ///< log2(sectors per chip).
+    uint8_t read_page_bits;  ///< log2(pages) of the DMA read boundary a single transfer must not cross.
+} flashram_layout_t;
 
 /**
  * @brief Identity and layout of the detected FlashRAM chip.
  *
- * Filled in by #flashram_detect. @p total_size / @p sector_size / @p page_size
- * and the derived counts describe the erase/program geometry; @p addressing
- * tells read/write which address convention the part uses.
+ * Filled in by #flashram_init. @p layout describes the addressing convention
+ * and geometry as bits-per-component; @p total_size / @p sector_size /
+ * @p page_size and the derived counts are that geometry expanded into bytes for
+ * convenience.
  */
 typedef struct
 {
-    uint32_t              type_id;         ///< FLASH_TYPE_ID (expected 0x11118001).
-    uint16_t              manufacturer_id; ///< Manufacturer ID (e.g. 0x00C2 Macronix, 0x0032 Matsushita).
-    uint16_t              device_id;       ///< Device ID (identifies the specific part).
-    flashram_addressing_t addressing;      ///< Byte- vs word-indexed addressing.
-    const char*           name;            ///< Human-readable model name ("unknown" if not in the table).
-    size_t                total_size;      ///< Total capacity in bytes (#FLASHRAM_SIZE).
-    size_t                sector_size;     ///< Erase-sector size in bytes (#FLASHRAM_SECTOR_SIZE).
-    size_t                page_size;       ///< Program-page size in bytes (#FLASHRAM_PAGE_SIZE).
-    unsigned int          num_sectors;     ///< Number of erase sectors (#FLASHRAM_NUM_SECTORS).
-    unsigned int          num_pages;       ///< Number of program pages (#FLASHRAM_NUM_PAGES).
+    uint32_t          type_id;         ///< FLASH_TYPE_ID (expected 0x11118001).
+    uint16_t          manufacturer_id; ///< Manufacturer ID (e.g. 0x00C2 Macronix, 0x0032 Matsushita).
+    uint16_t          device_id;       ///< Device ID (identifies the specific part).
+    flashram_layout_t layout;          ///< Chip layout: byte/word addressing and geometry.
+    const char*       name;            ///< Human-readable model name ("unknown" if not in the table).
+    size_t            total_size;      ///< Total capacity in bytes (derived from @p layout).
+    size_t            sector_size;     ///< Erase-sector size in bytes (derived from @p layout).
+    size_t            page_size;       ///< Program-page size in bytes (derived from @p layout).
+    unsigned int      num_sectors;     ///< Number of erase sectors (derived from @p layout).
+    unsigned int      num_pages;       ///< Number of program pages (derived from @p layout).
 } flashram_info_t;
 
 /**
- * @brief Initialize the FlashRAM subsystem
+ * @brief PI DOM2 bus timing parameters used to access the FlashRAM chip.
  *
- * Configures the PI DOM2 registers to enable access to the FlashRAM chip and
- * places it into read mode. Must be called before any other FlashRAM function.
+ * These map directly onto the PI_BSD_DOM2 registers. Pass a filled-in struct to
+ * #flashram_init to override the standard values, e.g. for a flash with an
+ * unusual layout; pass NULL to use the recommended defaults.
+ *
+ * @note @p page_size defaults to its maximum (0x0F) so the PI never auto-splits
+ *       DMAs and the driver can split them itself -- required for word-indexed
+ *       parts. Lowering it may break reads on those parts.
  */
-void flashram_init(void);
+typedef struct
+{
+    uint8_t latency;      ///< PI_BSD_DOM2_LAT: bus latency (default 0x05).
+    uint8_t pulse_width;  ///< PI_BSD_DOM2_PWD: pulse width (default 0x0C).
+    uint8_t page_size;    ///< PI_BSD_DOM2_PGS: page size (default 0x0F, see note).
+    uint8_t release;      ///< PI_BSD_DOM2_RLS: release (default 0x02).
+} flashram_timings_t;
 
 /**
- * @brief Detect whether FlashRAM is present and identify the chip
+ * @brief Initialize the FlashRAM subsystem and detect the chip
  *
- * Reads the chip's silicon ID and checks it against the known FlashRAM type
- * identifier. When present, the manufacturer/device IDs are looked up to
- * determine the model name and (crucially) the byte-vs-word addressing mode,
- * which is cached and used by every subsequent read/write. Non-destructive: it
- * does not write to the save area.
+ * Configures the PI DOM2 registers, then reads the chip's silicon ID to check
+ * for FlashRAM and, when present, look up the model: its name and (crucially)
+ * its layout, which is cached and drives every subsequent read/write. Leaves the
+ * chip in read mode. Must be called before any other FlashRAM function.
  *
- * @param info Optional out-parameter; when non-NULL and FlashRAM is present, it
- *             is filled with the chip identity and layout.
- * @return true if FlashRAM is detected, false otherwise.
+ * Detection is non-destructive (it does not write to the save area). The layout
+ * must be known for reads/writes to address the array correctly on word-indexed
+ * parts, which is why it is resolved here rather than in a separate step.
+ *
+ * @param timings Optional PI DOM2 bus timings; pass NULL for the standard
+ *                defaults (latency 0x05, pulse 0x0C, page size 0x0F, release 0x02).
+ * @param info    Optional out-parameter; when non-NULL and FlashRAM is present,
+ *                it is filled with the chip identity and layout.
+ * @return true if FlashRAM is present, false otherwise.
  */
-bool flashram_detect(flashram_info_t* info);
+bool flashram_init(const flashram_timings_t* timings, flashram_info_t* info);
 
 /**
  * @brief Read data from FlashRAM

@@ -20,7 +20,7 @@
  * "byte-indexed" parts address individual bytes (like SRAM), while "older"
  * word-indexed parts (e.g. MX29L1100) address 16-bit words, so a logical byte
  * offset must be halved to reach the right word. The addressing mode is a fixed
- * property of the silicon; flashram_detect() looks it up from the silicon ID
+ * property of the silicon; flashram_init() looks it up from the silicon ID
  * and caches it, and the read path adapts accordingly. Because PGS cannot
  * express the word-indexed "divide by 2", we set PGS to its maximum (never
  * auto-split) and split every DMA manually at the 256-page boundary.
@@ -71,45 +71,69 @@
 #define FLASHRAM_PROGRAM_TIMEOUT_MS  1000
 #define FLASHRAM_ERASE_TIMEOUT_MS    3000
 
-#define FLASHRAM_PAGES_PER_SECTOR (FLASHRAM_SECTOR_SIZE / FLASHRAM_PAGE_SIZE)
-
-/// A single DMA cannot cross this many logical bytes (the 256-page wrap
-/// boundary). It is 0x8000 logical bytes for both addressing modes: a
-/// word-indexed part's 0x4000 PI-address boundary maps to 0x8000 logical.
-#define FLASHRAM_DMA_BOUNDARY 0x8000
 /// @endcond
+
+// Canonical layouts for the two known 1 Mibit geometries (128-byte pages,
+// 128 pages/sector, 8 sectors, 256-page read boundary), differing only in the
+// addressable unit: byte-indexed vs 16-bit-word-indexed.
+#define FLASHRAM_LAYOUT_BYTE \
+    { .unit_bits = 0, .offset_bits = 7, .page_bits = 7, .sector_bits = 3, .read_page_bits = 8 }
+#define FLASHRAM_LAYOUT_WORD \
+    { .unit_bits = 1, .offset_bits = 6, .page_bits = 7, .sector_bits = 3, .read_page_bits = 8 }
 
 /// One row of the silicon-ID lookup table.
 typedef struct
 {
-    uint16_t              manufacturer_id;
-    uint16_t              device_id;
-    const char*           name;
-    flashram_addressing_t addressing;
+    uint16_t          manufacturer_id;
+    uint16_t          device_id;
+    const char*       name;
+    flashram_layout_t layout;
 } flashram_model_t;
 
-/// Known FlashRAM parts. Byte- vs word-addressing is a fixed property we cannot
-/// probe at runtime, so it must be looked up by manufacturer/device ID.
+/// Known FlashRAM parts. The layout (in particular byte- vs word-addressing) is
+/// a fixed property we cannot probe at runtime, so it must be looked up by
+/// manufacturer/device ID.
 static const flashram_model_t FLASHRAM_MODELS[] = {
-    { 0x00C2, 0x0000, "MX29L0000",   FLASHRAM_ADDRESSING_WORD },  // Macronix
-    { 0x00C2, 0x0001, "MX29L0001",   FLASHRAM_ADDRESSING_WORD },
-    { 0x00C2, 0x001E, "MX29L1100",   FLASHRAM_ADDRESSING_WORD },
-    { 0x00C2, 0x001D, "MX29L1101_A", FLASHRAM_ADDRESSING_BYTE },
-    { 0x00C2, 0x0084, "MX29L1101_B", FLASHRAM_ADDRESSING_BYTE },
-    { 0x00C2, 0x008E, "MX29L1101_C", FLASHRAM_ADDRESSING_BYTE },
-    { 0x0032, 0x00F1, "MN63F8MPN",   FLASHRAM_ADDRESSING_BYTE },  // Matsushita
+    { 0x00C2, 0x0000, "MX29L0000",   FLASHRAM_LAYOUT_WORD },  // Macronix
+    { 0x00C2, 0x0001, "MX29L0001",   FLASHRAM_LAYOUT_WORD },
+    { 0x00C2, 0x001E, "MX29L1100",   FLASHRAM_LAYOUT_WORD },
+    { 0x00C2, 0x001D, "MX29L1101_A", FLASHRAM_LAYOUT_BYTE },
+    { 0x00C2, 0x0084, "MX29L1101_B", FLASHRAM_LAYOUT_BYTE },
+    { 0x00C2, 0x008E, "MX29L1101_C", FLASHRAM_LAYOUT_BYTE },
+    { 0x0032, 0x00F1, "MN63F8MPN",   FLASHRAM_LAYOUT_BYTE },  // Matsushita
 };
+
+/// Fill the byte-size geometry fields of @p info from its bit-encoded layout.
+static void flashram_derive_geometry(flashram_info_t* info)
+{
+    const flashram_layout_t* l = &info->layout;
+    info->page_size   = (size_t) 1 << (l->unit_bits + l->offset_bits);
+    info->sector_size = (size_t) 1 << (l->unit_bits + l->offset_bits + l->page_bits);
+    info->total_size  = (size_t) 1 << (l->unit_bits + l->offset_bits + l->page_bits + l->sector_bits);
+    info->num_sectors = 1u << l->sector_bits;
+    info->num_pages   = 1u << (l->page_bits + l->sector_bits);
+}
 
 /// True if flashram_init() has been called.
 static bool __flashram_inited = false;
 
+/// True once flashram_init() has probed and found a FlashRAM chip present.
+static bool __flashram_present = false;
+
+/// Assert that flashram_init() ran and found a chip -- otherwise the cached
+/// layout is only a default guess and reads/writes cannot address the array.
+#define flashram_assert_ready() do { \
+    assertf(__flashram_inited, "flashram accessed before flashram_init() was called"); \
+    assertf(__flashram_present, "flashram accessed, but no FlashRAM chip was detected"); \
+} while (0)
+
 /// Cached identity/layout of the detected chip. Defaults to a byte-indexed
-/// 1 Mibit part so the read path is safe even before flashram_detect() runs.
+/// 1 Mibit part so the read path is safe even before flashram_init() runs.
 static flashram_info_t __flashram_info = {
     .type_id         = 0,
     .manufacturer_id = 0,
     .device_id       = 0,
-    .addressing      = FLASHRAM_ADDRESSING_BYTE,
+    .layout          = FLASHRAM_LAYOUT_BYTE,
     .name            = "unknown",
     .total_size      = FLASHRAM_SIZE,
     .sector_size     = FLASHRAM_SECTOR_SIZE,
@@ -117,6 +141,20 @@ static flashram_info_t __flashram_info = {
     .num_sectors     = FLASHRAM_NUM_SECTORS,
     .num_pages       = FLASHRAM_NUM_PAGES,
 };
+
+/// Logical-byte span a single DMA must not cross, derived from the current
+/// layout's read boundary. For every known part this is 0x8000 logical bytes.
+static inline size_t flashram_dma_boundary(void)
+{
+    const flashram_layout_t* l = &__flashram_info.layout;
+    return (size_t) 1 << (l->unit_bits + l->offset_bits + l->read_page_bits);
+}
+
+/// Number of program pages per erase sector for the detected layout.
+static inline unsigned int flashram_pages_per_sector(void)
+{
+    return __flashram_info.num_pages / __flashram_info.num_sectors;
+}
 
 /// Write a single command word to the FlashRAM command register.
 static inline void flashram_command(uint32_t command)
@@ -134,16 +172,16 @@ static inline void flashram_command_twice(uint32_t command)
 }
 
 /// PI-bus address of logical byte @p offset for the detected addressing mode.
+/// unit_bits is the log2 of the unit size, so it is exactly the shift that maps
+/// a byte offset onto a unit (word) address: 0 for byte-indexed, 1 for word.
 static inline uint32_t flashram_pi_address(size_t offset)
 {
-    if (__flashram_info.addressing == FLASHRAM_ADDRESSING_WORD)
-        return FLASHRAM_ADDRESS + (uint32_t) (offset >> 1);
-    return FLASHRAM_ADDRESS + (uint32_t) offset;
+    return FLASHRAM_ADDRESS + (uint32_t) (offset >> __flashram_info.layout.unit_bits);
 }
 
 uint8_t flashram_status(void)
 {
-    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
+    flashram_assert_ready();
     flashram_command_twice(FLASHRAM_CMD_STATUS_MODE);
     // The window returns the pattern 00 <status>; the upper bits are meaningless
     // (and on MX29L1100 hold leftovers from the previous mode), so keep the low byte.
@@ -152,7 +190,7 @@ uint8_t flashram_status(void)
 
 void flashram_clear_status(void)
 {
-    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
+    flashram_assert_ready();
     flashram_command_twice(FLASHRAM_CMD_STATUS_MODE);
     // Reset the ERASE_OK / PROGRAM_OK latch by writing 0 at the array origin.
     io_write(FLASHRAM_ADDRESS, 0);
@@ -180,29 +218,20 @@ static bool flashram_wait_ready(uint8_t busy_mask, uint8_t ok_mask, uint32_t tim
     }
 }
 
-void flashram_init(void)
+/// Standard PI DOM2 bus timings for FlashRAM (https://n64brew.dev/wiki/Flash).
+/// PGS is left at its maximum so the PI never auto-splits DMAs -- the driver
+/// splits them manually, which is required for word-indexed parts.
+static const flashram_timings_t FLASHRAM_TIMINGS_DEFAULT = {
+    .latency     = 0x05,
+    .pulse_width = 0x0C,
+    .page_size   = 0x0F,
+    .release     = 0x02,
+};
+
+/// Read the silicon ID, identify the chip, and cache its layout/geometry.
+/// Returns whether a known FlashRAM identifier was found. Leaves read mode.
+static bool flashram_probe(void)
 {
-    if (__flashram_inited)
-        return;
-
-    // Configure PI DOM2 registers to enable access to FlashRAM.
-    disable_interrupts();
-    *PI_BSD_DOM2_LAT = 0x40;  // latch: FlashRAM needs a longer latch than SRAM (0x40-0x50)
-    *PI_BSD_DOM2_PWD = 0x0c;  // pulse width
-    *PI_BSD_DOM2_PGS = 0x0f;  // max page size: never auto-split -- we split every DMA manually
-    *PI_BSD_DOM2_RLS = 0x02;  // release
-    enable_interrupts();
-
-    __flashram_inited = true;
-
-    // Leave the chip in a known (read) state.
-    flashram_command(FLASHRAM_CMD_READ_MODE);
-}
-
-bool flashram_detect(flashram_info_t* info)
-{
-    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
-
     // Enter identify mode and DMA out the two silicon-ID words. DMA is mandatory
     // here: a CPU read of the ID window returns only the first 32-bit word twice.
     uint32_t id[2] __attribute__((aligned(16))) = {0};
@@ -222,17 +251,17 @@ bool flashram_detect(flashram_info_t* info)
     uint16_t manufacturer_id = (uint16_t) (id[1] >> 16);
     uint16_t device_id       = (uint16_t) (id[1] & 0xFFFF);
 
-    // Look up the model to learn its addressing mode. Default to byte-indexed
-    // (the common flashcart/emulator convention) for parts not in the table.
+    // Look up the model to learn its layout. Default to a byte-indexed 1 Mibit
+    // part (the common flashcart/emulator convention) for parts not in the table.
     const char* name = "unknown";
-    flashram_addressing_t addressing = FLASHRAM_ADDRESSING_BYTE;
+    flashram_layout_t layout = (flashram_layout_t) FLASHRAM_LAYOUT_BYTE;
     for (size_t i = 0; i < sizeof(FLASHRAM_MODELS) / sizeof(FLASHRAM_MODELS[0]); i++)
     {
         if (FLASHRAM_MODELS[i].manufacturer_id == manufacturer_id &&
             FLASHRAM_MODELS[i].device_id == device_id)
         {
             name = FLASHRAM_MODELS[i].name;
-            addressing = FLASHRAM_MODELS[i].addressing;
+            layout = FLASHRAM_MODELS[i].layout;
             break;
         }
     }
@@ -240,22 +269,47 @@ bool flashram_detect(flashram_info_t* info)
     __flashram_info.type_id         = type_id;
     __flashram_info.manufacturer_id = manufacturer_id;
     __flashram_info.device_id       = device_id;
-    __flashram_info.addressing      = addressing;
+    __flashram_info.layout          = layout;
     __flashram_info.name            = name;
-    // Geometry fields keep their static defaults (fixed 1 Mibit layout).
-
-    if (info)
-        *info = __flashram_info;
+    flashram_derive_geometry(&__flashram_info);
     return true;
+}
+
+bool flashram_init(const flashram_timings_t* timings, flashram_info_t* info)
+{
+    if (!__flashram_inited)
+    {
+        if (timings == NULL)
+            timings = &FLASHRAM_TIMINGS_DEFAULT;
+
+        // Configure PI DOM2 registers to enable access to FlashRAM.
+        disable_interrupts();
+        *PI_BSD_DOM2_LAT = timings->latency;
+        *PI_BSD_DOM2_PWD = timings->pulse_width;
+        *PI_BSD_DOM2_PGS = timings->page_size;
+        *PI_BSD_DOM2_RLS = timings->release;
+        enable_interrupts();
+
+        __flashram_inited = true;
+
+        // Probe the chip so its layout is cached before any read/write. Leaves
+        // the chip in read mode whether or not a chip was found.
+        __flashram_present = flashram_probe();
+    }
+
+    if (info && __flashram_present)
+        *info = __flashram_info;
+    return __flashram_present;
 }
 
 int flashram_read(void* dst, size_t offset, size_t len)
 {
-    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
+    flashram_assert_ready();
 
-    assertf(offset + len <= FLASHRAM_SIZE,
+    size_t total_size = __flashram_info.total_size;
+    assertf(offset + len <= total_size,
             "flashram_read out of range: offset=0x%X len=0x%X (size=0x%X)",
-            (unsigned) offset, (unsigned) len, (unsigned) FLASHRAM_SIZE);
+            (unsigned) offset, (unsigned) len, (unsigned) total_size);
     if (len == 0)
         return 0;
     // PI DMA moves the array over the 2-byte bus, so the offset must be even.
@@ -266,13 +320,14 @@ int flashram_read(void* dst, size_t offset, size_t len)
     uint8_t bounce[512] __attribute__((aligned(16)));
     uint8_t* out = (uint8_t*) dst;
     size_t done = 0;
+    size_t boundary = flashram_dma_boundary();  // 0x8000 logical bytes for known parts
 
     while (done < len)
     {
         size_t abs_off = offset + done;
         // Clamp this DMA so it neither exceeds the request nor crosses the
         // 256-page (0x8000 logical byte) boundary that a single DMA cannot span.
-        size_t to_boundary = FLASHRAM_DMA_BOUNDARY - (abs_off & (FLASHRAM_DMA_BOUNDARY - 1));
+        size_t to_boundary = boundary - (abs_off & (boundary - 1));
         size_t chunk = len - done;
         if (chunk > to_boundary)
             chunk = to_boundary;
@@ -295,8 +350,8 @@ int flashram_read(void* dst, size_t offset, size_t len)
         if (chunk > sizeof(bounce))
             chunk = sizeof(bounce);
         size_t dma_len = (chunk + 1) & ~(size_t) 1;  // round up to the 2-byte DMA unit
-        if (abs_off + dma_len > FLASHRAM_SIZE)
-            dma_len = FLASHRAM_SIZE - abs_off;
+        if (abs_off + dma_len > total_size)
+            dma_len = total_size - abs_off;
 
         data_cache_hit_writeback_invalidate(bounce, dma_len);
         dma_read_raw_async(bounce, pi, dma_len);
@@ -308,10 +363,10 @@ int flashram_read(void* dst, size_t offset, size_t len)
     return (int) len;
 }
 
-/// True if all #FLASHRAM_PAGE_SIZE bytes at @p page are 0xFF (already erased).
-static bool flashram_page_is_erased(const uint8_t* page)
+/// True if all @p page_size bytes at @p page are 0xFF (already erased).
+static bool flashram_page_is_erased(const uint8_t* page, size_t page_size)
 {
-    for (size_t i = 0; i < FLASHRAM_PAGE_SIZE; i++)
+    for (size_t i = 0; i < page_size; i++)
     {
         if (page[i] != 0xFF)
             return false;
@@ -321,11 +376,11 @@ static bool flashram_page_is_erased(const uint8_t* page)
 
 bool flashram_erase_sector_at_page(unsigned int page)
 {
-    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
+    flashram_assert_ready();
 
-    assertf(page < FLASHRAM_NUM_PAGES,
+    assertf(page < __flashram_info.num_pages,
             "flashram_erase_sector_at_page: page %u out of range (0..%u)",
-            page, (unsigned) (FLASHRAM_NUM_PAGES - 1));
+            page, __flashram_info.num_pages - 1);
 
     // The sector-erase command is addressed by page number; the chip derives the
     // enclosing sector from it.
@@ -340,7 +395,7 @@ bool flashram_erase_sector_at_page(unsigned int page)
 
 bool flashram_erase_chip(void)
 {
-    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
+    flashram_assert_ready();
 
     flashram_command(FLASHRAM_CMD_CHIP_ERASE);
     flashram_command(FLASHRAM_CMD_EXECUTE_ERASE);
@@ -353,20 +408,24 @@ bool flashram_erase_chip(void)
 
 bool flashram_program_page(unsigned int page, const void* data)
 {
-    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
+    flashram_assert_ready();
 
-    assertf(page < FLASHRAM_NUM_PAGES,
+    assertf(page < __flashram_info.num_pages,
             "flashram_program_page: page %u out of range (0..%u)",
-            page, (unsigned) (FLASHRAM_NUM_PAGES - 1));
+            page, __flashram_info.num_pages - 1);
 
-    // Copy into an aligned bounce so callers can pass any alignment.
+    // Copy into an aligned bounce so callers can pass any alignment. The bounce
+    // is sized to the standard page (128 B), which caps the layouts we support.
+    size_t page_size = __flashram_info.page_size;
     uint8_t buffer[FLASHRAM_PAGE_SIZE] __attribute__((aligned(16)));
-    memcpy(buffer, data, FLASHRAM_PAGE_SIZE);
+    assertf(page_size <= sizeof(buffer),
+            "flashram_program_page: page size 0x%X exceeds the buffer", (unsigned) page_size);
+    memcpy(buffer, data, page_size);
 
-    // Load the 128-byte page buffer, then program it into the target page.
+    // Load the page buffer, then program it into the target page.
     flashram_command(FLASHRAM_CMD_LOAD_BYTE_PAGE);
-    data_cache_hit_writeback(buffer, FLASHRAM_PAGE_SIZE);
-    dma_write_raw_async(buffer, FLASHRAM_ADDRESS, FLASHRAM_PAGE_SIZE);
+    data_cache_hit_writeback(buffer, page_size);
+    dma_write_raw_async(buffer, FLASHRAM_ADDRESS, page_size);
     dma_wait();
     flashram_command(FLASHRAM_CMD_PROGRAM_PAGE | page);
     bool ok = flashram_wait_ready(FLASHRAM_STATUS_PROGRAM_BUSY, FLASHRAM_STATUS_PROGRAM_OK,
@@ -377,17 +436,19 @@ bool flashram_program_page(unsigned int page, const void* data)
 }
 
 /// Erase the sector starting at @p base_page, then program its pages from the
-/// 16 KiB @p content buffer. Works in page numbers throughout.
+/// one-sector @p content buffer. Works in page numbers throughout.
 static bool flashram_write_sector(unsigned int base_page, const uint8_t* content)
 {
     if (!flashram_erase_sector_at_page(base_page))
         return false;
 
-    for (unsigned int i = 0; i < FLASHRAM_PAGES_PER_SECTOR; i++)
+    size_t page_size = __flashram_info.page_size;
+    unsigned int pages_per_sector = flashram_pages_per_sector();
+    for (unsigned int i = 0; i < pages_per_sector; i++)
     {
-        const uint8_t* page = content + (i * FLASHRAM_PAGE_SIZE);
+        const uint8_t* page = content + (i * page_size);
         // Pages that end up fully erased need no programming; the erase set them to 0xFF.
-        if (flashram_page_is_erased(page))
+        if (flashram_page_is_erased(page, page_size))
             continue;
         if (!flashram_program_page(base_page + i, page))
             return false;
@@ -397,31 +458,34 @@ static bool flashram_write_sector(unsigned int base_page, const uint8_t* content
 
 int flashram_write(const void* src, size_t offset, size_t len)
 {
-    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
+    flashram_assert_ready();
 
-    assertf(offset + len <= FLASHRAM_SIZE,
+    size_t total_size = __flashram_info.total_size;
+    size_t sector_size = __flashram_info.sector_size;
+    unsigned int pages_per_sector = flashram_pages_per_sector();
+    assertf(offset + len <= total_size,
             "flashram_write out of range: offset=0x%X len=0x%X (size=0x%X)",
-            (unsigned) offset, (unsigned) len, (unsigned) FLASHRAM_SIZE);
+            (unsigned) offset, (unsigned) len, (unsigned) total_size);
     if (len == 0)
         return 0;
 
     const uint8_t* in = (const uint8_t*) src;
     size_t pos = offset;
     size_t remaining = len;
-    uint8_t* sector_buf = NULL;  // 16 KiB scratch, allocated lazily for partial sectors only
+    uint8_t* sector_buf = NULL;  // one-sector scratch, allocated lazily for partial sectors only
     int result = (int) len;
 
     while (remaining > 0)
     {
-        unsigned int sector = pos / FLASHRAM_SECTOR_SIZE;
-        unsigned int base_page = sector * FLASHRAM_PAGES_PER_SECTOR;
-        size_t sector_start = (size_t) sector * FLASHRAM_SECTOR_SIZE;
+        unsigned int sector = pos / sector_size;
+        unsigned int base_page = sector * pages_per_sector;
+        size_t sector_start = (size_t) sector * sector_size;
         size_t in_sector = pos - sector_start;
-        size_t n = FLASHRAM_SECTOR_SIZE - in_sector;
+        size_t n = sector_size - in_sector;
         if (n > remaining)
             n = remaining;
 
-        if (in_sector == 0 && n == FLASHRAM_SECTOR_SIZE)
+        if (in_sector == 0 && n == sector_size)
         {
             // Whole sector overwritten: erase and program straight from the source.
             if (!flashram_write_sector(base_page, in))
@@ -435,12 +499,12 @@ int flashram_write(const void* src, size_t offset, size_t len)
             // Partial sector: read-modify-write to preserve untouched bytes.
             if (sector_buf == NULL)
             {
-                sector_buf = memalign(16, FLASHRAM_SECTOR_SIZE);
+                sector_buf = memalign(16, sector_size);
                 assertf(sector_buf != NULL,
                         "flashram_write: out of memory for the 0x%X-byte sector buffer",
-                        (unsigned) FLASHRAM_SECTOR_SIZE);
+                        (unsigned) sector_size);
             }
-            flashram_read(sector_buf, sector_start, FLASHRAM_SECTOR_SIZE);
+            flashram_read(sector_buf, sector_start, sector_size);
             memcpy(sector_buf + in_sector, in, n);
             if (!flashram_write_sector(base_page, sector_buf))
             {
