@@ -29,7 +29,6 @@
  */
 
 #include <libdragon.h>
-#include <sram.h>  // not part of the <libdragon.h> umbrella header
 #include <string.h>
 
 /// Canvas dimensions in cells. 48*32 = 1536 cells stored 1 bit each = 192 bytes,
