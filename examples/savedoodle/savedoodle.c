@@ -93,9 +93,8 @@ static void storage_detect(void)
         return;
     }
 
-    flashram_init();
     flashram_info_t fi;
-    if (flashram_detect(&fi))
+    if (flashram_init(NULL, &fi))
     {
         g_backend = BACKEND_FLASHRAM;
         g_capacity = fi.total_size;
