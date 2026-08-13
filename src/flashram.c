@@ -335,8 +335,14 @@ int flashram_read(void* dst, size_t offset, size_t len)
 
         uint32_t pi = flashram_pi_address(abs_off);
 
-        // Fast path: aligned destination and even length -> DMA straight in.
-        if ((((uintptr_t) (out + done) & 7) == 0) && ((chunk & 1) == 0))
+        // Fast path: cacheline-aligned destination and whole-cacheline length
+        // -> DMA straight in. Must be 16-byte (not just 8-byte/DMA) granular:
+        // the writeback-invalidate below operates on whole 16-byte D-cache
+        // lines, so a merely 8-aligned edge would extend the op into the
+        // adjacent allocation's shared line — flushing stale CPU bytes over
+        // (or discarding cached state of) up to 8 neighboring bytes. Anything
+        // less aligned takes the bounce path below, which is edge-safe.
+        if ((((uintptr_t) (out + done) & 15) == 0) && ((chunk & 15) == 0))
         {
             data_cache_hit_writeback_invalidate(out + done, chunk);
             dma_read_raw_async(out + done, pi, chunk);
