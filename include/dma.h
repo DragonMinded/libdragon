@@ -61,6 +61,22 @@ extern "C" {
 /** @} */
 
 /**
+ * @brief PI BSD domain bus timing parameters.
+ *
+ * These map directly onto a PI domain's LAT/PWD/PGS/RLS registers
+ * (PI_BSD_DOM1_* for cartridge ROM, PI_BSD_DOM2_* for SRAM/FlashRAM), which
+ * configure the bus timing the PI uses to talk to a peripheral in that domain.
+ * Each field is the raw register value.
+ */
+typedef struct
+{
+    uint8_t latency;      ///< PI_BSD_DOMx_LAT: bus latency.
+    uint8_t pulse_width;  ///< PI_BSD_DOMx_PWD: pulse width.
+    uint8_t page_size;    ///< PI_BSD_DOMx_PGS: page size; DMA auto-split boundary is 2^(page_size+2) bytes.
+    uint8_t release;      ///< PI_BSD_DOMx_RLS: release duration.
+} pi_dom_timings_t;
+
+/**
  * @brief Start writing data to a peripheral through PI DMA (low-level)
  *
  * This function should be used when writing to a cartridge peripheral (typically
