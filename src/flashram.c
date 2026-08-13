@@ -31,6 +31,7 @@
  */
 
 #include "flashram.h"
+#include "flashram_internal.h"
 #include "debug.h"
 #include "dma.h"
 #include "interrupt.h"
@@ -55,7 +56,8 @@
 #define FLASHRAM_CMD_IDENTIFY_MODE   0xE1000000  ///< Enter identify (silicon ID) mode.
 #define FLASHRAM_CMD_READ_MODE       0xF0000000  ///< Enter array read mode.
 #define FLASHRAM_CMD_SECTOR_ERASE    0x4B000000  ///< Arm sector erase at page (| page).
-#define FLASHRAM_CMD_EXECUTE_ERASE   0x78000000  ///< Execute the armed erase.
+#define FLASHRAM_CMD_CHIP_ERASE      0x3C000000  ///< Arm whole-chip erase.
+#define FLASHRAM_CMD_EXECUTE_ERASE   0x78000000  ///< Execute the armed (sector or chip) erase.
 #define FLASHRAM_CMD_LOAD_BYTE_PAGE  0xB4000000  ///< Enter load-byte-page mode (fill the page buffer).
 #define FLASHRAM_CMD_PROGRAM_PAGE    0xA5000000  ///< Program the page buffer into page (| page).
 
@@ -317,16 +319,30 @@ static bool flashram_page_is_erased(const uint8_t* page)
     return true;
 }
 
-bool flashram_erase_sector(unsigned int sector)
+bool flashram_erase_sector_at_page(unsigned int page)
 {
     assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
 
-    assertf(sector < FLASHRAM_NUM_SECTORS,
-            "flashram_erase_sector: sector %u out of range (0..%u)",
-            sector, (unsigned) (FLASHRAM_NUM_SECTORS - 1));
+    assertf(page < FLASHRAM_NUM_PAGES,
+            "flashram_erase_sector_at_page: page %u out of range (0..%u)",
+            page, (unsigned) (FLASHRAM_NUM_PAGES - 1));
 
-    unsigned int page = sector * FLASHRAM_PAGES_PER_SECTOR;
+    // The sector-erase command is addressed by page number; the chip derives the
+    // enclosing sector from it.
     flashram_command(FLASHRAM_CMD_SECTOR_ERASE | page);
+    flashram_command(FLASHRAM_CMD_EXECUTE_ERASE);
+    bool ok = flashram_wait_ready(FLASHRAM_STATUS_ERASE_BUSY, FLASHRAM_STATUS_ERASE_OK,
+                                  FLASHRAM_ERASE_TIMEOUT_MS);
+    // Clear the OK/error latch so the next operation's result is not masked.
+    flashram_clear_status();
+    return ok;
+}
+
+bool flashram_erase_chip(void)
+{
+    assertf(__flashram_inited, "flashram accessed, but flashram_init() hasn't been called yet");
+
+    flashram_command(FLASHRAM_CMD_CHIP_ERASE);
     flashram_command(FLASHRAM_CMD_EXECUTE_ERASE);
     bool ok = flashram_wait_ready(FLASHRAM_STATUS_ERASE_BUSY, FLASHRAM_STATUS_ERASE_OK,
                                   FLASHRAM_ERASE_TIMEOUT_MS);
@@ -360,13 +376,13 @@ bool flashram_program_page(unsigned int page, const void* data)
     return ok;
 }
 
-/// Erase @p sector then program its pages from the 16 KiB @p content buffer.
-static bool flashram_write_sector(unsigned int sector, const uint8_t* content)
+/// Erase the sector starting at @p base_page, then program its pages from the
+/// 16 KiB @p content buffer. Works in page numbers throughout.
+static bool flashram_write_sector(unsigned int base_page, const uint8_t* content)
 {
-    if (!flashram_erase_sector(sector))
+    if (!flashram_erase_sector_at_page(base_page))
         return false;
 
-    unsigned int base_page = sector * FLASHRAM_PAGES_PER_SECTOR;
     for (unsigned int i = 0; i < FLASHRAM_PAGES_PER_SECTOR; i++)
     {
         const uint8_t* page = content + (i * FLASHRAM_PAGE_SIZE);
@@ -398,6 +414,7 @@ int flashram_write(const void* src, size_t offset, size_t len)
     while (remaining > 0)
     {
         unsigned int sector = pos / FLASHRAM_SECTOR_SIZE;
+        unsigned int base_page = sector * FLASHRAM_PAGES_PER_SECTOR;
         size_t sector_start = (size_t) sector * FLASHRAM_SECTOR_SIZE;
         size_t in_sector = pos - sector_start;
         size_t n = FLASHRAM_SECTOR_SIZE - in_sector;
@@ -407,7 +424,7 @@ int flashram_write(const void* src, size_t offset, size_t len)
         if (in_sector == 0 && n == FLASHRAM_SECTOR_SIZE)
         {
             // Whole sector overwritten: erase and program straight from the source.
-            if (!flashram_write_sector(sector, in))
+            if (!flashram_write_sector(base_page, in))
             {
                 result = -1;
                 break;
@@ -425,7 +442,7 @@ int flashram_write(const void* src, size_t offset, size_t len)
             }
             flashram_read(sector_buf, sector_start, FLASHRAM_SECTOR_SIZE);
             memcpy(sector_buf + in_sector, in, n);
-            if (!flashram_write_sector(sector, sector_buf))
+            if (!flashram_write_sector(base_page, sector_buf))
             {
                 result = -1;
                 break;
