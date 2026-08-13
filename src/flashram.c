@@ -221,7 +221,7 @@ static bool flashram_wait_ready(uint8_t busy_mask, uint8_t ok_mask, uint32_t tim
 /// Standard PI DOM2 bus timings for FlashRAM (https://n64brew.dev/wiki/Flash).
 /// PGS is left at its maximum so the PI never auto-splits DMAs -- the driver
 /// splits them manually, which is required for word-indexed parts.
-static const flashram_timings_t FLASHRAM_TIMINGS_DEFAULT = {
+static const pi_dom_timings_t FLASHRAM_TIMINGS_DEFAULT = {
     .latency     = 0x05,
     .pulse_width = 0x0C,
     .page_size   = 0x0F,
@@ -275,7 +275,7 @@ static bool flashram_probe(void)
     return true;
 }
 
-bool flashram_init(const flashram_timings_t* timings, flashram_info_t* info)
+bool flashram_init(const pi_dom_timings_t* timings, flashram_info_t* info)
 {
     if (!__flashram_inited)
     {

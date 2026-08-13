@@ -7,6 +7,7 @@
 #ifndef LIBDRAGON_FLASHRAM_H
 #define LIBDRAGON_FLASHRAM_H
 
+#include "dma.h"
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -98,25 +99,6 @@ typedef struct
 } flashram_info_t;
 
 /**
- * @brief PI DOM2 bus timing parameters used to access the FlashRAM chip.
- *
- * These map directly onto the PI_BSD_DOM2 registers. Pass a filled-in struct to
- * #flashram_init to override the standard values, e.g. for a flash with an
- * unusual layout; pass NULL to use the recommended defaults.
- *
- * @note @p page_size defaults to its maximum (0x0F) so the PI never auto-splits
- *       DMAs and the driver can split them itself -- required for word-indexed
- *       parts. Lowering it may break reads on those parts.
- */
-typedef struct
-{
-    uint8_t latency;      ///< PI_BSD_DOM2_LAT: bus latency (default 0x05).
-    uint8_t pulse_width;  ///< PI_BSD_DOM2_PWD: pulse width (default 0x0C).
-    uint8_t page_size;    ///< PI_BSD_DOM2_PGS: page size (default 0x0F, see note).
-    uint8_t release;      ///< PI_BSD_DOM2_RLS: release (default 0x02).
-} flashram_timings_t;
-
-/**
  * @brief Initialize the FlashRAM subsystem and detect the chip
  *
  * Configures the PI DOM2 registers, then reads the chip's silicon ID to check
@@ -128,13 +110,16 @@ typedef struct
  * must be known for reads/writes to address the array correctly on word-indexed
  * parts, which is why it is resolved here rather than in a separate step.
  *
- * @param timings Optional PI DOM2 bus timings; pass NULL for the standard
- *                defaults (latency 0x05, pulse 0x0C, page size 0x0F, release 0x02).
+ * @param timings Optional PI DOM2 (#pi_dom_timings_t) bus timings; pass NULL for
+ *                the standard defaults (latency 0x05, pulse 0x0C, page size 0x0F,
+ *                release 0x02). @p page_size must stay at its maximum (0x0F) so
+ *                the PI never auto-splits DMAs and the driver can split them
+ *                itself -- required for word-indexed parts.
  * @param info    Optional out-parameter; when non-NULL and FlashRAM is present,
  *                it is filled with the chip identity and layout.
  * @return true if FlashRAM is present, false otherwise.
  */
-bool flashram_init(const flashram_timings_t* timings, flashram_info_t* info);
+bool flashram_init(const pi_dom_timings_t* timings, flashram_info_t* info);
 
 /**
  * @brief Read data from FlashRAM
