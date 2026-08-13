@@ -17,10 +17,10 @@
  * @brief FlashRAM save storage for N64 cartridges
  *
  * This module provides access to the FlashRAM save chip found in some N64
- * cartridges (a 1 Mibit / 128 KiB Macronix-family NOR flash). Unlike SRAM,
- * which is a flat, byte-addressable memory (see @ref sram.h), FlashRAM is
- * driven through a small command state machine on the PI bus and can only be
- * erased in 16 KiB sectors and programmed in 128-byte pages.
+ * cartridges (a 1 Mibit / 128 KiB Macronix- or Matsushita-family NOR flash).
+ * Unlike SRAM, which is a flat, byte-addressable memory (see @ref sram.h),
+ * FlashRAM is driven through a small command state machine on the PI bus and can
+ * only be erased in 16 KiB sectors and programmed in 128-byte pages.
  *
  * Two levels of API are provided:
  *
@@ -29,8 +29,9 @@
  *    a read-modify-write over the affected sectors so that data outside the
  *    written range (but within the same erase sector) is preserved.
  *  - A low-level page/sector interface (#flashram_erase_sector /
- *    #flashram_program_page / #flashram_status) that maps directly onto the
- *    chip protocol, for callers that want to manage erase/program themselves.
+ *    #flashram_program_page / #flashram_status / #flashram_clear_status) that
+ *    maps directly onto the chip protocol, for callers that want to manage
+ *    erase/program themselves.
  *
  * Call #flashram_init once at boot before using any other function, and set
  * `N64_ROM_SAVETYPE = flashram` in your Makefile so emulators and flashcarts
@@ -51,6 +52,42 @@ extern "C" {
 #define FLASHRAM_NUM_SECTORS (FLASHRAM_SIZE / FLASHRAM_SECTOR_SIZE)   ///< Number of erase sectors (8).
 
 /**
+ * @brief How a FlashRAM chip interprets array addresses.
+ *
+ * "Older" Macronix parts are word-indexed: a PI-bus address selects a 16-bit
+ * word, so a logical byte offset must be halved to reach the right word (and
+ * the DMA no-cross boundary sits at half the byte value). Byte-indexed parts
+ * address individual bytes, like SRAM. The addressing mode is a fixed property
+ * of the silicon and is looked up from the chip's silicon ID.
+ */
+typedef enum
+{
+    FLASHRAM_ADDRESSING_BYTE = 0,   ///< Addresses select bytes (SRAM-like).
+    FLASHRAM_ADDRESSING_WORD = 1,   ///< Addresses select 16-bit words (offset must be halved).
+} flashram_addressing_t;
+
+/**
+ * @brief Identity and layout of the detected FlashRAM chip.
+ *
+ * Filled in by #flashram_detect. @p total_size / @p sector_size / @p page_size
+ * and the derived counts describe the erase/program geometry; @p addressing
+ * tells read/write which address convention the part uses.
+ */
+typedef struct
+{
+    uint32_t              type_id;         ///< FLASH_TYPE_ID (expected 0x11118001).
+    uint16_t              manufacturer_id; ///< Manufacturer ID (e.g. 0x00C2 Macronix, 0x0032 Matsushita).
+    uint16_t              device_id;       ///< Device ID (identifies the specific part).
+    flashram_addressing_t addressing;      ///< Byte- vs word-indexed addressing.
+    const char*           name;            ///< Human-readable model name ("unknown" if not in the table).
+    size_t                total_size;      ///< Total capacity in bytes (#FLASHRAM_SIZE).
+    size_t                sector_size;     ///< Erase-sector size in bytes (#FLASHRAM_SECTOR_SIZE).
+    size_t                page_size;       ///< Program-page size in bytes (#FLASHRAM_PAGE_SIZE).
+    unsigned int          num_sectors;     ///< Number of erase sectors (#FLASHRAM_NUM_SECTORS).
+    unsigned int          num_pages;       ///< Number of program pages (#FLASHRAM_NUM_PAGES).
+} flashram_info_t;
+
+/**
  * @brief Initialize the FlashRAM subsystem
  *
  * Configures the PI DOM2 registers to enable access to the FlashRAM chip and
@@ -59,35 +96,54 @@ extern "C" {
 void flashram_init(void);
 
 /**
- * @brief Detect whether FlashRAM is present in the cartridge
+ * @brief Detect whether FlashRAM is present and identify the chip
  *
- * Reads the chip's silicon ID and checks it against the known FlashRAM
- * identifier. Unlike SRAM detection this is non-destructive (it does not write
- * to the save area).
+ * Reads the chip's silicon ID and checks it against the known FlashRAM type
+ * identifier. When present, the manufacturer/device IDs are looked up to
+ * determine the model name and (crucially) the byte-vs-word addressing mode,
+ * which is cached and used by every subsequent read/write. Non-destructive: it
+ * does not write to the save area.
  *
- * @return #FLASHRAM_SIZE if FlashRAM is detected, 0 otherwise.
+ * @param info Optional out-parameter; when non-NULL and FlashRAM is present, it
+ *             is filled with the chip identity and layout.
+ * @return true if FlashRAM is detected, false otherwise.
  */
-int flashram_detect(void);
+bool flashram_detect(flashram_info_t* info);
 
 /**
  * @brief Read the FlashRAM status register
  *
- * @return The 32-bit status word. The low bits report program/erase busy and
- *         completion state (see the implementation for the bit layout).
+ * Enters status mode and returns the 8-bit status byte. The low bits report
+ * program/erase busy and last-operation success (see the implementation for the
+ * bit layout).
+ *
+ * @return The 8-bit status byte.
  */
-uint32_t flashram_status(void);
+uint8_t flashram_status(void);
+
+/**
+ * @brief Clear the FlashRAM status register
+ *
+ * Resets the ERASE_OK / PROGRAM_OK latch to its default state by writing 0 at
+ * the array origin while in status mode. Should be called after a failed erase
+ * or program so a later operation's success flag is not masked by the previous
+ * result. (The driver's own blocking write path already does this internally.)
+ */
+void flashram_clear_status(void);
 
 /**
  * @brief Read data from FlashRAM
  *
- * Reads a byte range from FlashRAM into @p dst. Any offset and length are
- * accepted; the read is served entirely via PI DMA (FlashRAM array data cannot
- * be read with CPU I/O).
+ * Reads a byte range from FlashRAM into @p dst. Any @b even offset and any
+ * length are accepted (an odd offset or out-of-range range asserts, since the
+ * array is moved over the 2-byte PI bus); the read is served via PI DMA, which
+ * transparently handles the word-indexed parts' address halving and the 2-byte
+ * granularity.
  *
  * @param dst    Destination buffer to store the read data.
- * @param offset Byte offset in FlashRAM to read from (0 to #FLASHRAM_SIZE - 1).
+ * @param offset Even byte offset in FlashRAM to read from (0 to #FLASHRAM_SIZE - 1).
  * @param len    Number of bytes to read.
- * @return Number of bytes read, or a negative value on error (sets @c errno).
+ * @return Number of bytes read (equal to @p len). Invalid arguments assert.
  */
 int flashram_read(void* dst, size_t offset, size_t len);
 
@@ -100,13 +156,15 @@ int flashram_read(void* dst, size_t offset, size_t len);
  * are read back first so their untouched bytes are preserved. Pages whose final
  * content is entirely erased (all 0xFF) are skipped.
  *
- * This is a blocking operation and can take on the order of tens of
- * milliseconds per touched sector on real hardware.
+ * This is a blocking operation and can take up to a few hundred milliseconds
+ * per touched sector on real hardware (sector erase plus up to 128 page
+ * programs).
  *
  * @param src    Source buffer containing the data to write.
  * @param offset Byte offset in FlashRAM to write to (0 to #FLASHRAM_SIZE - 1).
  * @param len    Number of bytes to write.
- * @return Number of bytes written, or a negative value on error (sets @c errno).
+ * @return Number of bytes written, or a negative value if an erase/program fails
+ *         on the hardware. Invalid arguments assert.
  */
 int flashram_write(const void* src, size_t offset, size_t len);
 
@@ -116,7 +174,8 @@ int flashram_write(const void* src, size_t offset, size_t len);
  * Erases one 16 KiB sector, setting all of its bytes to 0xFF. Blocking.
  *
  * @param sector Sector index (0 to #FLASHRAM_NUM_SECTORS - 1).
- * @return true on success, false on timeout/failure (sets @c errno on bad args).
+ * @return true on success, false on erase timeout/failure. An out-of-range
+ *         sector asserts.
  */
 bool flashram_erase_sector(unsigned int sector);
 
@@ -128,7 +187,8 @@ bool flashram_erase_sector(unsigned int sector);
  *
  * @param page Page index (0 to #FLASHRAM_NUM_PAGES - 1).
  * @param data Pointer to #FLASHRAM_PAGE_SIZE bytes of data (any alignment).
- * @return true on success, false on timeout/failure (sets @c errno on bad args).
+ * @return true on success, false on program timeout/failure. An out-of-range
+ *         page asserts.
  */
 bool flashram_program_page(unsigned int page, const void* data);
 
