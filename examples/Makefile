@@ -26,6 +26,7 @@ EXAMPLES += pixelshader
 EXAMPLES += rdpqdemo
 EXAMPLES += rspqdemo
 EXAMPLES += rtctest
+EXAMPLES += savedoodle
 EXAMPLES += spriteanim
 EXAMPLES += test
 EXAMPLES += timers
