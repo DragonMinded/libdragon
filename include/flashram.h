@@ -22,16 +22,14 @@
  * FlashRAM is driven through a small command state machine on the PI bus and can
  * only be erased in 16 KiB sectors and programmed in 128-byte pages.
  *
- * Two levels of API are provided:
+ * The public API is an SRAM-like byte-range interface (#flashram_read /
+ * #flashram_write) that accepts arbitrary offsets and lengths. #flashram_write
+ * performs a read-modify-write over the affected sectors so that data outside
+ * the written range (but within the same erase sector) is preserved.
  *
- *  - A high-level byte-range interface (#flashram_read / #flashram_write) that
- *    behaves like SRAM: arbitrary offsets and lengths. #flashram_write performs
- *    a read-modify-write over the affected sectors so that data outside the
- *    written range (but within the same erase sector) is preserved.
- *  - A low-level page/sector interface (#flashram_erase_sector /
- *    #flashram_program_page / #flashram_status / #flashram_clear_status) that
- *    maps directly onto the chip protocol, for callers that want to manage
- *    erase/program themselves.
+ * A lower-level page/sector interface that maps directly onto the chip command
+ * protocol exists internally (src/flashram_internal.h), but it is not (yet)
+ * part of the public API while its shape is being decided.
  *
  * Call #flashram_init once at boot before using any other function, and set
  * `N64_ROM_SAVETYPE = flashram` in your Makefile so emulators and flashcarts
@@ -111,27 +109,6 @@ void flashram_init(void);
 bool flashram_detect(flashram_info_t* info);
 
 /**
- * @brief Read the FlashRAM status register
- *
- * Enters status mode and returns the 8-bit status byte. The low bits report
- * program/erase busy and last-operation success (see the implementation for the
- * bit layout).
- *
- * @return The 8-bit status byte.
- */
-uint8_t flashram_status(void);
-
-/**
- * @brief Clear the FlashRAM status register
- *
- * Resets the ERASE_OK / PROGRAM_OK latch to its default state by writing 0 at
- * the array origin while in status mode. Should be called after a failed erase
- * or program so a later operation's success flag is not masked by the previous
- * result. (The driver's own blocking write path already does this internally.)
- */
-void flashram_clear_status(void);
-
-/**
  * @brief Read data from FlashRAM
  *
  * Reads a byte range from FlashRAM into @p dst. Any @b even offset and any
@@ -167,30 +144,6 @@ int flashram_read(void* dst, size_t offset, size_t len);
  *         on the hardware. Invalid arguments assert.
  */
 int flashram_write(const void* src, size_t offset, size_t len);
-
-/**
- * @brief Erase a single FlashRAM sector
- *
- * Erases one 16 KiB sector, setting all of its bytes to 0xFF. Blocking.
- *
- * @param sector Sector index (0 to #FLASHRAM_NUM_SECTORS - 1).
- * @return true on success, false on erase timeout/failure. An out-of-range
- *         sector asserts.
- */
-bool flashram_erase_sector(unsigned int sector);
-
-/**
- * @brief Program a single FlashRAM page
- *
- * Programs one 128-byte page. The page's sector must have been erased first;
- * FlashRAM programming can only clear bits (1 -> 0). Blocking.
- *
- * @param page Page index (0 to #FLASHRAM_NUM_PAGES - 1).
- * @param data Pointer to #FLASHRAM_PAGE_SIZE bytes of data (any alignment).
- * @return true on success, false on program timeout/failure. An out-of-range
- *         page asserts.
- */
-bool flashram_program_page(unsigned int page, const void* data);
 
 #ifdef __cplusplus
 }
