@@ -12,13 +12,14 @@
  * Following the hardware formalism (see https://n64brew.dev/wiki/Flash), erase
  * and program address the array by *page number* rather than sector index: the
  * sector-erase command itself takes a page and the chip derives the sector from
- * it. Callers work in page numbers and use #FLASHRAM_PAGES_PER_SECTOR to move
- * between the two.
+ * it. The sector containing a page is derived from the detected chip layout
+ * (see #flashram_info_t).
  */
 
 #ifndef LIBDRAGON_FLASHRAM_INTERNAL_H
 #define LIBDRAGON_FLASHRAM_INTERNAL_H
 
+#include "flashram.h"
 #include <stdbool.h>
 #include <stdint.h>
 
