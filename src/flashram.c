@@ -49,7 +49,7 @@
 
 // Command opcodes (written as (opcode) or (opcode | page_number)).
 #define FLASHRAM_CMD_STATUS_MODE     0xD2000000  ///< Enter status mode.
-#define FLASHRAM_CMD_IDENTIFY_MODE   0xE1000000  ///< Enter identify (silicon ID) mode.
+#define FLASHRAM_CMD_SILICON_ID_MODE 0xE1000000  ///< Enter SiliconID mode.
 #define FLASHRAM_CMD_READ_MODE       0xF0000000  ///< Enter array read mode.
 #define FLASHRAM_CMD_SECTOR_ERASE    0x4B000000  ///< Arm sector erase at page (| page).
 #define FLASHRAM_CMD_CHIP_ERASE      0x3C000000  ///< Arm whole-chip erase.
@@ -233,10 +233,10 @@ static const pi_dom_timings_t FLASHRAM_TIMINGS_DEFAULT = {
 /// Returns whether a known FlashRAM identifier was found. Leaves read mode.
 static bool flashram_probe(void)
 {
-    // Enter identify mode and DMA out the two silicon-ID words. DMA is mandatory
+    // Enter SiliconID mode and DMA out the two silicon-ID words. DMA is mandatory
     // here: a CPU read of the ID window returns only the first 32-bit word twice.
     uint32_t id[2] __attribute__((aligned(16))) = {0};
-    flashram_command_twice(FLASHRAM_CMD_IDENTIFY_MODE);
+    flashram_command_twice(FLASHRAM_CMD_SILICON_ID_MODE);
     data_cache_hit_writeback_invalidate(id, sizeof(id));
     dma_read_raw_async(id, FLASHRAM_ADDRESS, sizeof(id));
     dma_wait();
