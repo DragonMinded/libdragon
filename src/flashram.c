@@ -76,8 +76,11 @@
 // Canonical layouts for the two known 1 Mibit geometries (128-byte pages,
 // 128 pages/sector, 8 sectors, 256-page read boundary), differing only in the
 // addressable unit: byte-indexed vs 16-bit-word-indexed.
+
+/// Byte-indexed 1 Mibit layout (newer MX29L1101 / MN63F8MPN parts).
 #define FLASHRAM_LAYOUT_BYTE \
     { .unit_bits = 0, .offset_bits = 7, .page_bits = 7, .sector_bits = 3, .read_page_bits = 8 }
+/// Word-indexed 1 Mibit layout (older MX29L0000 / MX29L1100 parts).
 #define FLASHRAM_LAYOUT_WORD \
     { .unit_bits = 1, .offset_bits = 6, .page_bits = 7, .sector_bits = 3, .read_page_bits = 8 }
 
