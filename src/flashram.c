@@ -115,6 +115,14 @@ static void flashram_derive_geometry(flashram_info_t* info)
     info->total_size  = (size_t) 1 << (l->unit_bits + l->offset_bits + l->page_bits + l->sector_bits);
     info->num_sectors = 1u << l->sector_bits;
     info->num_pages   = 1u << (l->page_bits + l->sector_bits);
+
+    // Sector-erase/page-program commands OR the page number into a 32-bit opcode
+    // word whose opcode occupies bits [31:24], so a page number must fit in the
+    // low 24 bits. No real part comes close, but a bad table entry would silently
+    // corrupt the opcode -- assert the invariant where the geometry is adopted.
+    assertf(info->num_pages <= (1u << 24),
+            "flashram: layout has %u pages; a page number would overwrite the "
+            "command opcode (max 2^24 pages)", info->num_pages);
 }
 
 /// True if flashram_init() has been called.
