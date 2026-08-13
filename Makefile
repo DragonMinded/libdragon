@@ -88,6 +88,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/model64.o \
 	$(BUILD_DIR)/a3d.o \
 	$(BUILD_DIR)/sram.o \
+	$(BUILD_DIR)/flashram.o \
 	$(BUILD_DIR)/ucontext.o \
 	$(BUILD_DIR)/ucontext_asm.o \
 	$(BUILD_DIR)/coroutine.o

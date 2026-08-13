@@ -53,6 +53,7 @@
 #include "pifile.h"
 #include "eeprom.h"
 #include "eepromfs.h"
+#include "flashram.h"
 #include "graphics.h"
 #include "mi.h"
 #include "interrupt.h"
