@@ -40,20 +40,15 @@ extern "C" {
 #endif
 
 #define FLASHRAM_ADDRESS     0x08000000     ///< Base address of FlashRAM in PI address space (shared with SRAM domain).
-#define FLASHRAM_SIZE        0x00020000     ///< Total FlashRAM size (128 KiB / 1 Mibit).
-#define FLASHRAM_PAGE_SIZE   0x00000080     ///< Program granularity (128 bytes).
-#define FLASHRAM_SECTOR_SIZE 0x00004000     ///< Erase granularity (16 KiB).
-#define FLASHRAM_NUM_PAGES   (FLASHRAM_SIZE / FLASHRAM_PAGE_SIZE)     ///< Number of programmable pages (1024).
-#define FLASHRAM_NUM_SECTORS (FLASHRAM_SIZE / FLASHRAM_SECTOR_SIZE)   ///< Number of erase sectors (8).
 
 /**
  * @brief FlashRAM chip layout, expressed as bits-per-component.
  *
  * Encoding each dimension as a power of two describes both byte- and
  * word-indexed parts uniformly and generalizes to other page/sector sizes.
- * "Older" Macronix parts are word-indexed (@p unit_bits = 1): a PI-bus address
- * selects a 16-bit word, so a logical byte offset is halved to reach the right
- * word. Byte-indexed parts (@p unit_bits = 0) address individual bytes, like
+ * Some are word-indexed (@p unit_bits = 1): a PI-bus address selects a
+ * 16-bit word, so a logical byte offset is halved to reach the right word.
+ * Byte-indexed parts (@p unit_bits = 0) address individual bytes, like
  * SRAM. The layout is a fixed property of the silicon, looked up from its
  * silicon ID.
  *
@@ -125,13 +120,10 @@ bool flashram_init(const pi_dom_timings_t* timings, flashram_info_t* info);
  * @brief Read data from FlashRAM
  *
  * Reads a byte range from FlashRAM into @p dst. Any @b even offset and any
- * length are accepted (an odd offset or out-of-range range asserts, since the
- * array is moved over the 2-byte PI bus); the read is served via PI DMA, which
- * transparently handles the word-indexed parts' address halving and the 2-byte
- * granularity.
+ * length are accepted (an odd offset or out-of-range range asserts)
  *
  * @param dst    Destination buffer to store the read data.
- * @param offset Even byte offset in FlashRAM to read from (0 to #FLASHRAM_SIZE - 1).
+ * @param offset Even byte offset in FlashRAM to read from (0 to the detected total_size - 1).
  * @param len    Number of bytes to read.
  * @return Number of bytes read (equal to @p len). Invalid arguments assert.
  */
@@ -151,7 +143,7 @@ int flashram_read(void* dst, size_t offset, size_t len);
  * programs).
  *
  * @param src    Source buffer containing the data to write.
- * @param offset Byte offset in FlashRAM to write to (0 to #FLASHRAM_SIZE - 1).
+ * @param offset Byte offset in FlashRAM to write to (0 to the detected total_size - 1).
  * @param len    Number of bytes to write.
  * @return Number of bytes written, or a negative value if an erase/program fails
  *         on the hardware. Invalid arguments assert.
