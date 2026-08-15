@@ -10,25 +10,28 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
-#include <assert.h>
-#include <ctype.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stdarg.h>
-#include <string.h>
-#include <strings.h>
+#include <cassert>
+#include <cctype>
+#include <cstdio>
+#include <cstdint>
+#include <cstdarg>
+#include <cstring>
+#include <cstdlib>
+#include <cmath>
 
-#include <math.h>
-#include <stdlib.h>
+#include <algorithm>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
 #include "../common/subprocess.h"
-
 #include "../common/polyfill.h"
 #include "../common/utils.h"
 #include "../common/binout.h"
 #include "../common/assetcomp.h"
-#include "n64sym_huffman.h"
 
+#include "n64sym_huffman.h"
 #include "../common/binout.c"
 
 // Size of the runtime buffer that will be used during SYMT access/decompression.
@@ -46,7 +49,7 @@ bool flag_cpp_shorten = true;
 const char *gccprefix_triplet = NULL;
 
 // C++ symbol shortening function (n64sym_cppshorten.c)
-char *cpp_shorten_symbol(const char *sym, int max_len);
+extern "C" char *cpp_shorten_symbol(const char *sym, int max_len);
 
 // Printf if verbose
 void verbose(int level, const char *fmt, ...) {
@@ -75,29 +78,22 @@ void usage(const char *progname)
 }
 
 // Write a variable-length integer to the buffer
-void w_varint(uint8_t **buf, uint32_t val)
+void w_varint(std::vector<uint8_t> &buf, uint32_t val)
 {
     do {
         uint8_t byte = val & 0x7F;
         val >>= 7;
         if (val) byte |= 0x80;
-        stbds_arrput(*buf, byte);
+        buf.push_back(byte);
     } while (val);
 }
 
 // Write a signed variable-length integer to the buffer (zigzag encoding)
-void w_signed_varint(uint8_t **buf, int32_t val)
+void w_signed_varint(std::vector<uint8_t> &buf, int32_t val)
 {
     uint32_t uval = (val << 1) ^ (val >> 31);
     w_varint(buf, uval);
 }
-
-// Global map for strings
-// Used to compress strings in the symbol table
-struct gl_map { char *key; int value; };
-
-// Map for address whitelist (uint32_t -> int)
-struct addr_map { uint32_t key; int value; };
 
 // Symbol table entry
 struct symtable_s {
@@ -108,7 +104,8 @@ struct symtable_s {
     int line;
 
     bool is_func, is_inline;
-} *symtable = NULL;
+};
+std::vector<symtable_s> symtable;
 
 // Truncate a path ensuring it fits in max_len and possibly preserves the
 // directory structure suffix (by cutting at a separator). This is useful
@@ -142,7 +139,7 @@ char *truncate_path(const char *path, int len, int max_len) {
         suffix_src = path + offset;
     }
     
-    char *file = malloc(3 + suffix_len + 1);
+    char *file = (char *)malloc(3 + suffix_len + 1);
     strcpy(file, "...");
     memcpy(file + 3, suffix_src, suffix_len);
     file[3 + suffix_len] = 0;
@@ -244,20 +241,20 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
         int line = atoi(colon + 1);
 
         // Add the callsite to the list
-        stbds_arrput(symtable, ((struct symtable_s) {
-            .uuid = stbds_arrlen(symtable),
+        symtable.push_back({
+            .uuid = (uint32_t)symtable.size(),
             .addr = addr,
             .func = func,
             .file = file,
             .line = line,
             .is_func = false,
             .is_inline = true,
-        }));
+        });
         at_least_one = true;
     }
     assert(at_least_one);
-    symtable[stbds_arrlen(symtable)-1].is_inline = false;
-    symtable[stbds_arrlen(symtable)-1].is_func = is_func;
+    symtable.back().is_inline = false;
+    symtable.back().is_func = is_func;
 
     // Read and skip the two remaining lines (function and file position)
     // that refers to the dummy 0x0 address
@@ -265,7 +262,7 @@ void symbol_add(const char *elf, uint32_t addr, bool is_func)
     getline(&line_buf, &line_buf_size, addr2line_r);
 }
 
-void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
+void elf_read_function_symbols(const char *elf, std::unordered_set<uint32_t> &all_functions)
 {
     char *cmd = NULL;
     asprintf(&cmd, "%sobjdump -t %s", gccprefix_triplet, elf);
@@ -284,7 +281,7 @@ void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
         // could not even be 4-byte aligned.
         if (!strstr(line, " O ")) {
             uint32_t addr = strtoul(line, NULL, 16);
-            stbds_hmput(*all_functions, addr, 1);
+            all_functions.insert(addr);
         }
     }
     free(line);
@@ -292,14 +289,14 @@ void elf_read_function_symbols(const char *elf, struct addr_map **all_functions)
     pclose(f);
 }
 
-static bool symbol_add_unique(const char *elf, uint32_t addr, bool is_func, struct addr_map **emitted_addrs)
+static bool symbol_add_unique(const char *elf, uint32_t addr, bool is_func, std::unordered_set<uint32_t> &emitted_addrs)
 {
-    if (stbds_hmgeti(*emitted_addrs, addr) >= 0) {
+    if (emitted_addrs.count(addr)) {
         assert(!is_func && "duplicate address reached with is_func=true; function symbol must be emitted first");
         return false;
     }
 
-    stbds_hmput(*emitted_addrs, addr, 1);
+    emitted_addrs.insert(addr);
     symbol_add(elf, addr, is_func);
     return true;
 }
@@ -386,10 +383,10 @@ static bool mnemonic_can_trap(const char *mn, const char *ops)
 
 bool elf_find_callsites(const char *elf)
 {
-    struct addr_map *all_functions = NULL;
-    struct addr_map *emitted_addrs = NULL;
-    elf_read_function_symbols(elf, &all_functions);
-    verbose(1, "Found %d function symbols\n", stbds_hmlen(all_functions));
+    std::unordered_set<uint32_t> all_functions;
+    std::unordered_set<uint32_t> emitted_addrs;
+    elf_read_function_symbols(elf, all_functions);
+    verbose(1, "Found %zu function symbols\n", all_functions.size());
 
     // Start objdump to parse the disassembly of the ELF file
     char *cmd = NULL;
@@ -408,8 +405,8 @@ bool elf_find_callsites(const char *elf)
         // which are not functions in the text segment.
         if (strstr(line, ">:")) {
             uint32_t addr = strtoul(line, NULL, 16);
-            if (stbds_hmgeti(all_functions, addr) >= 0) {
-                symbol_add_unique(elf, addr, true, &emitted_addrs);
+            if (all_functions.count(addr)) {
+                symbol_add_unique(elf, addr, true, emitted_addrs);
             }
         }
 
@@ -429,15 +426,13 @@ bool elf_find_callsites(const char *elf)
 
         if (should_emit) {
             uint32_t addr = strtoul(line, NULL, 16);
-            symbol_add_unique(elf, addr, false, &emitted_addrs);
+            symbol_add_unique(elf, addr, false, emitted_addrs);
         }
         free(mn);
         free(ops);
     }
     free(line);
     free(cmd);
-    stbds_hmfree(all_functions);
-    stbds_hmfree(emitted_addrs);
     int status = pclose(disasm);
 #ifdef __MINGW32__
     return status == 0;
@@ -446,25 +441,8 @@ bool elf_find_callsites(const char *elf)
 #endif
 }
 
-int symtable_sort_by_addr(const void *a, const void *b)
-{
-    const struct symtable_s *sa = a;
-    const struct symtable_s *sb = b;
-    // In case the address match, it means that there are multiple
-    // inlines at this address. Sort by insertion order (aka stable sort)
-    // so that we preserve the inline order.
-    if (sa->addr != sb->addr)
-        return sa->addr - sb->addr;
-    return sa->uuid - sb->uuid;
-}
-
-int cmp_string_ptr(const void *a, const void *b) {
-    const char *sa = *(const char **)a;
-    const char *sb = *(const char **)b;
-    return strcmp(sa, sb);
-}
-
-void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, uint32_t **index) 
+void compress_strings(const std::vector<char*> &strings, huff_code_t *huff_table,
+                      std::vector<uint8_t> &blob, std::vector<uint32_t> &index)
 {
     // Statistics
     int stats_raw_suffix_len = 0;
@@ -472,14 +450,14 @@ void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, u
     int stats_varint_bytes = 0;
     int stats_padding_bytes = 0;
 
-    int n = stbds_arrlen(strings);
+    int n = (int)strings.size();
     int i = 0;
     while (i < n) {
         // Start a new block
         uint32_t block_start_idx = i;
-        uint32_t block_blob_off = stbds_arrlen(*blob);
-        stbds_arrput(*index, block_start_idx);
-        stbds_arrput(*index, block_blob_off);
+        uint32_t block_blob_off = (uint32_t)blob.size();
+        index.push_back(block_start_idx);
+        index.push_back(block_blob_off);
         
         // Use BitWriter for the block
         BitWriter bw;
@@ -512,7 +490,7 @@ void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, u
             }
             
             // Calculate current buffer size in bits and what it would be after adding this string
-            int current_bits = stbds_arrlen(bw.buf) * 8 + bw.cur_bit;
+            int current_bits = (int)stbds_arrlen(bw.buf) * 8 + bw.cur_bit;
             int new_bits = current_bits + bits_needed;
             int new_size_bytes = (new_bits + 7) / 8;
             
@@ -550,10 +528,8 @@ void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, u
         }
             
         // Append to blob
-        int cur_len = stbds_arrlen(*blob);
-        int block_len = stbds_arrlen(bw.buf);
-        stbds_arrsetlen(*blob, cur_len + block_len);
-        memcpy(*blob + cur_len, bw.buf, block_len);
+        int block_len = (int)stbds_arrlen(bw.buf);
+        blob.insert(blob.end(), bw.buf, bw.buf + block_len);
         stbds_arrfree(bw.buf);
     }
 
@@ -567,8 +543,8 @@ void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, u
         stats_huff_bytes, 100.0 * stats_huff_bytes / (stats_raw_suffix_len ? stats_raw_suffix_len : 1));
     verbose(1, "    Overhead: VarInts: %d bytes, Padding: %d bytes\n", 
         stats_varint_bytes, stats_padding_bytes);
-    verbose(1, "    Total Blob Size: %d bytes (%.1f%% of Front Coding)\n", 
-        stbds_arrlen(*blob), 100.0 * stbds_arrlen(*blob) / (stats_front_coding_size ? stats_front_coding_size : 1));
+    verbose(1, "    Total Blob Size: %zu bytes (%.1f%% of Front Coding)\n", 
+        blob.size(), 100.0 * blob.size() / (stats_front_coding_size ? stats_front_coding_size : 1));
 }
 
 // Compress the symbol table into a delta-encoded stream split into chunks.
@@ -576,14 +552,16 @@ void compress_strings(char **strings, huff_code_t *huff_table, uint8_t **blob, u
 // that fit into MAX_BUFFER_SIZE. A separate index tracks the start address and
 // stream offset of each chunk for random access.
 int compress_symbols(
-    struct symtable_s *symtable, int nsyms,
-    struct gl_map *file_map, struct gl_map *func_map,
-    uint8_t **stream, uint32_t **chunk_index)
+    const std::vector<symtable_s> &symtable,
+    const std::unordered_map<std::string, int> &file_map,
+    const std::unordered_map<std::string, int> &func_map,
+    std::vector<uint8_t> &stream, std::vector<uint32_t> &chunk_index)
 {
+    int nsyms = (int)symtable.size();
     if (nsyms == 0) return 0;
 
     // Temp buffer for current chunk
-    uint8_t *chunk_buf = NULL;
+    std::vector<uint8_t> chunk_buf;
     uint32_t chunk_start_addr = symtable[0].addr;
     uint32_t last_func_addr = symtable[0].is_func ? symtable[0].addr : 0;
     
@@ -595,43 +573,40 @@ int compress_symbols(
 
     // Write per-chunk header: func offset of first symbol (VarInt)
     uint32_t chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
-    w_varint(&chunk_buf, chunk_func_off);
+    w_varint(chunk_buf, chunk_func_off);
     
     int emitted = 0;
 
     for (int i=0; i<nsyms; i++) {
-        struct symtable_s *sym = &symtable[i];
+        const symtable_s *sym = &symtable[i];
 
-        int file_idx = stbds_shget(file_map, sym->file);
-        int func_idx = stbds_shget(func_map, sym->func);
+        int file_idx = file_map.at(sym->file);
+        int func_idx = func_map.at(sym->func);
         
         // Check if adding this symbol might overflow chunk size (estimate max 21 bytes)
         // If chunk is getting full, flush it.
         // This is used to tune internal compressions to make sure the provided value
         // is sufficient. Testing shows that growing after 512 has very minimal size
         // savings.
-        bool flush = (stbds_arrlen(chunk_buf) > MAX_BUFFER_SIZE - 32);
+        bool flush = (chunk_buf.size() > MAX_BUFFER_SIZE - 32);
         
         if (flush) {
             // Flush chunk
-            stbds_arrput(*chunk_index, chunk_start_addr);
-            stbds_arrput(*chunk_index, stbds_arrlen(*stream));
+            chunk_index.push_back(chunk_start_addr);
+            chunk_index.push_back((uint32_t)stream.size());
             
             // Append chunk to stream
-            int cur_len = stbds_arrlen(*stream);
-            int chunk_len = stbds_arrlen(chunk_buf);
-            stbds_arrsetlen(*stream, cur_len + chunk_len);
-            memcpy(*stream + cur_len, chunk_buf, chunk_len);
+            stream.insert(stream.end(), chunk_buf.begin(), chunk_buf.end());
             
             // Reset for new chunk
-            stbds_arrsetlen(chunk_buf, 0);
+            chunk_buf.clear();
             chunk_start_addr = sym->addr;
             state_addr = sym->addr;
             state_file[0] = state_file[1] = 0;
             state_func[0] = state_func[1] = 0;
             state_line[0] = state_line[1] = 0;
             chunk_func_off = last_func_addr ? (chunk_start_addr - last_func_addr) : 0;
-            w_varint(&chunk_buf, chunk_func_off);
+            w_varint(chunk_buf, chunk_func_off);
         }
         
         int sid = sym->is_inline ? 1 : 0;
@@ -663,11 +638,11 @@ int compress_symbols(
             has_addr_param = true;
         }
         
-        stbds_arrput(chunk_buf, op);
-        if (delta_file != 0) w_signed_varint(&chunk_buf, delta_file);
-        if (delta_func != 0) w_signed_varint(&chunk_buf, delta_func);
-        if (delta_line != 0) w_signed_varint(&chunk_buf, delta_line);
-        if (has_addr_param)  w_varint(&chunk_buf, addr_param);
+        chunk_buf.push_back(op);
+        if (delta_file != 0) w_signed_varint(chunk_buf, delta_file);
+        if (delta_func != 0) w_signed_varint(chunk_buf, delta_func);
+        if (delta_line != 0) w_signed_varint(chunk_buf, delta_line);
+        if (has_addr_param)  w_varint(chunk_buf, addr_param);
 
         emitted++;
         
@@ -681,31 +656,27 @@ int compress_symbols(
     }
     
     // Flush final chunk
-    if (stbds_arrlen(chunk_buf) > 0) {
-        stbds_arrput(*chunk_index, chunk_start_addr);
-        stbds_arrput(*chunk_index, stbds_arrlen(*stream));
-        int cur_len = stbds_arrlen(*stream);
-        int chunk_len = stbds_arrlen(chunk_buf);
-        stbds_arrsetlen(*stream, cur_len + chunk_len);
-        memcpy(*stream + cur_len, chunk_buf, chunk_len);
+    if (!chunk_buf.empty()) {
+        chunk_index.push_back(chunk_start_addr);
+        chunk_index.push_back((uint32_t)stream.size());
+        stream.insert(stream.end(), chunk_buf.begin(), chunk_buf.end());
     }
 
-    stbds_arrfree(chunk_buf);
     return emitted;
 }
 
 static void compress_symbol_chunks(
-    uint8_t *plain_stream, uint32_t *plain_chunk_index,
-    uint8_t **cmp_stream, uint32_t **cmp_chunk_index,
+    const std::vector<uint8_t> &plain_stream, const std::vector<uint32_t> &plain_chunk_index,
+    std::vector<uint8_t> &cmp_stream, std::vector<uint32_t> &cmp_chunk_index,
     uint32_t *max_chunk_margin)
 {
-    int num_chunks = stbds_arrlen(plain_chunk_index) / 2;
+    int num_chunks = (int)plain_chunk_index.size() / 2;
     *max_chunk_margin = 0;
 
     for (int i = 0; i < num_chunks; i++) {
         uint32_t start_addr = plain_chunk_index[i * 2 + 0];
         uint32_t plain_off = plain_chunk_index[i * 2 + 1];
-        uint32_t plain_end = (i + 1 < num_chunks) ? plain_chunk_index[(i + 1) * 2 + 1] : stbds_arrlen(plain_stream);
+        uint32_t plain_end = (i + 1 < num_chunks) ? plain_chunk_index[(i + 1) * 2 + 1] : (uint32_t)plain_stream.size();
         assert(plain_end >= plain_off);
         uint32_t plain_size = plain_end - plain_off;
 
@@ -713,7 +684,7 @@ static void compress_symbol_chunks(
         int winsize = 0;
         int margin = 0;
         uint8_t *cmp_buf = NULL;
-        asset_compress_mem_raw(3, plain_stream + plain_off, (int)plain_size, &cmp_buf, &cmp_size, &winsize, &margin);
+        asset_compress_mem_raw(3, plain_stream.data() + plain_off, (int)plain_size, &cmp_buf, &cmp_size, &winsize, &margin);
         if (!cmp_buf || cmp_size <= 0) {
             fprintf(stderr, "Error: compression failed for chunk %d\n", i);
             exit(1);
@@ -722,19 +693,17 @@ static void compress_symbol_chunks(
         // Keep compressed chunk sizes even so the next chunk offset preserves
         // ROM/RAM parity constraints required by dma_read().
         if (cmp_size & 1) {
-            cmp_buf = realloc(cmp_buf, cmp_size + 1);
+            cmp_buf = (uint8_t *)realloc(cmp_buf, cmp_size + 1);
             cmp_buf[cmp_size++] = 0;
         }
 
         if ((uint32_t)margin > *max_chunk_margin)
             *max_chunk_margin = margin;
 
-        stbds_arrput(*cmp_chunk_index, start_addr);
-        stbds_arrput(*cmp_chunk_index, stbds_arrlen(*cmp_stream));
+        cmp_chunk_index.push_back(start_addr);
+        cmp_chunk_index.push_back((uint32_t)cmp_stream.size());
 
-        int cur_len = stbds_arrlen(*cmp_stream);
-        stbds_arrsetlen(*cmp_stream, cur_len + cmp_size);
-        memcpy(*cmp_stream + cur_len, cmp_buf, cmp_size);
+        cmp_stream.insert(cmp_stream.end(), cmp_buf, cmp_buf + cmp_size);
 
         free(cmp_buf);
     }
@@ -743,11 +712,11 @@ static void compress_symbol_chunks(
 void write_sym_file(const char *outfn, 
     int num_symbols, int num_chunks, int num_files, int num_funcs,
     uint32_t max_chunk_margin,
-    uint32_t *chunk_index,
-    uint32_t *file_offsets, uint8_t *file_blob,
-    uint32_t *func_offsets, uint8_t *func_blob,
-    uint8_t *huff_blob,
-    uint8_t *stream)
+    const std::vector<uint32_t> &chunk_index,
+    const std::vector<uint32_t> &file_offsets, const std::vector<uint8_t> &file_blob,
+    const std::vector<uint32_t> &func_offsets, const std::vector<uint8_t> &func_blob,
+    const std::vector<uint8_t> &huff_blob,
+    const std::vector<uint8_t> &stream)
 {
     FILE *out = fopen(outfn, "wb");
     if (!out) {
@@ -774,41 +743,41 @@ void write_sym_file(const char *outfn,
     // Sizes
     w32(out, num_files);
     w32(out, num_funcs);
-    w32(out, stbds_arrlen(file_offsets) / 2);
-    w32(out, stbds_arrlen(func_offsets) / 2);
-    w32(out, stbds_arrlen(huff_blob));
-    w32(out, stbds_arrlen(file_blob));
-    w32(out, stbds_arrlen(func_blob));
-    w32(out, stbds_arrlen(stream));
+    w32(out, (uint32_t)(file_offsets.size() / 2));
+    w32(out, (uint32_t)(func_offsets.size() / 2));
+    w32(out, (uint32_t)huff_blob.size());
+    w32(out, (uint32_t)file_blob.size());
+    w32(out, (uint32_t)func_blob.size());
+    w32(out, (uint32_t)stream.size());
     
     // Write Sections
     walign(out, 8);
     w32_at(out, chunk_idx_off_ph, ftell(out));
-    for(int i=0; i<stbds_arrlen(chunk_index); i++) w32(out, chunk_index[i]);
+    for (size_t i=0; i<chunk_index.size(); i++) w32(out, chunk_index[i]);
     
     walign(out, 8);
     w32_at(out, file_tab_off_ph, ftell(out));
-    for(int i=0; i<stbds_arrlen(file_offsets); i++) w32(out, file_offsets[i]);
+    for (size_t i=0; i<file_offsets.size(); i++) w32(out, file_offsets[i]);
     
     walign(out, 8);
     w32_at(out, func_tab_off_ph, ftell(out));
-    for(int i=0; i<stbds_arrlen(func_offsets); i++) w32(out, func_offsets[i]);
+    for (size_t i=0; i<func_offsets.size(); i++) w32(out, func_offsets[i]);
 
     walign(out, 8);
     w32_at(out, huff_tab_off_ph, ftell(out));
-    fwrite(huff_blob, stbds_arrlen(huff_blob), 1, out);
+    fwrite(huff_blob.data(), huff_blob.size(), 1, out);
     
     walign(out, 8);
     w32_at(out, file_blob_off_ph, ftell(out));
-    fwrite(file_blob, stbds_arrlen(file_blob), 1, out);
+    fwrite(file_blob.data(), file_blob.size(), 1, out);
     
     walign(out, 8);
     w32_at(out, func_blob_off_ph, ftell(out));
-    fwrite(func_blob, stbds_arrlen(func_blob), 1, out);
+    fwrite(func_blob.data(), func_blob.size(), 1, out);
     
     walign(out, 8);
     w32_at(out, stream_off_ph, ftell(out));
-    fwrite(stream, stbds_arrlen(stream), 1, out);
+    fwrite(stream.data(), stream.size(), 1, out);
     
     int size = ftell(out);
     verbose(1, "  Total File Size: %d bytes\n", size);
@@ -826,136 +795,136 @@ void process(const char *infn, const char *outfn)
         fprintf(stderr, "Error: objdump failed\n");
         exit(1);
     }
-    verbose(1, "Found %d callsites\n", stbds_arrlen(symtable));
+    verbose(1, "Found %zu callsites\n", symtable.size());
 
     // If the symtable is empty, there's nothing else to do
-    if (stbds_arrlen(symtable) == 0) {
+    if (symtable.empty()) {
         verbose(1, "No symbols found\n");
         return;
     }
 
-    // Sort the symbol table by address
-    qsort(symtable, stbds_arrlen(symtable), sizeof(struct symtable_s), symtable_sort_by_addr);
+    // Sort the symbol table by address. On address match, keep insertion order
+    // (uuid) so inline chains stay stable.
+    std::sort(symtable.begin(), symtable.end(), [](const symtable_s &a, const symtable_s &b) {
+        if (a.addr != b.addr) return a.addr < b.addr;
+        return a.uuid < b.uuid;
+    });
 
     // Prepare in-memory buffers
-    uint8_t *file_blob = NULL;
-    uint8_t *func_blob = NULL;
-    uint32_t *file_offsets = NULL;
-    uint32_t *func_offsets = NULL;
+    std::vector<uint8_t> file_blob;
+    std::vector<uint8_t> func_blob;
+    std::vector<uint32_t> file_offsets;
+    std::vector<uint32_t> func_offsets;
     
     // Create sorted list of unique files/funcs
-    char **unique_files = NULL;
-    char **unique_funcs = NULL;
+    std::vector<char*> unique_files;
+    std::vector<char*> unique_funcs;
     
-    for (int i=0; i<stbds_arrlen(symtable); i++) {
-        struct symtable_s *s = &symtable[i];
-        if (s->file) stbds_arrput(unique_files, s->file);
-        if (s->func) stbds_arrput(unique_funcs, s->func);
+    for (size_t i=0; i<symtable.size(); i++) {
+        symtable_s *s = &symtable[i];
+        if (s->file) unique_files.push_back(s->file);
+        if (s->func) unique_funcs.push_back(s->func);
     }
     
     // Sort and unique
-    qsort(unique_files, stbds_arrlen(unique_files), sizeof(char*), cmp_string_ptr);
-    qsort(unique_funcs, stbds_arrlen(unique_funcs), sizeof(char*), cmp_string_ptr);
+    auto cmp_str = [](const char *a, const char *b) { return strcmp(a, b) < 0; };
+    std::sort(unique_files.begin(), unique_files.end(), cmp_str);
+    std::sort(unique_funcs.begin(), unique_funcs.end(), cmp_str);
     
     // Remove duplicates in place
     int nfiles = 0;
-    if (stbds_arrlen(unique_files) > 0) {
-        int w = 1;
-        for (int r = 1; r < stbds_arrlen(unique_files); r++) {
+    if (!unique_files.empty()) {
+        size_t w = 1;
+        for (size_t r = 1; r < unique_files.size(); r++) {
             if (strcmp(unique_files[r], unique_files[r-1]) != 0)
                 unique_files[w++] = unique_files[r];
         }
-        stbds_arrsetlen(unique_files, w);
-        nfiles = w;
+        unique_files.resize(w);
+        nfiles = (int)w;
     }
     
     int nfuncs = 0;
-    if (stbds_arrlen(unique_funcs) > 0) {
-        int w = 1;
-        for (int r = 1; r < stbds_arrlen(unique_funcs); r++) {
+    if (!unique_funcs.empty()) {
+        size_t w = 1;
+        for (size_t r = 1; r < unique_funcs.size(); r++) {
             if (strcmp(unique_funcs[r], unique_funcs[r-1]) != 0)
                 unique_funcs[w++] = unique_funcs[r];
         }
-        stbds_arrsetlen(unique_funcs, w);
-        nfuncs = w;
+        unique_funcs.resize(w);
+        nfuncs = (int)w;
     }
     
     // Create maps from string -> index
-    struct gl_map *file_map = NULL;
-    struct gl_map *func_map = NULL;
+    std::unordered_map<std::string, int> file_map;
+    std::unordered_map<std::string, int> func_map;
     
-    for (int i=0; i<nfiles; i++) stbds_shput(file_map, unique_files[i], i);
-    for (int i=0; i<nfuncs; i++) stbds_shput(func_map, unique_funcs[i], i);
+    for (int i=0; i<nfiles; i++) file_map[unique_files[i]] = i;
+    for (int i=0; i<nfuncs; i++) func_map[unique_funcs[i]] = i;
     
     // Shared Huffman Table
     verbose(1, "Calculating shared Huffman table...\n");
     int shared_freqs[256] = {0};
-    collect_string_freqs(unique_files, shared_freqs);
-    collect_string_freqs(unique_funcs, shared_freqs);
+    // collect_string_freqs still expects a stbds array
+    char **freq_files = NULL;
+    char **freq_funcs = NULL;
+    for (char *s : unique_files) stbds_arrput(freq_files, s);
+    for (char *s : unique_funcs) stbds_arrput(freq_funcs, s);
+    collect_string_freqs(freq_files, shared_freqs);
+    collect_string_freqs(freq_funcs, shared_freqs);
+    stbds_arrfree(freq_files);
+    stbds_arrfree(freq_funcs);
     
-    huff_code_t shared_huff_table[256] = {0};
+    huff_code_t shared_huff_table[256] = {};
     build_limited_huffman_tree(shared_freqs, HUFF_MAX_CODE_LEN, shared_huff_table);
     
     CanonicalTables shared_ct;
     generate_canonical_tables(shared_huff_table, &shared_ct);
     
-    // Write shared table to huff_blob
-    uint8_t *huff_blob = NULL;
-    write_huff_header(&shared_ct, &huff_blob);
+    // Write shared table to huff_blob (huffman API still uses stbds)
+    uint8_t *huff_tmp = NULL;
+    write_huff_header(&shared_ct, &huff_tmp);
+    std::vector<uint8_t> huff_blob(huff_tmp, huff_tmp + stbds_arrlen(huff_tmp));
+    stbds_arrfree(huff_tmp);
     
     // Compress string blobs using shared table (no headers)
     verbose(1, "Compressing strings (Shared Table)...\n");
-    compress_strings(unique_files, shared_huff_table, &file_blob, &file_offsets);
-    compress_strings(unique_funcs, shared_huff_table, &func_blob, &func_offsets);
+    compress_strings(unique_files, shared_huff_table, file_blob, file_offsets);
+    compress_strings(unique_funcs, shared_huff_table, func_blob, func_offsets);
     
     free(shared_ct.symbols);
     
     // Compress Symbols
-    uint8_t *plain_stream = NULL;
-    uint32_t *plain_chunk_index = NULL; // Stores (start_addr, offset) pairs
+    std::vector<uint8_t> plain_stream;
+    std::vector<uint32_t> plain_chunk_index; // Stores (start_addr, offset) pairs
     verbose(1, "Compressing symbols...\n");
-    int num_emitted = compress_symbols(symtable, stbds_arrlen(symtable), file_map, func_map, &plain_stream, &plain_chunk_index);
+    int num_emitted = compress_symbols(symtable, file_map, func_map, plain_stream, plain_chunk_index);
 
-    uint8_t *stream = NULL;
-    uint32_t *chunk_index = NULL; // Stores (start_addr, compressed offset) pairs
+    std::vector<uint8_t> stream;
+    std::vector<uint32_t> chunk_index; // Stores (start_addr, compressed offset) pairs
     uint32_t max_chunk_margin = 0;
     verbose(1, "Applying compression to symbol chunks...\n");
-    compress_symbol_chunks(plain_stream, plain_chunk_index, &stream, &chunk_index, &max_chunk_margin);
+    compress_symbol_chunks(plain_stream, plain_chunk_index, stream, chunk_index, &max_chunk_margin);
     
     verbose(1, "Stats:\n");
-    verbose(1, "  Chunk Index: %zu bytes\n", stbds_arrlen(chunk_index) * 4);
-    verbose(1, "  File Tab: %zu bytes\n", stbds_arrlen(file_offsets) * 4);
-    verbose(1, "  Func Tab: %zu bytes\n", stbds_arrlen(func_offsets) * 4);
-    verbose(1, "  Shared Huffman Table: %zu bytes\n", stbds_arrlen(huff_blob));
-    verbose(1, "  File Blob: %zu bytes\n", stbds_arrlen(file_blob));
-    verbose(1, "  Func Blob: %zu bytes\n", stbds_arrlen(func_blob));
-    verbose(1, "  Stream (plain): %zu bytes\n", stbds_arrlen(plain_stream));
-    verbose(1, "  Stream (compressed): %zu bytes\n", stbds_arrlen(stream));
+    verbose(1, "  Chunk Index: %zu bytes\n", chunk_index.size() * 4);
+    verbose(1, "  File Tab: %zu bytes\n", file_offsets.size() * 4);
+    verbose(1, "  Func Tab: %zu bytes\n", func_offsets.size() * 4);
+    verbose(1, "  Shared Huffman Table: %zu bytes\n", huff_blob.size());
+    verbose(1, "  File Blob: %zu bytes\n", file_blob.size());
+    verbose(1, "  Func Blob: %zu bytes\n", func_blob.size());
+    verbose(1, "  Stream (plain): %zu bytes\n", plain_stream.size());
+    verbose(1, "  Stream (compressed): %zu bytes\n", stream.size());
     verbose(1, "  Max Chunk Margin: %u bytes\n", max_chunk_margin);
 
     write_sym_file(outfn, 
-        num_emitted,  stbds_arrlen(chunk_index)/2, 
-        stbds_arrlen(unique_files), stbds_arrlen(unique_funcs), 
+        num_emitted,  (int)(chunk_index.size()/2), 
+        (int)unique_files.size(), (int)unique_funcs.size(), 
         max_chunk_margin,
         chunk_index,
         file_offsets, file_blob,
         func_offsets, func_blob,
         huff_blob,
         stream);
-    // Cleanup
-    stbds_arrfree(file_blob);
-    stbds_arrfree(func_blob);
-    stbds_arrfree(huff_blob);
-    stbds_arrfree(file_offsets);
-    stbds_arrfree(func_offsets);
-    stbds_arrfree(plain_stream);
-    stbds_arrfree(plain_chunk_index);
-    stbds_arrfree(stream);
-    stbds_arrfree(chunk_index);
-    stbds_arrfree(unique_files);
-    stbds_arrfree(unique_funcs);
-    stbds_shfree(file_map);
-    stbds_shfree(func_map);
     placeholder_clear();
 }
 
@@ -1037,4 +1006,3 @@ int main(int argc, char *argv[])
     process(infn, outfn);
     return 0;
 }
-

@@ -18,6 +18,10 @@
 
 #define HUFF_MAX_CODE_LEN 16
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Huffman types
 typedef struct huff_node_s {
     int freq;
@@ -95,5 +99,9 @@ void collect_string_freqs(char **strings, int *char_freqs);
 void build_limited_huffman_tree(int *freqs, int limit, huff_code_t *table);
 void generate_canonical_tables(huff_code_t *huff_table, CanonicalTables *ct);
 void write_huff_header(CanonicalTables *ct, uint8_t **blob);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
