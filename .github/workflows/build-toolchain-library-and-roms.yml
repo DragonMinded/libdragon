@@ -101,6 +101,15 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Cache the videoplayer sample movie so CI does not re-download it from
+      # archive.org on every run. The Makefile skips wget/curl if the file exists,
+      # and the Docker build binds the workspace, so restoring here is enough.
+      - name: Cache videoplayer sample movie
+        uses: actions/cache@v5
+        with:
+          path: examples/videoplayer/caminandes.ogv
+          key: videoplayer-caminandes-ogv-v1
+
       # As we have a tagged image now, we can use that to run build.sh if it is
       # built in the previous step. o/w it will be downloaded from the registry.
       # Then verify everything is building properly
