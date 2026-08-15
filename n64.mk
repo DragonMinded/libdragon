@@ -4,19 +4,19 @@ SOURCE_DIR ?= .
 # Override this if your project uses a different directory for your DFS filesystem root
 N64_MKDFS_ROOT ?= filesystem
 
-N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
-N64_ROM_CATEGORY = # Set an N64 Media Category code in the ROM header (N, D, C, E, Z)
-N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16k sram256k sram768k sram1m flashram
-N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
-N64_ROM_REGIONFREE ?= 1 # Set to true to allow booting on any console region
-N64_ROM_REGION = # Set to a region code (emulators will boot on a specific console region)
+N64_ROM_TITLE ?= "Made with libdragon" # Override this with the name of your game or project
+N64_ROM_CATEGORY ?= N # Set an N64 Media Category code in the ROM header (N, D, C, E, Z)
+N64_ROM_SAVETYPE ?= none # Supported savetypes: none eeprom4k eeprom16k sram256k sram768k sram1m flashram
+N64_ROM_RTC ?= # Set to enable the Joybus Real-Time Clock
+N64_ROM_REGIONFREE ?= 1 # Set to allow booting on any console region
+N64_ROM_REGION ?= # Set to a region code (emulators will boot on a specific console region)
 N64_ROM_ELFCOMPRESS ?= 1 # Set compression level of ELF file in ROM
 N64_ROM_DSOCOMPRESS ?= 1 # Set compression level of DSOs file in ROM
-N64_ROM_CONTROLLER1 = # Sets the type of Controller 1 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
-N64_ROM_CONTROLLER2 = # Sets the type of Controller 2 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
-N64_ROM_CONTROLLER3 = # Sets the type of Controller 3 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
-N64_ROM_CONTROLLER4 = # Sets the type of Controller 4 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
-N64_ROM_METADATA = # Path to a metadata INI file to embed in the ROM. If set, invokes n64metadata.
+N64_ROM_CONTROLLER1 ?= # Sets the type of Controller 1 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER2 ?= # Sets the type of Controller 2 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER3 ?= # Sets the type of Controller 3 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER4 ?= # Sets the type of Controller 4 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_METADATA ?= # Path to a metadata INI file to embed in the ROM. If set, invokes n64metadata.
 
 # Override this to use a different file prefix for the debug symbols. This is
 # useful when building multiple projects in the same directory and you can set
@@ -24,7 +24,7 @@ N64_ROM_METADATA = # Path to a metadata INI file to embed in the ROM. If set, in
 # .PHONY: tiny3d
 # tiny3d:
 # 	$(MAKE) -C $(T3D_INST) N64_BACKTRACE_FILE_PREFIX=tiny3d
-N64_BACKTRACE_FILE_PREFIX=
+N64_BACKTRACE_FILE_PREFIX ?=
 
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
