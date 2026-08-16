@@ -7,8 +7,8 @@
 #ifndef __LIBDRAGON_GL_ENUMS_H
 #define __LIBDRAGON_GL_ENUMS_H
 
-#include <preview.h>
-LIBDRAGON_PREVIEW_HEADER
+// No LIBDRAGON_PREVIEW_HEADER here: this header is only reached through gl.h,
+// which already reports the error. Gating it as well would just report it twice.
 
 #define GL_BYTE                                         0x1400
 #define GL_UNSIGNED_BYTE                                0x1401

@@ -125,39 +125,27 @@ jobs:
         run: |
           docker container exec libdragon ./build.sh --no-examples
 
-      - name: "Run tests"
+      # This also builds the test ROMs, and checks that the preview APIs are
+      # locked for a stable project and unlocked for a preview one.
+      - name: Run tests
         run: |
-          docker container exec libdragon make -C tests/cpakfs test
-          docker container exec libdragon make -C tests/hashtable test
-          docker container exec libdragon python3 -m unittest discover tools/cpaktool/tests
+          docker container exec libdragon make test
 
-      - name: "(stable) Build examples and tests ROMs"
+      - name: Build examples
         run: |
-          docker container exec libdragon make clobber
-          docker container exec libdragon make -C tests
           docker container exec libdragon make examples
 
-      - name: "(stable) Upload built ROMs to artifacts"
+      - name: "Upload built ROMs to artifacts"
         uses: actions/upload-artifact@v7
         with:
-          name: roms-stable
+          name: roms
           path: |
             ${{ github.workspace }}/examples/**/*.z64
             ${{ github.workspace }}/tests/*.z64
 
-      - name: "(preview) Build examples and tests ROMs"
-        run: |
-          docker container exec -e LIBDRAGON_PREVIEW=1 libdragon make clobber
-          docker container exec -e LIBDRAGON_PREVIEW=1 libdragon make -C tests
-          docker container exec -e LIBDRAGON_PREVIEW=1 libdragon make examples
-
-      - name: "(preview) Upload built ROMs to artifacts"
-        uses: actions/upload-artifact@v7
-        with:
-          name: roms-preview
-          path: |
-            ${{ github.workspace }}/examples/**/*.z64
-            ${{ github.workspace }}/tests/*.z64
+      - name: Stop libdragon docker container
+        if: always()
+        run: docker rm -f libdragon
 
       # Finally push the verified image to the registry with the latest tag if
       # we are on the default branch. At this point, we know that libdragon can

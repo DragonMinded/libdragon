@@ -227,6 +227,7 @@ test:
 	$(MAKE) -C tests
 	$(MAKE) -C tests/cpakfs test
 	$(MAKE) -C tests/hashtable test
+	$(MAKE) -C tests/preview test
 	python3 -m unittest discover tools/cpaktool/tests
 
 test-clean: $(INSTALLDIR)/include/n64.mk
