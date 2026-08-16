@@ -2,6 +2,7 @@
  * @file glu.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief OpenGL Utility Library (GLU) function declarations for N64.
+ * @preview
  */
 #ifndef __LIBDRAGON_GLU_H
 #define __LIBDRAGON_GLU_H

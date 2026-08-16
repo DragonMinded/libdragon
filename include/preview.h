@@ -40,15 +40,51 @@
 #ifndef __LIBDRAGON_PREVIEW_H
 #define __LIBDRAGON_PREVIEW_H
 
+/**
+ * @def HAVE_PREVIEW
+ * @brief 0 or 1 depending on whether preview APIs are enabled
+ */
+
+/**
+ * @def ASSERT_PREVIEW
+ * @brief Error out if preview APIs are disabled
+ *
+ * Put this at the top of a header to make its inclusion an error. Only use it
+ * for headers that are not reachable from libdragon.h, otherwise every stable
+ * project would fail to build. Mark single entry points with #PREVIEW_API or
+ * #PREVIEW_SYM instead.
+ */
+
+/**
+ * @def PREVIEW_API
+ * @brief Mark a function as preview
+ *
+ * Calling a function with this attribute is an error if preview APIs are
+ * disabled. The @c deprecated attribute is there as a backstop: the @c error
+ * attribute is only reported for calls that survive optimization, so on its own
+ * it would miss eg. taking the address of the function, or calling it from dead
+ * code.
+ */
+
+/**
+ * @def PREVIEW_SYM
+ * @brief Mark a non-function symbol as preview
+ *
+ * #PREVIEW_API only works on functions, so use this for types, enumerators,
+ * global variables and macros. Put it *after* the declaration, as it makes any
+ * later mention of the name an error. For a macro, @c \#undef it first,
+ * otherwise the name would be expanded before being poisoned.
+ */
+
 /// @cond
 #define __PREVIEW_PRAGMA_RAW(x) _Pragma(#x)
 // Extra indirection level, so that macros in the argument are expanded before
 // being stringified into the pragma.
 #define __PREVIEW_PRAGMA(x) __PREVIEW_PRAGMA_RAW(x)
-/// @endcond
 
-/** @brief Diagnostic message shown when a preview API is used by mistake */
+// Diagnostic message shown when a preview API is used by mistake
 #define __PREVIEW_MSG "libdragon preview API: set LIBDRAGON_PREVIEW=1 in your Makefile (before including n64.mk) to use it"
+/// @endcond
 
 // LIBDRAGON_BUILD_TIME is only defined while building libdragon,
 // it allows use of preview APIs so that libdragon can be built at all.
@@ -58,37 +94,9 @@
 #define PREVIEW_API
 #define PREVIEW_SYM(name)
 #else
-/// 0 or 1 depending on whether preview APIs are enabled
 #define HAVE_PREVIEW 0
-
-/**
- * @brief Error out if preview APIs are disabled
- *
- * Put this at the top of a header to make its inclusion an error. Only use it
- * for headers that are not reachable from libdragon.h, otherwise every stable
- * project would fail to build. Mark single entry points with #PREVIEW_API or
- * #PREVIEW_SYM instead.
- */
 #define ASSERT_PREVIEW __PREVIEW_PRAGMA(GCC error __PREVIEW_MSG)
-
-/**
- * @brief Mark a function as preview
- *
- * Calling a function with this attribute is an error if preview APIs are
- * disabled. The @c deprecated attribute is there as a backstop: the @c error
- * attribute is only reported for calls that survive optimization, so it misses
- * eg. taking the address of the function, or calling it from dead code.
- */
 #define PREVIEW_API __attribute__((error(__PREVIEW_MSG), deprecated(__PREVIEW_MSG)))
-
-/**
- * @brief Mark a non-function symbol as preview
- *
- * #PREVIEW_API only works on functions, so use this for types, enumerators,
- * global variables and macros. Put it *after* the declaration, as it makes any
- * later mention of the name an error. For a macro, @c #undef it first,
- * otherwise the name would be expanded before being poisoned.
- */
 #define PREVIEW_SYM(name) __PREVIEW_PRAGMA_RAW(GCC poison name)
 #endif
 
