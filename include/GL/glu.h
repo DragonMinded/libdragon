@@ -8,7 +8,7 @@
 #define __LIBDRAGON_GLU_H
 
 #include <preview.h>
-ASSERT_PREVIEW
+LIBDRAGON_PREVIEW_HEADER
 
 #ifdef __cplusplus
 extern "C" {

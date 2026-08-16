@@ -8,7 +8,7 @@
 #define __LIBDRAGON_GL_ENUMS_H
 
 #include <preview.h>
-ASSERT_PREVIEW
+LIBDRAGON_PREVIEW_HEADER
 
 #define GL_BYTE                                         0x1400
 #define GL_UNSIGNED_BYTE                                0x1401

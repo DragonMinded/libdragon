@@ -8,7 +8,7 @@
 #define __LIBDRAGON_GL_H
 
 #include <preview.h>
-ASSERT_PREVIEW
+LIBDRAGON_PREVIEW_HEADER
 
 #include <stdint.h>
 #include <stddef.h>
