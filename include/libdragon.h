@@ -22,6 +22,7 @@
  */
 
 /* Easy include wrapper */
+#include "preview.h"
 #include "n64types.h"
 #include "fmath.h"
 #include "fgeom.h"
@@ -105,6 +106,7 @@
 #include "lspr1.h"
 #include "debugcpp.h"
 #include "dlfcn.h"
+#include "model64.h"
 #include "skc.h"
 #include "nand.h"
 #include "bbfs.h"
@@ -116,10 +118,5 @@
 #include "magma_math.h"
 #include "mgfx.h"
 #include "sram.h"
-
-#include "preview.h"
-#if HAVE_PREVIEW
-#include "model64.h"
-#endif
 
 #endif
