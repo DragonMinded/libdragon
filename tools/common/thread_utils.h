@@ -11,6 +11,8 @@
 #include <atomic>
 #include <thread>
 #include <functional>
+#include <vector>
+#include <algorithm>
 
 // Calls the function f in parallel using all requested threads, and then
 // wait for all of them to finish.
