@@ -8,7 +8,7 @@ C_CXX_FLAGS += -O2 -pthread -Wall -Werror
 C_CXX_FLAGS += -I../include -MMD
 C_CXX_FLAGS += -fdiagnostics-color=always
 C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
-C_CXX_FLAGS += -DLIBDRAGON_BUILD_TIME
+C_CXX_FLAGS += -D__LIBDRAGON_INTERNAL_BUILD
 
 LDFLAGS += -pthread
 

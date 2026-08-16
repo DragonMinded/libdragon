@@ -9,7 +9,7 @@
 #define __LIBDRAGON_GL_INTEGRATION
 
 #include <preview.h>
-ASSERT_PREVIEW
+LIBDRAGON_PREVIEW_HEADER
 
 #ifdef __cplusplus
 extern "C" {
