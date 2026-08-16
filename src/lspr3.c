@@ -30,6 +30,7 @@
 #include "utils.h"
 #include "yuv.h"
 #include "debug.h"
+#include "asan.h"
 
 #include <string.h>
 #include <unistd.h>
@@ -155,6 +156,7 @@ static void lspr3_decode_intra_slice(
     strm.pStart = rbsp;
     strm.pCurr = ((u64)(uintptr_t)rbsp) << 3;
     strm.pEnd = ((u64)(uintptr_t)(rbsp + rbsp_size)) << 3;
+    asan_unpoison(rbsp + rbsp_size, 8); // the bitstream decoder will fetch ahead beyond the end of the buffer
 
     // Reset the RSP decoder's per-frame state (notably last_packed_delta_buf)
     // before queuing any macroblock work for this slice.

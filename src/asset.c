@@ -9,6 +9,7 @@
 #include "compress/lz4_dec_internal.h"
 #include "compress/shrinkler_dec_internal.h"
 #include "utils.h"
+#include "asan.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -167,6 +168,10 @@ static bool decompress_full(asset_compression_full_t *algo, int fd, size_t cmp_s
     int n;
 
     #ifdef N64
+    // Unpoison 8 bytes past the buffer end because assembly decompressors can
+    // read there (without then using the contents of course).
+    asan_unpoison(s + bufsize, 8);
+
     uint32_t rom_addr = 0;
     if (ioctl(fd, IODFS_GET_ROM_BASE, &rom_addr) >= 0) {
         // Invalid the portion of the buffer where we are going to load

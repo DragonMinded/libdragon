@@ -60,6 +60,12 @@ __attribute__((noreturn))
 void __inspector_cppexception(const char *exctype, const char *what);
 
 /**
+ * @brief Trigger the inspector for a stack smashing.
+ */
+__attribute__((noreturn))
+void __inspector_stack_smashing(void);
+
+/**
  * @brief A page in the inspector.
  */
 typedef void (*inspector_page_t)(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed);

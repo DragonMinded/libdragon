@@ -30,7 +30,8 @@
 enum Mode {
     MODE_EXCEPTION,
     MODE_ASSERTION,
-    MODE_CPP_EXCEPTION
+    MODE_CPP_EXCEPTION,
+    MODE_STACK_SMASHING
 };
 
 enum {
@@ -434,6 +435,17 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, joypad_bu
             printf("\aWThread:\n    %s\n\n", kthread_current()->name);
         }
         bt_skip = 5;
+        break;
+    }
+    case MODE_STACK_SMASHING: {
+        printf("Stack Smashing\n");
+        printf("\aOStack smashing detected\n");
+        printf("The function return address was likely corrupted\n\n");
+        
+        if (__kernel) {
+            printf("\aWThread:\n    %s\n\n", kthread_current()->name);
+        }
+        bt_skip = 2;
         break;
     }
     }
@@ -844,11 +856,13 @@ void __inspector_add_page(inspector_page_t page) {
 
 __attribute__((noreturn))
 void __inspector_exception(exception_t* ex) {
+    emux_xasan_disable();
     inspector(ex, MODE_EXCEPTION);
 }
 
 __attribute__((noreturn))
 void __inspector_assertion(const char *failedexpr, const char *msg, va_list args) {
+    emux_xasan_disable();
     asm volatile (
         "move $a0, %0\n"
         "move $a1, %1\n"
@@ -861,6 +875,7 @@ void __inspector_assertion(const char *failedexpr, const char *msg, va_list args
 
 __attribute__((noreturn))
 void __inspector_cppexception(const char *exctype, const char *what) {
+    emux_xasan_disable();
     asm volatile (
         "move $a0, %0\n"
         "move $a1, %1\n"
@@ -870,15 +885,25 @@ void __inspector_cppexception(const char *exctype, const char *what) {
     __builtin_unreachable();    
 }
 
+__attribute__((noreturn))
+void __inspector_stack_smashing(void) {
+    emux_xasan_disable();
+    asm volatile (
+        "syscall 0x3\n"
+    );
+    __builtin_unreachable();        
+}
+
 /** @brief Register the inspector as a syscall handler (global constructor run before main). */
-__attribute__((constructor))
+__attribute__((constructor(130)))
 void __inspector_init(void) {
     // Register SYSCALL 0x1 for assertion failures
     void handler(exception_t* ex, uint32_t code) {
         if (code == 1) inspector(ex, MODE_ASSERTION);
         if (code == 2) inspector(ex, MODE_CPP_EXCEPTION);
+        if (code == 3) inspector(ex, MODE_STACK_SMASHING);
     }
-    register_syscall_handler(handler, 0x00001, 0x00002);
+    register_syscall_handler(handler, 0x00001, 0x00003);
 
 	if (emux_detect(1) & EMUX_FEAT1_EXCEPTION)
 	{

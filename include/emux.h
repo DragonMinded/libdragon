@@ -17,6 +17,7 @@
 ///@cond
 #ifndef __ASSEMBLER__
 #include <stdint.h>
+#include <stddef.h>
 #define cast64(x) (uint64_t)(x)
 #else
 #define cast64(x) x
@@ -44,6 +45,7 @@
 #define EMUX_XPROF(slot, code)          EMUX_OP(0x28, slot,      0,  code)  ///< Control profiler
 #define EMUX_XPROFREAD(slot, metric)    EMUX_OP(0x29, slot, metric, 0x000)  ///< Read profiler metric
 #define EMUX_XEXCEPTION(mask)           EMUX_OP(0x2A,    0,   mask, 0x000)  ///< Set exception mask
+#define EMUX_XASAN(rd, rt, code)        EMUX_OP(0x2B,   rd,     rt,  code)  ///< XASAN memory sanitizer
 #define EMUX_XIOCTL(code)               EMUX_OP(0x2C,    0,      0,  code)  ///< Modify emulator behavior
 /** @} */
 
@@ -56,7 +58,34 @@
 #define EMUX_FEAT1_HEXDUMP                      (1 << 0x7)    ///< Hexdump support
 #define EMUX_FEAT1_PROFILER                     (1 << 0x8)    ///< Profiling support
 #define EMUX_FEAT1_EXCEPTION                    (1 << 0xA)    ///< Exception support
+#define EMUX_FEAT1_XASAN                        (1 << 0xB)    ///< XASAN memory sanitizer support
 #define EMUX_FEAT1_IOCTL                        (1 << 0xC)    ///< Emulator behavior support
+
+#define EMUX_XASAN_DISABLE                      0x0           ///< Disable XASAN checking (refcount--)
+#define EMUX_XASAN_ENABLE                       0x1           ///< Enable XASAN checking (refcount++)
+#define EMUX_XASAN_POISON                       0x2           ///< Poison a memory region
+#define EMUX_XASAN_UNPOISON                     0x3           ///< Unpoison a memory region
+
+#define EMUX_XASAN_TAG_ACCESSIBLE               0             ///< Accessible region
+#define EMUX_XASAN_TAG_LEFT                     1             ///< Left redzone
+#define EMUX_XASAN_TAG_RIGHT                    2             ///< Right redzone
+#define EMUX_XASAN_TAG_FREED                    3             ///< Freed memory
+#define EMUX_XASAN_TAG_GLOBAL                   4             ///< Global redzone
+#define EMUX_XASAN_TAG_USER                     5             ///< User-poisoned region
+#define EMUX_XASAN_TAG_UNALLOC                  6             ///< Unallocated heap memory
+
+#define EMUX_XASAN_ACCESS_UNKNOWN               0x00
+#define EMUX_XASAN_ACCESS_CPU_READ              0x01
+#define EMUX_XASAN_ACCESS_CPU_WRITE             0x02
+#define EMUX_XASAN_ACCESS_CPU_EXEC              0x03
+#define EMUX_XASAN_ACCESS_STACK                 0x04
+#define EMUX_XASAN_ACCESS_RSP_DMA_READ          0x05
+#define EMUX_XASAN_ACCESS_RSP_DMA_WRITE         0x06
+
+#define EMUX_XASAN_FAULT_UNKNOWN                0x00
+#define EMUX_XASAN_FAULT_PERMISSION             0x01
+#define EMUX_XASAN_FAULT_POISON                 0x02
+#define EMUX_XASAN_FAULT_TAIL                   0x03
 
 #define EMUX_LOG_ASCIIZ                         0x000      ///< Log a zero-terminated string
 #define EMUX_LOG_LENGTH                         0x001      ///< Log a non-zero-terminated string
@@ -145,6 +174,7 @@
 #define EMUX_EXCEPTION_CPU_CACHED_ACCESS       (cast64(1) << 1)  ///< CPU cached access to non-RDRAM area
 #define EMUX_EXCEPTION_CPU_64BIT_READ          (cast64(1) << 2)  ///< CPU 64-bit read from non-RDRAM area
 #define EMUX_EXCEPTION_CPU_UNMAPPED_ACCESS     (cast64(1) << 3)  ///< CPU access to RCP unmapped area
+#define EMUX_EXCEPTION_XASAN                   (cast64(1) << 4)  ///< XASAN memory access violation
 
 #ifndef __ASSEMBLER__
 
@@ -416,6 +446,65 @@ inline void emux_exception_set_mask(uint64_t mask)
     const int REG_T0 = 8;
     register uint64_t __mask asm("t0") = mask;
     __asm__ __volatile__(" .word %1\n" :: "r"(__mask), "i"(EMUX_XEXCEPTION(REG_T0)) : "memory");
+}
+
+/** @brief Run an XASAN EMUX opcode with address and size operands */
+#define EMUX_XASAN_RUN(addr, size, code) do { \
+    const int REG_T0 = 8; \
+    const int REG_T1 = 9; \
+    register const void *__xasan_addr asm("t0") = (const void *)(addr); \
+    register size_t __xasan_size asm("t1") = (size_t)(size); \
+    __asm__ __volatile__(" .word %2\n" \
+        :: "r"(__xasan_addr), "r"(__xasan_size), "i"(EMUX_XASAN(REG_T0, REG_T1, code)) \
+        : "memory"); \
+} while(0)
+
+/** @brief Enable XASAN checking in the emulator */
+inline void emux_xasan_enable(void)
+{
+    __asm__ __volatile__(" .word %0\n" :: "i"(EMUX_XASAN(0, 0, EMUX_XASAN_ENABLE)) : "memory");
+}
+
+/** @brief Disable XASAN checking in the emulator */
+inline void emux_xasan_disable(void)
+{
+    __asm__ __volatile__(" .word %0\n" :: "i"(EMUX_XASAN(0, 0, EMUX_XASAN_DISABLE)) : "memory");
+}
+
+/** @brief Mark a memory region as accessible */
+inline void emux_xasan_unpoison(const void *addr, size_t size)
+{
+    EMUX_XASAN_RUN(addr, size, EMUX_XASAN_UNPOISON);
+}
+
+/** @brief Mark a memory region as user-poisoned */
+inline void emux_xasan_poison_user(const void *addr, size_t size)
+{
+    EMUX_XASAN_RUN(addr, size, EMUX_XASAN_POISON | (EMUX_XASAN_TAG_USER << 4));
+}
+
+/** @brief Mark a memory region as left redzone */
+inline void emux_xasan_poison_left(const void *addr, size_t size)
+{
+    EMUX_XASAN_RUN(addr, size, EMUX_XASAN_POISON | (EMUX_XASAN_TAG_LEFT << 4));
+}
+
+/** @brief Mark a memory region as right redzone */
+inline void emux_xasan_poison_right(const void *addr, size_t size)
+{
+    EMUX_XASAN_RUN(addr, size, EMUX_XASAN_POISON | (EMUX_XASAN_TAG_RIGHT << 4));
+}
+
+/** @brief Mark a memory region as freed */
+inline void emux_xasan_poison_freed(const void *addr, size_t size)
+{
+    EMUX_XASAN_RUN(addr, size, EMUX_XASAN_POISON | (EMUX_XASAN_TAG_FREED << 4));
+}
+
+/** @brief Mark a memory region as unallocated heap memory */
+inline void emux_xasan_poison_unalloc(const void *addr, size_t size)
+{
+    EMUX_XASAN_RUN(addr, size, EMUX_XASAN_POISON | (EMUX_XASAN_TAG_UNALLOC << 4));
 }
 
 #ifdef __cplusplus

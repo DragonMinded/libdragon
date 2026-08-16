@@ -28,7 +28,7 @@ libdragon: CXXFLAGS+=$(N64_CXXFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: ASFLAGS+=$(N64_ASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: RSPASFLAGS+=$(N64_RSPASFLAGS) $(LIBDRAGON_CFLAGS)
 libdragon: LDFLAGS+=$(N64_LDFLAGS)
-libdragon: libdragon.a libdragonsys.a gen-version
+libdragon: libdragon.a libdragon_asan.a libdragonsys.a gen-version
 
 libdragonsys.a: $(BUILD_DIR)/system.o
 
@@ -81,6 +81,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/dma.o \
 	$(BUILD_DIR)/timer.o \
 	$(BUILD_DIR)/exception.o \
+	$(BUILD_DIR)/asan_weak.o \
 	$(BUILD_DIR)/do_ctors.o \
 	$(BUILD_DIR)/dlfcn.o \
 	$(BUILD_DIR)/hashtable.o \
@@ -114,6 +115,7 @@ $(SOURCE_DIR)/magma/rsp_magma.h: $(BUILD_DIR)/magma/rsp_magma.o
 $(BUILD_DIR)/magma/magma.o: $(SOURCE_DIR)/magma/rsp_magma.h
 
 libdragon.a: $(LIBDRAGON_OBJS)
+libdragon_asan.a: $(BUILD_DIR)/asan.o
 
 %.a:
 	@echo "    [AR] $@"
@@ -186,6 +188,7 @@ install: install-mk libdragon
 	@echo "    [INSTALL] libdragon"
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/lib
 	install -Cv -m 0644 libdragon.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragon.a
+	install -Cv -m 0644 libdragon_asan.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragon_asan.a
 	install -Cv -m 0644 n64.ld $(INSTALLDIR)/$(N64_TARGET)/lib/n64.ld
 	install -Cv -m 0644 dso.ld $(INSTALLDIR)/$(N64_TARGET)/lib/dso.ld
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/$(N64_TARGET)/lib/rsp.ld
