@@ -20,7 +20,9 @@
 #include <cmath>
 
 #include <algorithm>
+#include <memory>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -30,6 +32,7 @@
 #include "../common/utils.h"
 #include "../common/binout.h"
 #include "../common/assetcomp.h"
+#include "../common/thread_utils.h"
 
 #include "n64sym_huffman.h"
 #include "../common/binout.c"
@@ -146,121 +149,177 @@ char *truncate_path(const char *path, int len, int max_len) {
     return file;
 }
 
-void symbol_add(const char *elf, uint32_t addr, bool is_func)
+// Add one inlined frame of an address to the symbol table, normalizing and
+// truncating the function name and the file path to the maximum length that
+// fits the runtime buffer.
+static void symbol_add_frame(uint32_t addr, const std::string &fn, const std::string &pos)
 {
-    // We keep one addr2line process open for the last ELF file we processed.
-    // This allows to convert multiple symbols very fast, avoiding spawning a
-    // new process for each symbol.
-    // NOTE: we cannot use popen() here because on some platforms (eg. glibc)
-    // it only allows a single direction pipe, and we need both directions.
-    // So we rely on the subprocess library for this.
-    static char *addrbin = NULL;
-    static struct subprocess_s subp;
-    static FILE *addr2line_w = NULL, *addr2line_r = NULL;
-    static const char *cur_elf = NULL;
-    static char *line_buf = NULL;
-    static size_t line_buf_size = 0;
-
-    // Check if this is a new ELF file (or it's the first time we run this function)
-    if (!cur_elf || strcmp(cur_elf, elf)) {
-        if (cur_elf) {
-            subprocess_terminate(&subp);
-            cur_elf = NULL; addr2line_r = addr2line_w = NULL;
-        }
-        if (!addrbin)
-            asprintf(&addrbin, "%saddr2line", gccprefix_triplet);
-
-        const char *cmd_addr[16] = {0}; int i = 0;
-        cmd_addr[i++] = addrbin;
-        cmd_addr[i++] = "--addresses";
-        cmd_addr[i++] = "--functions";
-        cmd_addr[i++] = "--demangle";
-        if (flag_inlines) cmd_addr[i++] = "--inlines";
-        cmd_addr[i++] = "--exe";
-        cmd_addr[i++] = elf;
-
-        if (subprocess_create(cmd_addr, subprocess_option_no_window, &subp) != 0) {
-            fprintf(stderr, "Error: cannot run: %s\n", addrbin);
-            exit(1);
-        }
-        addr2line_w = subprocess_stdin(&subp);
-        addr2line_r = subprocess_stdout(&subp);
-        cur_elf = elf;
+    int max_len = MIN(flag_max_sym_len, MAX_BUFFER_SIZE - 8);
+    char *func;
+    if (flag_cpp_shorten) {
+        func = cpp_shorten_symbol(fn.c_str(), max_len);
+        verbose(2, "C++ shortening:\n  in  = %s\n  out = %s\n", fn.c_str(), func);
+    } else if ((int)fn.size() <= max_len) {
+        func = strdup(fn.c_str());
+    } else {
+        func = strndup(fn.c_str(), max_len);
+        if (max_len > 3) strcpy(&func[max_len-3], "...");
     }
 
-    // Send the address to addr2line and fetch back the symbol and the function name
-    // Since we activated the "--inlines" option, addr2line produces an unknown number
-    // of output lines. This is a problem with pipes, as we don't know when to stop.
-    // Thus, we always add a dummy second address (0xffffffff) so that we stop when we see the
-    // reply for it. NOTE: we can't use 0x0 as dummy address as DSOs are partially
-    // linked so there are really symbols at 0.
-    fprintf(addr2line_w, "%08x\n0xffffffff\n", addr);
-    fflush(addr2line_w);
+    // pos is "file:line". If we need to truncate the filename, truncate_path
+    // tries to cut at a directory separator so that we keep a valid path suffix.
+    size_t colon = pos.rfind(':');
+    assert(colon != std::string::npos);
 
-    // First line is the address. It's just an echo, so ignore it.
-    int n = getline(&line_buf, &line_buf_size, addr2line_r);
-    assert(n >= 2 && strncmp(line_buf, "0x", 2) == 0);
-
-    // Add one symbol for each inlined function
-    bool at_least_one = false;
-    while (1) {
-        // First line is the function name. If instead it's the dummy 0x0 address,
-        // it means that we're done.
-        int n = getline(&line_buf, &line_buf_size, addr2line_r);
-        if (strncmp(line_buf, "0xffffffff", 10) == 0) break;
-        n--;
-        if (line_buf[n-1] == '\r') n--; // Remove trailing \r (Windows)
-
-        // Normalize/truncate function names to bounded length.
-        int max_len = MIN(flag_max_sym_len, MAX_BUFFER_SIZE - 8);
-        char *func_raw = strndup(line_buf, n);
-        char *func = NULL;
-        if (flag_cpp_shorten) {
-            func = cpp_shorten_symbol(func_raw, max_len);
-            verbose(2, "C++ shortening:\n");
-            verbose(2, "  in  = %s\n", func_raw);
-            verbose(2, "  out = %s\n", func);
-        } else if (n <= max_len) {
-            func = strdup(func_raw);
-        } else {
-            func = strndup(func_raw, max_len);
-            if (max_len > 3) strcpy(&func[max_len-3], "...");
-        }
-        free(func_raw);
-
-        // Second line is the file name and line number
-        int ret = getline(&line_buf, &line_buf_size, addr2line_r);
-        assert(ret != -1);
-        char *colon = strrchr(line_buf, ':');
-        
-        // Filename must fit into max_len too (so both the maximum length requested by the user,
-        // and the buffer size). If we need to truncate the filename, try to find a directory
-        // separator so that we keep a valid path suffix.
-        int file_len = colon - line_buf;
-        char *file = truncate_path(line_buf, file_len, max_len);
-        int line = atoi(colon + 1);
-
-        // Add the callsite to the list
-        symtable.push_back({
-            .uuid = (uint32_t)symtable.size(),
-            .addr = addr,
-            .func = func,
-            .file = file,
-            .line = line,
-            .is_func = false,
-            .is_inline = true,
-        });
-        at_least_one = true;
-    }
-    assert(at_least_one);
-    symtable.back().is_inline = false;
-    symtable.back().is_func = is_func;
-
-    // Read and skip the two remaining lines (function and file position)
-    // that refers to the dummy 0x0 address
-    getline(&line_buf, &line_buf_size, addr2line_r);
-    getline(&line_buf, &line_buf_size, addr2line_r);
+    symtable.push_back({
+        .uuid = (uint32_t)symtable.size(),
+        .addr = addr,
+        .func = func,
+        .file = truncate_path(pos.c_str(), colon, max_len),
+        .line = atoi(pos.c_str() + colon + 1),
+        .is_func = false,
+        .is_inline = true,
+    });
 }
+
+// Addresses are symbolized in batches by a pool of long-lived addr2line
+// processes, so that the work overlaps with the disassembly that produces them.
+// See elf_find_callsites() for the whole pipeline.
+#define A2L_BATCH    4096
+#define A2L_WORKERS  4
+#define A2L_QMAX     8
+
+struct a2l_frame { std::string func, pos; };
+struct a2l_addr {
+    uint32_t addr;
+    bool is_func;
+    std::vector<a2l_frame> frames;   // innermost inlined frame first
+};
+typedef std::vector<a2l_addr> a2l_job;
+
+// A worker: a long-lived addr2line process, with its reusable getline buffer
+struct a2l_worker { subprocess_s subp; char *buf; size_t cap; };
+
+// Symbolizes a stream of addresses. Addresses are accumulated into batches which
+// are streamed to a pool of addr2line workers, so that the work overlaps with
+// whatever is producing the addresses. The queue is bounded, so a caller feeding
+// addresses faster than they can be resolved is throttled.
+struct a2l_s {
+    a2l_s(const char *elf) : queue(A2L_QMAX)
+    {
+        char *bin = NULL;
+        asprintf(&bin, "%saddr2line", gccprefix_triplet);
+        const char *cmd[16] = {0}; int n = 0;
+        cmd[n++] = bin;
+        cmd[n++] = "--addresses";
+        cmd[n++] = "--functions";
+        cmd[n++] = "--demangle";
+        if (flag_inlines) cmd[n++] = "--inlines";
+        cmd[n++] = "--exe";
+        cmd[n++] = elf;
+        for (a2l_worker &w : workers) {
+            if (subprocess_create(cmd, subprocess_option_no_window, &w.subp) != 0) {
+                fprintf(stderr, "Error: cannot run: %s\n", bin);
+                exit(1);
+            }
+        }
+        free(bin);
+        verbose(1, "Started %d addr2line workers (batch %d)\n", A2L_WORKERS, A2L_BATCH);
+
+        // Run the pool on a side thread, so that the caller can keep feeding us
+        pool = std::thread([this]{
+            thParaLoop(queue, [this](a2l_job *job, int w) { resolve(job, workers[w]); }, A2L_WORKERS);
+        });
+    }
+
+    // Wait for all the pending batches to be resolved, add their symbols to the
+    // symbol table, and then tear down the addr2line processes.
+    ~a2l_s()
+    {
+        flush();
+        queue.close();
+        pool.join();
+        for (a2l_worker &w : workers) { free(w.buf); subprocess_destroy(&w.subp); }
+
+        verbose(1, "Resolved %zu addr2line batches\n", jobs.size());
+        for (auto &job : jobs)
+            for (a2l_addr &a : *job) {
+                for (a2l_frame &f : a.frames)
+                    symbol_add_frame(a.addr, f.func, f.pos);
+                symtable.back().is_inline = false;
+                symtable.back().is_func = a.is_func;
+            }
+    }
+
+    // Add an address to symbolize. Duplicates are ignored: the first occurrence
+    // wins, so an address which has a function symbol must be added as such first.
+    void add(uint32_t addr, bool is_func)
+    {
+        if (!emitted.insert(addr).second) {
+            assert(!is_func && "duplicate address reached with is_func=true; function symbol must be emitted first");
+            return;
+        }
+        batch.push_back({ addr, is_func });
+        if (batch.size() >= A2L_BATCH) flush();
+    }
+
+private:
+    a2l_worker workers[A2L_WORKERS] = {};
+    thQueue<a2l_job*> queue;
+    std::vector<std::unique_ptr<a2l_job>> jobs;   // all batches, in submission order
+    a2l_job batch;
+    std::unordered_set<uint32_t> emitted;
+    std::thread pool;
+
+    // Hand out the current batch to the pool. Batches are kept around so that
+    // their symbols can be emitted in submission order once all are resolved.
+    void flush()
+    {
+        if (batch.empty()) return;
+        jobs.push_back(std::make_unique<a2l_job>(std::move(batch)));
+        batch.clear();
+        queue.push(jobs.back().get());
+    }
+
+    // Read a line stripping the EOL, or return NULL on EOF
+    static char *readline(a2l_worker &w, FILE *f)
+    {
+        ssize_t n = getline(&w.buf, &w.cap, f);
+        if (n < 0) return NULL;
+        while (n && (w.buf[n-1] == '\n' || w.buf[n-1] == '\r')) w.buf[--n] = 0;
+        return w.buf;
+    }
+
+    // Send a whole batch of addresses to addr2line, and store back the inlined
+    // frames resolved for each of them. Runs on a worker thread, so it is static:
+    // the only state it is allowed to touch is its own worker and batch.
+    static void resolve(a2l_job *job, a2l_worker &w)
+    {
+        FILE *wr = subprocess_stdin(&w.subp), *rd = subprocess_stdout(&w.subp);
+
+        // With --inlines, each address produces an unknown number of lines, so we
+        // detect the end of an address by the echo of the next one. Append a dummy
+        // address as sentinel to terminate the last one. NOTE: 0x0 cannot be used
+        // as sentinel, as DSOs are partially linked and have symbols at 0.
+        for (a2l_addr &a : *job) fprintf(wr, "%08x\n", a.addr);
+        fprintf(wr, "0xffffffff\n");
+        fflush(wr);
+
+        readline(w, rd);   // echo of the first address
+        for (a2l_addr &a : *job) {
+            while (char *fn = readline(w, rd)) {
+                if (!strncmp(fn, "0x", 2)) break;   // echo of the next address
+                std::string func = fn;
+                char *pos = readline(w, rd);
+                assert(pos);
+                a.frames.push_back({ std::move(func), pos });
+            }
+            assert(!a.frames.empty());
+        }
+        readline(w, rd);   // sentinel function and position
+        readline(w, rd);
+    }
+};
 
 void elf_read_function_symbols(const char *elf, std::unordered_set<uint32_t> &all_functions)
 {
@@ -287,18 +346,6 @@ void elf_read_function_symbols(const char *elf, std::unordered_set<uint32_t> &al
     free(line);
     free(cmd);
     pclose(f);
-}
-
-static bool symbol_add_unique(const char *elf, uint32_t addr, bool is_func, std::unordered_set<uint32_t> &emitted_addrs)
-{
-    if (emitted_addrs.count(addr)) {
-        assert(!is_func && "duplicate address reached with is_func=true; function symbol must be emitted first");
-        return false;
-    }
-
-    emitted_addrs.insert(addr);
-    symbol_add(elf, addr, is_func);
-    return true;
 }
 
 static bool disasm_get_fields(const char *line, char **mnemonic_out, char **operands_out)
@@ -384,9 +431,14 @@ static bool mnemonic_can_trap(const char *mn, const char *ops)
 bool elf_find_callsites(const char *elf)
 {
     std::unordered_set<uint32_t> all_functions;
-    std::unordered_set<uint32_t> emitted_addrs;
     elf_read_function_symbols(elf, all_functions);
     verbose(1, "Found %zu function symbols\n", all_functions.size());
+
+    // Start the symbolizer. This must happen before the popen() below, or the
+    // addr2line processes would inherit the objdump pipe write-end, and we would
+    // then never see EOF while reading the disassembly. Batches still pending are
+    // drained (and their symbols emitted) when a2l goes out of scope.
+    a2l_s a2l(elf);
 
     // Start objdump to parse the disassembly of the ELF file
     char *cmd = NULL;
@@ -397,8 +449,8 @@ bool elf_find_callsites(const char *elf)
         fprintf(stderr, "Error: cannot run: %s\n", cmd);
         exit(1);
     }
+    free(cmd);
 
-    // Parse the disassembly
     char *line = NULL; size_t line_size = 0;
     while (getline(&line, &line_size, disasm) != -1) {
         // Find the functions: use the all_functions whitelist to skip symbols
@@ -406,7 +458,7 @@ bool elf_find_callsites(const char *elf)
         if (strstr(line, ">:")) {
             uint32_t addr = strtoul(line, NULL, 16);
             if (all_functions.count(addr)) {
-                symbol_add_unique(elf, addr, true, emitted_addrs);
+                a2l.add(addr, true);
             }
         }
 
@@ -426,14 +478,14 @@ bool elf_find_callsites(const char *elf)
 
         if (should_emit) {
             uint32_t addr = strtoul(line, NULL, 16);
-            symbol_add_unique(elf, addr, false, emitted_addrs);
+            a2l.add(addr, false);
         }
         free(mn);
         free(ops);
     }
     free(line);
-    free(cmd);
     int status = pclose(disasm);
+
 #ifdef __MINGW32__
     return status == 0;
 #else
@@ -672,19 +724,21 @@ static void compress_symbol_chunks(
 {
     int num_chunks = (int)plain_chunk_index.size() / 2;
     *max_chunk_margin = 0;
+    if (num_chunks == 0) return;
 
-    for (int i = 0; i < num_chunks; i++) {
-        uint32_t start_addr = plain_chunk_index[i * 2 + 0];
+    struct cmp_res { uint8_t *buf; int size; int margin; };
+    std::vector<cmp_res> res(num_chunks);
+
+    thParaLoop(num_chunks, [&](int i) {
         uint32_t plain_off = plain_chunk_index[i * 2 + 1];
         uint32_t plain_end = (i + 1 < num_chunks) ? plain_chunk_index[(i + 1) * 2 + 1] : (uint32_t)plain_stream.size();
         assert(plain_end >= plain_off);
         uint32_t plain_size = plain_end - plain_off;
 
-        int cmp_size = 0;
-        int winsize = 0;
-        int margin = 0;
+        int cmp_size = 0, winsize = 0, margin = 0;
         uint8_t *cmp_buf = NULL;
-        asset_compress_mem_raw(3, plain_stream.data() + plain_off, (int)plain_size, &cmp_buf, &cmp_size, &winsize, &margin);
+        asset_compress_mem_raw(3, plain_stream.data() + plain_off, (int)plain_size,
+                               &cmp_buf, &cmp_size, &winsize, &margin);
         if (!cmp_buf || cmp_size <= 0) {
             fprintf(stderr, "Error: compression failed for chunk %d\n", i);
             exit(1);
@@ -696,16 +750,17 @@ static void compress_symbol_chunks(
             cmp_buf = (uint8_t *)realloc(cmp_buf, cmp_size + 1);
             cmp_buf[cmp_size++] = 0;
         }
+        res[i] = { cmp_buf, cmp_size, margin };
+    }, 4);
 
-        if ((uint32_t)margin > *max_chunk_margin)
-            *max_chunk_margin = margin;
+    for (int i = 0; i < num_chunks; i++) {
+        if ((uint32_t)res[i].margin > *max_chunk_margin)
+            *max_chunk_margin = res[i].margin;
 
-        cmp_chunk_index.push_back(start_addr);
+        cmp_chunk_index.push_back(plain_chunk_index[i * 2 + 0]);
         cmp_chunk_index.push_back((uint32_t)cmp_stream.size());
-
-        cmp_stream.insert(cmp_stream.end(), cmp_buf, cmp_buf + cmp_size);
-
-        free(cmp_buf);
+        cmp_stream.insert(cmp_stream.end(), res[i].buf, res[i].buf + res[i].size);
+        free(res[i].buf);
     }
 }
 
