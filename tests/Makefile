@@ -1,5 +1,7 @@
 BUILD_DIR=build
 DSO_COMPRESS_LEVEL=0
+# The test ROM covers the whole library, preview APIs included
+LIBDRAGON_PREVIEW = 1
 include $(N64_INST)/include/n64.mk
 
 N64_MKMATERIAL = $(N64_INST)/bin/mkmaterial

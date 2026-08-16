@@ -11,11 +11,14 @@ EXAMPLES += customfont
 EXAMPLES += eepromfstest
 EXAMPLES += fontdemo
 EXAMPLES += fontgallery
+EXAMPLES += gldemo
 EXAMPLES += helloworld
 EXAMPLES += joypadtest
 EXAMPLES += loadspritefromsd
 EXAMPLES += lossysprite
+EXAMPLES += meshviewer
 EXAMPLES += mghello
+EXAMPLES += micro-ui
 EXAMPLES += mixertest
 EXAMPLES += ovldemo
 EXAMPLES += overlays
@@ -29,11 +32,6 @@ EXAMPLES += timers
 EXAMPLES += videoplayer
 EXAMPLES += vifx
 EXAMPLES += vtest
-ifeq ($(LIBDRAGON_PREVIEW),1)
-EXAMPLES += gldemo
-EXAMPLES += meshviewer
-EXAMPLES += micro-ui
-endif
 
 all: $(EXAMPLES)
 clean: $(foreach example,$(EXAMPLES),$(example)-clean)

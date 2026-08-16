@@ -1,7 +1,8 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
 
-# Set to 1 to allow use of the preview API (which may change over time)
+# Set to 1 to allow use of the preview APIs (which may change over time).
+# This must be set before including this file, as it is read here.
 LIBDRAGON_PREVIEW ?= 0
 
 # Override this if your project uses a different directory for your DFS filesystem root
@@ -67,9 +68,7 @@ N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
 N64_VIDEOCONV = $(N64_BINDIR)/videoconv64
 N64_MKSPRITE = $(N64_BINDIR)/mksprite
 N64_MKFONT = $(N64_BINDIR)/mkfont
-ifeq ($(LIBDRAGON_PREVIEW),1)
 N64_MKMODEL = $(N64_BINDIR)/mkmodel
-endif
 N64_METADATA = $(N64_BINDIR)/n64metadata
 N64_DSO = $(N64_BINDIR)/n64dso
 N64_DSOEXTERN = $(N64_BINDIR)/n64dso-extern

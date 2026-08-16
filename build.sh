@@ -68,11 +68,11 @@ if [ "$TEST_MODE" = true ]; then
 fi
 
 if [ "$BUILD_EXAMPLES" = true ]; then
-# Build examples - libdragon must be already installed at this point,
-# so first clobber the build to make sure that everything works against the
-# installed version rather than using local artifacts.
-makeWithParams clobber
-makeWithParams examples
+  # Build examples - libdragon must be already installed at this point,
+  # so first clobber the build to make sure that everything works against the
+  # installed version rather than using local artifacts.
+  makeWithParams clobber
+  makeWithParams examples
 fi
 
 echo
