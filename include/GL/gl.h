@@ -1,6 +1,8 @@
 /**
  * @file gl.h
+ * @brief OpenGL 1.1 implementation
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @preview
  */
 #ifndef __LIBDRAGON_GL_H
 #define __LIBDRAGON_GL_H

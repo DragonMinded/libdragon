@@ -1,7 +1,9 @@
 /**
  * @file model64.h
+ * @brief 3D model loading, animation and drawing
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @author gamemasterplc <gamemasterplc@gmail.com>
+ * @preview
  */
 #ifndef __LIBDRAGON_MODEL64_H
 #define __LIBDRAGON_MODEL64_H

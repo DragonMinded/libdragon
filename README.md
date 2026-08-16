@@ -153,29 +153,51 @@ the vendors are usually less feature-rich.
 
 ## Libdragon stable vs preview
 
-Currently, there are two main libragon versions: 
+There is a single libdragon version, but not every API in it carries the same
+promise. Each API is either **stable** or **preview**:
 
- * The **stable** version is the one in the `trunk`. Stable means that we strive never
-   to break backward compatibility, that is we will never do changes in a way
-   that will impede existing applications to successfully compile and work
-   against a newer libdragon version. We feel this is important because otherwise
-   we would fragment the homebrew ecosystem too much, and we would leave a trail
-   of libdragon-based applications that can't be compiled anymore.
- * The **preview** version is the one in the `preview` branch. This is where most
-   development happens first. In fact, features are developed, evolved and
-   battle-tested here, before the APIs are stabilized and they are finally
-   merged on the trunk. Applications that use the preview branch need to be aware
-   that the APIs can break at any time (though we try to avoid *gratuitous* breakage).
+ * A **stable** API will not break backward compatibility. We will never change
+   it in a way that impedes existing applications from compiling and working
+   against a newer libdragon version. We feel this is important because
+   otherwise we would fragment the homebrew ecosystem too much, and we would
+   leave a trail of libdragon-based applications that can't be compiled anymore.
+ * A **preview** API is still being developed, evolved and battle-tested. It can
+   change or be removed at any time, without notice and without a deprecation
+   period (though we try to avoid *gratuitous* breakage). This is where most new
+   features start their life, before they are stabilized.
+
+Preview APIs are documented as such (look for the "Preview API" note in the
+[documentation](https://libdragon.dev/ref/index.html)), and they are locked by
+default: using one is a compile time error that names the API you tried to use.
+To unlock them, set `LIBDRAGON_PREVIEW` in your Makefile, *before* including
+`n64.mk`:
+
+```makefile
+LIBDRAGON_PREVIEW = 1
+include $(N64_INST)/include/n64.mk
+```
+
+The switch is a property of your project, not of your libdragon installation:
+the same installed toolchain builds both stable-only and preview-using projects,
+and you can flip it at any time.
+
+There is no separate build of libdragon for preview APIs, so enabling the switch
+never changes the behaviour or the memory layout of the stable APIs: it only
+changes which APIs you are allowed to call.
+
+When a preview API is considered settled, it is promoted to stable and the
+marking is simply removed. Nothing needs to change in your project, and you can
+drop `LIBDRAGON_PREVIEW` once you no longer use any preview API.
 
 ## Upgrading libdragon
 
-If you are upgrade the stable version, check the [ChangeLog](https://github.com/DragonMinded/libdragon/wiki/Stable-branch--Changelog)
-in the wiki to see latest changes that were merged into the stable version of libdragon.
+Check the [ChangeLog](https://github.com/DragonMinded/libdragon/wiki/Stable-branch--Changelog)
+in the wiki to see the latest changes to the stable APIs.
 Also check the wiki page for [common hurdles in upgrading libdragon](https://github.com/DragonMinded/libdragon/wiki/Upgrade-troubleshooting).
 
-If you are upgrading the preview version, instead, remember that some breaking
-changes are expected. We do not keep track of those though, so you will have
-to check the relevant header files yourself to check what is changed.
+If your project enables `LIBDRAGON_PREVIEW`, instead, remember that some
+breaking changes are expected. We do not keep track of those though, so you will
+have to check the relevant header files yourself to see what has changed.
 
 ## Resources
 
