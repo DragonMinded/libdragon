@@ -2,6 +2,8 @@ all: vifx.z64
 .PHONY: all
 
 BUILD_DIR = build
+# This example uses the low-level VI API, which is a preview API
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 assets_png = $(wildcard assets/*.png)

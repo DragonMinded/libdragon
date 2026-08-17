@@ -2,6 +2,8 @@ all: rtctest.z64
 .PHONY: all
 
 BUILD_DIR = build
+# This example uses some rtc preview APIs
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 OBJS = $(BUILD_DIR)/rtctest.o
