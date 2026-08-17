@@ -1,6 +1,8 @@
 TARGET=brew_volley
 BUILD_DIR=build
 FSYSTEM_DIR=filesystem
+# This example uses mixer_try_play, which is a preview API
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 src = main.c

@@ -1,4 +1,6 @@
 BUILD_DIR=build
+# This example uses BC1Q and H264I, which are preview APIs
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 src = lossysprite.c

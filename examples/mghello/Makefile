@@ -1,4 +1,6 @@
 BUILD_DIR=build
+# This example uses magma, which is a preview API
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 src = mghello.c

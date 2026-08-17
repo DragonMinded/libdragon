@@ -2,6 +2,8 @@ all: cpakdemo.z64
 .PHONY: all
 
 BUILD_DIR = build
+# This example uses cpakfs, which is a preview API
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 N64_ROM_CONTROLLER1 = n64,pak=controller
 N64_ROM_REGIONFREE = true

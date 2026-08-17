@@ -1,4 +1,6 @@
 BUILD_DIR=build
+# This example uses various preview APIs including SF64 and MID64
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 OBJS = $(BUILD_DIR)/audioplayer.o

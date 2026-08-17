@@ -1,4 +1,6 @@
 BUILD_DIR=build
+# This example uses some mixer and wav64 preview APIs
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 OBJS = $(BUILD_DIR)/mixertest.o
