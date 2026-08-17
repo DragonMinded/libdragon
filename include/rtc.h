@@ -7,9 +7,11 @@
 #ifndef __LIBDRAGON_RTC_H
 #define __LIBDRAGON_RTC_H
 
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
+#include "preview.h"
 
 /**
  * @defgroup rtc Real-Time Clock Subsystem
@@ -93,7 +95,10 @@ typedef enum {
 #define RTC_EBADTIME  -3
 /** @} */
 
-/** @brief Get the string representation of an RTC error code. */
+/** @brief Get the string representation of an RTC error code.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 const char *rtc_error_str( int error );
 
 /** @brief Software RTC minimum timestamp (1970-01-01 00:00:00) */
@@ -109,6 +114,7 @@ typedef struct {
 
 /**
  * @brief Initialize the RTC subsystem asynchronously.
+ * @preview
  *
  * Some flash carts require the RTC to be explicitly enabled before loading
  * the ROM file. Some emulators and flash carts do not support RTC at all.
@@ -124,6 +130,7 @@ typedef struct {
  *
  * Use #rtc_get_source to determine if a hardware RTC source was detected.
  */
+LIBDRAGON_PREVIEW_API
 void rtc_init_async( void );
 
 /**
@@ -151,16 +158,21 @@ void rtc_close( void );
 
 /**
  * @brief Check if the specified RTC source is usable by the subsystem.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 bool rtc_is_source_available( rtc_source_t source );
 
 /**
  * @brief Get the current source clock for the subsystem.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 rtc_source_t rtc_get_source( void );
 
 /**
  * @brief Switch the preferred source clock for the subsystem.
+ * @preview
  *
  * By default, the subsytem will use to the first available source,
  * but some games may wish to specify the preferred RTC source.
@@ -171,22 +183,27 @@ rtc_source_t rtc_get_source( void );
  * @retval RTC_ENOCLOCK if the source is not available
  * @retval RTC_EBADCLOCK if the source is not operational
  */
+LIBDRAGON_PREVIEW_API
 int rtc_set_source( rtc_source_t source );
 
 /**
  * @brief Get the supported timestamp range for the given RTC source.
+ * @preview
  *
  * @param source the RTC source to check
  *
  * @return the supported timestamp range for the source
  */
+LIBDRAGON_PREVIEW_API
 rtc_range_t rtc_get_source_supported_range( rtc_source_t source );
 
 /**
  * @brief Get the supported timestamp range for the current RTC source.
+ * @preview
  *
  * @return the supported timestamp range for the current source clock
  */
+LIBDRAGON_PREVIEW_API
 rtc_range_t rtc_get_supported_range( void );
 
 /**************************************

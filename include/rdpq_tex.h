@@ -8,6 +8,7 @@
 #ifndef LIBDRAGON_RDPQ_TEX_H
 #define LIBDRAGON_RDPQ_TEX_H
 
+#include "preview.h"
 #include "rdpq.h"
 #include <stdint.h>
 
@@ -192,6 +193,7 @@ int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texpa
 
 /**
  * @brief Check if a surface can be fully uploaded to TMEM
+ * @preview
  *
  * This helper verifies whether a full-surface upload via #rdpq_tex_upload
  * would fit in TMEM for the surface format.
@@ -200,6 +202,7 @@ int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texpa
  * @return true      The surface fits in TMEM
  * @return false     The surface does not fit in TMEM
  */
+LIBDRAGON_PREVIEW_API
 bool rdpq_tex_can_upload(const surface_t *tex);
 
 /**
@@ -334,7 +337,8 @@ typedef struct rdpq_blitparms_s {
     float scale_y;      ///< Vertical scale factor to apply to the surface. This scaling is applied along the Y axis before rotation. If 0, no scaling is performed (the same as 1.0f). If negative, vertical flipping is applied
     float theta;        ///< Counter-clockwise rotation angle in radians
     
-    bool allow_xform;   ///< True if blit should be affected by transforms applied by rdpq_xform
+    LIBDRAGON_PREVIEW_SYM
+    bool allow_xform;   ///< True if blit should be affected by transforms applied by rdpq_xform @preview
     
     // FIXME: replace this with CPU tracking of filtering mode?
     bool filtering;     ///< True if texture filtering is enabled (activates workaround for filtering artifacts when splitting textures in chunks)

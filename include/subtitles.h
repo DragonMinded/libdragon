@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "preview.h"
 #include "graphics.h"
 
 #ifdef __cplusplus
@@ -70,6 +71,7 @@ typedef struct subtitle_cue_s {
 
 /**
  * @brief Load subtitles from a SUB64 file.
+ * @preview
  * 
  * SUB64 is libdragon-specific format for subtitles, created by the videoconv64
  * tool when converting video files with embedded subtitles, or standalone
@@ -79,30 +81,36 @@ typedef struct subtitle_cue_s {
  * @param fn                Filename to load (including filesystem prefix, eg: "rom:/subtitles.sub64")
  * @return                  Handle to the loaded subtitles
  */
+LIBDRAGON_PREVIEW_API
 subtitles_t* subtitles_load(const char *fn);
 
 /**
  * @brief Free the subtitles handle.
+ * @preview
  *
  * This function frees the subtitles handle and all the resources associated with it.
  *
  * @param sub                 Handle to the subtitles
  */
+LIBDRAGON_PREVIEW_API
 void subtitles_free(subtitles_t *sub);
 
 
 /**
  * @brief Advance to the next frame.
+ * @preview
  *
  * This function advances to the next frame. It is used to synchronize the subtitles
  * with the video stream. It should be called once per frame.
  *
  * @param sub                 Handle to the subtitles
  */
+LIBDRAGON_PREVIEW_API
 void subtitles_next_frame(subtitles_t *sub);
 
 /**
  * @brief Get the current cue.
+ * @preview
  *
  * This function returns the current cues. It is used to get the current cues
  * to render on the screen.
@@ -116,10 +124,12 @@ void subtitles_next_frame(subtitles_t *sub);
  *                            number of cues stored in the array. Otherwise,
  *                            the function will return the number of cues available.
  */
+LIBDRAGON_PREVIEW_API
 int subtitles_get_current_cues(subtitles_t *sub, subtitle_cue_t *cues, int max_cues);
 
 /**
  * @brief Seek to a specific frame index.
+ * @preview
  *
  * This function seeks to a specific frame index. Seeking is a relatively
  * expensive operation, and should be used only when necessary.
@@ -127,6 +137,7 @@ int subtitles_get_current_cues(subtitles_t *sub, subtitle_cue_t *cues, int max_c
  * @param sub                 Handle to the subtitles
  * @param frame_idx           Frame index to seek to
  */
+LIBDRAGON_PREVIEW_API
 void subtitles_seek(subtitles_t *sub, int frame_idx);
 
 
@@ -173,6 +184,7 @@ typedef struct {
 
 /**
  * @brief Create a RDPQ-based subtitle renderer.
+ * @preview
  * 
  * This renderer uses the rdpq_text API to render subtitles on the screen.
  * It is the most efficient way to render subtitles on top of videos.
@@ -180,15 +192,21 @@ typedef struct {
  * @param parms              Parameters for the RDPQ renderer (fonts, background color, etc.)
  * @return                   Handle to the created subtitle renderer
  */
+LIBDRAGON_PREVIEW_API
 subrenderer_t* subrenderer_create_rdpq(subrenderer_rdpq_parms_t *parms);
 
 /**
  * @brief Create an EIA-608 subtitle renderer.
+ * @preview
+ * 
+ * @return subrenderer_t* 
  */
+LIBDRAGON_PREVIEW_API
 subrenderer_t* subrenderer_create_eia608(void);
 
 /**
  * @brief Set a custom frame size for the subtitle renderer.
+ * @preview
  * 
  * By default, the subtitle renderer assumes a frame size equal to the
  * display size. If the video being played has a different size, this function
@@ -199,22 +217,27 @@ subrenderer_t* subrenderer_create_eia608(void);
  * @param width       Frame width
  * @param height      Frame height
  */
+LIBDRAGON_PREVIEW_API
 void subrenderer_set_frame_size(subrenderer_t *base, int width, int height);
 
 /**
  * @brief Render the subtitles for the current frame.
+ * @preview
  * 
  * @param renderer      Subtitle renderer handle
  * @param cues          Array of cues to render
  * @param num_cues      Number of cues in the array
  */
+LIBDRAGON_PREVIEW_API
 void subrenderer_render(subrenderer_t *renderer, subtitle_cue_t *cues, int num_cues);
 
 /**
  * @brief Free the subtitle renderer.
+ * @preview
  * 
  * @param renderer      Subtitle renderer handle
  */
+LIBDRAGON_PREVIEW_API
 void subrenderer_free(subrenderer_t *renderer);
 
 /** @} */

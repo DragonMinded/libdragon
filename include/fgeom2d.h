@@ -10,6 +10,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <memory.h>
+#include "preview.h"
 #include "fmath.h"
 #include "fgeom.h"
 
@@ -42,8 +43,10 @@ typedef struct {
 
 /**
  * @brief Negate a 2D vector.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec2_negate(fm_vec2_t *out, const fm_vec2_t *v)
 {
     for (int i = 0; i < 2; i++) out->v[i] = -v->v[i];
@@ -51,8 +54,10 @@ inline void fm_vec2_negate(fm_vec2_t *out, const fm_vec2_t *v)
 
 /**
  * @brief Add two 2D vectors component-wise.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec2_add(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b)
 {
     for (int i = 0; i < 2; i++) out->v[i] = a->v[i] + b->v[i];
@@ -60,8 +65,10 @@ inline void fm_vec2_add(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b)
 
 /**
  * @brief Subtract two 2D vectors component-wise.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec2_sub(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b)
 {
     for (int i = 0; i < 2; i++) out->v[i] = a->v[i] - b->v[i];
@@ -69,9 +76,11 @@ inline void fm_vec2_sub(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b)
 
 /**
  * @brief Multiply two 2D vectors component-wise.
+ * @preview
  * @note  If you need the dot product, use #fm_vec2_dot instead. 
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec2_mul(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b)
 {
     for (int i = 0; i < 2; i++) out->v[i] = a->v[i] * b->v[i];
@@ -79,8 +88,10 @@ inline void fm_vec2_mul(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b)
 
 /**
  * @brief Divide two 2D vectors component-wise.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec2_div(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b)
 {
     for (int i = 0; i < 2; i++) out->v[i] = a->v[i] / b->v[i];
@@ -88,8 +99,10 @@ inline void fm_vec2_div(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b)
 
 /**
  * @brief Scale a 2D vector by a factor.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec2_scale(fm_vec2_t *out, const fm_vec2_t *a, float s)
 {
     for (int i = 0; i < 2; i++) out->v[i] = a->v[i] * s;
@@ -97,7 +110,9 @@ inline void fm_vec2_scale(fm_vec2_t *out, const fm_vec2_t *a, float s)
 
 /** 
  * @brief Compute the dot product of two 2D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec2_dot(const fm_vec2_t *a, const fm_vec2_t *b)
 {
     return a->x * b->x + a->y * b->y;
@@ -105,7 +120,9 @@ inline float fm_vec2_dot(const fm_vec2_t *a, const fm_vec2_t *b)
 
 /**
  * @brief Compute the square magnitude of a 2D vector.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec2_len2(const fm_vec2_t *a)
 {
     return fm_vec2_dot(a, a);
@@ -113,7 +130,9 @@ inline float fm_vec2_len2(const fm_vec2_t *a)
 
 /**
  * @brief Compute the magnitude of a 2D vector.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec2_len(const fm_vec2_t *a)
 {
     return sqrtf(fm_vec2_len2(a));
@@ -121,7 +140,9 @@ inline float fm_vec2_len(const fm_vec2_t *a)
 
 /**
  * @brief Compute the square distance between two 2D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec2_distance2(const fm_vec2_t *a, const fm_vec2_t *b)
 {
     fm_vec2_t diff;
@@ -131,7 +152,9 @@ inline float fm_vec2_distance2(const fm_vec2_t *a, const fm_vec2_t *b)
 
 /**
  * @brief Compute the distance between two 2D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec2_distance(const fm_vec2_t *a, const fm_vec2_t *b)
 {
     return sqrtf(fm_vec2_distance2(a, b));
@@ -139,8 +162,10 @@ inline float fm_vec2_distance(const fm_vec2_t *a, const fm_vec2_t *b)
 
 /**
  * @brief Normalize a 2D vector.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec2_norm(fm_vec2_t *out, const fm_vec2_t *a)
 {
     float len = fm_vec2_len(a);
@@ -153,7 +178,9 @@ inline void fm_vec2_norm(fm_vec2_t *out, const fm_vec2_t *a)
 
 /**
  * @brief Linearly interpolate between two 2D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec2_lerp(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b, float t)
 {
     for (int i = 0; i < 2; i++) out->v[i] = a->v[i] + (b->v[i] - a->v[i]) * t;
@@ -163,7 +190,9 @@ inline void fm_vec2_lerp(fm_vec2_t *out, const fm_vec2_t *a, const fm_vec2_t *b,
 
 /**
  * @brief Create a 3x3 identity matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_identity(fm_mat3_t *out)
 {
     *out = (fm_mat3_t){};
@@ -174,7 +203,9 @@ inline void fm_mat3_identity(fm_mat3_t *out)
 
 /**
  * @brief Apply scale to a 3x3 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_scale(fm_mat3_t *out, const fm_vec2_t *scale)
 {
     for (int i=0; i<3; i++) out->m[i][0] *= scale->x;
@@ -183,7 +214,9 @@ inline void fm_mat3_scale(fm_mat3_t *out, const fm_vec2_t *scale)
 
 /**
  * @brief Apply translation to a 3x3 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_translate(fm_mat3_t *out, const fm_vec2_t *translate)
 {
     for (int i=0; i<2; i++) out->m[2][i] += translate->v[i];
@@ -191,32 +224,40 @@ inline void fm_mat3_translate(fm_mat3_t *out, const fm_vec2_t *translate)
 
 /**
  * @brief Apply a counterclockwise rotation to a 3x3 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat3_rotate(fm_mat3_t *out, float rotation);
 
 /**
  * @brief Create a 3x3 affine transformation matrix from scale, rotation and translation.
+ * @preview
  * 
  * The rotation is accepted as a counterclockwise angle in radians.
  * It creates an equivalent matrix to multiplying an identity matrix by a scale,
  * a rotation, and a translation matrix in that order.
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat3_from_srt(fm_mat3_t *out, const fm_vec2_t *scale, float rotation, const fm_vec2_t *translate);
 
 /**
  * @brief Create a 3x3 affine transformation matrix from rotation, scale, and translation.
+ * @preview
  * 
  * The rotation is accepted as a counterclockwise angle in radians.
  * It creates an equivalent matrix to multiplying an identity matrix by a rotation,
  * a scale, and a translation matrix in that order.
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat3_from_rst(fm_mat3_t *out, float rotation, const fm_vec2_t *scale, const fm_vec2_t *translate);
 
 /**
  * @brief Create a 3x3 rigid transformation matrix from rotation and translation.
+ * @preview
  * 
  * The rotation is accepted as an angle in radians.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_from_rt(fm_mat3_t *out, float rotation, const fm_vec2_t *translate)
 {
     const fm_vec2_t scale = {{1, 1}};
@@ -225,7 +266,9 @@ inline void fm_mat3_from_rt(fm_mat3_t *out, float rotation, const fm_vec2_t *tra
 
 /**
  * @brief Create a 3x3 translation matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_from_translation(fm_mat3_t *out, const fm_vec2_t *translate)
 {
     fm_mat3_identity(out);
@@ -234,7 +277,9 @@ inline void fm_mat3_from_translation(fm_mat3_t *out, const fm_vec2_t *translate)
 
 /**
  * @brief Create a 3x3 rotation matrix from angle.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_from_rotation(fm_mat3_t *out, float theta)
 {
     const fm_vec2_t translate = {{0, 0}};
@@ -243,7 +288,9 @@ inline void fm_mat3_from_rotation(fm_mat3_t *out, float theta)
 
 /**
  * @brief Create a 3x3 scale matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_from_scale(fm_mat3_t *out, const fm_vec2_t *scale)
 {
     fm_mat3_identity(out);
@@ -252,7 +299,9 @@ inline void fm_mat3_from_scale(fm_mat3_t *out, const fm_vec2_t *scale)
 
 /**
  * @brief Multiply two 3x3 matrices.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_mul(fm_mat3_t *out, const fm_mat3_t *a, const fm_mat3_t *b)
 {
     fm_mat3_t tmp;
@@ -270,7 +319,9 @@ inline void fm_mat3_mul(fm_mat3_t *out, const fm_mat3_t *a, const fm_mat3_t *b)
 
 /**
  * @brief Transpose a 3x3 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_transpose(fm_mat3_t *out, const fm_mat3_t *m)
 {
     for (int i = 0; i < 3; i++)
@@ -284,17 +335,23 @@ inline void fm_mat3_transpose(fm_mat3_t *out, const fm_mat3_t *m)
 
 /**
  * @brief Compute the determinant of a 3x3 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 float fm_mat3_det(const fm_mat3_t *m);
 
 /**
  * @brief Compute the inverse of a 3x3 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat3_inverse(fm_mat3_t *out, const fm_mat3_t *m);
 
 /**
  * @brief Multiply a 2D vector by a 3x3 matrix by assuming 1 as the hypothetical 3rd component of the vector.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_mul_vec2(fm_vec3_t *out, const fm_mat3_t *m, const fm_vec2_t *v)
 {
     for (int i = 0; i < 3; i++)
@@ -307,7 +364,9 @@ inline void fm_mat3_mul_vec2(fm_vec3_t *out, const fm_mat3_t *m, const fm_vec2_t
 
 /**
  * @brief Multiply a 3D vector by a 3x3 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat3_mul_vec3(fm_vec3_t *out, const fm_mat3_t *m, const fm_vec3_t *v)
 {
     fm_vec3_t tmp;

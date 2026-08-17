@@ -33,19 +33,23 @@
 #ifndef LIBDRAGON_PIFILE_H
 #define LIBDRAGON_PIFILE_H
 
+#include "preview.h"
 #include "n64types.h"
 #include <stdio.h>
 
 /**
  * @brief Initialize the PI file system
+ * @preview
  * 
  * This function initializes the PI file system. After calling this function,
  * the "pi:/" filesystem will be available to open files via fopen().
  */
+LIBDRAGON_PREVIEW_API
 void pifile_init(void);
 
 /**
  * @brief Open a file from the PI bus given a base address and size
+ * @preview
  * 
  * This function opens a "file" on the PI bus. Since it does not rely on 
  * a filesystem, the "file" is just described as a base address and size.
@@ -58,6 +62,7 @@ void pifile_init(void);
  * 
  * @return              FILE pointer to use with standard C functions (fread, fclose)
  */
+LIBDRAGON_PREVIEW_API
 FILE *pifile_open(pi_addr_t base, size_t size, uint32_t flags);
 
 #endif

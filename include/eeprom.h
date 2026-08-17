@@ -10,6 +10,7 @@
 #ifndef __LIBDRAGON_EEPROM_H
 #define __LIBDRAGON_EEPROM_H
 
+
 /**
  * @defgroup peripherals Peripherals subsystem
  * @ingroup libdragon
@@ -70,6 +71,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "preview.h"
 
 /**
  * @brief EEPROM Probe Values
@@ -199,6 +201,7 @@ void eeprom_write_bytes( const void * src, size_t start, size_t len );
 
 /**
  * @brief Return whether EEPROM flush is currently running.
+ * @preview
  *
  * This function reports whether the background flusher is actively persisting
  * data to EEPROM.
@@ -208,11 +211,13 @@ void eeprom_write_bytes( const void * src, size_t start, size_t len );
  *
  * @return true if background flush is currently active, false otherwise.
  */
+LIBDRAGON_PREVIEW_API
 bool eeprom_is_busy(void);
 
 
 /**
  * @brief Wait until the EEPROM is completely idle.
+ * @preview
  * 
  * This function will block until the EEPROM is completely idle, i.e. until
  * all background writes have completed.
@@ -224,6 +229,7 @@ bool eeprom_is_busy(void);
  *       long time, up to hundreds of milliseconds. Therefore it should be
  *       used only when there is no graphics or audio to process.
  */
+LIBDRAGON_PREVIEW_API
 void eeprom_wait_idle(void);
 
 #ifdef __cplusplus

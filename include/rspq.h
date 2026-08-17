@@ -186,7 +186,9 @@
 #ifndef __LIBDRAGON_RSPQ_H
 #define __LIBDRAGON_RSPQ_H
 
+
 #include <stdint.h>
+#include "preview.h"
 #include "rsp.h"
 #include "debug.h"
 #include "n64sys.h"
@@ -356,6 +358,7 @@ void rspq_overlay_register_static(rsp_ucode_t *overlay_ucode, uint32_t overlay_i
 
 /**
  * @brief Make an overlay share the state with another
+ * @preview
  * 
  * Sometimes it is useful for two overlays to share their state. This is
  * common when a larger ucode is split into several ucodes for IMEM limit size,
@@ -380,6 +383,7 @@ void rspq_overlay_register_static(rsp_ucode_t *overlay_ucode, uint32_t overlay_i
  *                              with overlay_source.
  * @param overlay_source        Overlay whose state will be shared.
  */
+LIBDRAGON_PREVIEW_API
 void rspq_overlay_share_state(rsp_ucode_t *overlay_dest, rsp_ucode_t *overlay_source);
 
 /**
@@ -732,6 +736,7 @@ rspq_syncpoint_t rspq_syncpoint_new(void);
 
 /**
  * @brief Create a syncpoint in the queue that triggers a callback on the CPU.
+ * @preview
  * 
  * This function is similar to #rspq_syncpoint_new: it creates a new "syncpoint"
  * that references the current position in the queue. When the RSP reaches
@@ -753,6 +758,7 @@ rspq_syncpoint_t rspq_syncpoint_new(void);
  * @see #rspq_syncpoint_t
  * @see #rspq_syncpoint_new
  */
+LIBDRAGON_PREVIEW_API
 rspq_syncpoint_t rspq_syncpoint_new_cb(void (*func)(void *), void *arg);
 
 /**
@@ -785,6 +791,7 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id);
 
 /**
  * @brief Enqueue a callback to be called by the CPU
+ * @preview
  * 
  * This function enqueues a callback that will be called by the CPU when
  * the RSP has finished all commands put in the queue until now.
@@ -805,6 +812,7 @@ void rspq_syncpoint_wait(rspq_syncpoint_t sync_id);
  * 
  * @see #rdpq_call_deferred
  */
+LIBDRAGON_PREVIEW_API
 inline void rspq_call_deferred(void (*func)(void *), void *arg) {
     rspq_syncpoint_new_cb(func, arg);
     rspq_flush();
@@ -880,6 +888,7 @@ rspq_block_t* rspq_block_end(void);
 
 /**
  * @brief Sets the target for a placeholder in a block
+ * @preview
  * 
  * If a block contains calls to placeholders, for example:
  * 
@@ -904,6 +913,7 @@ rspq_block_t* rspq_block_end(void);
  * @param ph the placeholder slot (RSPQ_BLOCK_PLACEHOLDER_0 - RSPQ_BLOCK_PLACEHOLDER_6)
  * @param ph_target block the placeholder should point to
  */
+LIBDRAGON_PREVIEW_API
 void rspq_block_set_placeholder(
   rspq_block_t *ph,
   rspq_block_t *ph_target
@@ -954,11 +964,13 @@ void rspq_block_free(rspq_block_t *block);
 
 /** 
  * @brief Returns true if a block is currently being built. 
+ * @preview
  * 
  * This function returns true if, and only if, it is called after
  * #rspq_block_begin was called and before #rspq_block_end is called.
  * Use this function to determine whether a block is currently being recorded.
  */
+LIBDRAGON_PREVIEW_API
 static inline bool rspq_block_is_recording(void) {
     extern rspq_block_t *rspq_block;
     return rspq_block != NULL;
@@ -966,6 +978,7 @@ static inline bool rspq_block_is_recording(void) {
 
 /**
  * @brief Register a callback to be called when the current block is freed.
+ * @preview
  * 
  * Calling this function is only valid when a block is currently being recorded
  * (see #rspq_block_begin). The callback will be called with the given context
@@ -983,20 +996,24 @@ static inline bool rspq_block_is_recording(void) {
  * @param  cb   The callback function
  * @param  ctx  The context that will be passed to the callback
  */
+LIBDRAGON_PREVIEW_API
 void rspq_block_atexit(void (*cb)(void*), void* ctx);
 
 /**
  * @brief Create a new buffered queue.
+ * @preview
  *
  * The queue is created empty and is not active by default. Use
  * #rspq_queue_switch to start recording commands into it.
  *
  * @return A pointer to the newly created queue
  */
+ LIBDRAGON_PREVIEW_API
  rspq_queue_t* rspq_queue_create(void);
 
  /**
   * @brief Switch the current recording target to a queue.
+  * @preview
   *
   * After this call, all #rspq_write commands will go into the specified queue,
   * and they will not be executed immediately. Use #rspq_queue_run to execute
@@ -1007,10 +1024,12 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
   * @param q         The queue to switch to, or NULL to switch back to default
   *                  command ring buffer.
   */
+ LIBDRAGON_PREVIEW_API
  void rspq_queue_switch(rspq_queue_t* q);
  
  /**
   * @brief Execute the RSP commands in the queue.
+  * @preview
   *
   * This function will execute all pending RSP commands in the queue, in order.
   * It is safe to call this function multiple times: each time, it will execute
@@ -1018,10 +1037,12 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
   *
   * @param q         The queue to execute
   */
+ LIBDRAGON_PREVIEW_API
  void rspq_queue_run(rspq_queue_t* q);
 
  /**
   * @brief Clear a queue contents, keeping its memory for reuse.
+  * @preview
   *
   * This function clears the queue contents, basically resetting its internal
   * write pointer to the start.
@@ -1033,15 +1054,18 @@ void rspq_block_atexit(void (*cb)(void*), void* ctx);
   *
   * @param q         The queue to clear
   */
+ LIBDRAGON_PREVIEW_API
  void rspq_queue_clear(rspq_queue_t* q);
  
  /**
   * @brief Destroy a queue and free all its memory.
+  * @preview
   * 
   * After this call, the queue is invalid and must not be used anymore.
   *
   * @param q Queue to destroy
   */
+ LIBDRAGON_PREVIEW_API
  void rspq_queue_destroy(rspq_queue_t* q);
  
 /**

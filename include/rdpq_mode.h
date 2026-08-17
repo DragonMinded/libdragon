@@ -93,6 +93,7 @@
 #ifndef LIBDRAGON_RDPQ_MODE_H
 #define LIBDRAGON_RDPQ_MODE_H
 
+#include "preview.h"
 #include "rdpq.h"
 #include <stdint.h>
 
@@ -767,6 +768,7 @@ inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
 
 /**
  * @brief Configure the Z buffering mode
+ * @preview
  * 
  * This function allows to tune the internal Z buffer formula to obtain several
  * different effects. In addition to the standard operating mode (#ZMODE_STANDARD),
@@ -785,6 +787,7 @@ inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
  * 
  * @see #rdpq_zmode_t
  */
+LIBDRAGON_PREVIEW_API
 inline void rdpq_mode_zmode(rdpq_zmode_t mode) {
     __rdpq_mode_change_som(SOM_ZMODE_MASK, (uint64_t)mode << SOM_ZMODE_SHIFT);
 }

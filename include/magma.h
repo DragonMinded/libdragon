@@ -119,8 +119,10 @@
 #ifndef __LIBDRAGON_MAGMA_H
 #define __LIBDRAGON_MAGMA_H
 
+
 #include <stdbool.h>
 #include <stdint.h>
+#include "preview.h"
 #include "graphics.h"
 #include "display.h"
 #include "rsp.h"
@@ -134,23 +136,28 @@ extern "C" {
 
 /**
  * @brief Initialize the magma library.
+ * @preview
  * 
  * This function must be called before any other functions of this library are used.
  * It is safe to call this function multiple times. If the library is already
  * initialized, this function has no effect.
  */
+LIBDRAGON_PREVIEW_API
 void mg_init(void);
 
 /**
  * @brief Shut down the magma library.
+ * @preview
  * 
  * It is safe to call this function multiple times. If the library is not
  * initialized, this function has no effect.
  */
+LIBDRAGON_PREVIEW_API
 void mg_close(void);
 
 /**
  * @brief Creates a new pipeline from a vertex shader and vertex layout.
+ * @preview
  * 
  * A copy of the ucode will be created internally, which is then patched automatically
  * to work with the specified vertex layout (provided it is compatible).
@@ -165,19 +172,23 @@ void mg_close(void);
  * @see #mg_vertex_layout_t
  * @see #mg_pipeline_free
  */
+LIBDRAGON_PREVIEW_API
 mg_pipeline_t *mg_pipeline_create(const mg_pipeline_parms_t *parms);
 
 /**
  * @brief Destructs and frees a pipeline.
+ * @preview
  * 
  * Must not be called while any drawing operations using this pipeline are still ongoing.
  * 
  * @param[in]   pipeline    The pipeline to be freed.
  */
+LIBDRAGON_PREVIEW_API
 void mg_pipeline_free(mg_pipeline_t *pipeline);
 
 /**
  * @brief Returns a struct describing the uniform with the given binding number.
+ * @preview
  * 
  * The struct can be used directly to load uniform values using #mg_uniform_load or #mg_uniform_load_inline
  * This function crashes if no uniform with the given binding number exists in the pipeline.
@@ -190,10 +201,12 @@ void mg_pipeline_free(mg_pipeline_t *pipeline);
  * @see #mg_uniform_load
  * @see #mg_uniform_load_inline
  */
+LIBDRAGON_PREVIEW_API
 const mg_uniform_t *mg_pipeline_get_uniform(mg_pipeline_t *pipeline, uint32_t binding);
 
 /**
  * @brief Checks if a uniform is compatible with the pipeline.
+ * @preview
  * 
  * If the uniform has been queried from the pipeline using #mg_pipeline_get_uniform,
  * it is by definition always compatible.
@@ -211,10 +224,12 @@ const mg_uniform_t *mg_pipeline_get_uniform(mg_pipeline_t *pipeline, uint32_t bi
  * 
  * @see #mg_pipeline_get_uniform
  */
+LIBDRAGON_PREVIEW_API
 bool mg_pipeline_is_uniform_compatible(mg_pipeline_t *pipeline, const mg_uniform_t *uniform);
 
 /** 
  * @brief Bind the pipeline for subsequent use.
+ * @preview
  * 
  * All following drawing commands will use the newly bound pipeline for transforming vertices.
  * This function must be called at least once before any drawing commands are issued.
@@ -230,6 +245,7 @@ bool mg_pipeline_is_uniform_compatible(mg_pipeline_t *pipeline, const mg_uniform
  * 
  * @see #mg_pipeline_is_uniform_compatible
  */
+LIBDRAGON_PREVIEW_API
 void mg_pipeline_bind(mg_pipeline_t *pipeline);
 
 /**
@@ -263,6 +279,7 @@ inline void mg_uniform_load(const mg_uniform_t *uniform, const void *data);
 
 /** 
  * @brief Load data from the given pointer into uniform memory.
+ * @preview
  * 
  * This function works like #mg_uniform_load but takes the offset and size of the memory region to be loaded into directly.
  * It should be used with care, since it is possible to corrupt the system's state permanently 
@@ -278,6 +295,7 @@ inline void mg_uniform_load(const mg_uniform_t *uniform, const void *data);
  * 
  * @see #mg_uniform_load
  */
+LIBDRAGON_PREVIEW_API
 void mg_uniform_load_raw(uint32_t offset, uint32_t size, const void *data);
 
 /**
@@ -298,6 +316,7 @@ inline void mg_uniform_load_inline(const mg_uniform_t *uniform, const void *data
 
 /**
  * @brief Load inline data into uniform memory.
+ * @preview
  * 
  * This works just like #mg_uniform_load_raw, except that the data is read immediately
  * and embedded into the internal stream of commands. This means there is no need
@@ -312,6 +331,7 @@ inline void mg_uniform_load_inline(const mg_uniform_t *uniform, const void *data
  * 
  * @see #mg_uniform_load_raw
  */
+LIBDRAGON_PREVIEW_API
 void mg_uniform_load_inline_raw(uint32_t offset, uint32_t size, const void *data);
 
 /** 
@@ -345,6 +365,7 @@ inline void mg_set_geometry_flags(mg_geometry_flags_t flags);
 
 /** 
  * @brief Set the viewport, which is the region in screen space that geometry will be drawn to.
+ * @preview
  * 
  * Can be recorded into blocks.
  * 
@@ -353,6 +374,7 @@ inline void mg_set_geometry_flags(mg_geometry_flags_t flags);
  * @see #mg_viewport_t
  * @see #mg_set_viewport_fullscreen
  */
+LIBDRAGON_PREVIEW_API
 void mg_set_viewport(const mg_viewport_t *viewport);
 
 /** 
@@ -412,6 +434,7 @@ inline void mg_bind_vertex_buffer(const void *buffer);
 
 /** 
  * @brief Begin a batch of drawing commands.
+ * @preview
  * 
  * This function must be called before a batch of drawing commands that use the same render modes.
  * Use #mg_draw_end to end this batch.
@@ -429,10 +452,12 @@ inline void mg_bind_vertex_buffer(const void *buffer);
  * 
  * @see #mg_draw_end
  */
+LIBDRAGON_PREVIEW_API
 void mg_draw_begin(void);
 
 /** 
  * @brief End a batch of drawing commands. 
+ * @preview
  * 
  * This function must be called after a batch of drawing commands that use the same render modes.
  * See #mg_draw_begin for more details.
@@ -441,10 +466,12 @@ void mg_draw_begin(void);
  * 
  * @see #mg_draw_begin
  */
+LIBDRAGON_PREVIEW_API
 void mg_draw_end(void);
 
 /** 
  * @brief Load vertices from the vertex buffer, run the current pipeline's vertex shader on them, and save the result to the vertex cache.
+ * @preview
  * 
  * The source vertex data will be read starting from the specified index into the vertex buffer.
  * The transformed vertices will be stored at the specified index into the vertex cache.
@@ -475,10 +502,12 @@ void mg_draw_end(void);
  * @see #mg_draw_triangle
  * @see #MG_VERTEX_CACHE_COUNT
  */
+LIBDRAGON_PREVIEW_API
 void mg_load_vertices(uint32_t buffer_index, uint8_t cache_index, uint32_t count);
 
 /** 
  * @brief Draw a triangle with vertices that have previously been stored in the vertex cache.
+ * @preview
  * 
  * The values of all indices must be less than the maximum number of vertices that can be held by 
  * the vertex cache, which is #MG_VERTEX_CACHE_COUNT.
@@ -498,10 +527,12 @@ void mg_load_vertices(uint32_t buffer_index, uint8_t cache_index, uint32_t count
  * @see #mg_draw_begin
  * @see #mg_draw_end
  */
+LIBDRAGON_PREVIEW_API
 void mg_draw_triangle(uint8_t index0, uint8_t index1, uint8_t index2);
 
 /** 
  * @brief Draw multiple triangles from consecutive vertices in the vertex buffer.
+ * @preview
  * 
  * The exact algorithm that is used to construct these triangles is specified by #mg_input_assembly_parms_t.
  * This function will feed a linear sequence of indices to that algorithm, which starts at the specified first
@@ -525,10 +556,12 @@ void mg_draw_triangle(uint8_t index0, uint8_t index1, uint8_t index2);
  * @see #mg_draw_begin
  * @see #mg_draw_end
  */
+LIBDRAGON_PREVIEW_API
 void mg_draw(const mg_input_assembly_parms_t *input_assembly_parms, uint32_t vertex_count, uint32_t first_vertex);
 
 /** 
  * @brief Draw multiple triangles from a list of indices that specify offsets into the vertex buffer.
+ * @preview
  * 
  * The exact algorithm that is used to construct these triangles is specified by #mg_input_assembly_parms_t.
  * This function will read the specified number of indices from the list and feed them to the algorithm 
@@ -552,6 +585,7 @@ void mg_draw(const mg_input_assembly_parms_t *input_assembly_parms, uint32_t ver
  * @see #mg_draw_begin
  * @see #mg_draw_end
  */
+LIBDRAGON_PREVIEW_API
 void mg_draw_indexed(const mg_input_assembly_parms_t *input_assembly_parms, const uint16_t *indices, uint32_t index_count, int32_t vertex_offset);
 
 /// @cond
@@ -601,26 +635,31 @@ typedef struct
     uint8_t output_offset;
 } __attribute__((packed)) mg_rsp_state_t;
 
+LIBDRAGON_PREVIEW_API
 inline void mg_cmd_set_byte(uint32_t offset, uint8_t value)
 {
     mg_cmd_write(MG_CMD_SET_BYTE, offset, value);
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_cmd_set_short(uint32_t offset, uint16_t value)
 {
     mg_cmd_write(MG_CMD_SET_SHORT, offset, value);
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_cmd_set_word(uint32_t offset, uint32_t value)
 {
     mg_cmd_write(MG_CMD_SET_WORD, offset, value);
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_cmd_set_quad(uint32_t offset, uint32_t value0, uint32_t value1, uint32_t value2, uint32_t value3)
 {
     mg_cmd_write(MG_CMD_SET_QUAD, offset, value0, value1, value2, value3);
 }
 
+LIBDRAGON_PREVIEW_API
 inline uint8_t mg_culling_parms_to_rsp_state(const mg_culling_parms_t *culling)
 {
     uint8_t cull_mode;
@@ -658,17 +697,20 @@ inline uint8_t mg_culling_parms_to_rsp_state(const mg_culling_parms_t *culling)
     return cull_mode ^ is_front_cw;
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_set_culling(const mg_culling_parms_t *culling)
 {
     mg_cmd_set_byte(offsetof(mg_rsp_state_t, cull_mode), mg_culling_parms_to_rsp_state(culling));
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_set_geometry_flags(mg_geometry_flags_t flags)
 {
     uint16_t tricmd = 0x8 | (flags&0x7);
     mg_cmd_set_short(offsetof(mg_rsp_state_t, tri_cmd), tricmd << 8);
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_set_viewport_fullscreen(resolution_t res)
 {
     mg_viewport_t viewport = {
@@ -682,21 +724,25 @@ inline void mg_set_viewport_fullscreen(resolution_t res)
     mg_set_viewport(&viewport);
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_set_clip_factor(uint32_t factor)
 {
     mg_cmd_set_word(offsetof(mg_rsp_state_t, clip_factors) + sizeof(uint16_t)*2, (factor<<16) | factor);
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_uniform_load(const mg_uniform_t *uniform, const void *data)
 {
     mg_uniform_load_raw(uniform->offset, uniform->size, data);
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_uniform_load_inline(const mg_uniform_t *uniform, const void *data)
 {
     mg_uniform_load_inline_raw(uniform->offset, uniform->size, data);
 }
 
+LIBDRAGON_PREVIEW_API
 inline void mg_bind_vertex_buffer(const void *buffer)
 {
     mg_cmd_set_word(offsetof(mg_rsp_state_t, vertex_buffer), PhysicalAddr(buffer));

@@ -10,6 +10,7 @@
 
 #include <stdbool.h>
 
+#include "preview.h"
 #include "joypad.h"
 
 /**
@@ -41,26 +42,31 @@ extern "C" {
 
 /**
  * @brief Initialize the Bio Sensor subsystem
+ * @preview
  *
  * Must be called before starting Bio Sensor reads on any port.
  *
  * Registers the VI interrupt handler for periodic sensor reads.
  * Uses reference counting to support multiple init/close pairs.
  */
+LIBDRAGON_PREVIEW_API
 void bio_sensor_init(void);
 
 /**
  * @brief Close the Bio Sensor subsystem
+ * @preview
  *
  * Should be called when Bio Sensor functionality is no longer needed.
  *
  * Decrements the reference count and unregisters the VI interrupt handler
  * when the count reaches zero.
  */
+LIBDRAGON_PREVIEW_API
 void bio_sensor_close(void);
 
 /**
  * @brief Start reading heartbeat data from a Bio Sensor
+ * @preview
  *
  * Initializes the reader context for the specified port and begins
  * continuous heartbeat monitoring. The sensor will be read at 60Hz (NTSC)
@@ -69,10 +75,12 @@ void bio_sensor_close(void);
  *
  * @param port The joypad port with the Bio Sensor accessory attached
  */
+LIBDRAGON_PREVIEW_API
 void bio_sensor_read_start(joypad_port_t port);
 
 /**
  * @brief Stop reading heartbeat data from a Bio Sensor
+ * @preview
  *
  * Clears the reader context for the specified port and stops all
  * heartbeat monitoring. Also called automatically if the Bio Sensor
@@ -80,26 +88,32 @@ void bio_sensor_read_start(joypad_port_t port);
  *
  * @param port The joypad port to stop reading from
  */
+LIBDRAGON_PREVIEW_API
 void bio_sensor_read_stop(joypad_port_t port);
 
 /**
  * @brief Check if Bio Sensor is actively reading heartbeat data
+ * @preview
  *
  * @param port The joypad port to check
  * @return true if heartbeat monitoring is active, false if stopped
  */
+LIBDRAGON_PREVIEW_API
 bool bio_sensor_get_active(joypad_port_t port);
 
 /**
  * @brief Check if a heartbeat pulse is currently detected
+ * @preview
  *
  * @param port The joypad port to check
  * @return true if the heart is currently beating (pulsing state), false otherwise
  */
+LIBDRAGON_PREVIEW_API
 bool bio_sensor_get_pulsing(joypad_port_t port);
 
 /**
  * @brief Calculate the current heart rate in beats per minute (BPM)
+ * @preview
  *
  * Calculates the average BPM based on heartbeat counts from multiple
  * measurement periods. Requires at least 8 measurement periods (4 seconds)
@@ -109,6 +123,7 @@ bool bio_sensor_get_pulsing(joypad_port_t port);
  * @param port The joypad port to read BPM from
  * @return Heart rate in beats per minute, or 0 if insufficient data
  */
+LIBDRAGON_PREVIEW_API
 int bio_sensor_get_bpm(joypad_port_t port);
 
 #ifdef __cplusplus

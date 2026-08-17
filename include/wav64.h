@@ -8,6 +8,8 @@
 #ifndef __LIBDRAGON_WAV64_H
 #define __LIBDRAGON_WAV64_H
 
+
+#include "preview.h"
 #include "mixer.h"
 
 #ifdef __cplusplus
@@ -124,6 +126,7 @@ typedef struct wav64_loadparms_s {
 
 /** 
  * @brief Load a WAV64 file for playback.
+ * @preview
  * 
  * This function opens the file, parses the header, and initializes for
  * playing back through the audio mixer. 
@@ -135,6 +138,7 @@ typedef struct wav64_loadparms_s {
  * @param   fn          Filename of the wav64 (with filesystem prefix).
  * @param   parms       Optional loading parameters (or NULL for defaults).
  */ 
+LIBDRAGON_PREVIEW_API
 wav64_t *wav64_load(const char *fn, wav64_loadparms_t *parms);
 
 /** @brief Configure a WAV64 file for looping playback. */
@@ -158,6 +162,7 @@ void wav64_play(wav64_t *wav, int ch);
 
 /**
  * @brief Seek a playing WAV64 to a given time position (in seconds).
+ * @preview
  *
  * This is a convenience wrapper around #mixer_ch_set_pos that calculates the
  * nearest seekable position for the given time position, depending on how
@@ -169,6 +174,7 @@ void wav64_play(wav64_t *wav, int ch);
  * @param time_sec  Desired time position (in seconds)
  * @return          The adjusted time in seconds that was actually used for seeking
  */
+LIBDRAGON_PREVIEW_API
 double wav64_seek(wav64_t *wav, int ch, double time_sec);
 
 /**

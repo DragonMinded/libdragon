@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <string.h>
 
+#include "preview.h"
 #include "exception.h"
 #include "n64sys.h"
 
@@ -143,6 +144,7 @@ typedef struct kcond_s {
 
 /** 
  * @brief Initialize the multi-threading kernel
+ * @preview
  *
  * The current execution context becomes the main thread of the
  * program, with priority set to 0 (you can change priority
@@ -155,20 +157,24 @@ typedef struct kcond_s {
  * @return a pointer to the main thread.
  *
  */
+LIBDRAGON_PREVIEW_API
 kthread_t* kernel_init(void);
 
 /** 
  * @brief Shutdown the multi-threading kernel
+ * @preview
  *
  * This function is mostly useful for testing purposes.
  * Since the kernel does not keep track of all created threads,
  * this function should be called only when all created threads
  * are exited or have been killed.
  */
+LIBDRAGON_PREVIEW_API
 void kernel_close(void);
 
 /**
  * @brief Create a new thread
+ * @preview
  *
  * Create a new thread, with a specified stack size and priority.
  * The thread is immediately made ready after creation, so if it has
@@ -202,20 +208,24 @@ void kernel_close(void);
  *            this reference if not required; the thread will clean up
  *            after itself when it exits.
  */
+LIBDRAGON_PREVIEW_API
 kthread_t* kthread_new(const char *name, int stack_size, int8_t pri,
     int (*user_entry)(void*), void *user_data);
 
 
 /**
  * @brief Return a reference to the current running thread
+ * @preview
  * 
  * @return Reference to the current thread
  */
+LIBDRAGON_PREVIEW_API
 kthread_t* kthread_current(void);
 
 
 /**
  * @brief Yield execution of the current thread and run the scheduler.
+ * @preview
  *
  * This function allows the current thread to cooperatively yield
  * its execution to allow other threads to run.
@@ -234,10 +244,12 @@ kthread_t* kthread_current(void);
  * become ready. If you need a block of code to be executed without
  * any context switch, make sure to disable interrupts.
  */
+LIBDRAGON_PREVIEW_API
 void kthread_yield(void);
 
 /**
  * @brief Suspend the specified thread
+ * @preview
  * 
  * Suspends the specified thread, so that it will not be scheduled anymore.
  * The thread will be put in a "suspended" state, and will not be scheduled
@@ -245,17 +257,21 @@ void kthread_yield(void);
  * 
  * @param th        Reference to the thread to suspend
  */
+LIBDRAGON_PREVIEW_API
 void kthread_suspend(kthread_t *th);
 
 /**
  * @brief Resume a thread that was previously suspended
+ * @preview
  * 
  * @param th        Reference to the thread to resume
  */
+LIBDRAGON_PREVIEW_API
 void kthread_resume(kthread_t *th);
 
 /**
  * @brief Return the backtrace of the specified thread
+ * @preview
  * 
  * This function has the same semantic of #backtrace, but it returns
  * the backtrace of the specified thread instead of the current one.
@@ -268,10 +284,12 @@ void kthread_resume(kthread_t *th);
  * @param[in]  size     Size of the buffer
  * @return              Number of entries in the backtrace
  */
+LIBDRAGON_PREVIEW_API
 int kthread_backtrace(kthread_t *th, void *buffer, int size);
 
 /**
  * @brief Sleep for the specified interval, allowing execution of other threads.
+ * @preview
  *
  * This function will put the current thread to sleep for a specified
  * time interval, allowing other threads to run.
@@ -292,10 +310,12 @@ int kthread_backtrace(kthread_t *th, void *buffer, int size);
  * @param[in] ticks
  *            The number of hardware ticks to sleep.
  */
+LIBDRAGON_PREVIEW_API
 void kthread_sleep(int64_t ticks);
 
 /** 
  * @brief Change priority of a thread.
+ * @preview
  * 
  * Change priority of the specified thread. If the argument is NULL,
  * this function changes priority to the current thread.
@@ -312,11 +332,13 @@ void kthread_sleep(int64_t ticks);
  *             higher priority.
  *
  */
+LIBDRAGON_PREVIEW_API
 void kthread_set_pri(kthread_t *th, int8_t pri);
 
 
 /** 
  * @brief Kill a thread, aborting its execution.
+ * @preview
  *
  * The specified thread is aborted, and its memory freed (including
  * its stack). The execution will be aborted and the memory released
@@ -332,6 +354,7 @@ void kthread_set_pri(kthread_t *th, int8_t pri);
  * 
  * @see #kthread_exit
  */
+LIBDRAGON_PREVIEW_API
 void kthread_kill(kthread_t *th, int res);
 
 /**
@@ -362,6 +385,7 @@ void kthread_kill(kthread_t *th, int res);
 
 /**
  * @brief Exit from a thread, providing a result value
+ * @preview
  * 
  * This function allows to abort the execution of the current thread, optionally
  * providing a result value. If the thread is not detached, the result value
@@ -373,10 +397,12 @@ void kthread_kill(kthread_t *th, int res);
  * @param res 		Result value
  */
 __attribute__((noreturn))
+LIBDRAGON_PREVIEW_API
 void kthread_exit(int res);
 
 /**
  * @brief Detach a thread, so that it can terminated without any join
+ * @preview
  * 
  * By defaults, kernel threads are "attached" to the main thread; this 
  * means that to fully terminate, there should be a thread calling kthread_join
@@ -393,11 +419,13 @@ void kthread_exit(int res);
  * @param[in]  th		Reference to the thread to detach (or NULL to
  * 						detach the current thread)
  */
+LIBDRAGON_PREVIEW_API
 void kthread_detach(kthread_t *th);
 
 
 /**
  * @brief Wait for a thread to finish.
+ * @preview
  * 
  * This function blocks the current thread until the specified
  * thread finishes its execution. The CPU is yielded so that other
@@ -406,10 +434,12 @@ void kthread_detach(kthread_t *th);
  * @param[in]  th		Reference to the thread to wait for
  * @result				Result code of the thread that was joined
  */
+LIBDRAGON_PREVIEW_API
 int kthread_join(kthread_t *th);
 
 /**
  * @brief Check if a thread is finished without blocking
+ * @preview
  * 
  * This function is similar to #kthread_join, but it does not block if
  * the thread is not finished yet. If the thread is finished, it returns
@@ -425,18 +455,22 @@ int kthread_join(kthread_t *th);
  * @return true             if the thread is finished and successfully joined
  * @return false            if the thread is still running
  */
+LIBDRAGON_PREVIEW_API
 bool kthread_try_join(kthread_t *th, int *res);
 
 /**
  * @brief Return the name of the specified thread.
+ * @preview
  *
  * @param[in]  th
  *             Reference to thread (NULL = current thread)
  */
+LIBDRAGON_PREVIEW_API
 const char* kthread_name(kthread_t *th);
 
 /**
  * @brief Inititalize a new mutex.
+ * @preview
  * 
  * A mutex is a synchronization primitive that can be used to protect
  * shared resources from concurrent access. A mutex can be locked by
@@ -459,17 +493,21 @@ const char* kthread_name(kthread_t *th);
  * 
  * @see #kmutex_destroy
  */
+LIBDRAGON_PREVIEW_API
 void kmutex_init(kmutex_t *mutex, uint8_t flags);
 
 /**
  * @brief Destroy a mutex.
+ * @preview
  * 
  * @param mtx 			Pointer to the mutex to free
  */
+LIBDRAGON_PREVIEW_API
 void kmutex_destroy(kmutex_t *mtx);
 
 /**
  * @brief Acquire a lock to the mutex
+ * @preview
  * 
  * This function tries to acquire a lock to the mutex. If the mutex
  * is already locked, the thread will block until the mutex is unlocked.
@@ -485,17 +523,21 @@ void kmutex_destroy(kmutex_t *mtx);
  * @see #kmutex_unlock
  * @see #kmutex_try_lock
  */
+LIBDRAGON_PREVIEW_API
 void kmutex_lock(kmutex_t *mtx);
 
 /**
  * @brief Release a lock to the mutex
+ * @preview
  * 
  * @param mtx 			Pointer to the mutex
  */
+LIBDRAGON_PREVIEW_API
 void kmutex_unlock(kmutex_t *mtx);
 
 /**
  * @brief Try to acquire a lock to the mutex for a specified amount of time
+ * @preview
  * 
  * This function tries to acquire a lock to the mutex. If the mutex
  * is already locked, the thread will block until the mutex is unlocked
@@ -511,10 +553,12 @@ void kmutex_unlock(kmutex_t *mtx);
  * @return true             If the mutex was successfully locked
  * @return false            If the mutex was not locked in time
  */
+LIBDRAGON_PREVIEW_API
 bool kmutex_try_lock(kmutex_t *mtx, uint32_t ticks);
 
 /**
  * @brief Initialize a condition variable
+ * @preview
  * 
  * A condition variable is a synchronization primitive that allows
  * threads to wait for a specific condition to happen. A condition
@@ -525,17 +569,21 @@ bool kmutex_try_lock(kmutex_t *mtx, uint32_t ticks);
  * 
  * @see #kcond_destroy
  */
+LIBDRAGON_PREVIEW_API
 void kcond_init(kcond_t *cond);
 
 /**
  * @brief Destroy a condition variable
+ * @preview
  * 
  * @param cond 			Pointer to the condition variable
  */
+LIBDRAGON_PREVIEW_API
 void kcond_destroy(kcond_t *cond);
 
 /**
  * @brief Wait for a condition to happen
+ * @preview
  * 
  * This function will block the current thread until the condition
  * variable is signaled. The mutex must be locked before calling
@@ -548,11 +596,13 @@ void kcond_destroy(kcond_t *cond);
  * @see #kcond_signal
  * @see #kcond_broadcast
  */
+LIBDRAGON_PREVIEW_API
 void kcond_wait(kcond_t *cond, kmutex_t *mtx);
 
 
 /**
  * @brief Wait for a condition to happen for a specified amount of time
+ * @preview
  * 
  * This function will block the current thread until the condition
  * variable is signaled, or until the specified amount of time has
@@ -567,11 +617,13 @@ void kcond_wait(kcond_t *cond, kmutex_t *mtx);
  * @return true 		If the condition was signaled
  * @return false 		If the condition was not signaled in time
  */
+LIBDRAGON_PREVIEW_API
 bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mtx, uint32_t ticks);
 
 
 /**
  * @brief Signal a condition variable
+ * @preview
  * 
  * This function will wake up one thread that is waiting on the
  * condition variable. If no thread is waiting, the signal is
@@ -582,10 +634,12 @@ bool kcond_wait_timeout(kcond_t *cond, kmutex_t *mtx, uint32_t ticks);
  * @see #kcond_wait
  * @see #kcond_broadcast
  */
+LIBDRAGON_PREVIEW_API
 void kcond_signal(kcond_t *cond);
 
 /**
  * @brief Broadcast a condition variable
+ * @preview
  * 
  * This function will wake up all threads that are waiting on the
  * condition variable. If no thread is waiting, the broadcast is
@@ -596,6 +650,7 @@ void kcond_signal(kcond_t *cond);
  * @see #kcond_wait
  * @see #kcond_signal
  */
+LIBDRAGON_PREVIEW_API
 void kcond_broadcast(kcond_t *cond);
 
 /** @} */

@@ -8,6 +8,7 @@
 #ifndef __LIBDRAGON_ASSET_H
 #define __LIBDRAGON_ASSET_H
 
+
 /**
  * @defgroup asset Asset Subsystem
  * @ingroup libdragon
@@ -68,6 +69,7 @@
  */
 
 #include <stdio.h>
+#include "preview.h"
 #include "debug.h"
 
 #ifdef __cplusplus
@@ -130,6 +132,7 @@ void *asset_load(const char *fn, int *sz);
 
 /**
  * @brief Load an asset file (possibly uncompressing it)
+ * @preview
  * 
  * This function loads an asset embedded within a larger file. It requires in
  * input an open file pointer, seeked to the beginning of the asset, and the
@@ -151,11 +154,13 @@ void *asset_load(const char *fn, int *sz);
  *                  asset is not compressed.
  * @return          Allocated buffer filled with the uncompressed asset content
  */
+LIBDRAGON_PREVIEW_API
 void* asset_loadf(FILE *f, int *sz);
 
 
 /**
   * @brief Load an asset file (possibly uncompressing it)
+  * @preview
   *
   * This is the lowest-level asset loading function, that is
   * needed only for advanced use cases. In general, prefer using
@@ -198,6 +203,7 @@ void* asset_loadf(FILE *f, int *sz);
   *               In this case, *buf_size is changed to contain the minimum size
   *               that is required to load this asset.
   */
+LIBDRAGON_PREVIEW_API
 bool asset_loadf_into(FILE *f, int *sz, void *buf, int *buf_size);
 
 /**

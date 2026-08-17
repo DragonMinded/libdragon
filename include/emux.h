@@ -17,6 +17,7 @@
 ///@cond
 #ifndef __ASSEMBLER__
 #include <stdint.h>
+#include "preview.h"
 #define cast64(x) (uint64_t)(x)
 #else
 #define cast64(x) x
@@ -154,6 +155,7 @@ extern "C" {
 
 /**
  * @brief Detect if EMUX is present and which features are supported
+ * @preview
  * 
  * If this function returns zero, EMUX is not present. Otherwise, the
  * returned bitmask contains the supported features (see EMUX_FEAT_* defines).
@@ -161,6 +163,7 @@ extern "C" {
  * @param subcode       Index of the detection bitmask to read
  * @return              Bitmask of supported EMUX features (see EMUX_FEAT_*)
  */
+LIBDRAGON_PREVIEW_API
 inline uint32_t emux_detect(int subcode)
 {
     /*
@@ -181,11 +184,13 @@ inline uint32_t emux_detect(int subcode)
 
 /**
  * @brief Trigger an immediate breakpoint
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * execution will break immediately, allowing to inspect the current state
  * of the emulated system.
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_break(void)
 {
     __asm__ __volatile__(" .word %0\n" :: "i"(EMUX_XBREAK()): "memory");
@@ -193,6 +198,7 @@ inline void emux_break(void)
 
 /**
  * @brief Log an UTF-8 string to the emulator
+ * @preview
  * 
  * This function sends the provided UTF-8 string to the emulator logging
  * system. The string must be 0-terminated.
@@ -203,6 +209,7 @@ inline void emux_break(void)
  * 
  * @param ut8_str           UTF-8 encoded string to log
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_log(const char *ut8_str)
 {
     const int REG_T0 = 8;
@@ -214,6 +221,7 @@ inline void emux_log(const char *ut8_str)
 
 /**
  * @brief Log a non-zero-terminated UTF-8 string to the emulator
+ * @preview
  * 
  * This function sends the provided UTF-8 string to the emulator logging
  * system. The string is not required to be 0-terminated; its length
@@ -226,6 +234,7 @@ inline void emux_log(const char *ut8_str)
  * @param utf8_str        UTF-8 encoded string to log
  * @param len             Length of the string
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_logn(const char *utf8_str, int len)
 {
     const int REG_T0 = 8;
@@ -239,6 +248,7 @@ inline void emux_logn(const char *utf8_str, int len)
 
 /**
  * @brief Do a hexdump log to the emulator
+ * @preview
  * 
  * The emulator will log the provided string as a hexdump, showing the
  * hexadecimal values of each byte in the string (and possibly also its
@@ -247,6 +257,7 @@ inline void emux_logn(const char *utf8_str, int len)
  * @param buffer          UTF-8 encoded string to log
  * @param len             Length of the string
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_hexdump(const uint8_t *buffer, int len)
 {
     const int REG_T0 = 8;
@@ -260,6 +271,7 @@ inline void emux_hexdump(const uint8_t *buffer, int len)
 
 /** 
  * @brief Ask the emulator to exit
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will exit the emulation immediately.
@@ -267,6 +279,7 @@ inline void emux_hexdump(const uint8_t *buffer, int len)
  * This is useful mainly for automated test ROMs, to save the user the hassle of
  * closing the emulator window manually after the ROM has finished running.
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_ioctl_exit(void)
 {
     __asm__ __volatile__(" .word %0\n" :: "i"(EMUX_XIOCTL(EMUX_IOCTL_EXIT)) : "memory");
@@ -274,6 +287,7 @@ inline void emux_ioctl_exit(void)
 
 /**
  * @brief Set the emulator to fast mode
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will switch to fast mode, where the emulation runs as fast as possible
@@ -281,6 +295,7 @@ inline void emux_ioctl_exit(void)
  * 
  * This is useful to quickly skip to the point that you want to test/debug.
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_ioctl_fast(void)
 {
     __asm__ __volatile__(" .word %0\n" :: "i"(EMUX_XIOCTL(EMUX_IOCTL_FAST)) : "memory");
@@ -288,11 +303,13 @@ inline void emux_ioctl_fast(void)
 
 /**
  * @brief Set the emulator to slow mode
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will switch to slow mode, where the emulation runs at real N64 speed
  * (capped framerate).
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_ioctl_slow(void)
 {
     __asm__ __volatile__(" .word %0\n" :: "i"(EMUX_XIOCTL(EMUX_IOCTL_SLOW)) : "memory");
@@ -300,6 +317,7 @@ inline void emux_ioctl_slow(void)
 
 /**
  * @brief Pause the emulator
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will pause the emulation until resumed by the user.
@@ -307,6 +325,7 @@ inline void emux_ioctl_slow(void)
  * This can be useful to show the user a specific state/frame of the
  * emulation for inspection.
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_ioctl_pause(void)
 {
     __asm__ __volatile__(" .word %0\n" :: "i"(EMUX_XIOCTL(EMUX_IOCTL_PAUSE)) : "memory");
@@ -314,12 +333,14 @@ inline void emux_ioctl_pause(void)
 
 /**
  * @brief Start profiling on a slot
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will start profiling on the specified slot.
  * 
  * @param slot       Profiler slot to start
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_prof_start(int slot)
 {
     const int REG_T0 = 8;
@@ -330,12 +351,14 @@ inline void emux_prof_start(int slot)
 
 /**
  * @brief Stop profiling on a slot
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will stop profiling on the specified slot.
  * 
  * @param slot      Profiler slot to stop
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_prof_stop(int slot)
 {
     const int REG_T0 = 8;
@@ -346,12 +369,14 @@ inline void emux_prof_stop(int slot)
 
 /**
  * @brief Clear profiling data on a slot
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will clear profiling data on the specified slot.
  * 
  * @param slot    Profiler slot to clear
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_prof_clear(int slot)
 {
     const int REG_T0 = 8;
@@ -362,10 +387,12 @@ inline void emux_prof_clear(int slot)
 
 /**
  * @brief Reset all profiling data
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will reset all profiling data on all slots.
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_prof_reset(void)
 {
     __asm__ __volatile__(" .word %0\n" :: "i"(EMUX_XPROF(0, EMUX_PROF_RESET)) : "memory");
@@ -373,6 +400,7 @@ inline void emux_prof_reset(void)
 
 /**
  * @brief Read a profiling metric from a slot
+ * @preview
  * 
  * When this function is called, if an EMUX-compatible emulator is running,
  * it will read the specified profiling metric from the specified slot.
@@ -385,6 +413,7 @@ inline void emux_prof_reset(void)
  * @param metric        Metric to read (see EMUX_PROF_* defines)
  * @return              Value of the requested metric in the slot
  */
+LIBDRAGON_PREVIEW_API
 inline uint64_t emux_prof_read(int slot, uint32_t metric)
 {
     const int REG_T0 = 8;
@@ -402,6 +431,7 @@ inline uint64_t emux_prof_read(int slot, uint32_t metric)
 
 /**
  * @brief Activate emux exceptions
+ * @preview
  *
  * This function allows to configure the emux exception mask, that tells the
  * emulator which special exceptions should be generated.
@@ -411,6 +441,7 @@ inline uint64_t emux_prof_read(int slot, uint32_t metric)
  *
  * @param mask      Mask of exceptions to activate/deactivate (see EMUX_EXCEPTION_* defines)
  */
+LIBDRAGON_PREVIEW_API
 inline void emux_exception_set_mask(uint64_t mask)
 {
     const int REG_T0 = 8;

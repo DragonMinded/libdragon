@@ -18,6 +18,7 @@
 #ifndef LIBDRAGON_RDPQ_ATTACH_H
 #define LIBDRAGON_RDPQ_ATTACH_H
 
+#include "preview.h"
 #include "rspq.h"
 
 #ifdef __cplusplus
@@ -198,12 +199,14 @@ void rdpq_detach_cb(void (*cb)(void*), void *arg);
 
 /**
  * @brief Get the surface that is currently attached to the RDP
+ * @preview
  * 
  * @return A pointer to the surface that is currently attached to the RDP,
  *         or NULL if none is attached.
  * 
  * @see #rdpq_attach
  */
+LIBDRAGON_PREVIEW_API
 const surface_t* rdpq_get_attached(void);
 
 #ifdef __cplusplus

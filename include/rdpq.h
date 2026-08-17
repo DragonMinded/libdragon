@@ -145,9 +145,11 @@
 #ifndef __LIBDRAGON_RDPQ_H
 #define __LIBDRAGON_RDPQ_H
 
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include "preview.h"
 #include "graphics.h"
 #include "n64sys.h"
 #include "rdpq_macros.h"
@@ -386,7 +388,9 @@ uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
 
 /**
  * @brief Low level function to set the components of the chroma key
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void rdpq_set_chromakey_parms(color_t color, 
     int edge_r, int edge_g, int edge_b,
     int width_r, int width_g, int width_b)
@@ -1524,6 +1528,7 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
 
 /**
  * @brief Read the current combiner register.
+ * @preview
  * 
  * This function executes a full sync (#rspq_wait) and then extracts the
  * current raw combiner from the RSP state. This should be used only
@@ -1531,6 +1536,7 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
  *
  * @return     THe current value of the combiner register.
  */
+LIBDRAGON_PREVIEW_API
 uint64_t rdpq_get_combiner_raw(void);
 
 /**
@@ -1577,6 +1583,7 @@ void rdpq_exec(void *buffer, int size);
 
 /**
  * @brief Enqueue a callback that will be called after the RSP and the RDP have
+ * @preview
  *        finished processing all commands enqueued until now.
  * 
  * This function is similar to #rspq_call_deferred, but it also guarantees
@@ -1605,6 +1612,7 @@ void rdpq_exec(void *buffer, int size);
  * @param func          Callback function to call 
  * @param arg           Argument to pass to the callback function
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_call_deferred(void (*func)(void *), void *arg);
 
 /**

@@ -34,6 +34,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,6 +42,7 @@ extern "C" {
 
 /**
  * @brief Generate an array of unpredictable random numbers
+ * @preview
  * 
  * This function can be used to generate an array of random data. The function
  * is guaranteed to return good quality random numbers of basically
@@ -59,10 +61,12 @@ extern "C" {
  * @return              0 on success, -1 on failure. Currently, the function
  *                      never returns -1.
  */
+LIBDRAGON_PREVIEW_API
 int getentropy(void *buf, size_t len);
 
 /**
  * @brief Return 64-bit of entropy.
+ * @preview
  * 
  * This is a simplified API for getentropy() to just return 64-bit of entropy
  * instead of an arbitrary buffer.
@@ -72,10 +76,12 @@ int getentropy(void *buf, size_t len);
  * 
  * @return Unpredictable 64-bit random number
  */
+ LIBDRAGON_PREVIEW_API
  uint64_t getentropy64(void);
  
  /**
  * @brief Return 32-bit of entropy.
+ * @preview
  * 
  * This is a simplified API for getentropy() to just return 32-bit of entropy
  * instead of an arbitrary buffer. Useful for instance to seed `srand()`.
@@ -85,6 +91,7 @@ int getentropy(void *buf, size_t len);
  *
  * @return Unpredictable 32-bit random number
  */
+LIBDRAGON_PREVIEW_API
 uint32_t getentropy32(void);
 
 #ifdef __cplusplus
