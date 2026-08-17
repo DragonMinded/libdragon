@@ -8,6 +8,7 @@
 #ifndef __LIBDRAGON_YUV_H
 #define __LIBDRAGON_YUV_H
 
+
 /**
  * @brief Convert YUV frames to RGB.
  * 
@@ -54,6 +55,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include "preview.h"
 #include "graphics.h"
 #include "rdpq_tex.h"
 
@@ -68,12 +70,16 @@ typedef struct rspq_block_s rspq_block_t;
 
 /**
  * @brief Initialize the YUV conversion library.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void yuv_init(void);
 
 /**
  * @brief Shutdown the YUV conversion library
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void yuv_close(void);
 
 /**
@@ -150,6 +156,7 @@ extern const yuv_colorspace_t YUV_BT709_FULL;
 
 /**
  * @brief Calculate coefficients for a new YUV colorspace.
+ * @preview
  * 
  * This function is mostly for documentation purposes. It can be used to create
  * a new colorspace, by calculating its coefficients (stored into #yuv_colorspace_t)
@@ -189,11 +196,13 @@ extern const yuv_colorspace_t YUV_BT709_FULL;
  * @see #YUV_BT709_FULL
  * 
  */
+LIBDRAGON_PREVIEW_API
 yuv_colorspace_t yuv_new_colorspace(float Kr, float Kb, int y0, int yrange, int crange);
 
 
 /**
  * @brief Convert a single YUV pixel into RGB.
+ * @preview
  * 
  * Convert a single YUV pixel to RGB, using the CPU. This function
  * should be used only for non-performance critical tasks. For high-performance
@@ -210,6 +219,7 @@ yuv_colorspace_t yuv_new_colorspace(float Kr, float Kb, int y0, int yrange, int 
  *
  * @return     The converted pixel in RGBA format (A is forced to 255).
  */
+LIBDRAGON_PREVIEW_API
 color_t yuv_to_rgb(uint8_t y, uint8_t u, uint8_t v, const yuv_colorspace_t *cs);
 
 /** @brief A YUV frame, made of three distinct planes */
@@ -297,6 +307,7 @@ typedef struct yuv_blitter_s {
 
 /**
  * @brief Create a YUV blitter optimized for rendering multiple frames with 
+ * @preview
  *        some possible transformation.
  * 
  * This function is similar to #yuv_blitter_new_fmv but initializes the
@@ -324,11 +335,13 @@ typedef struct yuv_blitter_s {
  * @see #yuv_blitter_new_fmv
  * @see #yuv_blitter_run
  */
+LIBDRAGON_PREVIEW_API
 yuv_blitter_t yuv_blitter_new(int video_width, int video_height,
     float x0, float y0, const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 
 /**
  * @brief Create a YUV blitter optimized for FMV drawing (full screen movie player)
+ * @preview
  * 
  * This function creates a YUV blitter, using a configuration that is suited
  * for full motion videos. By default (passing NULL as @p parms ), the blitter
@@ -353,12 +366,14 @@ yuv_blitter_t yuv_blitter_new(int video_width, int video_height,
  * @see #yuv_blitter_new
  * @see #yuv_blitter_run
  */
+LIBDRAGON_PREVIEW_API
 yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
     int screen_width, int screen_height, const yuv_fmv_parms_t *parms);
 
 
 /**
  * @brief Perform a YUV blit using a blitter, with the specified surfaces
+ * @preview
  * 
  * This function performs blitting of a YUV frame (converting it into RGB).
  * The source frame is expected to be split into 3 planes. The conversion
@@ -371,10 +386,12 @@ yuv_blitter_t yuv_blitter_new_fmv(int video_width, int video_height,
  * @param blitter 		Blitter created by #yuv_blitter_new_fmv or #yuv_blitter_new
  * @param frame         YUV frame to blit
  */
+LIBDRAGON_PREVIEW_API
 void yuv_blitter_run(yuv_blitter_t *blitter, yuv_frame_t *frame);
 
 /**
  * @brief Free the memory allocated by a blitter
+ * @preview
  * 
  * This function release the memory allocated on a #yuv_blitter_t instance.
  * After calling this function, the blitter instance cannot be used anymore
@@ -382,10 +399,12 @@ void yuv_blitter_run(yuv_blitter_t *blitter, yuv_frame_t *frame);
  * 
  * @param blitter 		Blitter to free
  */
+LIBDRAGON_PREVIEW_API
 void yuv_blitter_free(yuv_blitter_t *blitter);
 
 /**
  * @brief Blit a 3-planes YUV frame into the current RDP framebuffer.
+ * @preview
  * 
  * This function is similar to #rdpq_tex_blit, but it allows to blit
  * a YUV frame split into 3 planes. This is faster than first merging the
@@ -411,6 +430,7 @@ void yuv_blitter_free(yuv_blitter_t *blitter);
  * @see #yuv_blitter_new
  * @see #yuv_blitter_new_fmv
  */
+LIBDRAGON_PREVIEW_API
 void yuv_tex_blit(yuv_frame_t *frame, float x0, float y0,
     const rdpq_blitparms_t *parms, const yuv_colorspace_t *cs);
 

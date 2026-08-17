@@ -59,9 +59,11 @@
 #ifndef __LIBDRAGON_FMATH_H
 #define __LIBDRAGON_FMATH_H
 
+
 #include <math.h>
 #include <string.h>
 #include <stdint.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -140,9 +142,11 @@ static inline float fm_floorf(float x) {
 
 /**
  * @brief Faster version of roundf
+ * @preview
  * 
  * Optimized version using the MIPS round.w.s instruction.
  */
+ LIBDRAGON_PREVIEW_API
  static inline float fm_roundf(float x) {
     float yint, y;
     __asm ("round.w.s  %0,%1" : "=f"(yint) : "f"(x));
@@ -247,6 +251,7 @@ float fm_atan2f(float y, float x);
 
 /**
  * @brief Approximation of exp(x) with a relative error <3%.
+ * @preview
  * This is several times faster than exp(x). The implementation uses a
  * method by Nicole Schraudolph.
  *
@@ -255,10 +260,12 @@ float fm_atan2f(float y, float x);
  * It is recommended to clamp x and do fm_exp(CLAMP(x, -85, 85))
  *
  */
+LIBDRAGON_PREVIEW_API
 float fm_expf(float x);
 
 /**
  * @brief Faster version of exp2f (2^x).
+ * @preview
  *
  * Splits @p x into an integer power of two (via the IEEE754 exponent field)
  * and a fractional part evaluated with a degree-5 minimax polynomial on
@@ -267,11 +274,14 @@ float fm_expf(float x);
  *
  * No bounds check: overflows if @p x is outside roughly `(-126, 128)`.
  */
+LIBDRAGON_PREVIEW_API
 float fm_exp2f(float x);
 
 /**
  * @brief Linearly interpolate between two scalar values.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_lerp(float a, float b, float t)
 {
     return a + (b - a) * t;
@@ -279,20 +289,24 @@ inline float fm_lerp(float a, float b, float t)
 
 /**
  * @brief Linearly interpolate between two angles, using the shortest path.
+ * @preview
  * 
  * @param a The start angle in radians
  * @param b The end angle in radians
  * @param t The interpolation factor
  * @return The interpolated angle.
  */
+LIBDRAGON_PREVIEW_API
 float fm_lerp_angle(float a, float b, float t);
 
 /**
  * @brief Wrap an angle into [0..pi*2] range.
+ * @preview
  * 
  * @param[in] angle An angle in radians.
  * @return The wrapped angle.
  */
+LIBDRAGON_PREVIEW_API
 float fm_wrap_angle(float angle);
 
 #ifdef LIBDRAGON_FAST_MATH

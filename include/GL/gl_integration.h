@@ -8,7 +8,7 @@
 #ifndef __LIBDRAGON_GL_INTEGRATION
 #define __LIBDRAGON_GL_INTEGRATION
 
-#include <preview.h>
+#include "preview.h"
 LIBDRAGON_PREVIEW_HEADER
 
 #ifdef __cplusplus

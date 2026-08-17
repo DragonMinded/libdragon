@@ -7,11 +7,11 @@
 #ifndef __LIBDRAGON_GL_H
 #define __LIBDRAGON_GL_H
 
-#include <preview.h>
-LIBDRAGON_PREVIEW_HEADER
 
 #include <stdint.h>
 #include <stddef.h>
+#include "preview.h"
+LIBDRAGON_PREVIEW_HEADER
 
 typedef struct surface_s surface_t;
 typedef struct sprite_s sprite_t;

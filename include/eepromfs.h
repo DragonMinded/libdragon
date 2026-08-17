@@ -8,9 +8,11 @@
 #ifndef __LIBDRAGON_EEPROMFS_H
 #define __LIBDRAGON_EEPROMFS_H
 
+
 #include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include "preview.h"
 
 /**
  * @name EEPROM filesystem return values
@@ -77,14 +79,17 @@ typedef struct eepfs_entry_t
     size_t size;
     /**
      * @brief Automatically store and verify a checksum of the file
+     * @preview
      * 
      * When this flag is set, eepfs will calculate a 16-bit checksum
      * of the file and append it to the file itself. The checksum
      * will also be automatically verified when the file is read.
      */
+    LIBDRAGON_PREVIEW_SYM
     bool checksum;
     /**
       * @brief Keep a backup copy of the file in the EEPROM.
+      * @preview
       *
       * When this flag is set, eepfs will automatically keep a backup
       * copy of the file in the EEPROM. The backup copy is automatically
@@ -98,6 +103,7 @@ typedef struct eepfs_entry_t
       * to store 2 extra bytes (1 per copy) to keep a reference to the
       * newest copy of the file.
       */
+     LIBDRAGON_PREVIEW_SYM
      bool backup;
 } eepfs_entry_t;
 

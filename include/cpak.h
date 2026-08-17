@@ -16,6 +16,7 @@
 #ifndef LIBDRAGON_CPAK_H
 #define LIBDRAGON_CPAK_H
 
+#include "preview.h"
 #include "joypad.h"
 
 #ifdef __cplusplus
@@ -24,6 +25,7 @@ extern "C" {
 
 /**
  * @brief Read data from a controller pak
+ * @preview
  * 
  * This is a low-level operation that reads a sequence of raw bytes from the
  * controller pak, with no filesystem semantics. A typical use case for this
@@ -51,10 +53,12 @@ extern "C" {
  * @return              Number of bytes read, or negative value in case of error
  *                      (errno will be set).
  */
+LIBDRAGON_PREVIEW_API
 int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, size_t len);
 
 /**
  * @brief Write data to a controller pak
+ * @preview
  * 
  * This is a low-level operation that writes a sequence of raw bytes to the
  * controller pak, with no filesystem semantics. A typical use case for this
@@ -82,10 +86,12 @@ int cpak_read(joypad_port_t port, uint8_t bank, uint16_t address, void *buffer, 
  * @return              Number of bytes written, or negative value in case of error
  *                      (errno will be set).
  */
+LIBDRAGON_PREVIEW_API
 int cpak_write(joypad_port_t port, uint8_t bank, uint16_t address, const void *buffer, size_t len);
 
 /**
  * @brief Check if a controller pak supports bankswitching or not.
+ * @preview
  * 
  * This function does not perform I/O, as the accessory detection code already
  * checked if the controller pak allows for bankswitching or not.
@@ -101,10 +107,12 @@ int cpak_write(joypad_port_t port, uint8_t bank, uint16_t address, const void *b
  * @param port          Joypad port to check
  * @return true         if the controller pak supports bankswitching, false otherwise
  */
+LIBDRAGON_PREVIEW_API
 bool cpak_supports_bankswitching(joypad_port_t port);
 
 /**
  * @brief Probe the number of banks in a controller pak
+ * @preview
  * 
  * This function probes the number of banks in a controller pak, by attempting
  * to switch to each bank and performing a write test to check if the bank
@@ -127,6 +135,7 @@ bool cpak_supports_bankswitching(joypad_port_t port);
  * @param port      Joypad port to check
  * @return          Number of banks found, or negative value in case of error
  */
+LIBDRAGON_PREVIEW_API
 int cpak_probe_banks(joypad_port_t port);
 
 #ifdef __cplusplus

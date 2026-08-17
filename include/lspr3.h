@@ -27,12 +27,15 @@
 #ifndef __LIBDRAGON_LSPR3_H
 #define __LIBDRAGON_LSPR3_H
 
+#include "preview.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
  * @brief Register the H264I (Lossy-sprite Level 3) decoder with the sprite loader.
+ * @preview
  *
  * After registering, #sprite_load recognizes the `H264` magic and decodes
  * matching files transparently. Until then, loading an H264I file via
@@ -41,15 +44,18 @@ extern "C" {
  * Refcounted; calling this increments the refcount and will require the
  * same number of #lspr3_close calls to fully unregister.
  */
+LIBDRAGON_PREVIEW_API
 void lspr3_init(void);
 
 /**
  * @brief Unregister the H264I (Lossy-sprite Level 3) decoder.
+ * @preview
  *
  * Refcounted; calling this decrements the refcount and once it reaches zero,
  * #sprite_load no longer recognizes H264I files and attempts to load them will
  * fail with an assertion.
  */
+LIBDRAGON_PREVIEW_API
 void lspr3_close(void);
 
 #ifdef __cplusplus

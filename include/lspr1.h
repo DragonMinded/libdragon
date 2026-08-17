@@ -23,12 +23,15 @@
 #ifndef __LIBDRAGON_LSPR1_H
 #define __LIBDRAGON_LSPR1_H
 
+#include "preview.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /**
  * @brief Register the BC1Q (Lossy-sprite Level 1) decoder with the sprite loader.
+ * @preview
  *
  * After registering, #sprite_load recognizes the `BC1Q` magic and decodes
  * matching files transparently. Until then, loading a BC1Q file via
@@ -37,15 +40,18 @@ extern "C" {
  * Refcounted; calling this increments the refcount and will require the
  * same number of #lspr1_close calls to fully unregister.
  */
+LIBDRAGON_PREVIEW_API
 void lspr1_init(void);
 
 /**
  * @brief Unregister the BC1Q (Lossy-sprite Level 1) decoder.
+ * @preview
  *
  * Refcounted; calling this decrements the refcount and once it reaches zero,
  * #sprite_load no longer recognizes BC1Q files and attempts to load them will
  * fail with an assertion.
  */
+LIBDRAGON_PREVIEW_API
 void lspr1_close(void);
 
 #ifdef __cplusplus

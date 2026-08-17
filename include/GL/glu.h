@@ -7,7 +7,7 @@
 #ifndef __LIBDRAGON_GLU_H
 #define __LIBDRAGON_GLU_H
 
-#include <preview.h>
+#include "preview.h"
 LIBDRAGON_PREVIEW_HEADER
 
 #ifdef __cplusplus

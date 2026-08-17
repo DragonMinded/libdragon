@@ -7,10 +7,12 @@
 #ifndef __LIBDRAGON_JOYBUS_H
 #define __LIBDRAGON_JOYBUS_H
 
+
 #include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include "preview.h"
 
 /**
  * @defgroup joybus Joybus Subsystem
@@ -255,6 +257,7 @@ typedef enum {
 
 /**
  * @brief Initialize the Joybus subsystem, and background detection support
+ * @preview
  * 
  * This function starts the Joybus subsystem. It begins periodically monitoring
  * all the controller ports (by default, once per second), to check
@@ -263,9 +266,13 @@ typedef enum {
  * Libraries can register callbacks to be notified of detection events for
  * any type of device via #joybus_register_detection_callback.
  */
+LIBDRAGON_PREVIEW_API
 void joybus_init(void);
 
-/** @brief Deinitialize the joybus subsystem and detection support */
+/** @brief Deinitialize the joybus subsystem and detection support
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void joybus_close(void);
 
 
@@ -450,6 +457,7 @@ typedef void (*joybus_detection_callback_t)(
 
 /**
  * @brief Register a callback to be notified of Joybus detection events.
+ * @preview
  * 
  * This function registers a callback to be called whenever a Joybus device
  * is plugged in or removed. The callback is called under interrupt, so it
@@ -472,18 +480,22 @@ typedef void (*joybus_detection_callback_t)(
  * 
  * @see #joybus_unregister_detection_callback
  */
+LIBDRAGON_PREVIEW_API
 void joybus_register_detection_callback(joybus_detection_callback_t callback, void *ctx);
 
 /**
  * @brief Unregister a callback for Joybus detection events.
+ * @preview
  * 
  * @param callback      The callback function to unregister.
  * @param ctx           User-defined context pointer passed to the callback.
  */
+LIBDRAGON_PREVIEW_API
 void joybus_unregister_detection_callback(joybus_detection_callback_t callback, void *ctx);
 
 /**
  * @brief Immediately poll all Joybus ports for connected devices.
+ * @preview
  * 
  * This function immediately polls all Joybus ports for connected devices,
  * and calls any registered hotplug callbacks if any device was connected
@@ -493,6 +505,7 @@ void joybus_unregister_detection_callback(joybus_detection_callback_t callback, 
  * second. This function can be used to force an immediate poll, for example
  * after initializing the Joybus subsystem via #joybus_init.
  */
+LIBDRAGON_PREVIEW_API
 void joybus_detect_now(void);
 
 /**

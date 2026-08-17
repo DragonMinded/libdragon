@@ -8,10 +8,13 @@
  #define LIBDRAGON_A3D_H
 
  #include <stdbool.h>
+ #include "preview.h"
 
  /**
   * @brief Detect if the running system is an Analogue3D
+  * @preview
   */
+ LIBDRAGON_PREVIEW_API
  bool a3d_detect(void);
 
  #endif

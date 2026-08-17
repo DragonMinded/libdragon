@@ -23,6 +23,7 @@
  
  #include <stddef.h>
  #include <stdbool.h>
+ #include "preview.h"
  
  #ifdef __cplusplus
  extern "C" {
@@ -30,6 +31,7 @@
   
  /**
   * @brief Allocate memory from the scratch heap.
+  * @preview
   *
   * Allocates @p size bytes from the scratch allocator.
   * The returned pointer is suitably aligned for normal C object access.
@@ -44,10 +46,12 @@
   * @see scratch_calloc
   * @see scratch_realloc
   */
+ LIBDRAGON_PREVIEW_API
  void *scratch_malloc(size_t size);
  
  /**
   * @brief Allocate zero-initialized memory from the scratch heap.
+  * @preview
   *
   * Allocates enough memory for @p count objects of @p size bytes each and clears
   * the allocation to zero.
@@ -64,10 +68,12 @@
   * @see scratch_malloc
   * @see scratch_free
   */
+ LIBDRAGON_PREVIEW_API
  void *scratch_calloc(size_t count, size_t size);
  
  /**
   * @brief Resize a scratch allocation.
+  * @preview
   *
   * Changes the size of the allocation pointed to by @p ptr to at least
   * @p size bytes.
@@ -89,10 +95,12 @@
   * @see scratch_malloc
   * @see scratch_free
   */
+ LIBDRAGON_PREVIEW_API
  void *scratch_realloc(void *ptr, size_t size);
  
  /**
   * @brief Free a scratch allocation.
+  * @preview
   *
   * Releases a block previously returned by any scratch allocator:
   * #scratch_malloc(), #scratch_calloc(), #scratch_realloc(),
@@ -105,10 +113,12 @@
   *
   * @param ptr          Pointer to the scratch allocation to free, or NULL.
   */
+ LIBDRAGON_PREVIEW_API
  void scratch_free(void *ptr);
 
  /**
   * @brief Allocate uncached memory from the scratch heap.
+  * @preview
   *
   * Allocates @p size bytes from the scratch allocator and returns an uncached
   * (KSEG1) mapping of the buffer. This mirrors #malloc_uncached() and is
@@ -132,10 +142,12 @@
   * @see scratch_free
   * @see malloc_uncached
   */
+ LIBDRAGON_PREVIEW_API
  void *scratch_malloc_uncached(size_t size);
  
  /**
   * @brief Allocate aligned memory from the scratch heap.
+  * @preview
   *
   * Allocates @p size bytes from the scratch allocator and returns a pointer
   * aligned to @p alignment bytes. @p alignment must be a power of two and
@@ -148,16 +160,19 @@
   * @param size         Number of bytes to allocate.
   * @return Pointer to the aligned allocation, or NULL on failure.
   */
+ LIBDRAGON_PREVIEW_API
  void *scratch_memalign(size_t alignment, size_t size);
 
  /**
   * @brief Check internal consistency of the scratch heap.
+  * @preview
   *
   * Runs a full consistency check over the scratch heap metadata.
   *
   * This function validates allocator invariants and may assert
   * if corruption or inconsistent state is detected.
   */
+ LIBDRAGON_PREVIEW_API
  void scratch_check(void);
  
 /**
@@ -172,23 +187,28 @@ typedef struct {
  
  /**
  * @brief Return statistics about scratch allocator usage.
+ * @preview
   *
  * This function writes all current scratch allocator counters to @p stats.
   *
  * @param[out] stats
  *            Pointer to destination structure.
   */
+LIBDRAGON_PREVIEW_API
 void scratch_get_stats(scratch_stats_t *stats);
  
  /**
   * @brief Check whether the scratch heap has no live allocations.
+  * @preview
   *
   * @return true if there are no live scratch allocations, false otherwise.
   */
+ LIBDRAGON_PREVIEW_API
  bool scratch_empty(void);
 
  /**
   * @brief Check whether an address belongs to the scratch heap.
+  * @preview
   *
   * Returns true if @p ptr falls inside the scratch heap reservation. The cached
   * and uncached views of the same scratch address are both recognised.
@@ -201,6 +221,7 @@ void scratch_get_stats(scratch_stats_t *stats);
   * @return true if the address is inside the scratch heap, false otherwise
   *         (including NULL).
   */
+ LIBDRAGON_PREVIEW_API
  bool scratch_owns(const void *ptr);
  
  #ifdef __cplusplus

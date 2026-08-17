@@ -156,8 +156,10 @@
 #ifndef __LIBDRAGON_VI_H
 #define __LIBDRAGON_VI_H
 
+
 #include <stdint.h>
 #include <stdbool.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -465,6 +467,7 @@ extern const vi_timing_preset_t VI_TIMING_PAL60;
 
 /** 
  * @brief Initialize the VI module 
+ * @preview
  * 
  * This also calls #vi_reset to reset the VI configuration to the default state.
  * 
@@ -474,20 +477,24 @@ extern const vi_timing_preset_t VI_TIMING_PAL60;
  * 
  * To show a first image, call #vi_show.
  */
+LIBDRAGON_PREVIEW_API
 void vi_init(void);
 
 /** 
  * @brief Close the VI module 
+ * @preview
  * 
  * This function turns off the VI (no sync will be generated, so most TVs
  * will show static or a "no signal" message).
  * 
  * After calling this function, also video interrupts will be disabled.
  */
+LIBDRAGON_PREVIEW_API
 void vi_close(void);
 
 /**
  * @brief Reset VI configuration
+ * @preview
  * 
  * This brings back the VI configuration to the default state.
  * Since there is no meaningful hardware default, the default is the one
@@ -500,6 +507,7 @@ void vi_close(void);
  * * VI turned on, but display is forcibly blanked (see #vi_blank)
  * * VBlank interrupts are active
  */
+LIBDRAGON_PREVIEW_API
 void vi_reset(void);
 
 /** 
@@ -516,6 +524,7 @@ void vi_reset(void);
 
 /**
  * @brief Read the current state of a register, including pending changes.
+ * @preview
  * 
  * This function is similar to directly sampling the hardware register,
  * but also takes into account any pending write that might have issued
@@ -525,12 +534,14 @@ void vi_reset(void);
  * @param reg               Register to read
  * @return                  Current value of the register (or pending value if any)
  */
+LIBDRAGON_PREVIEW_API
 inline uint32_t vi_read(volatile uint32_t *reg) {
     return __vi_cfg[reg - VI_REGISTERS];
 }
 
 /**
  * @brief Partially write a VI register at next vblank
+ * @preview
  * 
  * This is similar to #vi_write, but only write some bits of the register.
  * The specified \p wmask specifies which bits will actually be changed
@@ -543,10 +554,12 @@ inline uint32_t vi_read(volatile uint32_t *reg) {
  * @see #vi_write
  * @see #vi_write_begin
  */
+LIBDRAGON_PREVIEW_API
 void vi_write_masked(volatile uint32_t *reg, uint32_t wmask, uint32_t value);
 
 /**
  * @brief Write a VI register at next vblank
+ * @preview
  * 
  * The write will be pending until the vblank, but #vi_read will immediately
  * start returning the new value.
@@ -563,6 +576,7 @@ void vi_write_masked(volatile uint32_t *reg, uint32_t wmask, uint32_t value);
  * @see #vi_write_begin
  * @see #vi_write_masked
  */
+LIBDRAGON_PREVIEW_API
 inline void vi_write(volatile uint32_t *reg, uint32_t value)
 {
     vi_write_masked(reg, 0xFFFFFFFF, value);
@@ -570,6 +584,7 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value)
 
 /**
  * @brief Begin a batch of register writes
+ * @preview
  * 
  * This function starts a batch of register writes, so that they will be
  * applied atomically at the next vblank. This is useful when you want to
@@ -577,10 +592,12 @@ inline void vi_write(volatile uint32_t *reg, uint32_t value)
  * 
  * @see #vi_write_end
  */
+LIBDRAGON_PREVIEW_API
 void vi_write_begin(void);
 
 /**
  * @brief End a batch of register writes
+ * @preview
  * 
  * This function ends a batch of register writes started with #vi_write_begin.
  * It doesn't block until vblank, so when the function returns, the registers
@@ -591,28 +608,34 @@ void vi_write_begin(void);
  * 
  * @see #vi_write_begin
  */
+LIBDRAGON_PREVIEW_API
 void vi_write_end(void);
 
 /**
  * @brief Wait for the beginning of next vblank period
+ * @preview
  * 
  * This function waits for the beginning of the next vblank period, and
  * returns immediately after that.
  * 
  * If the VI is not active, this function will return immediately.
  */
+LIBDRAGON_PREVIEW_API
 void vi_wait_vblank(void);
 
 /**
  * @brief Dump the current status of all VI registers
+ * @preview
  * 
  * @param verbose      Verbosity mode of dump
  *                     0=just hex values, 1=decoded values
  */
+LIBDRAGON_PREVIEW_API
 void vi_debug_dump(int verbose);
 
 /**
  * @brief Install a custom vblank handler
+ * @preview
  * 
  * This function installs a custom callback that will be run at the beginning
  * of the vblank period. The most common use of this function is to
@@ -630,10 +653,12 @@ void vi_debug_dump(int verbose);
  * @see #vi_set_origin
  * @see #vi_uninstall_vblank_handler
  */
+LIBDRAGON_PREVIEW_API
 void vi_install_vblank_handler(void (*handler)(void *), void *arg);
 
 /**
  * @brief Uninstall a custom vblank handler
+ * @preview
  *
  * This function removes a previously installed vblank handler. The
  * handler and the argument must be the same as the ones used in
@@ -644,10 +669,12 @@ void vi_install_vblank_handler(void (*handler)(void *), void *arg);
  * 
  * @see #vi_install_vblank_handler
  */
+LIBDRAGON_PREVIEW_API
 void vi_uninstall_vblank_handler(void (*handler)(void *), void *arg);
 
 /**
  * @brief Stabilize the value of a VI register by rewriting it at vblank
+ * @preview
  * 
  * @note This is an advanced function, which is normally not needed.
  * 
@@ -661,10 +688,12 @@ void vi_uninstall_vblank_handler(void (*handler)(void *), void *arg);
  * @param reg           Register to stabilize
  * @param enable        Whether to enable or disable the stabilization
  */
+LIBDRAGON_PREVIEW_API
 void vi_stabilize(volatile uint32_t *reg, bool enable);
 
 /**
  * @brief Set blanking mode
+ * @preview
  * 
  * This function sets the VI to blanking mode, which means that the VI
  * will display fully black frames, but *without* turning off the video
@@ -679,10 +708,12 @@ void vi_stabilize(volatile uint32_t *reg, bool enable);
  * 
  * @param blank         Whether to enable or disable blanking mode
  */
+LIBDRAGON_PREVIEW_API
 void vi_blank(bool blank);
 
 /**
  * @brief Configure a custom timing preset for VI
+ * @preview
  * 
  * This is a low-level function that allows to configure a custom timing
  * preset for VI. Most users will not need to use this directly, as
@@ -697,6 +728,7 @@ void vi_blank(bool blank);
  * @param preset        Timing preset to apply
  * 
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_timing_preset(const vi_timing_preset_t *preset);
 
 /** @} */
@@ -712,6 +744,7 @@ void vi_set_timing_preset(const vi_timing_preset_t *preset);
 
 /**
  * @brief Get the current refresh rate of the video output in Hz
+ * @preview
  * 
  * The refresh rate is normally 50 for PAL and 60 for NTSC, but this function
  * returns the hardware-accurate number which is close to those but not quite
@@ -720,10 +753,12 @@ void vi_set_timing_preset(const vi_timing_preset_t *preset);
  * 
  * @return Refresh rate in Hz (frames per second)
  */
+LIBDRAGON_PREVIEW_API
 float vi_get_refresh_rate(void);
 
 /**
  * @brief Get the current active display output area
+ * @preview
  * 
  * This function returns the current VI display output area, which is the
  * area on the output screen within which the framebuffer is displayed.
@@ -753,10 +788,12 @@ float vi_get_refresh_rate(void);
  * @see #vi_set_output
  * @see #vi_move_output
  */
+LIBDRAGON_PREVIEW_API
 void vi_get_output(int *x0, int *y0, int *x1, int *y1);
 
 /**
  * @brief Get the bounds for the output area
+ * @preview
  * 
  * The output area is the area on the screen where the framebuffer is displayed.
  * 
@@ -774,10 +811,12 @@ void vi_get_output(int *x0, int *y0, int *x1, int *y1);
  * @param[out] x1       Maximum X coordinate that can be used for output (exclusive)
  * @param[out] y1       Maximum Y coordinate that can be used for output (exclusive)
  */
+LIBDRAGON_PREVIEW_API
 void vi_get_output_bounds(int *x0, int *y0, int *x1, int *y1);
 
 /**
  * @brief Get the output area as a border structure
+ * @preview
  * 
  * This function returns the current output area as a border structure. The
  * output area is normally queried using #vi_get_output, but this function
@@ -798,10 +837,12 @@ void vi_get_output_bounds(int *x0, int *y0, int *x1, int *y1);
  * @return                      Size of the borders in the output area, with
  *                              respect to the default output area.
  */
+LIBDRAGON_PREVIEW_API
 vi_borders_t vi_get_borders(void);
 
 /**
  * @brief Return the current scanline, and optionally the current field
+ * @preview
  * 
  * This function returns the current scanline being displayed on the screen.
  * This counter is sometimes called "half-line": it is a *even* value between
@@ -819,6 +860,7 @@ vi_borders_t vi_get_borders(void);
  * @param[out] field            Field number (0 or 1) in interlaced mode (undefined in progressive mode)
  * @return                      Current scanline (always an even number)
  */
+LIBDRAGON_PREVIEW_API
 inline int vi_get_scanline(int *field) {
     uint32_t v_current = *VI_V_CURRENT;
     if (field) *field = v_current & 1;
@@ -840,6 +882,7 @@ inline int vi_get_scanline(int *field) {
 
 /**
  * @brief Configure VI to display the specified framebuffer
+ * @preview
  * 
  * @note You can use #vi_show as a shortcut to do everything required to
  *       display a framebuffer.
@@ -862,17 +905,21 @@ inline int vi_get_scanline(int *field) {
  * @see #vi_set_xscale
  * @see #vi_set_yscale
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_origin(void *buffer, int pixel_stride, int bpp);
 
 /**
  * @brief Get the bit depth of the current framebuffer
+ * @preview
  * 
  * @return Bit depth of the current framebuffer (16 or 32), or 0 if VI is disabled
  */
+LIBDRAGON_PREVIEW_API
 int vi_get_bpp(void);
 
 /**
  * @brief Configure the horizontal scale factor to display the specified framebuffer width
+ * @preview
  * 
  * This function calculates and configures the horizontal scale factor
  * needed to display the specified framebuffer width on the screen, so
@@ -885,10 +932,12 @@ int vi_get_bpp(void);
  * 
  * @ßee #vi_set_xscale_factor
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_xscale(float fb_width);
 
 /**
  * @brief Configure the vertical scale factor to display the specified framebuffer height.
+ * @preview
  * 
  * This function calculates and configures the vertical scale factor
  * needed to display the specified framebuffer width on the screen, so
@@ -896,10 +945,12 @@ void vi_set_xscale(float fb_width);
  *  
  * @param fb_height      Height of the framebuffer in pixels
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_yscale(float fb_height);
 
 /**
  * @brief Set the horizontal scaling factor.
+ * @preview
  * 
  * Set the scale factor applied to the framebuffer width to display it on the screen.
  * The \p xfactor term describes how many framebuffer pixels advance for each
@@ -913,10 +964,12 @@ void vi_set_yscale(float fb_height);
  * 
  * @see #vi_set_xscale
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_xscale_factor(float xfactor);
 
 /**
  * @brief Set the vertical scaling factor.
+ * @preview
  * 
  * Set the scale factor applied to the framebuffer height to display it on the screen.
  * The \p yfactor term describes how many framebuffer pixels advance for each
@@ -925,34 +978,42 @@ void vi_set_xscale_factor(float xfactor);
  * 
  * @param yfactor        Horizontal scale factor to set
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_yscale_factor(float yfactor);
 
 /**
  * @brief Enable or disable the interlaced mode
+ * @preview
  * 
  * @param interlaced     If true, the VI will display the framebuffer in
  *                       interlaced mode.
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_interlaced(bool interlaced);
 
 /** 
  * @brief Enable / disable AA mode for the VI
+ * @preview
  * 
  * The AA mode specifies a set of filters to apply to the framebuffer
  * during the resampling process. See #vi_aa_mode_t for more information.
  * 
  * @param aa_mode       AA mode to set
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_aa_mode(vi_aa_mode_t aa_mode);
 
 /**
  * @brief Get the current VI AA mode
+ * @preview
  * @return the current AA mode
  */
+LIBDRAGON_PREVIEW_API
 vi_aa_mode_t vi_get_aa_mode(void);
 
 /**
  * @brief Enable / disable the divot filter
+ * @preview
  * 
  * Divot filter is a post-processing filter, on top of anti-alias filters,
  * that is designed to remove a few single-point artifacts that can appear
@@ -964,10 +1025,12 @@ vi_aa_mode_t vi_get_aa_mode(void);
  * 
  * @param divot         If true, the divot filter will be enabled
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_divot(bool divot);
 
 /**
  * @brief Enable / disable dedithering
+ * @preview
  * 
  * Dedithering (or "dither filter") is a filter that tries to apply an
  * error correction on top of a dithered 16-bit framebuffer, trying to 
@@ -980,16 +1043,20 @@ void vi_set_divot(bool divot);
  * @note Dedithering is not compatible with all AA filters. In particular, it
  *       only works with #VI_AA_MODE_NONE and #VI_AA_MODE_RESAMPLE_FETCH_ALWAYS.
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_dedither(bool dedither);
 
 /**
  * @brief Get the current VI dedither filter state
+ * @preview
  * @return true if dedithering is enabled
  */
+LIBDRAGON_PREVIEW_API
 bool vi_get_dedither(void);
 
 /**
  * @brief Enable / disable gamma correction
+ * @preview
  * 
  * VI is able to apply a gamma correction filter to the framebuffer. 
  * 
@@ -1007,10 +1074,12 @@ bool vi_get_dedither(void);
  * 
  * @param gamma         Gamma correction mode to set
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_gamma(vi_gamma_t gamma);
 
 /**
  * @brief Set the active display output area
+ * @preview
  * 
  * This function sets the active display output area to the specified
  * coordinates. The area is expressed in screen dots.
@@ -1025,10 +1094,12 @@ void vi_set_gamma(vi_gamma_t gamma);
  * @param x1        Horizontal end of the output area (exclusive)
  * @param y1        Vertical end of the output area (exclusive)
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_output(int x0, int y0, int x1, int y1);
 
 /**
  * @brief Set the specified start position for the active display output area
+ * @preview
  * 
  * This function sets the start position for the active display area (without 
  * changing the size). The position is expressed in VI dots.
@@ -1050,10 +1121,12 @@ void vi_set_output(int x0, int y0, int x1, int y1);
  * @see #vi_get_output
  * @see #vi_scroll_output
  */
+LIBDRAGON_PREVIEW_API
 void vi_move_output(int x, int y);
 
 /**
  * @brief Scroll the active display area by the specified amount
+ * @preview
  * 
  * This function is similar to #vi_move_output, but scrolls the display area
  * by the specified relative amount, instead of setting the absolute position.
@@ -1067,10 +1140,12 @@ void vi_move_output(int x, int y);
  * @see #vi_move_output
  * @see #vi_get_output_bounds
  */
+LIBDRAGON_PREVIEW_API
 void vi_scroll_output(int deltax, int deltay);
 
 /**
  * @brief Calculate correct VI borders for a target aspect ratio.
+ * @preview
  * 
  * This function calculates the appropriate VI borders to obtain the specified
  * aspect ratio, and optionally adding a margin to make the picture CRT-safe.
@@ -1091,20 +1166,24 @@ void vi_scroll_output(int deltax, int deltay);
  *                          like #VI_CRT_MARGIN to get a good CRT default.
  * @return                  The requested border settings
  */
+LIBDRAGON_PREVIEW_API
 vi_borders_t vi_calc_borders(float aspect_ratio, float overscan_margin);
 
 /**
  * @brief Get the current display aspect ratio from VI configuration
+ * @preview
  *
  * Recomputes the aspect ratio from the current VI output area (as returned
  * by the internal output rectangle) and the active timing preset dimensions.
  *
  * @return The current display aspect ratio (e.g. 4.0f/3.0f, 16.0f/9.0f)
  */
+LIBDRAGON_PREVIEW_API
 float vi_get_aspect_ratio(void);
 
 /**
  * @brief Configure the output area via the specified borders
+ * @preview
  * 
  * Configures the VI to the specified border size. This function is an
  * alterantive to #vi_set_output: instead of specifying the output area
@@ -1113,10 +1192,12 @@ float vi_get_aspect_ratio(void);
  * 
  * @param b                 Size of the borders to apply
  */
+LIBDRAGON_PREVIEW_API
 void vi_set_borders(vi_borders_t b);
 
 /**
  * @brief Show the specified surface (at next vblank)
+ * @preview
  * 
  * This function is a shortcut to do the following:
  * 
@@ -1130,6 +1211,7 @@ void vi_set_borders(vi_borders_t b);
  * 
  * @param fb      Surface to show
  */
+LIBDRAGON_PREVIEW_API
 void vi_show(surface_t *fb);
 
 /** @} */

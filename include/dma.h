@@ -8,8 +8,10 @@
 #ifndef __LIBDRAGON_DMA_H
 #define __LIBDRAGON_DMA_H
 
+
 #include <stdbool.h>
 #include <stdint.h>
+#include "preview.h"
 #include "n64types.h"
 
 /**
@@ -189,25 +191,30 @@ void dma_wait(void);
 
 /**
  * @brief Wait until an async DMA transfer has started.
+ * @preview
  *
  * If the kernel is running, the calling thread yields while the transfer is
  * still queued. A transfer which has already completed is considered started.
  *
  * @param ticket    Ticket returned by an async DMA function
  */
+LIBDRAGON_PREVIEW_API
 void dma_wait_started(uint64_t ticket);
 
 /**
  * @brief Wait until an async DMA transfer is finished.
+ * @preview
  *
  * If the kernel is running, the calling thread yields while waiting.
  *
  * @param ticket    Ticket returned by an async DMA function
  */
+LIBDRAGON_PREVIEW_API
 void dma_wait_finished(uint64_t ticket);
 
 /**
  * @brief Return the progress of an async DMA transfer.
+ * @preview
  *
  * If the transfer has not started yet, this function returns zero.
  *
@@ -221,14 +228,17 @@ void dma_wait_finished(uint64_t ticket);
  * @param ticket    Ticket returned by an async DMA function
  * @return          Number of bytes already transferred
  */
+LIBDRAGON_PREVIEW_API
 unsigned long dma_get_progress(uint64_t ticket);
 
 /**
  * @brief Check whether an async DMA transfer is finished.
+ * @preview
  *
  * @param ticket    Ticket returned by an async DMA function
  * @return          True if the transfer is fully complete
  */
+LIBDRAGON_PREVIEW_API
 bool dma_finished(uint64_t ticket);
 
 

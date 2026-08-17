@@ -8,11 +8,13 @@
 #ifndef __LIBDRAGON_N64SYS_H
 #define __LIBDRAGON_N64SYS_H
 
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>
+#include "preview.h"
 #include "cop0.h"
 #include "cop1.h"
 #include "n64types.h"
@@ -304,6 +306,7 @@ uint64_t get_ticks(void);
 
 /**
  * @brief Read the number of ticks since system startup (user time)
+ * @preview
  *
  * This function is similar to #get_ticks, but it returns the number of ticks
  * spent in "user time", that is excluding the "system time". This is useful
@@ -319,10 +322,12 @@ uint64_t get_ticks(void);
  * @see #get_ticks
  * @see #get_system_ticks
  */
+LIBDRAGON_PREVIEW_API
 uint64_t get_user_ticks(void);
 
 /**
  * @brief Read the number of system ticks since system startup (system time)
+ * @preview
  * 
  * This function returns the number of ticks spent in "system time", that is
  * the time spent in wait/spin loops and interrupts. This is useful to measure
@@ -333,6 +338,7 @@ uint64_t get_user_ticks(void);
  * @see #get_ticks
  * @see #get_user_ticks
  */
+LIBDRAGON_PREVIEW_API
 inline uint64_t get_system_ticks(void) {
     extern uint64_t __acct_system_ticks;
     return __acct_system_ticks;
@@ -485,12 +491,14 @@ void inst_cache_hit_invalidate(volatile void *, unsigned long);
 
 /**
  * @brief Force an instruction cache fill over a memory region
+ * @preview
  *
  * @param[in] addr
  *            Pointer to memory in question
  * @param[in] length
  *            Length in bytes of the data pointed at by addr
  */
+ LIBDRAGON_PREVIEW_API
  void inst_cache_hit_fill(volatile void *, unsigned long);
  
  /**
@@ -556,9 +564,12 @@ void assert_memory_expanded(void);
 typedef struct {
     int total;          ///< Total heap size in bytes
     int used;           ///< Used heap size in bytes
-    int free;           ///< Free heap size in bytes
-    int fragmented;     ///< Free bytes in malloc chunks that are not in the top chunk
-    float fragmentation;///< Fragmentation factor, in range [0, 1]
+    LIBDRAGON_PREVIEW_SYM
+    int free;           ///< Free heap size in bytes @preview
+    LIBDRAGON_PREVIEW_SYM
+    int fragmented;     ///< Free bytes in malloc chunks that are not in the top chunk @preview
+    LIBDRAGON_PREVIEW_SYM
+    float fragmentation;///< Fragmentation factor, in range [0, 1] @preview
 } heap_stats_t;
 
 /**
@@ -621,6 +632,7 @@ void free_uncached(void *buf);
 
 /**
  * @brief Reallocate an uncached memory buffer
+ * @preview
  * 
  * This function changes the size of the memory buffer pointed to by
  * `old_buf` to the size specified by `new_size`. The contents will be
@@ -632,6 +644,7 @@ void free_uncached(void *buf);
  *         NULL if the reallocation failed (in which case the old buffer is
  *         unchanged)
  */
+LIBDRAGON_PREVIEW_API
 void *realloc_uncached(void *old_buf, size_t new_size);
 
 
@@ -673,6 +686,7 @@ reset_type_t sys_reset_type(void);
 
 /**
  * @brief Get the PI address of the main ELF in ROM
+ * @preview
  *
  * This function returns the PI address of the main ELF in ROM,
  * that is, the address where the running application has been loaded from.
@@ -684,6 +698,7 @@ reset_type_t sys_reset_type(void);
  * 
  * @return Address of the the ELF in PI space (ROM)
  */
+LIBDRAGON_PREVIEW_API
 pi_addr_t sys_elf_address(void);
 
 /**
@@ -701,6 +716,7 @@ typedef struct {
 
 /**
  * @brief Get the version of Libdragon
+ * @preview
  * 
  * This function will fill the version structure with the information about
  * the current version of Libdragon, that was embedded in the ROM at build time.
@@ -708,10 +724,12 @@ typedef struct {
  * @param version               Pointer to the version structure to fill
  * @return true if the version information was successfully retrieved, false otherwise
  */
+LIBDRAGON_PREVIEW_API
 bool sys_get_version(sys_version_t *version);
 
 /**
  * @brief Perform a hardware-accelerated memory set
+ * @preview
  * 
  * This function uses a special function in the RCP (MI repeat mode)
  * to perform a fast memset operation. The actual speed is about 6x
@@ -737,10 +755,12 @@ bool sys_get_version(sys_version_t *version);
  * @see #sys_hw_memset32
  * @see #sys_hw_memset64
  */
+LIBDRAGON_PREVIEW_API
 void* sys_hw_memset(void *ptr, uint8_t value, size_t len);
 
 /**
  * @brief Perform a hardware-accelerated memory set of a 16-bit pattern
+ * @preview
  * 
  * This function is similar to #sys_hw_memset, but repeats a 16-bit
  * value instead of an 8-bit value. For instance, doing a memset
@@ -752,10 +772,12 @@ void* sys_hw_memset(void *ptr, uint8_t value, size_t len);
  * @param len           Length of the memory area in bytes
  * @return The same pointer passed to it
  */
+LIBDRAGON_PREVIEW_API
 void* sys_hw_memset16(void *ptr, uint16_t value, size_t len);
 
 /**
  * @brief Perform a hardware-accelerated memory set of a 32-bit pattern
+ * @preview
  * 
  * This function is similar to #sys_hw_memset, but repeats a 32-bit
  * value instead of an 8-bit value. For instance, doing a memset
@@ -767,10 +789,12 @@ void* sys_hw_memset16(void *ptr, uint16_t value, size_t len);
  * @param len           Length of the memory area in bytes
  * @return The same pointer passed to it
  */
+LIBDRAGON_PREVIEW_API
 void* sys_hw_memset32(void *ptr, uint32_t value, size_t len);
 
 /**
  * @brief Perform a hardware-accelerated memory set of a 64-bit pattern
+ * @preview
  * 
  * This function is similar to #sys_hw_memset, but repeats a 64-bit
  * value instead of an 8-bit value. For instance, doing a memset
@@ -782,6 +806,7 @@ void* sys_hw_memset32(void *ptr, uint32_t value, size_t len);
  * @param len           Length of the memory area in bytes
  * @return The same pointer passed to it
  */
+LIBDRAGON_PREVIEW_API
 void* sys_hw_memset64(void *ptr, uint64_t value, size_t len);
 
 /** @cond */

@@ -17,13 +17,14 @@
  * the project opts in by setting `LIBDRAGON_PREVIEW=1` in its Makefile, before
  * including n64.mk.
  *
- * There are two ways of marking an API as preview:
+ * There are three ways of marking an API as preview:
  *
  * * #LIBDRAGON_PREVIEW_HEADER locks a whole header. This is only meant for the
  *   few headers that the user is expected to include explicitly (eg: GL/gl.h).
- * * #LIBDRAGON_PREVIEW_API and #LIBDRAGON_PREVIEW_SYM lock a single entry
- *   point. This is the common case: most headers are pulled in by libdragon.h,
- *   so they must stay includable even in stable projects.
+ * * #LIBDRAGON_PREVIEW_API locks a function.
+ * * #LIBDRAGON_PREVIEW_SYM locks non-function
+ *   declarations. Most headers are pulled in by libdragon.h, so they must stay
+ *   includable even in stable projects.
  *
  * @note libdragon itself is always built with preview enabled, so a single
  *       libdragon.a serves both stable and preview projects. This means that a
@@ -34,7 +35,10 @@
  *       are usable, never in *how* they are defined. For the same reason, a
  *       preview type must never appear in a stable structure nor in the
  *       signature of a stable function, as that would make the stable API
- *       unstable as well.
+ *       unstable as well. New fields on a stable struct must stay in the
+ *       layout for everyone and be locked with #LIBDRAGON_PREVIEW_SYM: hiding
+ *       them behind "#if" would change @c sizeof between the library and a
+ *       stable project.
  */
 
 #ifndef __LIBDRAGON_PREVIEW_H
@@ -68,12 +72,26 @@
 
 /**
  * @def LIBDRAGON_PREVIEW_SYM
- * @brief Mark a non-function symbol as preview
+ * @brief Mark a field, enumerator or global as preview
  *
- * #LIBDRAGON_PREVIEW_API only works on functions, so use this for types,
- * enumerators, global variables and macros. Put it *after* the declaration, as
- * it makes any later mention of the name an error. For a macro, @c \#undef it
- * first, otherwise the name would be expanded before being poisoned.
+ * Use this like a GCC attribute on the declaration. The declaration stays in
+ * the header (so struct layouts do not change between stable and preview), but
+ * using it is an error when preview APIs are disabled.
+ *
+ * @code{.c}
+ * struct bar {
+ *     int a;
+ *     LIBDRAGON_PREVIEW_SYM int b;   // always present in the layout
+ * };
+ * enum { OLD = 0, NEW LIBDRAGON_PREVIEW_SYM = 1 };
+ * @endcode
+ *
+ * Do **not** put this on a typedef that is still mentioned later in the same
+ * header (eg: in function signatures): @c unavailable would then make the
+ * header itself fail to compile under stable.
+ *
+ * @note On GCC, designated initializers (@c .field = ...) of an unavailable
+ *       field are currently not diagnosed (Clang does diagnose them).
  */
 
 /// @cond
@@ -92,12 +110,12 @@
 #define LIBDRAGON_HAVE_PREVIEW 1
 #define LIBDRAGON_PREVIEW_HEADER
 #define LIBDRAGON_PREVIEW_API
-#define LIBDRAGON_PREVIEW_SYM(name)
+#define LIBDRAGON_PREVIEW_SYM
 #else
 #define LIBDRAGON_HAVE_PREVIEW 0
 #define LIBDRAGON_PREVIEW_HEADER __LIBDRAGON_PREVIEW_PRAGMA(GCC error __LIBDRAGON_PREVIEW_MSG)
 #define LIBDRAGON_PREVIEW_API __attribute__((error(__LIBDRAGON_PREVIEW_MSG), deprecated(__LIBDRAGON_PREVIEW_MSG)))
-#define LIBDRAGON_PREVIEW_SYM(name) __LIBDRAGON_PREVIEW_PRAGMA_RAW(GCC poison name)
+#define LIBDRAGON_PREVIEW_SYM __attribute__((unavailable(__LIBDRAGON_PREVIEW_MSG)))
 #endif
 
 #endif

@@ -23,6 +23,7 @@
 #define LIBDRAGON_VADDR64_H
 
 #include <stdint.h>
+#include "preview.h"
 #include "n64types.h"
 
 #ifdef __cplusplus
@@ -31,10 +32,12 @@ extern "C" {
 
 /**
  * @brief Read a 8-bit value from memory at the given 64-bit virtual address
+ * @preview
  * 
  * @param vaddr   64-bit virtual address
  * @return the read value
  */
+LIBDRAGON_PREVIEW_API
 inline uint8_t sys_vaddr_read8(vaddr64_t vaddr) {
     uint8_t value;
     asm volatile (
@@ -47,10 +50,12 @@ inline uint8_t sys_vaddr_read8(vaddr64_t vaddr) {
 
 /**
  * @brief Read a 16-bit value from memory at the given 64-bit virtual address
+ * @preview
  * 
  * @param vaddr   64-bit virtual address
  * @return the read value
  */
+LIBDRAGON_PREVIEW_API
 inline uint16_t sys_vaddr_read16(vaddr64_t vaddr) {
     uint16_t value;
     asm volatile (
@@ -63,10 +68,12 @@ inline uint16_t sys_vaddr_read16(vaddr64_t vaddr) {
 
 /**
  * @brief Read a 32-bit value from memory at the given 64-bit virtual address
+ * @preview
  * 
  * @param vaddr   64-bit virtual address
  * @return the read value
  */
+LIBDRAGON_PREVIEW_API
 inline uint32_t sys_vaddr_read32(vaddr64_t vaddr) {
     uint32_t value;
     asm volatile (
@@ -79,10 +86,12 @@ inline uint32_t sys_vaddr_read32(vaddr64_t vaddr) {
 
 /**
  * @brief Read a 64-bit value from memory at the given 64-bit virtual address
+ * @preview
  * 
  * @param vaddr   64-bit virtual address
  * @return the read value
  */
+LIBDRAGON_PREVIEW_API
 inline uint64_t sys_vaddr_read64(vaddr64_t vaddr) {
     uint64_t value;
     asm volatile (
@@ -95,10 +104,12 @@ inline uint64_t sys_vaddr_read64(vaddr64_t vaddr) {
 
 /**
  * @brief Write an 8-bit value to memory at the given 64-bit virtual address
+ * @preview
  *
  * @param vaddr   64-bit virtual address
  * @param value   8-bit value to write
  */
+LIBDRAGON_PREVIEW_API
 inline void sys_vaddr_write8(vaddr64_t vaddr, uint8_t value) {
     asm volatile (
         "sb %[value], 0(%[vaddr])  \n" :
@@ -110,10 +121,12 @@ inline void sys_vaddr_write8(vaddr64_t vaddr, uint8_t value) {
 
 /**
  * @brief Write a 16-bit value to memory at the given 64-bit virtual address
+ * @preview
  *
  * @param vaddr   64-bit virtual address
  * @param value   16-bit value to write
  */
+LIBDRAGON_PREVIEW_API
 inline void sys_vaddr_write16(vaddr64_t vaddr, uint16_t value) {
     asm volatile (
         "sh %[value], 0(%[vaddr])  \n" :
@@ -125,10 +138,12 @@ inline void sys_vaddr_write16(vaddr64_t vaddr, uint16_t value) {
 
 /**
  * @brief Write a 32-bit value to memory at the given 64-bit virtual address
+ * @preview
  *
  * @param vaddr   64-bit virtual address
  * @param value   32-bit value to write
  */
+LIBDRAGON_PREVIEW_API
 inline void sys_vaddr_write32(vaddr64_t vaddr, uint32_t value) {
     asm volatile (
         "sw %[value], 0(%[vaddr])  \n" :
@@ -140,10 +155,12 @@ inline void sys_vaddr_write32(vaddr64_t vaddr, uint32_t value) {
 
 /**
  * @brief Write a 64-bit value to memory at the given 64-bit virtual address
+ * @preview
  *
  * @param vaddr   64-bit virtual address
  * @param value   64-bit value to write
  */
+LIBDRAGON_PREVIEW_API
 inline void sys_vaddr_write64(vaddr64_t vaddr, uint64_t value) {
     asm volatile (
         "sd %[value], 0(%[vaddr])  \n" :

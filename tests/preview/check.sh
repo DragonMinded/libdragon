@@ -101,6 +101,25 @@ expect_diagnostic stable "taking the address of a preview function" '
 void *p = (void*)model64_free;
 '
 
+# LIBDRAGON_PREVIEW_SYM uses unavailable on fields: layout stays visible for
+# ABI reasons, but reading the field is an error without preview.
+expect stable rejected "accessing a preview struct field" '
+#include <preview.h>
+typedef struct {
+    int a;
+    LIBDRAGON_PREVIEW_SYM int b;
+} probe_t;
+int f(probe_t *p) { return p->b; }
+'
+expect preview compiles "accessing a preview struct field" '
+#include <preview.h>
+typedef struct {
+    int a;
+    LIBDRAGON_PREVIEW_SYM int b;
+} probe_t;
+int f(probe_t *p) { return p->b; }
+'
+
 if [ $failures -ne 0 ]; then
     echo "$failures preview check(s) failed"
     exit 1

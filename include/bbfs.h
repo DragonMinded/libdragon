@@ -144,6 +144,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "preview.h"
 #include "ioctl.h"
 
 #ifdef __cplusplus
@@ -224,6 +225,7 @@ enum bbfs_error_e {
 
 /**
  * @brief Initialize the iQue NAND filesystem library
+ * @preview
  * 
  * This function mounts the filesystem and initializes the library.
  * After calling this function, you can access the BBFS files using
@@ -231,10 +233,12 @@ enum bbfs_error_e {
  * 
  * @return 0 on success, negative value on failure (see #bbfs_error_e)
  */
+LIBDRAGON_PREVIEW_API
 int bbfs_init(void);
 
 /**
  * @brief Return the indices of NAND blocks that contain the file data
+ * @preview
  * 
  * The function lookups the specified file on the filesystem. If found, it
  * returns a list of block indices that contain the file data. The list is
@@ -246,10 +250,12 @@ int bbfs_init(void);
  * @return              Allocated array of block indices, or NULL 
  *                      if file doesn't exist or the filesystem is corrupted
  */
+LIBDRAGON_PREVIEW_API
 int16_t* bbfs_get_file_blocks(const char *filename);
 
 /**
  * @brief Verify the integrity of the filesystem, and optionally try to fix it
+ * @preview
  * 
  * This function checks the integrity of the filesystem. If the filesystem is
  * corrupted, it can optionally try to fix it.
@@ -257,6 +263,7 @@ int16_t* bbfs_get_file_blocks(const char *filename);
  * @param fix_errors    If true, try to fix the errors, otherwise just check
  * @return number of errors found in the filesystem
  */
+LIBDRAGON_PREVIEW_API
 int bbfs_fsck(bool fix_errors);
 
 

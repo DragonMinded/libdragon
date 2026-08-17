@@ -15,6 +15,7 @@
 #define LIBDRAGON_VIDEO_FMV_H
 
 #include <stdbool.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -166,6 +167,7 @@ typedef struct fmv_parms_s {
 
 /**
  * @brief Play a full-motion video from a video file
+ * @preview
  * 
  * This function plays a full-motion video from a video file, along with its
  * audio track if present. It takes care of everything: setting up the
@@ -198,6 +200,7 @@ typedef struct fmv_parms_s {
  * @param filename      Filename of the video file to play (including filesystem prefix)
  * @param parms         Additional parameters to customize playback (can be NULL)
  */
+LIBDRAGON_PREVIEW_API
 void fmv_play(const char *filename, const fmv_parms_t *parms);
 
 #ifdef __cplusplus

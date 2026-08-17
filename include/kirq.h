@@ -21,6 +21,7 @@
 #define LIBDRAGON_KERNEL_KIRQ_H
 
 #include <stdint.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -43,48 +44,61 @@ typedef struct {
 
 /**
  * @brief Create an kirq wait object for SP interrupts
+ * @preview
  * 
  * @return The wait object
  */
+LIBDRAGON_PREVIEW_API
 kirq_wait_t kirq_begin_wait_sp(void);
 
 /**
  * @brief Create an kirq wait object for DP interrupts
+ * @preview
  * 
  * @return The wait object
  */
+LIBDRAGON_PREVIEW_API
 kirq_wait_t kirq_begin_wait_dp(void);
 
 /**
  * @brief Create an kirq wait object for SI interrupts
+ * @preview
  * 
  * @return The wait object
  */
+LIBDRAGON_PREVIEW_API
 kirq_wait_t kirq_begin_wait_si(void);
 
 /**
  * @brief Create an kirq wait object for AI interrupts
+ * @preview
  * 
  * @return The wait object
  */
+LIBDRAGON_PREVIEW_API
 kirq_wait_t kirq_begin_wait_ai(void);
 
 /**
  * @brief Create an kirq wait object for VI interrupts
+ * @preview
  * 
  * @return The wait object
  */
+LIBDRAGON_PREVIEW_API
 kirq_wait_t kirq_begin_wait_vi(void);
 
 /**
  * @brief Create an kirq wait object for PI interrupts
+ * @preview
  * 
  * @return The wait object
  */
+LIBDRAGON_PREVIEW_API
 kirq_wait_t kirq_begin_wait_pi(void);
 
 /**
  * @brief Wait until the interrupt is triggered
+ * @preview
  * 
  * This function will block the current thread until the interrupt
  * is triggered. It can be called multiple times on the same wait object,
@@ -93,6 +107,7 @@ kirq_wait_t kirq_begin_wait_pi(void);
  * 
  * @param wait 
  */
+LIBDRAGON_PREVIEW_API
 void kirq_wait(kirq_wait_t *wait);
 
 #ifdef __cplusplus
