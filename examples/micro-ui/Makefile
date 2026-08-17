@@ -1,6 +1,6 @@
 BUILD_DIR = build
 # This example uses OpenGL, which is a preview API
-LIBDRAGON_PREVIEW = 1
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 assets_ttf = $(wildcard assets/*.ttf)

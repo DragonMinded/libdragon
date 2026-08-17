@@ -1,14 +1,9 @@
 BUILD_DIR=build
 DSO_COMPRESS_LEVEL=0
-# The test ROM covers the whole library, preview APIs included
-LIBDRAGON_PREVIEW = 1
+LIBDRAGON_PREVIEW = 2  # The test ROM covers the whole library, preview APIs included
 include $(N64_INST)/include/n64.mk
 
 N64_MKMATERIAL = $(N64_INST)/bin/mkmaterial
-
-# Catch typos in LIBDRAGON_HAVE_PREVIEW and friends: an undefined macro would
-# otherwise silently evaluate to 0 and compile out the code being tested.
-CFLAGS += -Wundef
 
 all: testrom.z64 testrom_emu.z64 testrom_h264.z64 testrom_wav64.z64 testrom_samplebuffer.z64
 

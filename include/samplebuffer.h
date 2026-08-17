@@ -96,7 +96,7 @@ typedef struct samplebuffer_s {
      * Bytes per logical unit counted by wpos/widx/size.
      * PCM: 1, 2, or 4. Compressed frame stores: e.g. 9 for mono VADPCM.
      */
-    LIBDRAGON_PREVIEW_SYM uint8_t unit_bytes;
+    uint8_t unit_bytes;
 
     /**
      * Usable size in units (excludes the tail margin).
