@@ -133,7 +133,7 @@ jobs:
 
       - name: Build examples
         run: |
-          docker container exec libdragon make examples
+          docker container exec libdragon make examples --keep-going
 
       - name: "Upload built ROMs to artifacts"
         uses: actions/upload-artifact@v7
