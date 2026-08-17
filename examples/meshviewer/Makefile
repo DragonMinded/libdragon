@@ -1,6 +1,6 @@
 BUILD_DIR=build
 # This example uses OpenGL and model64, which are preview APIs
-LIBDRAGON_PREVIEW = 1
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 src = meshviewer.c

@@ -1,8 +1,10 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
 
-# Set to 1 to allow use of the preview APIs (which may change over time).
-# This must be set before including this file, as it is read here.
+# Preview API policy (must be set before including this file):
+#   0 — using a preview API is a compile-time error (default)
+#   1 — preview APIs are usable but produce a compiler warning
+#   2 — preview APIs are fully unlocked (no diagnostics)
 LIBDRAGON_PREVIEW ?= 0
 
 # Override this if your project uses a different directory for your DFS filesystem root
@@ -87,10 +89,10 @@ N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -mabi=o64 -Wa,--fatal-warnings -I$(N64
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
-ifeq ($(LIBDRAGON_PREVIEW),1)
-N64_C_AND_CXX_FLAGS += -DLIBDRAGON_PREVIEW
-N64_ASFLAGS += -DLIBDRAGON_PREVIEW
-N64_RSPASFLAGS += -DLIBDRAGON_PREVIEW
+ifneq ($(filter 1 2,$(LIBDRAGON_PREVIEW)),)
+N64_C_AND_CXX_FLAGS += -DLIBDRAGON_PREVIEW=$(LIBDRAGON_PREVIEW)
+N64_ASFLAGS += -DLIBDRAGON_PREVIEW=$(LIBDRAGON_PREVIEW)
+N64_RSPASFLAGS += -DLIBDRAGON_PREVIEW=$(LIBDRAGON_PREVIEW)
 endif
 
 N64_TOOLFLAGS = --toc

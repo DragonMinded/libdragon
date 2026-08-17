@@ -1,6 +1,8 @@
 EXE = $(if $(findstring Windows,$(OS)),.exe,)
 CFLAGS += -Wall -Werror -std=gnu11
 CFLAGS += -I ../../include
+# Host unit test of preview cpakfs path APIs
+CFLAGS += -DLIBDRAGON_PREVIEW=2
 
 all: test_cpakfs_path$(EXE)
 

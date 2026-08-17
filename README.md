@@ -173,9 +173,13 @@ To unlock them, set `LIBDRAGON_PREVIEW` in your Makefile, *before* including
 `n64.mk`:
 
 ```makefile
-LIBDRAGON_PREVIEW = 1
+LIBDRAGON_PREVIEW = 1          # allow preview APIs, but warn on each use
+# LIBDRAGON_PREVIEW = 2        # fully unlock preview APIs (no diagnostics)
 include $(N64_INST)/include/n64.mk
 ```
+
+Accepted values: `0` (default, hard error), `1` (usable with a compiler
+warning), `2` (fully unlocked).
 
 The switch is a property of your project, not of your libdragon installation:
 the same installed toolchain builds both stable-only and preview-using projects,
