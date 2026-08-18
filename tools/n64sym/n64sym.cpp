@@ -301,9 +301,11 @@ private:
         // detect the end of an address by the echo of the next one. Append a dummy
         // address as sentinel to terminate the last one. NOTE: 0x0 cannot be used
         // as sentinel, as DSOs are partially linked and have symbols at 0.
-        for (a2l_addr &a : *job) fprintf(wr, "%08x\n", a.addr);
-        fprintf(wr, "0xffffffff\n");
-        fflush(wr);
+        auto wr_thread = std::thread([wr, job] {
+            for (a2l_addr &a : *job) fprintf(wr, "%08x\n", a.addr);
+            fprintf(wr, "0xffffffff\n");
+            fflush(wr);
+        });
 
         readline(w, rd);   // echo of the first address
         for (a2l_addr &a : *job) {
@@ -318,6 +320,7 @@ private:
         }
         readline(w, rd);   // sentinel function and position
         readline(w, rd);
+        wr_thread.join();
     }
 };
 
