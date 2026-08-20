@@ -1,5 +1,6 @@
 /**
  * @file flashram.h
+ * @author Christopher Bonhage <christopher.bonhage@meeq.tech>
  * @brief FlashRAM access functions for N64 cartridges
  * @ingroup flashram
  */
@@ -95,6 +96,7 @@ typedef struct
 
 /**
  * @brief Initialize the FlashRAM subsystem and detect the chip
+ * @preview
  *
  * Configures the PI DOM2 registers, then reads the chip's silicon ID to check
  * for FlashRAM and, when present, look up the model: its name and (crucially)
@@ -114,10 +116,12 @@ typedef struct
  *                it is filled with the chip identity and layout.
  * @return true if FlashRAM is present, false otherwise.
  */
+LIBDRAGON_PREVIEW_API
 bool flashram_init(const pi_dom_timings_t* timings, flashram_info_t* info);
 
 /**
  * @brief Read data from FlashRAM
+ * @preview
  *
  * Reads a byte range from FlashRAM into @p dst. Any @b even offset and any
  * length are accepted (an odd offset or out-of-range range asserts)
@@ -127,10 +131,12 @@ bool flashram_init(const pi_dom_timings_t* timings, flashram_info_t* info);
  * @param len    Number of bytes to read.
  * @return Number of bytes read (equal to @p len). Invalid arguments assert.
  */
+LIBDRAGON_PREVIEW_API
 int flashram_read(void* dst, size_t offset, size_t len);
 
 /**
  * @brief Write data to FlashRAM (read-modify-write)
+ * @preview
  *
  * Writes a byte range to FlashRAM from @p src. Because FlashRAM can only be
  * erased a whole 16 KiB sector at a time, this performs a read-modify-write on
@@ -148,6 +154,7 @@ int flashram_read(void* dst, size_t offset, size_t len);
  * @return Number of bytes written, or a negative value if an erase/program fails
  *         on the hardware. Invalid arguments assert.
  */
+LIBDRAGON_PREVIEW_API
 int flashram_write(const void* src, size_t offset, size_t len);
 
 #ifdef __cplusplus
