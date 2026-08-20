@@ -5,7 +5,7 @@ SOURCE_DIR ?= .
 #   0 — using a preview API is a compile-time error (default)
 #   1 — preview APIs are usable but produce a compiler warning
 #   2 — preview APIs are fully unlocked (no diagnostics)
-LIBDRAGON_PREVIEW ?= 0
+LIBDRAGON_PREVIEW ?= 2
 
 # Override this if your project uses a different directory for your DFS filesystem root
 N64_MKDFS_ROOT ?= filesystem
