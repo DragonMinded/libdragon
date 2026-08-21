@@ -123,17 +123,17 @@ jobs:
 
       - name: Build libdragon
         run: |
-          docker container exec libdragon ./build.sh --no-examples
+          docker container exec --env=LIBDRAGON_PREVIEW=0 libdragon ./build.sh --no-examples
 
       # This also builds the test ROMs, and checks that the preview APIs are
       # locked for a stable project and unlocked for a preview one.
       - name: Run tests
         run: |
-          docker container exec libdragon make test
+          docker container exec --env=LIBDRAGON_PREVIEW=0 libdragon make test
 
       - name: Build examples
         run: |
-          docker container exec libdragon make examples --keep-going
+          docker container exec --env=LIBDRAGON_PREVIEW=0 libdragon make examples --keep-going
 
       - name: "Upload built ROMs to artifacts"
         uses: actions/upload-artifact@v7
