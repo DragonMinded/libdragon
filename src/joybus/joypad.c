@@ -903,6 +903,13 @@ static void joypad_get_axis_values(
     }
 }
 
+int joypad_get_axis(joypad_port_t port, joypad_axis_t axis)
+{
+    int current = 0;
+    joypad_get_axis_values(port, axis, &current, NULL, NULL);
+    return current;
+}
+
 int joypad_get_axis_pressed(joypad_port_t port, joypad_axis_t axis)
 {
     int current = 0, previous = 0, threshold = 0;

@@ -644,6 +644,16 @@ bool joypad_get_button_held(joypad_port_t port, joypad_button_t button);
 joypad_8way_t joypad_get_direction(joypad_port_t port, joypad_2d_t axes);
 
 /**
+ * @brief Get the current analog value of an axis on a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param axis Joypad axis enumeration value (#joypad_axis_t)
+ * 
+ * @return Current analog axis value
+ */
+int joypad_get_axis(joypad_port_t port, joypad_axis_t axis);
+
+/**
  * @brief Get the direction of a "press" of an axis on a Joypad port.
  * 
  * @param port Joypad port number (#joypad_port_t)
