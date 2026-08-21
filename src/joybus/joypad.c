@@ -831,6 +831,26 @@ joypad_buttons_t joypad_get_buttons_held(joypad_port_t port)
     return (joypad_buttons_t){ .raw = current & previous };
 }
 
+bool joypad_get_button(joypad_port_t port, joypad_button_t button)
+{
+    return (joypad_get_buttons(port).raw >> button) & 1;
+}
+
+bool joypad_get_button_pressed(joypad_port_t port, joypad_button_t button)
+{
+    return (joypad_get_buttons_pressed(port).raw >> button) & 1;
+}
+
+bool joypad_get_button_released(joypad_port_t port, joypad_button_t button)
+{
+    return (joypad_get_buttons_released(port).raw >> button) & 1;
+}
+
+bool joypad_get_button_held(joypad_port_t port, joypad_button_t button)
+{
+    return (joypad_get_buttons_held(port).raw >> button) & 1;
+}
+
 /**
  * @brief Get the analog values for a Joypad port's axis.
  * 
