@@ -167,7 +167,7 @@ static bool decompress_full(asset_compression_full_t *algo, int fd, size_t cmp_s
     int n;
 
     #ifdef N64
-    uint32_t rom_addr = 0;
+    pi_addr_t rom_addr = 0;
     if (ioctl(fd, IODFS_GET_ROM_BASE, &rom_addr) >= 0) {
         // Invalid the portion of the buffer where we are going to load
         // the compressed data. This is needed in case the buffer returned
@@ -178,7 +178,7 @@ static bool decompress_full(asset_compression_full_t *algo, int fd, size_t cmp_s
         // Loading from ROM. This is a common enough situation that we want to optimize it.
         // Start an asynchronous DMA transfer, so that we can start decompressing as the
         // data flows in.
-        uint32_t addr = rom_addr+lseek(fd, 0, SEEK_CUR);
+        pi_addr_t addr = rom_addr+lseek(fd, 0, SEEK_CUR);
         assertf(addr % 2 == 0, "asset_load requires ROM data to be 2-byte aligned");
         uint64_t ticket = dma_read_async(s+cmp_offset, addr, cmp_size);
         dma_wait_started(ticket);

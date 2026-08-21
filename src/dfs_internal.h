@@ -54,8 +54,8 @@ typedef struct dfs_open_file_s
     uint32_t size;
     /** @brief The offset of the current location in the file */
     uint32_t loc;
-    /** @brief The offset within the filesystem where the file is stored */
-    uint32_t cart_start_loc;
+    /** @brief The PI address where the file is stored */
+    pi_addr_t cart_start_loc;
 } dfs_open_file_t;
 
 /** @brief Data for a single file in dfs_lookup_t */

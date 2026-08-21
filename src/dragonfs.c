@@ -520,7 +520,7 @@ static int recurse_path(const char * const path, int mode, pi_addr_t *dirent, in
 
 static bool init_dfs_lookup(directory_entry_t *id_node)
 {
-    uint32_t romaddr = get_start_location(id_node);
+    pi_addr_t romaddr = get_start_location(id_node);
     if(romaddr == 0) {
         return false;
     }
@@ -989,7 +989,7 @@ int dfs_size(uint32_t handle)
     return file->size;
 }
 
-uint32_t dfs_rom_addr(const char *path)
+pi_addr_t dfs_rom_addr(const char *path)
 {
     //Skip initial slash
     if(path[0] == '/') {
@@ -1312,9 +1312,9 @@ static int __ioctl(void *file, unsigned long cmd, void *argp)
     switch(cmd) {
         case IODFS_GET_ROM_BASE:
         {
-            uint32_t *rom_addr = argp;
+            pi_addr_t *rom_addr = argp;
             dfs_open_file_t *openfile = HANDLE_TO_OPENFILE(file);
-            *rom_addr = openfile->cart_start_loc & 0x1FFFFFFF;
+            *rom_addr = openfile->cart_start_loc;
         }
             return 0;
             
