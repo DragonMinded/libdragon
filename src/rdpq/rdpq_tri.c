@@ -409,6 +409,17 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     tracef("dzde: %f (%08llx)\n", DzDe, (uint64_t)(DzDe * 65536.0f));
 }
 
+/** @brief Compute the RDPQ_CMD_TRI command ID and its cost in RDP 64-bit words. */
+static uint32_t __rdpq_triangle_cmd(const rdpq_trifmt_t *fmt, uint32_t *cmd_id)
+{
+    *cmd_id = RDPQ_CMD_TRI;
+    uint32_t rdp_words = 4;
+    if (fmt->shade_offset >= 0) { *cmd_id |= 0x4; rdp_words += 8; }
+    if (fmt->tex_offset >= 0)   { *cmd_id |= 0x2; rdp_words += 8; }
+    if (fmt->z_offset >= 0)     { *cmd_id |= 0x1; rdp_words += 2; }
+    return rdp_words;
+}
+
 /** @brief RDP triangle primitive assembled on the CPU */
 void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3)
 {
@@ -422,22 +433,12 @@ void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v
     }
     __rdpq_autosync_use(res);
 
-    uint32_t cmd_id = RDPQ_CMD_TRI;
+    uint32_t cmd_id;
+    uint32_t rdp_words = __rdpq_triangle_cmd(fmt, &cmd_id);
+    uint32_t size = rdp_words * 2; // rspq_write_begin's size is in 32-bit words, not 64-bit RDP words
 
-    uint32_t size = 8;
-    if (fmt->shade_offset >= 0) {
-        size += 16;
-        cmd_id |= 0x4;
-    }
-    if (fmt->tex_offset >= 0) {
-        size += 16;
-        cmd_id |= 0x2;
-    }
-    if (fmt->z_offset >= 0) {
-        size += 4;
-        cmd_id |= 0x1;
-    }
-
+    if (__builtin_expect(rspq_block != NULL, 0))
+        __rdpq_block_reserve(rdp_words);
     rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, cmd_id, size);
 
     if( v1[fmt->pos_offset + 1] > v2[fmt->pos_offset + 1] ) { SWAP(v1, v2); }
@@ -477,10 +478,8 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
     }
     __rdpq_autosync_use(res);
 
-    uint32_t cmd_id = RDPQ_CMD_TRI;
-    if (fmt->shade_offset >= 0) cmd_id |= 0x4;
-    if (fmt->tex_offset >= 0)   cmd_id |= 0x2;
-    if (fmt->z_offset >= 0)     cmd_id |= 0x1;
+    uint32_t cmd_id;
+    uint32_t rdp_words = __rdpq_triangle_cmd(fmt, &cmd_id);
 
     const int TRI_DATA_LEN = ROUND_UP((2+1+1+3)*4, 16);
 
@@ -534,7 +533,7 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
             inv_w);
     }
 
-    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 
+    rdpq_write(rdp_words, RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE,
         0xC000 | (cmd_id << 8) | 
         (fmt->tex_mipmaps ? (fmt->tex_mipmaps-1) << 3 : 0) | 
         (fmt->tex_tile & 7));

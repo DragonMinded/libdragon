@@ -158,6 +158,88 @@ void test_rdpq_triangle(TestContext *ctx) {
     }
 }
 
+void test_rdpq_triangle_block_order(TestContext *ctx) {
+    RDPQ_INIT();
+
+    const int FBWIDTH = 64;
+    const int FBHEIGHT = 32;
+    surface_t direct = surface_alloc(FMT_RGBA16, FBWIDTH, FBHEIGHT);
+    surface_t blocked = surface_alloc(FMT_RGBA16, FBWIDTH, FBHEIGHT);
+    DEFER(surface_free(&direct));
+    DEFER(surface_free(&blocked));
+    surface_clear(&direct, 0);
+    surface_clear(&blocked, 0);
+
+    uint16_t red_pixels[8 * 8] __attribute__((aligned(8)));
+    uint16_t green_pixels[8 * 8] __attribute__((aligned(8)));
+    const uint16_t red = color_to_packed16(RGBA32(255, 0, 0, 255));
+    const uint16_t green = color_to_packed16(RGBA32(0, 255, 0, 255));
+    for (int i = 0; i < 8 * 8; ++i) {
+        red_pixels[i] = red;
+        green_pixels[i] = green;
+    }
+    data_cache_hit_writeback(red_pixels, sizeof(red_pixels));
+    data_cache_hit_writeback(green_pixels, sizeof(green_pixels));
+    const surface_t red_texture = surface_make_linear(red_pixels, FMT_RGBA16, 8, 8);
+    const surface_t green_texture = surface_make_linear(green_pixels, FMT_RGBA16, 8, 8);
+
+    const float left_a[5] = {4, 4, 0, 0, 1};
+    const float left_b[5] = {28, 4, 7, 0, 1};
+    const float left_c[5] = {4, 28, 0, 7, 1};
+    const float right_a[5] = {36, 4, 0, 0, 1};
+    const float right_b[5] = {60, 4, 7, 0, 1};
+    const float right_c[5] = {36, 28, 0, 7, 1};
+
+    void emit_pair(bool cpu_assembled) {
+        rdpq_set_mode_standard();
+        rdpq_mode_filter(FILTER_POINT);
+        rdpq_mode_combiner(RDPQ_COMBINER_TEX);
+        rdpq_tex_upload(TILE0, &red_texture, NULL);
+        (cpu_assembled ? rdpq_triangle_cpu : rdpq_triangle)(
+            &TRIFMT_TEX, left_a, left_b, left_c);
+        rdpq_tex_upload(TILE0, &green_texture, NULL);
+        (cpu_assembled ? rdpq_triangle_cpu : rdpq_triangle)(
+            &TRIFMT_TEX, right_a, right_b, right_c);
+    }
+
+    rdpq_set_color_image(&direct);
+    rdpq_set_scissor(0, 0, FBWIDTH, FBHEIGHT);
+    emit_pair(false);
+    rspq_wait();
+
+    rspq_block_begin();
+    emit_pair(false);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    rdpq_set_color_image(&blocked);
+    rdpq_set_scissor(0, 0, FBWIDTH, FBHEIGHT);
+    rspq_block_run(block);
+    rspq_wait();
+
+    uint16_t *direct_pixels = direct.buffer;
+    ASSERT_EQUAL_HEX(direct_pixels[8 * FBWIDTH + 8], red,
+        "direct left triangle has wrong texture");
+    ASSERT_EQUAL_HEX(direct_pixels[8 * FBWIDTH + 40], green,
+        "direct right triangle has wrong texture");
+    ASSERT_EQUAL_MEM(blocked.buffer, direct.buffer,
+        direct.stride * direct.height,
+        "block-recorded triangle stream changed texture/draw ordering");
+
+    surface_clear(&blocked, 0);
+    rspq_block_begin();
+    emit_pair(true);
+    rspq_block_t *cpu_block = rspq_block_end();
+    DEFER(rspq_block_free(cpu_block));
+    rdpq_set_color_image(&blocked);
+    rdpq_set_scissor(0, 0, FBWIDTH, FBHEIGHT);
+    rspq_block_run(cpu_block);
+    rspq_wait();
+    ASSERT_EQUAL_MEM(blocked.buffer, direct.buffer,
+        direct.stride * direct.height,
+        "CPU-assembled block triangle stream changed texture/draw ordering");
+}
+
 void test_rdpq_triangle_w1(TestContext *ctx) {
     RDPQ_INIT();
     debug_rdp_stream_init();
