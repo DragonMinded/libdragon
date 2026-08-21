@@ -3,6 +3,8 @@ all: savedoodle_eeprom4k.z64 savedoodle_eeprom16k.z64 savedoodle_sram256k.z64 \
 .PHONY: all
 
 BUILD_DIR = build
+# This example uses the eeprom, flashram and sram APIs, which are preview APIs
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 OBJS = $(BUILD_DIR)/savedoodle.o
