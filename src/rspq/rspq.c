@@ -109,13 +109,14 @@
  * 
  * Internally, double buffering is used to implement the queue. The size of
  * each of the buffers is RSPQ_DRAM_LOWPRI_BUFFER_SIZE. When a buffer is full,
- * the queue engine writes a #RSPQ_CMD_JUMP command with the address of the
- * other buffer, to tell the RSP to jump there when it is done. 
- * 
- * Moreover, just before the jump, the engine also enqueue a #RSPQ_CMD_WRITE_STATUS
- * command that sets the SP_STATUS_SIG_BUFDONE_LOW signal. This is used to
- * keep track when the RSP has finished processing a buffer, so that we know
- * it becomes free again for more commands.
+ * the low-priority queue engine stages the address of the other buffer with a
+ * #RSPQ_CMD_WRITE_WORD, then executes #RSPQ_CMD_SWAP_BUFFERS. The latter sets
+ * the buffer-done signal and jumps to the replacement buffer without passing
+ * through the command dispatcher between the two operations. The signal tells
+ * the CPU when a buffer becomes free for reuse, while the atomic jump prevents
+ * high-priority preemption from retaining a pointer into a buffer that the CPU
+ * is then allowed to clear. The high-priority queue cannot itself be
+ * preempted, so it retains the smaller status-plus-jump handoff.
  * 
  * This logic is implemented in #rspq_next_buffer.
  *
@@ -260,6 +261,12 @@ _Static_assert(RSPQ_MAX_COMMAND_SIZE * 4 <= RSPQ_DESCRIPTOR_MAX_SIZE);
     ((volatile uint32_t*)(ptr))[0] = ((cmd)<<24) | (arg1); \
     ptr += 3; \
 })
+
+/** @brief Number of words reserved for the lowpri buffer handoff sequence. */
+#define RSPQ_LOWPRI_HANDOFF_WORDS 5
+
+/** @brief Block-call slot temporarily reused by the lowpri buffer handoff. */
+#define RSPQ_LOWPRI_HANDOFF_SLOT 0
 
 static void rspq_crash_handler(rsp_snapshot_t *state);
 static void rspq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code);
@@ -657,15 +664,18 @@ static volatile uint32_t* rspq_switch_buffer(uint32_t *new, int size, bool clear
     // Notice that the buffer must have been cleared before, as the
     // command queue are expected to always contain 0 on unwritten data.
     // We don't do this for performance reasons.
-    assert(size >= RSPQ_MAX_COMMAND_SIZE+2);
+    int terminator_words = clear && rspq_ctx == &lowpri ?
+        RSPQ_LOWPRI_HANDOFF_WORDS : 2;
+    assert(size >= RSPQ_MAX_COMMAND_SIZE + terminator_words);
     if (clear) memset(new, 0, size * sizeof(uint32_t));
 
     // Switch to the new buffer, and calculate the new sentinel. The sentinel
     // must allow for a maximum size command (RSPQ_MAX_SHORT_COMMAND_SIZE) to
-    // be written, plus the special block terminator written by rspq_next_buffer
-    // which is 2 words.
+    // be written, plus either the lowpri handoff sequence or the two-word
+    // reservation used by highpri, blocks, and recorded queues.
     rspq_cur_pointer = new;
-    rspq_cur_sentinel = new + size - (RSPQ_MAX_SHORT_COMMAND_SIZE + 2);
+    rspq_cur_sentinel = new + size -
+        (RSPQ_MAX_SHORT_COMMAND_SIZE + terminator_words);
 
     // Return a pointer to the previous buffer
     return prev;
@@ -1150,11 +1160,29 @@ void rspq_next_buffer(void) {
     uint32_t *new = rspq_ctx->buffers[rspq_ctx->buf_idx];
     volatile uint32_t *prev = rspq_switch_buffer(new, rspq_ctx->buf_size, true);
 
-    // Terminate the previous buffer with an op to set SIG_BUFDONE
-    // (to notify when the RSP finishes the buffer), plus a jump to
-    // the new buffer.
-    rspq_append1(prev, RSPQ_CMD_WRITE_STATUS, rspq_ctx->sp_wstatus_set_bufdone);
-    rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(new));
+    if (rspq_ctx == &lowpri) {
+        // Stage the target in call slot 0. All previously scheduled block
+        // calls have returned before this top-level handoff can execute, so
+        // the slot is inactive. A highpri request may safely preempt after
+        // this setup command because SIG_BUFDONE has not been set yet.
+        const uint32_t handoff_slot_offset = RSPQ_LOWPRI_HANDOFF_SLOT << 2;
+        rspq_append2(prev, RSPQ_CMD_WRITE_WORD,
+            offsetof(rsp_queue_t, rspq_pointer_stack) + handoff_slot_offset,
+            PhysicalAddr(new));
+
+        // SWAP_BUFFERS sets SIG_BUFDONE, loads the staged target, and jumps to
+        // it without returning to RSPQ_Loop. Reusing the same slot for its
+        // discarded return address is safe because the target is loaded first.
+        rspq_append3(prev, RSPQ_CMD_SWAP_BUFFERS,
+            handoff_slot_offset, handoff_slot_offset,
+            rspq_ctx->sp_wstatus_set_bufdone);
+    } else {
+        // Highpri execution cannot itself be preempted, so its original compact
+        // handoff does not expose the lowpri race described above.
+        rspq_append1(prev, RSPQ_CMD_WRITE_STATUS,
+            rspq_ctx->sp_wstatus_set_bufdone);
+        rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(new));
+    }
     assert(prev <= (uint32_t*)(rspq_ctx->buffers[1-rspq_ctx->buf_idx]) + rspq_ctx->buf_size);
     rspq_flush_internal();
 }
@@ -1836,4 +1864,3 @@ extern inline rspq_write_t rspq_write_begin(uint32_t ovl_id, uint32_t cmd_id, in
 extern inline void rspq_write_arg(rspq_write_t *w, uint32_t value);
 extern inline void rspq_write_end(rspq_write_t *w);
 extern inline void rspq_call_deferred(void (*func)(void *), void *arg);
-
