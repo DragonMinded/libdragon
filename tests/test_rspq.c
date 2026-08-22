@@ -1,10 +1,12 @@
 #include <malloc.h>
+#include <stddef.h>
 #include <string.h>
 
 #include <rspq.h>
 #include <rspq_constants.h>
 #include <rdp.h>
 #include <rdpq_constants.h>
+#include "../src/rspq/rspq_internal.h"
 #include "test_rspq_constants.h"
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in rsp_test.S
@@ -203,6 +205,93 @@ void test_rspq_wrap(TestContext *ctx)
     for (uint32_t i = 0; i < block_count; i++)
         rspq_noop();
     
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_buffer_handoff_atomic(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    volatile uint32_t *first_buffer = rspq_cur_pointer;
+    uint32_t command_count = 0;
+
+    // Fill the initial low-priority buffer until rspq_next_buffer switches to
+    // its replacement. Each no-op occupies exactly one word, so the handoff
+    // command starts immediately after the commands counted here.
+    do {
+        rspq_noop();
+        command_count++;
+    } while ((uintptr_t)rspq_cur_pointer >= (uintptr_t)first_buffer &&
+             (uintptr_t)rspq_cur_pointer <
+                 (uintptr_t)(first_buffer + RSPQ_DRAM_LOWPRI_BUFFER_SIZE));
+
+    volatile uint32_t *handoff = first_buffer + command_count;
+    ASSERT_EQUAL_HEX(handoff[0] >> 24, RSPQ_CMD_WRITE_WORD,
+        "buffer handoff must stage its target before signaling completion");
+    ASSERT_EQUAL_HEX(handoff[0] & 0x00FFFFFF,
+        offsetof(rsp_queue_t, rspq_pointer_stack),
+        "buffer handoff stages its target in the wrong pointer slot");
+    ASSERT_EQUAL_HEX(handoff[1],
+        PhysicalAddr((void *)rspq_cur_pointer),
+        "buffer handoff has the wrong jump target");
+    ASSERT_EQUAL_HEX(handoff[2] >> 24, RSPQ_CMD_SWAP_BUFFERS,
+        "buffer completion and jump must use one atomic RSPQ command");
+    ASSERT_EQUAL_HEX(handoff[2] & 0x00FFFFFF, 0,
+        "buffer handoff loads its target from the wrong pointer slot");
+    ASSERT_EQUAL_HEX(handoff[3], 0,
+        "buffer handoff saves its discarded return to the wrong pointer slot");
+    ASSERT_EQUAL_HEX(handoff[4], SP_WSTATUS_SET_SIG_BUFDONE_LOW,
+        "buffer handoff has the wrong completion signal");
+    ASSERT_EQUAL_HEX(handoff[5], 0,
+        "buffer handoff must not leave a separate jump command");
+
+    ASSERT(rspq_cur_sentinel == rspq_cur_pointer +
+            RSPQ_DRAM_LOWPRI_BUFFER_SIZE -
+            (RSPQ_MAX_SHORT_COMMAND_SIZE + 5),
+        "lowpri sentinel must reserve the full atomic handoff");
+
+    // Exercise repeated highpri requests immediately after lowpri wraps. The
+    // layout assertions above make the old implementation fail deterministically;
+    // this loop also runs the handoff under the preemption pattern that exposed
+    // the original race.
+    for (int i = 0; i < 32; i++) {
+        volatile uint32_t *buffer = rspq_cur_pointer;
+        uint32_t buffer_command_count = 0;
+        do {
+            rspq_noop();
+            buffer_command_count++;
+        } while (rspq_cur_pointer == buffer + buffer_command_count);
+
+        rspq_highpri_begin();
+        rspq_noop();
+        rspq_highpri_end();
+    }
+    rspq_highpri_sync();
+
+    // Highpri cannot itself be preempted, so it should retain the compact
+    // status-plus-jump handoff and its original usable buffer capacity.
+    rspq_highpri_begin();
+    volatile uint32_t *first_highpri_buffer = rspq_cur_pointer;
+    uint32_t highpri_command_count = 0;
+    do {
+        rspq_noop();
+        highpri_command_count++;
+    } while (rspq_cur_pointer ==
+        first_highpri_buffer + highpri_command_count);
+
+    volatile uint32_t *highpri_handoff =
+        first_highpri_buffer + highpri_command_count;
+    ASSERT_EQUAL_HEX(highpri_handoff[0] >> 24, RSPQ_CMD_WRITE_STATUS,
+        "highpri handoff should retain its compact completion signal");
+    ASSERT_EQUAL_HEX(highpri_handoff[1] >> 24, RSPQ_CMD_JUMP,
+        "highpri handoff should retain its compact jump");
+    ASSERT(rspq_cur_sentinel == rspq_cur_pointer +
+            RSPQ_DRAM_HIGHPRI_BUFFER_SIZE -
+            (RSPQ_MAX_SHORT_COMMAND_SIZE + 2),
+        "highpri sentinel should reserve only its two-word handoff");
+    rspq_highpri_end();
+    rspq_highpri_sync();
+
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 

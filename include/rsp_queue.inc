@@ -649,10 +649,12 @@ rspq_switch_highpri:
     # as normal command by CPU when going back into lowpri.
     #
     # ARGS:
-    #   a0: Pointer stack slot that contains the address to switch to.
-    #       (either RSPQ_LOWPRI_CALL_SLOT<<2 or RSPQ_HIGHPRI_CALL_SLOT<<2)
-    #   a1: Pointer stack slot where to save the current address to.
-    #       (either RSPQ_LOWPRI_CALL_SLOT<<2 or RSPQ_HIGHPRI_CALL_SLOT<<2)
+    #   a0: Byte offset of the pointer-stack slot that contains the address
+    #       to switch to. Highpri switching uses RSPQ_LOWPRI_CALL_SLOT or
+    #       RSPQ_HIGHPRI_CALL_SLOT; lowpri buffer handoff uses an inactive
+    #       block-call slot whose target was staged by RSPQCmd_WriteWord.
+    #   a1: Byte offset of the pointer-stack slot where the current address is
+    #       saved. This may match a0 when the saved address is discarded.
     #   a2: New mask to check for HIGHPRI signal (0 in highpri mode).
     #############################################################
     .func RSPQCmd_SwapBuffers
