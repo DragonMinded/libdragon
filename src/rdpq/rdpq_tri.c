@@ -435,11 +435,9 @@ void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v
 
     uint32_t cmd_id;
     uint32_t rdp_words = __rdpq_triangle_cmd(fmt, &cmd_id);
-    uint32_t size = rdp_words * 2; // rspq_write_begin's size is in 32-bit words, not 64-bit RDP words
+    uint32_t size = rdp_words * 2; // rdpq_write_begin's size is in 32-bit words, not 64-bit RDP words
 
-    if (__builtin_expect(rspq_block != NULL, 0))
-        __rdpq_block_reserve(rdp_words);
-    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, cmd_id, size);
+    rspq_write_t w = rdpq_write_begin(rdp_words, RDPQ_OVL_ID, cmd_id, size);
 
     if( v1[fmt->pos_offset + 1] > v2[fmt->pos_offset + 1] ) { SWAP(v1, v2); }
     if( v2[fmt->pos_offset + 1] > v3[fmt->pos_offset + 1] ) { SWAP(v2, v3); }
