@@ -644,9 +644,10 @@ rspq_switch_highpri:
     #############################################################
     # RSPQCmd_SwapBuffers
     #
-    # Switch between lowpri and highpri or viceversa. This is
-    # called by RSP itself to go into highpri mode, and scheduled
-    # as normal command by CPU when going back into lowpri.
+    # Switch between buffers (eg: lowpri to highpri or viceversa). 
+    # This is called by RSP itself to go into highpri mode, and scheduled
+    # as normal command by CPU when going back into lowpri, or when switching
+    # between lowpri buffers.
     #
     # ARGS:
     #   a0: Byte offset of the pointer-stack slot that contains the address
@@ -655,7 +656,8 @@ rspq_switch_highpri:
     #       block-call slot whose target was staged by RSPQCmd_WriteWord.
     #   a1: Byte offset of the pointer-stack slot where the current address is
     #       saved. This may match a0 when the saved address is discarded.
-    #   a2: New mask to check for HIGHPRI signal (0 in highpri mode).
+    #   a2: Write mask for SP_STATUS register. Useful to change signals
+    #       atomically while swapping buffers.
     #############################################################
     .func RSPQCmd_SwapBuffers
 RSPQCmd_SwapBuffers:
