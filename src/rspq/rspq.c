@@ -111,12 +111,8 @@
  * each of the buffers is RSPQ_DRAM_LOWPRI_BUFFER_SIZE. When a buffer is full,
  * the low-priority queue engine stages the address of the other buffer with a
  * #RSPQ_CMD_WRITE_WORD, then executes #RSPQ_CMD_SWAP_BUFFERS. The latter sets
- * the buffer-done signal and jumps to the replacement buffer without passing
- * through the command dispatcher between the two operations. The signal tells
- * the CPU when a buffer becomes free for reuse, while the atomic jump prevents
- * high-priority preemption from retaining a pointer into a buffer that the CPU
- * is then allowed to clear. The high-priority queue cannot itself be
- * preempted, so it retains the smaller status-plus-jump handoff.
+ * the buffer-done signal and jumps to the other buffer. The signal tells
+ * the CPU when a buffer becomes free for reuse.
  * 
  * This logic is implemented in #rspq_next_buffer.
  *
@@ -1161,10 +1157,11 @@ void rspq_next_buffer(void) {
     volatile uint32_t *prev = rspq_switch_buffer(new, rspq_ctx->buf_size, true);
 
     if (rspq_ctx == &lowpri) {
-        // Stage the target in call slot 0. All previously scheduled block
-        // calls have returned before this top-level handoff can execute, so
-        // the slot is inactive. A highpri request may safely preempt after
-        // this setup command because SIG_BUFDONE has not been set yet.
+        // Stage the target in call slot 0 (RSPQ_LOWPRI_HANDOFF_SLOT).
+        // All previously scheduled block calls have returned before this
+        // top-level handoff can execute, so the slot is inactive. A highpri
+        // request may safely preempt after this setup command because SIG_BUFDONE
+        // has not been set yet.
         const uint32_t handoff_slot_offset = RSPQ_LOWPRI_HANDOFF_SLOT << 2;
         rspq_append2(prev, RSPQ_CMD_WRITE_WORD,
             offsetof(rsp_queue_t, rspq_pointer_stack) + handoff_slot_offset,
@@ -1177,8 +1174,8 @@ void rspq_next_buffer(void) {
             handoff_slot_offset, handoff_slot_offset,
             rspq_ctx->sp_wstatus_set_bufdone);
     } else {
-        // Highpri execution cannot itself be preempted, so its original compact
-        // handoff does not expose the lowpri race described above.
+        // Highpri execution cannot itself be preempted, so we can use a smaller
+        // sequence instead, which would be vulnerable to be preempted in the middle.
         rspq_append1(prev, RSPQ_CMD_WRITE_STATUS,
             rspq_ctx->sp_wstatus_set_bufdone);
         rspq_append1(prev, RSPQ_CMD_JUMP, PhysicalAddr(new));
@@ -1458,6 +1455,9 @@ void rspq_block_run(rspq_block_t *block)
     // in highpri mode (to avoid stepping on the call stack of lowpri). This
     // would basically mean that a block can either work in highpri or in lowpri
     // mode, but it might be an acceptable limitation.
+    // NOTE: during highpri mode, the slot 0 (RSPQ_LOWPRI_HANDOFF_SLOT) might be
+    // in-use if highpri preempted lowpri exactly during a buffer swap, so make
+    // sure to avoid using it.
     assertf(rspq_ctx != &highpri, "block run is not supported in highpri mode");
 
     if((uint32_t)block < RSPQ_BLOCK_PLACEHOLDER_COUNT)
