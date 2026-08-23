@@ -350,9 +350,7 @@ static void destex_draw_triangle(rdpq_tile_t tile,
     int yh = y0 * 4;
     int yl = y1 * 4;
     int ym = (yh + yl) / 2;
-    if (__builtin_expect(rspq_block_is_recording(), 0))
-        __rdpq_block_reserve(12);
-    rspq_write_t cmd = rspq_write_begin(RDPQ_OVL_ID, RDPQ_CMD_TRI_TEX, 24);
+    rspq_write_t cmd = rdpq_write_begin(12, RDPQ_OVL_ID, RDPQ_CMD_TRI_TEX, 24);
 
     /* Parallel major/minor edges make the triangle cover one rectangle. */
     rspq_write_arg(&cmd, (1 << 23) | (tile << 16) | (yl & 0x3FFF));
