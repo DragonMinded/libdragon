@@ -279,6 +279,11 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 		$(N64_DSOMSYM) -e "$$EXTERNS_FILE" "$$INPUT_FILE" $@; \
 	fi
 	
+# If a recipe fails, delete the target it was building. Otherwise a partially
+# written file would be left behind, and the next build would consider it
+# up-to-date and never retry the failed step.
+.DELETE_ON_ERROR:
+
 ifneq ($(V),1)
 .SILENT:
 endif
