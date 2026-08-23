@@ -37,6 +37,26 @@ static const CodecInfo CODECS[] = {
 
 static std::mutex log_mutex;
 
+static std::mutex artifact_mutex;
+static std::vector<std::string> artifacts;
+
+void artifact_register(const std::string& path) {
+	std::lock_guard<std::mutex> lock(artifact_mutex);
+	artifacts.push_back(path);
+}
+
+void artifact_commit_all(void) {
+	std::lock_guard<std::mutex> lock(artifact_mutex);
+	artifacts.clear();
+}
+
+static void artifact_delete_all(void) {
+	std::lock_guard<std::mutex> lock(artifact_mutex);
+	for (const auto& p : artifacts)
+		remove(p.c_str());
+	artifacts.clear();
+}
+
 __attribute__((format(printf, 2, 3)))
 void verbose(int level, const char *str, ...) {
 	if (cfg.verbose < level) return;
@@ -50,6 +70,7 @@ void verbose(int level, const char *str, ...) {
 
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...) {
+	artifact_delete_all();
 	std::lock_guard<std::mutex> lock(log_mutex);
 	va_list va;
 	va_start(va, str);
@@ -265,6 +286,8 @@ void check_tool_available(const std::string& tool_path, const char *tool_name) {
 }
 
 int main(int argc, char **argv) {
+	winconsole_utf8();
+
 	if (argc < 2) {
 		usage();
 		return 1;
@@ -464,6 +487,9 @@ int main(int argc, char **argv) {
 
 	// Sync audio thread (errors will abort via fatal()).
 	if (audio_thread.joinable()) audio_thread.join();
+
+	// Everything went fine: the produced files can now be kept.
+	artifact_commit_all();
 
 	// If we used the interactive progress bar (stderr single-line updates),
 	// end with a single newline so the shell prompt/logs start on a fresh line.

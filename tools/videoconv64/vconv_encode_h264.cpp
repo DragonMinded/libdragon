@@ -10,8 +10,11 @@
 
 #include "videoconv64.h"
 
+#include "../common/utils.h"
+
 #include <math.h>
 #include <string.h>
+#include <errno.h>
 
 static const uint8_t H264_LD_BUFFER_UUID[16] = {
 	'L', 'I', 'B', 'D', 'R', 'A', 'G', 'O', 'N', 0, 0, 0, 0, 0, 0, 0,
@@ -83,24 +86,6 @@ static bool h264_split_nals(const std::vector<uint8_t>& data, std::vector<H264Na
 	}
 
 	return !nals->empty();
-}
-
-static bool h264_read_file(const std::string& path, std::vector<uint8_t> *data) {
-	FILE *f = fopen(path.c_str(), "rb");
-	if (!f) return false;
-	if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return false; }
-	long size = ftell(f);
-	if (size < 0) { fclose(f); return false; }
-	if (fseek(f, 0, SEEK_SET) != 0) { fclose(f); return false; }
-
-	data->resize((size_t)size);
-	if (!data->empty() && fread(data->data(), 1, data->size(), f) != data->size()) {
-		fclose(f);
-		return false;
-	}
-
-	fclose(f);
-	return true;
 }
 
 static void h264_append_be32(std::vector<uint8_t> *out, uint32_t v) {
@@ -210,7 +195,10 @@ static std::vector<uint8_t> h264_make_max_slice_sei(uint32_t max_slice_size) {
 static bool h264_write_nals(const std::string& path, const std::vector<H264Nal>& nals) {
 	std::string tmp = path + ".tmp";
 	FILE *out = fopen(tmp.c_str(), "wb");
-	if (!out) return false;
+	if (!out) {
+		verbose(1, "H.264: cannot create %s (%s)", tmp.c_str(), strerror(errno));
+		return false;
+	}
 
 	bool ok = true;
 	for (const H264Nal& nal : nals) {
@@ -223,10 +211,12 @@ static bool h264_write_nals(const std::string& path, const std::vector<H264Nal>&
 	if (fclose(out) != 0)
 		ok = false;
 	if (!ok) {
+		verbose(1, "H.264: write failed for %s (%s)", tmp.c_str(), strerror(errno));
 		remove(tmp.c_str());
 		return false;
 	}
 	if (rename(tmp.c_str(), path.c_str()) != 0) {
+		verbose(1, "H.264: rename failed for %s (%s)", tmp.c_str(), strerror(errno));
 		remove(tmp.c_str());
 		return false;
 	}
@@ -254,9 +244,11 @@ static void h264_insert_nal(std::vector<H264Nal> *nals, size_t idx, const std::v
 }
 
 static bool h264_embed_max_slice_metadata(const std::string& path) {
-	std::vector<uint8_t> data;
-	if (!h264_read_file(path, &data))
+	std::vector<uint8_t> data = slurp(path.c_str());
+	if (data.empty()) {
+		verbose(1, "H.264: cannot read %s (%s)", path.c_str(), strerror(errno));
 		return false;
+	}
 	std::vector<H264Nal> nals;
 	if (!h264_split_nals(data, &nals))
 		return false;
@@ -321,6 +313,7 @@ static std::string make_output_video_path(const CodecInfo &ci) {
 EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 	EncodeResult er;
 	er.video_path = make_output_video_path(ci);
+	artifact_register(er.video_path);
 
 	// H.264 output is always forced to BT.709 + Full range.
 	std::string vf = build_filterchain(ar, "bt709", "pc");

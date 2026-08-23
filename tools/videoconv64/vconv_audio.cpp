@@ -201,6 +201,7 @@ AudioResult vconv_audio_bridge(std::vector<seek_point_t> seek_points, double vid
 
 		verbose(1, "Converting audio with audioconv64...");
 		std::string out_wav64 = output_wav64_path(out_idx, total_sources);
+		artifact_register(out_wav64);
 		std::string produced_wav64 = join_path(effective_output_dir(), strip_ext(base_name(tmpwav)) + ".wav64");
 		{
 			std::vector<std::string> cmd = {

@@ -10,6 +10,9 @@
 
 #include "videoconv64.h"
 
+#include <errno.h>
+#include <string.h>
+
 // Post-process MPEG-1 elementary stream to prepend a proprietary SAR payload
 // as MPEG-1 user_data (0xB2) so libdragon can use arbitrary PAR.
 // This keeps the file a valid MPEG-1 elementary stream.
@@ -19,11 +22,28 @@ static bool mpeg1_prepend_userdata_sar(const std::string& path, int sar_num, int
 
 	// Stream copy: write user_data first, then append the original file.
 	FILE *in = fopen(path.c_str(), "rb");
-	if (!in) return false;
+	if (!in) {
+		verbose(1, "MPEG-1: cannot open %s (%s)", path.c_str(), strerror(errno));
+		return false;
+	}
 
 	std::string tmp = path + ".tmp";
 	FILE *out = fopen(tmp.c_str(), "wb");
-	if (!out) { fclose(in); return false; }
+	if (!out) {
+		verbose(1, "MPEG-1: cannot create %s (%s)", tmp.c_str(), strerror(errno));
+		fclose(in);
+		return false;
+	}
+
+	// Never leave the temporary file behind, otherwise a retry would find it
+	// in the way, and the output directory would be littered with garbage.
+	auto fail = [&](const char *what) {
+		verbose(1, "MPEG-1: %s failed for %s (%s)", what, tmp.c_str(), strerror(errno));
+		if (in) fclose(in);
+		if (out) fclose(out);
+		remove(tmp.c_str());
+		return false;
+	};
 
 	// Write user_data (start code + ASCII payload) in one shot.
 	// Note: fprintf/fputs can't be used here because the start code contains NUL bytes.
@@ -31,27 +51,32 @@ static bool mpeg1_prepend_userdata_sar(const std::string& path, int sar_num, int
 	userdata.reserve(4 + 32);
 	userdata.append("\x00\x00\x01\xB2", 4);
 	userdata += "LD_SAR=" + std::to_string(sar_num) + ":" + std::to_string(sar_den) + "\n";
-	if (fwrite(userdata.data(), 1, userdata.size(), out) != userdata.size()) {
-		fclose(in); fclose(out); return false;
-	}
+	if (fwrite(userdata.data(), 1, userdata.size(), out) != userdata.size())
+		return fail("write");
 
 	// Copy the rest of the stream without buffering the whole file in memory.
 	uint8_t buf[64 * 1024];
 	while (true) {
 		size_t n = fread(buf, 1, sizeof(buf), in);
 		if (n > 0) {
-			if (fwrite(buf, 1, n, out) != n) { fclose(in); fclose(out); return false; }
+			if (fwrite(buf, 1, n, out) != n) return fail("write");
 		}
 		if (n < sizeof(buf)) {
-			if (ferror(in)) { fclose(in); fclose(out); return false; }
+			if (ferror(in)) return fail("read");
 			break; // EOF
 		}
 	}
 
 	fclose(in);
-	fclose(out);
+	in = NULL;
+	if (fclose(out) != 0) {
+		out = NULL;
+		return fail("write");
+	}
+	out = NULL;
 
-	if (rename(tmp.c_str(), path.c_str()) != 0) return false;
+	if (rename(tmp.c_str(), path.c_str()) != 0)
+		return fail("rename");
 
 	return true;
 }
@@ -109,6 +134,7 @@ static void cleanup_passlog(const std::string& passlog_prefix) {
 EncodeResult vconv_encode_mpeg1(const CodecInfo &ci, const AnalysisResult &ar) {
 	EncodeResult er;
 	er.video_path = make_output_video_path(ci);
+	artifact_register(er.video_path);
 
 	// MPEG1 output is always forced to BT.601 + TV range.
 	std::string vf = build_filterchain(ar, "bt601", "tv");
