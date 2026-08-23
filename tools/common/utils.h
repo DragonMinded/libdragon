@@ -174,7 +174,8 @@ static std::vector<uint8_t> slurp(const char *fn)
     fseek(f, 0, SEEK_END);
     ret.resize(ftell(f));
     fseek(f, 0, SEEK_SET);
-    fread(&ret[0], 1, ret.size(), f);
+    if (!ret.empty() && fread(&ret[0], 1, ret.size(), f) != ret.size())
+        ret.clear();
     fclose(f);
     return ret;
 }
