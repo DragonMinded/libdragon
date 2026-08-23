@@ -1,3 +1,4 @@
+LIBDRAGON_PREVIEW = 2		# blendfx still in preview
 BUILD_DIR=build
 include $(N64_INST)/include/n64.mk
 

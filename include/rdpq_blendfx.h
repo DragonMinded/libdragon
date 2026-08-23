@@ -18,6 +18,7 @@
 #define LIBDRAGON_RDPQ_BLENDFX_H
 
 #include "rdpq_tex.h"
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,6 +52,7 @@ typedef struct {
 
 /**
  * @brief Set the parameters for a built-in BlendFX effect.
+ * @preview
  *
  * This function configures alpha comparison, the combiner, and the color
  * registers used by the selected effect. It does not select or reset the base
@@ -84,11 +86,13 @@ typedef struct {
  * @see rdpq_blendfx_blit
  * @see rdpq_mode_combiner
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_set_blendfx_parms(rdpq_blendfx_t effect,
     const rdpq_blendfx_parms_t *parms);
 
 /**
  * @brief Begin a sequence of BlendFX blits that reuse the same source.
+ * @preview
  *
  * Use a multi scope when drawing one compatible source repeatedly. The first
  * blit prepares the source, and later blits can reuse it without another source
@@ -105,20 +109,24 @@ void rdpq_set_blendfx_parms(rdpq_blendfx_t effect,
  * @see rdpq_blendfx_multi_end
  * @see rdpq_blendfx_blit
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_blendfx_multi_begin(void);
 
 /**
  * @brief Finish a BlendFX multi-blit sequence.
+ * @preview
  *
  * Ending the outermost scope discards reusable source state. It emits no RDP
  * commands.
  *
  * @see rdpq_blendfx_multi_begin
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_blendfx_multi_end(void);
 
 /**
  * @brief Composite a surface with the active color image.
+ * @preview
  *
  * This function follows the positioning, source-rectangle, hotspot, scaling,
  * flipping, and rotation conventions of #rdpq_tex_blit. The selected source is
@@ -151,11 +159,13 @@ void rdpq_blendfx_multi_end(void);
  * @see rdpq_tex_blit
  * @see rdpq_blitparms_t
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_blendfx_blit(const surface_t *surf, float x0, float y0,
     const rdpq_blitparms_t *parms);
 
 /**
  * @brief Composite with source coordinates scaled inside unchanged draw bounds.
+ * @preview
  *
  * This variant has the same behavior as #rdpq_blendfx_blit, but scales source
  * coordinates around the transformation hotspot without changing destination
@@ -174,6 +184,7 @@ void rdpq_blendfx_blit(const surface_t *surf, float x0, float y0,
  * @see rdpq_blendfx_blit
  * @see rdpq_blitparms_t
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_blendfx_blit_uv_scaled(const surface_t *surf, float x0, float y0,
     float uv_scale, const rdpq_blitparms_t *parms);
 
