@@ -13,11 +13,11 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stddef.h>
 #include <assert.h>
 #include "dragonfs.h"
 #include "../../src/dfs_internal.h"
 #include "../common/polyfill.h"
+#include "../common/rompak.h"
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define SWAPLONG(i) (i)
@@ -775,6 +775,33 @@ void usage(void)
     printf("   dumpdfs -e <file.dfs|file.z64> file -- Extract single file to stdout\n");
 }
 
+static void *load_dfs(const char *fn)
+{
+    FILE *fp = fopen(fn, "rb");
+    int offset = 0;
+    if (!strstr(fn, ".dfs")) {
+        long off = rompak_find_ext(fp, ".dfs");
+        if (off < 0)
+            return NULL;
+        offset = (int)off;
+    }
+
+    fseek(fp, 0, SEEK_END);
+    int size = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    uint8_t *buf = malloc(size);
+    assert(buf);
+    fread(buf, 1, size, fp);
+    fclose(fp);
+
+    if (dfs_init_pc(buf + offset, 1) != DFS_ESUCCESS) {
+        fprintf(stderr, "Invalid DragonFS filesystem\n");
+        free(buf);
+        return NULL;
+    }
+    return buf;
+}
+
 int main( int argc, char *argv[] )
 {
     winconsole_utf8();
@@ -804,34 +831,9 @@ int main( int argc, char *argv[] )
         case 'l':
         case 'L':
         {
-            /* List files in DFS */
-            FILE *fp = fopen( argv[2], "rb" );
-
-            fseek( fp, 0, SEEK_END );
-            int lSize = ftell( fp );
-            fseek( fp, 0, SEEK_SET );
-            
-            void *filesystem = malloc( lSize );
-            fread( filesystem, 1, lSize, fp );
-            fclose( fp );
-
-            int offset = 0;
-            if (!strstr(argv[2], ".dfs"))
-            {
-                void *fs = memmem(filesystem, lSize, ROOT_PATH, strlen(ROOT_PATH));
-                if (!fs)
-                {
-                    fprintf(stderr, "cannot find DragonFS in ROM\n");
-                    return -1;
-                }
-                offset = (fs - filesystem) - offsetof(directory_entry_t, path);
-            }
-
-            if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)
-            {
-                fprintf(stderr, "Invalid DragonFS filesystem\n");
+            void *filesystem = load_dfs(argv[2]);
+            if (!filesystem)
                 return -1;
-            }
 
             list_dir( "/", 0 );
 
@@ -847,34 +849,9 @@ int main( int argc, char *argv[] )
                 return -1;
             }
 
-            /* Extract file */
-            FILE *fp = fopen( argv[2], "rb" );
-
-            fseek( fp, 0, SEEK_END );
-            int lSize = ftell( fp );
-            fseek( fp, 0, SEEK_SET );
-            
-            void *filesystem = malloc( lSize );
-            fread( filesystem, 1, lSize, fp );
-            fclose( fp );
-
-            int offset = 0;
-            if (!strstr(argv[2], ".dfs"))
-            {
-                void *fs = memmem(filesystem, lSize, ROOT_PATH, strlen(ROOT_PATH));
-                if (!fs)
-                {
-                    fprintf(stderr, "cannot find DragonFS in ROM\n");
-                    return -1;
-                }
-                offset = (fs - filesystem) - offsetof(directory_entry_t, path);
-            }
-
-            if (dfs_init_pc( filesystem+offset, 1 ) != DFS_ESUCCESS)
-            {
-                fprintf(stderr, "Invalid DragonFS filesystem\n");
+            void *filesystem = load_dfs(argv[2]);
+            if (!filesystem)
                 return -1;
-            }
             
             int fl = dfs_open( argv[3] );
             if (fl < 0)

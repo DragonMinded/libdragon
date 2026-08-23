@@ -117,7 +117,7 @@ void __lookahead_buf_init(__lookahead_buf_t *lb, int fd)
     lb->fd = fd;
 
     #ifdef N64
-    uint32_t rom_base = 0;
+    pi_addr_t rom_base = 0;
     if (ioctl(fd, IODFS_GET_ROM_BASE, &rom_base) >= 0) {
         lb->rom_base = rom_base;
     }

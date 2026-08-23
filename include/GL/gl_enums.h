@@ -2,9 +2,13 @@
  * @file gl_enums.h
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief OpenGL enumeration and constant definitions for N64 implementation.
+ * @preview
  */
 #ifndef __LIBDRAGON_GL_ENUMS_H
 #define __LIBDRAGON_GL_ENUMS_H
+
+// No LIBDRAGON_PREVIEW_HEADER here: this header is only reached through gl.h,
+// which already reports the error. Gating it as well would just report it twice.
 
 #define GL_BYTE                                         0x1400
 #define GL_UNSIGNED_BYTE                                0x1401

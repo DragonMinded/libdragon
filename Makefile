@@ -16,7 +16,7 @@ N64_INCLUDEDIR = $(CURDIR)/include
 # for libdragon specifically via a make override.
 N64_BACKTRACE_FILE_PREFIX=libdragon
 
-LIBDRAGON_CFLAGS = -I$(CURDIR)/src
+LIBDRAGON_CFLAGS = -I$(CURDIR)/src -D__LIBDRAGON_INTERNAL_BUILD
 
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
@@ -88,6 +88,7 @@ LIBDRAGON_OBJS += \
 	$(BUILD_DIR)/model64.o \
 	$(BUILD_DIR)/a3d.o \
 	$(BUILD_DIR)/sram.o \
+	$(BUILD_DIR)/flashram.o \
 	$(BUILD_DIR)/ucontext.o \
 	$(BUILD_DIR)/ucontext_asm.o \
 	$(BUILD_DIR)/coroutine.o
@@ -227,6 +228,7 @@ test:
 	$(MAKE) -C tests
 	$(MAKE) -C tests/cpakfs test
 	$(MAKE) -C tests/hashtable test
+	$(MAKE) -C tests/preview test
 	python3 -m unittest discover tools/cpaktool/tests
 
 test-clean: $(INSTALLDIR)/include/n64.mk

@@ -341,6 +341,7 @@ static bool is_main_exe_text_address(uint32_t addr)
 
 symtable_header_t symt_open(void *addr) {
     uint32_t sym_rom = 0;
+    uint32_t addr_base = 0;
     if(is_main_exe_text_address((uint32_t)addr)) {
         //Open SYMT from rompak
         static uint32_t mainexe_symt = 0xFFFFFFFF;
@@ -356,8 +357,9 @@ symtable_header_t symt_open(void *addr) {
             module = __bt_lookup_module(addr);
         }
         if(module && module->sym_romofs != 0) {
-            //Read module SYMT
+            //Read module SYMT (addresses are ELF-relative; rebase via prog_base)
             sym_rom = module->sym_romofs;
+            addr_base = (uint32_t)module->prog_base;
         } else {
             sym_rom = 0;
         }
@@ -381,11 +383,15 @@ symtable_header_t symt_open(void *addr) {
     }
 
     symt_header.rom_offset = sym_rom;
+    symt_header.addr_base = addr_base;
     return symt_header;
 }
 
 int symt_find_symbol(symtable_header_t *symt, uint32_t addr, symtable_entry_t *entry, int max_entries)
 {
+    // Convert runtime PC to ELF-relative address (no-op for main executable)
+    addr -= symt->addr_base;
+
     // Binary search in the chunk index
     int min = 0;
     int max = symt->num_chunks - 1;

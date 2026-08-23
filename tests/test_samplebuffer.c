@@ -41,6 +41,85 @@ static waveform_t sb_wave = {
 	.len = 1 << 30, .read = sb_prod_read, .append_units = SB_CHUNK,
 };
 
+static waveform_t sb_rsp_wave = {
+	.name = "fake-rsp", .bits = 16, .channels = 1, .frequency = 48000,
+	.len = 1 << 30, .append_units = 1024, .rsp_written = true,
+};
+
+// ULC produces an aligned full block and undoes the invalid tail. Verify that
+// reusing its stereo ring for mono keeps the next RSP destination aligned.
+static bool sb_rsp_undo_alignment(void)
+{
+	void *mem = malloc_uncached(16384);
+	assertf(mem != NULL, "malloc_uncached failed");
+
+	samplebuffer_t sb = {0};
+	samplebuffer_init(&sb, mem, 16384, 0);
+	samplebuffer_set_bps(&sb, 32);
+	samplebuffer_set_waveform(&sb, &sb_rsp_wave, NULL);
+
+	// 42 stereo frames occupy 168 bytes (aligned), but carrying the numeric
+	// head 42 into a mono configuration would address byte 84.
+	samplebuffer_append(&sb, 1024);
+	samplebuffer_undo(&sb, 1024 - 42);
+	samplebuffer_flush(&sb);
+	samplebuffer_set_bps(&sb, 16);
+	samplebuffer_set_waveform(&sb, &sb_rsp_wave, NULL);
+	void *mono = samplebuffer_append(&sb, 1024);
+	bool ok = ((uintptr_t)mono & 7) == 0;
+
+	char line[96];
+	snprintf(line, sizeof(line), "  %-22s %s\n",
+		"rsp undo/reconfigure", ok ? "PASS" : "FAIL");
+	printf("%s", line);
+	debugf("%s", line);
+
+	memset(&sb, 0, sizeof(sb));
+	free_uncached(mem);
+	return ok;
+}
+
+// Same trim, but the waveform loops on itself: the buffer restarts through a
+// flush, with no reconfiguration in between. Whatever the trim left behind, the
+// next block must still land on an 8-byte boundary.
+static bool sb_rsp_trim_alignment(void)
+{
+	void *mem = malloc_uncached(16384);
+	assertf(mem != NULL, "malloc_uncached failed");
+	bool ok = true;
+
+	for (int bps = 16; bps <= 32; bps *= 2) {
+		// A waveform ends at an arbitrary sample, so the kept part of the last
+		// block covers every phase of the 8-byte boundary.
+		for (int keep = 1; keep <= 8 && ok; keep++) {
+			samplebuffer_t sb = {0};
+			samplebuffer_init(&sb, mem, 16384, 0);
+			samplebuffer_set_bps(&sb, bps);
+			samplebuffer_set_waveform(&sb, &sb_rsp_wave, NULL);
+
+			samplebuffer_append(&sb, 1024);
+			samplebuffer_undo(&sb, 1024 - keep);
+			samplebuffer_flush(&sb);
+			void *next = samplebuffer_append(&sb, 1024);
+			if ((uintptr_t)next & 7) {
+				printf("  FAIL bps=%d keep=%d: unaligned %p\n", bps, keep, next);
+				debugf("  FAIL bps=%d keep=%d: unaligned %p\n", bps, keep, next);
+				ok = false;
+			}
+			memset(&sb, 0, sizeof(sb));
+		}
+	}
+
+	char line[96];
+	snprintf(line, sizeof(line), "  %-22s %s\n",
+		"rsp undo/loop", ok ? "PASS" : "FAIL");
+	printf("%s", line);
+	debugf("%s", line);
+
+	free_uncached(mem);
+	return ok;
+}
+
 // 8-bit PCM: unit_bytes is 1, so an odd-length append leaves widx odd and the
 // next discard can make wpos odd. The ring slot and the waveform position must
 // keep the same byte parity for dma_read; both becoming odd is fine.
@@ -209,6 +288,14 @@ int main(void)
 	RUN("drift+seek",  small, 6000, 397, 333, true);
 	RUN("drift-odd",   odd,   6000, 0,   333, true);
 	#undef RUN
+	
+	total++;
+	if (!sb_rsp_undo_alignment())
+		sb_failed++;
+
+	total++;
+	if (!sb_rsp_trim_alignment())
+		sb_failed++;
 
 	// 8-bit PCM with odd appends: wraps the ring with an odd wpos.
 	{

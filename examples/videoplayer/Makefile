@@ -1,4 +1,6 @@
 BUILD_DIR=build
+# This example uses fmv_play and various preview APIs
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 MOVIE_FILE=caminandes.ogv

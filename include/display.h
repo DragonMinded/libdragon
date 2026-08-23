@@ -50,8 +50,10 @@
 #ifndef __LIBDRAGON_DISPLAY_H
 #define __LIBDRAGON_DISPLAY_H
 
+
 #include <stdbool.h>
 #include <stdint.h>
+#include "preview.h"
 #include "vi.h"
 
 /**
@@ -122,6 +124,7 @@ typedef struct {
     interlace_mode_t interlaced;
     /** 
      * @brief Configure the desired aspect ratio of the output display picture.
+     * @preview
      * 
      * By default (when this value is 0), the framebuffer will be displayed as
      * a 4:3 picture, irrespective of its width and height. By tweaking this
@@ -131,9 +134,11 @@ typedef struct {
      * For instance, to display the framebuffer as letterboxed 16:9, specify
      * `16.0f / 9.0f` (aka `1.777777777f`) here.
      */
+    LIBDRAGON_PREVIEW_SYM
     float aspect_ratio;
     /**
      * @brief Add a margin to the display output to compensate for the TV overscan.
+     * @preview
      * 
      * Leave 0 for emulators, upscaler or LCD TVs. Use #VI_CRT_MARGIN for
      * adding some margin that will allow the picture to be fully visible on
@@ -150,6 +155,7 @@ typedef struct {
      * #VI_CRT_MARGIN (which is 0.05, aka 5%) is the suggested value you can
      * use for this field
      */
+    LIBDRAGON_PREVIEW_SYM
     float overscan_margin;
 } resolution_t;
 
@@ -303,6 +309,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
 /**
  * @brief Change display parameters without reallocating framebuffers
+ * @preview
  *
  * Reapplies the same configuration options as #display_init but reuses the
  * existing framebuffer memory. Use this to change resolution, bit depth,
@@ -334,6 +341,7 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
  * @param[in] gamma  Requested gamma setting
  * @param[in] filters  Requested display filtering options
  */
+LIBDRAGON_PREVIEW_API
 void display_change( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters );
 
 /**
@@ -387,6 +395,7 @@ void display_show(surface_t* surf);
 
 /**
  * @brief Return a memory surface that can be used as Z-buffer for the current
+ * @preview
  *        resolution
  *
  * This function lazily allocates and returns a surface that can be used
@@ -395,6 +404,7 @@ void display_show(surface_t* surf);
  *
  * @return The Z-buffer surface
  */
+LIBDRAGON_PREVIEW_API
 surface_t* display_get_zbuf(void);
 
 /**
@@ -419,6 +429,7 @@ uint32_t display_get_num_buffers(void);
 
 /**
  * @brief Get the current refresh rate of the video output in Hz
+ * @preview
  * 
  * The refresh rate is normally 50 for PAL and 60 for NTSC, but this function
  * returns the hardware-accurate number which is close to those but not quite
@@ -427,6 +438,7 @@ uint32_t display_get_num_buffers(void);
  * 
  * @return Refresh rate in Hz (frames per second)
  */
+LIBDRAGON_PREVIEW_API
 float display_get_refresh_rate(void);
 
 /**
@@ -438,6 +450,7 @@ float display_get_fps(void);
 
 /**
  * @brief Returns the "delta time", that is the time it took to the last frame
+ * @preview
  *        to be prepared and rendered.
  * 
  * This function is useful for time-based animations and physics, as it allows
@@ -449,10 +462,12 @@ float display_get_fps(void);
  * 
  * @return Time elapsed since the last complete frame (in seconds)
  */
+LIBDRAGON_PREVIEW_API
 float display_get_delta_time(void);
 
 /**
  * @brief Configure a limit for the frames per second
+ * @preview
  *
  * This function allows to set a limit for the frames per second to render.
  * The limit is enforced by the display module, which will slow down calls
@@ -462,11 +477,14 @@ float display_get_delta_time(void);
  *
  * @param fps           The maximum number of frames per second to render (fractionals allowed)
  */
+LIBDRAGON_PREVIEW_API
 void display_set_fps_limit(float fps);
 
 /**
  * @brief Returns a surface that points to the framebuffer currently being shown on screen.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 surface_t display_get_current_framebuffer(void);
 
 /** @cond */

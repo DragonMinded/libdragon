@@ -1,12 +1,17 @@
 /**
  * @file gl.h
+ * @brief OpenGL 1.1 implementation
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @preview
  */
 #ifndef __LIBDRAGON_GL_H
 #define __LIBDRAGON_GL_H
 
+
 #include <stdint.h>
 #include <stddef.h>
+#include "preview.h"
+LIBDRAGON_PREVIEW_HEADER
 
 typedef struct surface_s surface_t;
 typedef struct sprite_s sprite_t;

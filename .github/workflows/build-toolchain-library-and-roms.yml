@@ -101,16 +101,39 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Cache the videoplayer sample movie so CI does not re-download it from
+      # archive.org on every run. The Makefile skips wget/curl if the file exists,
+      # and the Docker build binds the workspace, so restoring here is enough.
+      - name: Cache videoplayer sample movie
+        uses: actions/cache@v6
+        with:
+          path: examples/videoplayer/caminandes.ogv
+          key: videoplayer-caminandes-ogv-v1
+
       # As we have a tagged image now, we can use that to run build.sh if it is
       # built in the previous step. o/w it will be downloaded from the registry.
       # Then verify everything is building properly
-      - name: Build libdragon
+      - name: Run libdragon docker container
         run: |
-          docker run \
+          docker run -d --name libdragon \
           --mount type=bind,source=$(pwd),target=/libdragon \
           --workdir=/libdragon \
           ghcr.io/${{ steps.vars.outputs.repository_name }}:latest \
-          ./build.sh --test
+          sleep infinity
+
+      - name: Build libdragon
+        run: |
+          docker container exec --env=LIBDRAGON_PREVIEW=0 libdragon ./build.sh --no-examples
+
+      # This also builds the test ROMs, and checks that the preview APIs are
+      # locked for a stable project and unlocked for a preview one.
+      - name: Run tests
+        run: |
+          docker container exec --env=LIBDRAGON_PREVIEW=0 libdragon make test
+
+      - name: Build examples
+        run: |
+          docker container exec --env=LIBDRAGON_PREVIEW=0 libdragon make examples --keep-going
 
       - name: "Upload built ROMs to artifacts"
         uses: actions/upload-artifact@v7
@@ -119,6 +142,10 @@ jobs:
           path: |
             ${{ github.workspace }}/examples/**/*.z64
             ${{ github.workspace }}/tests/*.z64
+
+      - name: Stop libdragon docker container
+        if: always()
+        run: docker rm -f libdragon
 
       # Finally push the verified image to the registry with the latest tag if
       # we are on the default branch. At this point, we know that libdragon can

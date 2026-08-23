@@ -106,7 +106,7 @@ void test_dfs_ioctl(TestContext *ctx) {
     FILE *file = fopen("rom:/counter.dat", "rb");
     ASSERT(file, "counter.dat not found");
     DEFER(fclose(file));
-    uint32_t rom_addr = 0;
+    pi_addr_t rom_addr = 0;
     int ret = ioctl(fileno(file), IODFS_GET_ROM_BASE, &rom_addr);
     ASSERT(ret >= 0, "DFS ioctl failed");
     ASSERT(rom_addr == (dfs_rom_addr("counter.dat") & 0x1FFFFFFF), "IODFS_GET_ROM_BASE ioctl returns wrong address");

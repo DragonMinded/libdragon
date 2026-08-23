@@ -65,6 +65,7 @@
 #ifndef LIBDRAGON_VIDEO_H
 #define LIBDRAGON_VIDEO_H
 
+#include "preview.h"
 #include "yuv.h"
 
 #ifdef __cplusplus
@@ -132,6 +133,7 @@ typedef struct video_info_s {
 
 /**
  * @brief Register a video codec
+ * @preview
  * 
  * This function registers a video codec into the video subsystem. It is necessary
  * to call this function for each codec that the video subsystem must support,
@@ -139,10 +141,12 @@ typedef struct video_info_s {
  * 
  * @param codec         Video codec to register
  */
+LIBDRAGON_PREVIEW_API
 void video_register_codec(video_codec_t *codec);
 
 /**
  * @brief Open a video file and decode its header info
+ * @preview
  * 
  * This function opens a video file and returns a handle to it. The video
  * file will be handled by the appropriate codec, based on the file extension.
@@ -151,10 +155,12 @@ void video_register_codec(video_codec_t *codec);
  * @param parms         Optional parameter block (can be NULL)
  * @return              Handle to the opened video
  */
+LIBDRAGON_PREVIEW_API
 video_t* video_open(const char *fn, const video_parms_t *parms);
 
 /**
  * @brief Get information about the video
+ * @preview
  * 
  * This function retrieves information about the opened video, such as
  * its width, height, framerate, aspect ratio, and colorspace. It is useful
@@ -163,10 +169,12 @@ video_t* video_open(const char *fn, const video_parms_t *parms);
  * @param v                 Handle to the video
  * @return                  Information about the video
  */
+LIBDRAGON_PREVIEW_API
 video_info_t video_get_info(video_t *v);
 
 /**
  * @brief Move to the next frame in the video stream
+ * @preview
  * 
  * This function decodes the next frame in the video stream. If the frame
  * is successfully decoded, it can be retrieved with #video_get_frame. Otherwise,
@@ -176,10 +184,12 @@ video_info_t video_get_info(video_t *v);
  * @return true         If a frame was successfully decoded
  * @return false        If the stream is finished
  */
+LIBDRAGON_PREVIEW_API
 bool video_next_frame(video_t *v);
 
 /**
  * @brief Retrieve the last fully-decoded frame
+ * @preview
  * 
  * This function returns the last frame decoded by #video_poll or #video_next_frame.
  * The frame is returned as a #yuv_frame_t, which can be used to display the
@@ -192,10 +202,12 @@ bool video_next_frame(video_t *v);
  * @see #yuv_blitter_new_fmv
  * @see #yuv_blitter_new
  */
+LIBDRAGON_PREVIEW_API
 yuv_frame_t video_get_frame(video_t *v);
 
 /**
  * @brief Do some work of video decoding
+ * @preview
  * 
  * This function tells the video decoder to do a chunk of work, and keep
  * decoding the video stream ahead. It can be used for scenarios where the
@@ -221,17 +233,21 @@ yuv_frame_t video_get_frame(video_t *v);
  * @return 1            Next frame is ready
  * @return -1           End of stream reached
  */
+LIBDRAGON_PREVIEW_API
 int video_poll(video_t *v);
 
 /**
  * @brief Rewind the video to the beginning
+ * @preview
  * 
  * @param v             Handle to the video
  */
+LIBDRAGON_PREVIEW_API
 void video_rewind(video_t *v);
 
 /**
  * @brief Seek the video to a specific frame index
+ * @preview
  * 
  * In general, video codecs only allow fast seeking to keyframes. If the
  * specified frame index is not a keyframe, the videoplayer will seek to the closest
@@ -249,10 +265,12 @@ void video_rewind(video_t *v);
  * @return              Actual frame index seeked to, or -1 if the codec does not
  *                      support seeking (with or without the seektable).
  */
+LIBDRAGON_PREVIEW_API
 int video_seek(video_t *v, int frame_idx);
 
 /**
  * @brief Check if a frame index is a seekpoint (keyframe) according to the seektable
+ * @preview
  *
  * This function returns true only if a seek index (.seek file) has been loaded for
  * the specified video and the specified frame index is an exact entry in that table.
@@ -263,13 +281,16 @@ int video_seek(video_t *v, int frame_idx);
  * @return true         If the frame index is a seekpoint (keyframe)
  * @return false        Otherwise (including missing seektable)
  */
+LIBDRAGON_PREVIEW_API
 bool video_is_seekable(video_t *v, int frame_idx);
 
 /**
  * @brief Close the video file
+ * @preview
  * 
  * @param v             Handle to the video
  */
+LIBDRAGON_PREVIEW_API
 void video_close(video_t *v);
 
 #ifdef __cplusplus

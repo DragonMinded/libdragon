@@ -2,6 +2,8 @@ all: biosensortest.z64
 .PHONY: all
 
 BUILD_DIR = build
+# This example uses the bio sensor API, which is a preview API
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 OBJS = $(BUILD_DIR)/biosensortest.o

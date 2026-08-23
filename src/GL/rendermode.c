@@ -92,10 +92,10 @@ void gl_rendermode_init()
 
 void gl_update_fog()
 {
-    float fog_diff = state->fog_end - state->fog_start;
+    float fog_diff = state->fog_start - state->fog_end;
     // start == end is undefined, so disable fog by setting the factor to 0
     state->fog_factor = fabsf(fog_diff) < FLT_MIN ? 0.0f : 1.0f / fog_diff;
-    state->fog_offset = state->fog_start;
+    state->fog_offset = state->fog_end;
 }
 
 void gl_set_fog_start(GLfloat param)

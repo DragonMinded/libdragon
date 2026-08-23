@@ -60,7 +60,7 @@ typedef struct {
 } wav_data_t;
 
 // Global options
-extern bool flag_verbose;
+extern int flag_verbose;
 extern bool flag_debug;
 
 // WAV options
@@ -89,6 +89,9 @@ extern bool flag_ym_compress;
 // SF options
 extern int flag_sf_compress;
 
+// MID options
+extern int flag_mid_compress;
+
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...);
 
@@ -98,5 +101,6 @@ int wav_convert(const char *infn, const char *outfn);
 int xm_convert(const char *infn, const char *outfn);
 int ym_convert(const char *infn, const char *outfn);
 int sf_convert(const char *infn, const char *outfn);
+int mid_convert(const char *infn, const char *outfn);
 
 bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav, int format);

@@ -34,6 +34,7 @@ void vadpcm_encode_data(size_t frame_count, void *restrict dest,
                         const int16_t *restrict src,
                         const uint8_t *restrict predictors,
                         const struct vadpcm_vector *restrict codebook,
+                        vadpcm_dither dither,
                         int min_residual, int max_residual,
                         struct vadpcm_stats *restrict stats,
                         struct vadpcm_encoder_state *restrict encoder_state);

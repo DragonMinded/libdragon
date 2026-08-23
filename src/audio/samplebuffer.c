@@ -44,6 +44,7 @@ static int samplebuffer_align_len(const samplebuffer_t *buf, int len) {
 }
 
 extern inline int samplebuffer_margin_units(int append_units);
+extern inline int samplebuffer_align_units(const samplebuffer_t *buf);
 
 void samplebuffer_dma_wait(samplebuffer_t *buf) {
 	if (buf->dma_ticket) {
@@ -137,13 +138,22 @@ static void samplebuffer_recalc_size(samplebuffer_t *buf) {
 	// RSP may still be reading. A full highpri sync is the safe barrier; the
 	// samplebuffer itself does not track rounds. The first configuration of a
 	// buffer has handed out no window yet, so it never syncs.
-	if (buf->size > 0 && n != buf->size)
+	if (buf->size > 0 && n != buf->size) {
 		rspq_highpri_sync();
+		// No old window is live after the sync, so restart at the aligned base.
+		// Keeping head here would also reinterpret an index from the old ring
+		// modulus as an index in the new one.
+		buf->head = 0;
+	}
 
 	buf->size = n;
 	// The buffer is empty, but head is where the next stream restarts, and the
-	// ring it indexes just changed size.
+	// ring it indexes just changed size. Put it back in the phase an RSP
+	// producer needs: a waveform that does not write through the RSP can have
+	// left it anywhere.
 	buf->head %= n;
+	if (buf->wave && buf->wave->rsp_written)
+		buf->head = samplebuffer_align_len(buf, buf->head) % n;
 }
 
 void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes) {
@@ -151,6 +161,15 @@ void samplebuffer_set_unit_bytes(samplebuffer_t *buf, int unit_bytes) {
 	assertf(buf->widx == 0 && buf->ridx == 0 && buf->wpos == 0,
 		"samplebuffer_set_unit_bytes can only be called on an empty samplebuffer");
 
+	// head is an index in units. It cannot be carried across a unit-size
+	// change: the same numeric index denotes a different byte address, and an
+	// address aligned for stereo PCM can be unaligned for mono PCM. Drain old
+	// windows and restart the newly configured ring at its aligned base.
+	if (buf->unit_bytes && buf->unit_bytes != unit_bytes) {
+		rspq_highpri_sync();
+		buf->head = 0;
+		buf->size = 0;
+	}
 	buf->unit_bytes = (uint8_t)unit_bytes;
 	samplebuffer_recalc_size(buf);
 }
@@ -361,8 +380,17 @@ void samplebuffer_flush(samplebuffer_t *buf) {
 	// here, and the RSP can still be behind them: the CPU is allowed to run
 	// that far ahead (#mixer_poll_async). Writing forward leaves the refill
 	// a whole turn of the ring away from those samples.
-	if (buf->size > 0)
-		buf->head = (buf->head + buf->widx) % buf->size;
+	if (buf->size > 0) {
+		int head = buf->head + buf->widx;
+		// An RSP producer needs an 8-byte aligned destination (see
+		// #samplebuffer_append), and undoing a partial block (ULC trims the
+		// tail of a waveform, and a loop restarts right there) leaves the
+		// write cursor out of that phase. Restarting a few units further is
+		// as safe as restarting exactly where the stream stopped.
+		if (buf->wave && buf->wave->rsp_written)
+			head = samplebuffer_align_len(buf, head);
+		buf->head = head % buf->size;
+	}
 	buf->wpos = buf->widx = buf->ridx = 0;
 	buf->wnext = -1;
 }

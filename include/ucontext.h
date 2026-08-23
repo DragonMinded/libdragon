@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -55,19 +56,23 @@ typedef struct ucontext_s {
 
 /**
  * @brief creates a new context to be used with swapcontext.
+ * @preview
  * 
  * @param ctx context to write data to
  * @param entry entry point when first switched to
  * @param argc number of arguments to pass into the initial entry
  * @param arg0 arguments for the initial entry
  */
+LIBDRAGON_PREVIEW_API
 void makecontext(ucontext_t *ctx, void (*entry)(void), int argc, uint32_t arg0);
 
 /**
  * @brief Swaps context
+ * @preview
  * @param old_ctx 
  * @param new_ctx 
  */
+LIBDRAGON_PREVIEW_API
 extern void swapcontext(ucontext_t *old_ctx, const ucontext_t *new_ctx);
 
 #ifdef __cplusplus

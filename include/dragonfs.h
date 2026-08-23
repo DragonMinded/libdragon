@@ -74,7 +74,27 @@
 #define MAX_DIRECTORY_DEPTH 100
 
 /**
- * @brief Base ROM Address Request ioctl Command Code
+ * @brief Return the PI address of an open DragonFS file
+ *
+ * DragonFS files are stored contiguously in ROM, so this ioctl returns the
+ * PI address of the first byte of the file. The address does not depend on
+ * the current seek position; add the result of lseek(fd, 0, SEEK_CUR) to
+ * obtain the address of the current offset.
+ *
+ * The address is written to a #pi_addr_t pointed to by the ioctl argument.
+ * Direct access to ROM data must go through #io_read or #dma_read. The
+ * address is guaranteed to be 2-byte aligned, but not necessarily 4-byte
+ * aligned, so #io_read should be used with care.
+ *
+ * This is the ioctl equivalent of #dfs_rom_addr for an already-open file.
+ *
+ * \code{.c}
+ *    FILE *f = fopen("rom:/myfile.dat", "rb");
+ *    pi_addr_t rom_addr = 0;
+ *    ioctl(fileno(f), IODFS_GET_ROM_BASE, &rom_addr);
+ * \endcode
+ *
+ * @see #dfs_rom_addr
  */
 #define IODFS_GET_ROM_BASE _IO('D', 0)
 
@@ -250,21 +270,23 @@ int dfs_size(uint32_t handle);
  * @brief Return the PI address of a file (in ROM space)
  *
  * This function should be used for highly-specialized, high-performance
- * use cases. Using dfs_open / dfs_read is generally acceptable
+ * use cases. Using open / fopen / read / fread is generally acceptable
  * performance-wise, and is easier to use rather than managing
  * direct access to PI space.
  * 
  * Direct access to ROM data must go through #io_read or #dma_read. Notice
- * that the address is guranteed to be 2-byte aligned, but not necessarily
+ * that the address is guaranteed to be 2-byte aligned, but not necessarily
  * 4-byte aligned, so #io_read should be used with care.
+ *
+ * To obtain the address of an already-open file, use #ioctl with IODFS_GET_ROM_BASE.
  *
  * @param[in] path
  *            Name of the file
  *
- * @return A pointer to the PI address of the file body, or 0
- *         if the file was not found.
+ * @return The PI address of the file body, or 0 if the file was not found.
  * 
  * @see #dfs_rom_size
+ * @see #IODFS_GET_ROM_BASE
  */
 pi_addr_t dfs_rom_addr(const char *path);
 

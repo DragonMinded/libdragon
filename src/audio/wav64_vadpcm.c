@@ -255,7 +255,7 @@ static void waveform_vadpcm_read_compressed(void *ctx, samplebuffer_t *sbuf, int
 					fidx = vadpcm_file_index(wpos + ncache, c, nframes_total, channels);
 					nbytes = (n - ncache) * fbytes;
 				}
-				uint32_t pi_addr = wav->st->rom_base + wav->st->base_offset + fidx * fbytes;
+				pi_addr_t pi_addr = wav->st->rom_base + wav->st->base_offset + fidx * fbytes;
 				if (wav->st->rom_base && !(((uint32_t)dest ^ pi_addr) & 1)) {
 					// A prior chunk of this same WaveformRead may still be in
 					// flight; wait before replacing the ticket.

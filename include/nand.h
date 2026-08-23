@@ -37,6 +37,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,18 +79,23 @@ typedef enum {
 
 /**
  * @brief Initialize the library to access the NAND flash on the iQue Player
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void nand_init(void);
 
 /**
  * @brief Return the size of the installed NAND.
+ * @preview
  * 
  * @return      Size of the NAND in bytes (either 64 MiB or 128 MiB)
  */
+LIBDRAGON_PREVIEW_API
 int nand_get_size(void);
 
 /**
  * @brief Read one or multiple full pages from the NAND
+ * @preview
  * 
  * This is the lower level function to read data from the NAND. It reads
  * only full pages and optionally perform ECC correction while reading them.
@@ -117,10 +123,12 @@ int nand_get_size(void);
  * @return >=0      If OK (number of pages read)
  * @return -1       If at least one page had an unrecoverable ECC error
  */
+LIBDRAGON_PREVIEW_API
 int nand_read_pages(nand_addr_t addr, int npages, void *buffer, void *spare, bool ecc);
 
 /**
  * @brief Write pages to the NAND.
+ * @preview
  * 
  * Writing to NAND is well defined only on erased blocks. If you write to a
  * non-erased block, the data will likely be corrupted.
@@ -137,10 +145,12 @@ int nand_read_pages(nand_addr_t addr, int npages, void *buffer, void *spare, boo
  * @return >=0      If OK (number of pages written)
  * @return -1       If error during writing
  */
+LIBDRAGON_PREVIEW_API
 int nand_write_pages(nand_addr_t addr, int npages, const void *buffer, bool ecc);
 
 /**
  * @brief Erase a block on the NAND.
+ * @preview
  * 
  * You must erase a block before being able to write to it. Notice that erasing
  * only works on the whole block, so all the pages inside are erased.
@@ -149,10 +159,12 @@ int nand_write_pages(nand_addr_t addr, int npages, const void *buffer, bool ecc)
  * 
  * @return 0 if OK, -1 if error
  */
+LIBDRAGON_PREVIEW_API
 int nand_erase_block(nand_addr_t addr);
 
 /**
  * @brief Read sequential data from the NAND.
+ * @preview
  * 
  * This function reads a sequence of bytes from the NAND, across different
  * pages and/or blocks. It will only fetch the requested bytes. 
@@ -168,10 +180,12 @@ int nand_erase_block(nand_addr_t addr);
  * 
  * @return 0 if OK, -1 if error
  */
+LIBDRAGON_PREVIEW_API
 int nand_read_data(nand_addr_t addr, void *buffer, int len);
 
 /**
  * @brief Initialize configuration of the NAND memory mapping to PI address space.
+ * @preview
  * 
  * On iQue, a special hardware component called the ATB (Address Translation
  * Buffer?) allows to memory map blocks of flash to the PI bus. This allows
@@ -186,10 +200,12 @@ int nand_read_data(nand_addr_t addr, void *buffer, int len);
  * @see #nand_mmap
  * @see #nand_mmap_end
  */
+LIBDRAGON_PREVIEW_API
 void nand_mmap_begin(void);
 
 /**
  * @brief Memory-map flash blocks to PI address space via ATB.
+ * @preview
  * 
  * On iQue, a special hardware component called the ATB (Address Translation
  * Buffer?) allows to memory map blocks of flash to the PI bus. This allows
@@ -221,10 +237,12 @@ void nand_mmap_begin(void);
  * @see #nand_mmap_begin
  * @see #nand_mmap_end
  */
+LIBDRAGON_PREVIEW_API
 int nand_mmap(uint32_t pi_address, int16_t *blocks, nand_mmap_flags_t flags);
 
 /**
  * @brief Finish configuration of the NAND memory mapping to PI address space.
+ * @preview
  * 
  * On iQue, a special hardware component called the ATB (Address Translation
  * Buffer?) allows to memory map blocks of flash to the PI bus. This allows
@@ -234,10 +252,12 @@ int nand_mmap(uint32_t pi_address, int16_t *blocks, nand_mmap_flags_t flags);
  * This function must be called to finish the configuration. Notice that it
  * must be called even if #nand_mmap failed.
  */
+LIBDRAGON_PREVIEW_API
 void nand_mmap_end(void);
 
 /**
  * @brief Compute the ECC code for a page of data.
+ * @preview
  * 
  * iQue NAND contains a 6-byte ECC code for each 1024-byte page. This is actually
  * the combination of two 3-byte ECC for each 512-byte half of the page. The
@@ -253,6 +273,7 @@ void nand_mmap_end(void);
  * @param buf               Buffer containing the 1024-byte page
  * @param ecc               Buffer to store the 6-byte ECC code
  */
+LIBDRAGON_PREVIEW_API
 void nand_compute_page_ecc(const uint8_t *buf, uint8_t *ecc);
 
 

@@ -148,7 +148,11 @@ static void waveform_opus_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wl
 
     if (wav->wave.loop_len && wpos >= wav->wave.len) {
         assert(wav->wave.loop_len == wav->wave.len);
-        samplebuffer_undo(sbuf, wpos - wav->wave.len);
+        // Round the trim down for the same reason intra_skip is rounded above:
+        // the decoder writes through SP DMA, so the write cursor has to stay on
+        // a boundary the RSP can write to (see #samplebuffer_align_units), here
+        // for the loop overread the mixer appends right after this.
+        samplebuffer_undo(sbuf, ROUND_DOWN(wpos - wav->wave.len, samplebuffer_align_units(sbuf)));
     }
 }
 

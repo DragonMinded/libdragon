@@ -22,6 +22,7 @@
  */
 
 /* Easy include wrapper */
+#include "preview.h"
 #include "n64types.h"
 #include "fmath.h"
 #include "fgeom.h"
@@ -52,6 +53,7 @@
 #include "pifile.h"
 #include "eeprom.h"
 #include "eepromfs.h"
+#include "flashram.h"
 #include "graphics.h"
 #include "mi.h"
 #include "interrupt.h"
@@ -82,6 +84,8 @@
 #include "ym64.h"
 #include "sf64.h"
 #include "sf64_synth.h"
+#include "midi_target.h"
+#include "mid64.h"
 #include "rspq.h"
 #include "rdpq.h"
 #include "rdpq_tri.h"

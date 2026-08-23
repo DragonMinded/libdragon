@@ -379,21 +379,27 @@ static model64_data_t *load_model64_data(const char *fn)
     return data;
 }
 
-/** @brief Loads model from buffer */
+/** @brief Loads model from buffer
+ * @preview
+ */
 model64_t *model64_load_buf(void *buf, int sz)
 {
     model64_data_t *data = load_model64_data_buf(buf, sz);
     return make_model_instance(data);
 }
 
-/** @brief Loads model from file */
+/** @brief Loads model from file
+ * @preview
+ */
 model64_t *model64_load(const char *fn)
 {
     model64_data_t *data = load_model64_data(fn);
     return make_model_instance(data);
 }
 
-/** @brief Clones a model instance */
+/** @brief Clones a model instance
+ * @preview
+ */
 model64_t *model64_clone(model64_t *model)
 {
     model->data->ref_count++;
@@ -480,7 +486,9 @@ static void free_model64_data(model64_data_t *data)
     }
 }
 
-/** @brief Frees a model instance and its data */
+/** @brief Frees a model instance and its data
+ * @preview
+ */
 void model64_free(model64_t *model)
 {
     for(int i=0; i<MAX_ACTIVE_ANIMS; i++) {
@@ -711,7 +719,9 @@ static bool is_anim_slot_valid(model64_anim_slot_t slot)
     return (slot >= 0) && (slot < MAX_ACTIVE_ANIMS);
 }
 
-/** @brief Plays an animation in a slot */
+/** @brief Plays an animation in a slot
+ * @preview
+ */
 void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t slot, bool paused, float start_time)
 {
     int32_t anim_index = search_anim_index(model, anim);
@@ -729,7 +739,9 @@ void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t s
     model->active_anims[slot]->speed = 1.0f;
 }
 
-/** @brief Stops an animation in a slot */
+/** @brief Stops an animation in a slot
+ * @preview
+ */
 void model64_anim_stop(model64_t *model, model64_anim_slot_t slot)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -739,7 +751,9 @@ void model64_anim_stop(model64_t *model, model64_anim_slot_t slot)
     model->active_anims[slot]->index = -1;
 }
 
-/** @brief Gets the length of an animation */
+/** @brief Gets the length of an animation
+ * @preview
+ */
 float model64_anim_get_length(model64_t *model, const char *anim)
 {
     int32_t anim_index = search_anim_index(model, anim);
@@ -747,7 +761,9 @@ float model64_anim_get_length(model64_t *model, const char *anim)
     return (float)model->data->anims[anim_index].duration;
 }
 
-/** @brief Gets the current time of an animation slot */
+/** @brief Gets the current time of an animation slot
+ * @preview
+ */
 float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -757,7 +773,9 @@ float model64_anim_get_time(model64_t *model, model64_anim_slot_t slot)
     return model->active_anims[slot]->time;
 }
 
-/** @brief Sets the time of an animation slot */
+/** @brief Sets the time of an animation slot
+ * @preview
+ */
 float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float time)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -773,7 +791,9 @@ float model64_anim_set_time(model64_t *model, model64_anim_slot_t slot, float ti
     return old_time;
 }
 
-/** @brief Sets the speed of an animation slot */
+/** @brief Sets the speed of an animation slot
+ * @preview
+ */
 float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float speed)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -786,7 +806,9 @@ float model64_anim_set_speed(model64_t *model, model64_anim_slot_t slot, float s
     return old_speed;
 }
 
-/** @brief Sets the loop state of an animation slot */
+/** @brief Sets the loop state of an animation slot
+ * @preview
+ */
 bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");
@@ -798,7 +820,9 @@ bool model64_anim_set_loop(model64_t *model, model64_anim_slot_t slot, bool loop
     return old_loop;
 }
 
-/** @brief Sets the pause state of an animation slot */
+/** @brief Sets the pause state of an animation slot
+ * @preview
+ */
 bool model64_anim_set_pause(model64_t *model, model64_anim_slot_t slot, bool paused)
 {
     assertf(is_anim_slot_valid(slot), "Invalid animation ID");

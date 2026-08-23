@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "../utils.h"
+#include "n64types.h"
 
 /**
  * @brief A ring buffer used for streaming decompression.
@@ -80,8 +81,8 @@ typedef struct {
     uint8_t *ptr;           ///< Read pointer in current buffer
     uint8_t *end;           ///< End pointer in current buffer
     int fd;                 ///< File descriptor (used when rom_base == 0)
-    uint32_t rom_base;      ///< Base ROM address (0 if not reading from ROM)
-    uint32_t rom_addr;      ///< Current ROM address (advanced as we prefetch)
+    pi_addr_t rom_base;     ///< Base ROM address (0 if not reading from ROM)
+    pi_addr_t rom_addr;     ///< Current ROM address (advanced as we prefetch)
     uint64_t ticket[2];     ///< DMA ticket for each prefetch buffer (ROM mode only)
     bool eof;               ///< True if EOF reached (fd mode only)
 } __lookahead_buf_t;

@@ -71,6 +71,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "preview.h"
 #include "string_hash.h"
 
 #ifdef __cplusplus
@@ -90,6 +91,7 @@ bool __rdpq_mat_ext_get_float(rdpq_mat_t *mat, uint32_t ext_key, float *value);
 
 /**
  * @brief Open a material DB file and load it into memory
+ * @preview
  * 
  * This function loads a Material DB file. By default, textures are not
  * loaded into RDRAM until requested by the user. This is done to save
@@ -98,13 +100,18 @@ bool __rdpq_mat_ext_get_float(rdpq_mat_t *mat, uint32_t ext_key, float *value);
  * @param filename              Path to the material database file
  * @return                      Pointer to the material database
  */
+LIBDRAGON_PREVIEW_API
 rdpq_matdb_t* rdpq_matdb_open(const char *filename);
 
-/** @brief Close a material database */
+/** @brief Close a material database
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void rdpq_matdb_close(rdpq_matdb_t* mdb);
 
 /**
  * @brief Load a material from the material database
+ * @preview
  * 
  * This function retrieves a material from the material database by its name.
  * If the material does not exist, it returns NULL.
@@ -118,10 +125,12 @@ void rdpq_matdb_close(rdpq_matdb_t* mdb);
  *                          the first material in the database is returned.
  * @return                  Pointer to the material, or NULL if not found
  */
+LIBDRAGON_PREVIEW_API
 rdpq_mat_t* rdpq_matdb_load(rdpq_matdb_t* mdb, const char *mat_name);
 
 /** 
  * @brief Load a single material from a raw buffer
+ * @preview
  * 
  * This function is useful to load a material from its raw binary representation,
  * stored outside of a material database. The raw representation is created
@@ -135,10 +144,12 @@ rdpq_mat_t* rdpq_matdb_load(rdpq_matdb_t* mdb, const char *mat_name);
  * @param size             Size of the buffer
  * @return Loaded material
  */
+LIBDRAGON_PREVIEW_API
 rdpq_mat_t* rdpq_mat_load_buf(void *buf, int size);
 
 /**
  * @brief Activate a material by configuring the RDP state and uploading textures to TMEM
+ * @preview
  * 
  * This function configures the RDP to prepare drawing primitives (triangles or
  * rectangles) with the material specified by @p mat. It sets the RDP state
@@ -154,16 +165,19 @@ rdpq_mat_t* rdpq_mat_load_buf(void *buf, int size);
  * 
  * @see #rdpq_mat_draw_end
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_mat_draw_begin(rdpq_mat_t *mat);
 
 /**
  * @brief Deactivate a material after drawing with it
+ * @preview
  * 
  * This function ends the use of the specified material and restores the previous
  * RDP state.
  * 
  * @param mat               Material to deactivate
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_mat_draw_end(rdpq_mat_t *mat);
 
 /**
@@ -250,6 +264,7 @@ void rdpq_mat_draw_end(rdpq_mat_t *mat);
 
 /**
  * @brief Free a material loaded with #rdpq_matdb_load or #rdpq_mat_load_buf
+ * @preview
  * 
  * This function releases the textures associated with the material. Notice
  * that the material itself is not freed: in fact, it is either part of the
@@ -259,11 +274,13 @@ void rdpq_mat_draw_end(rdpq_mat_t *mat);
  * 
  * @param mat        Material to free
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_mat_free(rdpq_mat_t *mat);
 
 
 /**
  * @brief Set the path in which the texture DB is stored
+ * @preview
  * 
  * The texture database is a directory in an accessible filesystem
  * (normally, in ROM) where all the textures using the rdpq material
@@ -276,6 +293,7 @@ void rdpq_mat_free(rdpq_mat_t *mat);
  * @param path          Path to the texture database directory,
  *                      including filesystem prefix (eg: "rom:/textures")
  */
+LIBDRAGON_PREVIEW_API
 void rdpq_mat_set_texture_path(const char *path);
 
 /**

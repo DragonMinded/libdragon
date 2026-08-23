@@ -27,7 +27,7 @@
 #include "../common/assetcomp.h"
 #include "audioconv64.h"
 
-bool flag_verbose = false;
+int flag_verbose = 0;
 bool flag_debug = false;
 static bool had_error = false;
 
@@ -56,6 +56,7 @@ void usage(void) {
 	printf("   * XM  => XM64  (MilkyTracker, OpenMPT)\n");
 	printf("   * YM  => YM64  (Arkos Tracker II)\n");
 	printf("   * SF2 => SF64  (SoundFont 2)\n");
+	printf("   * MID => MID64 (Standard MIDI File)\n");
 	printf("\n");
 	printf("Global options:\n");
 	printf("   -o / --output <dir>       	Specify output directory\n");
@@ -87,6 +88,9 @@ void usage(void) {
 	printf("\n");
 	printf("SF2 options:\n");
 	printf("   --sf-compress <0|1>          Compression for SF samples (default: 1=vadpcm)\n");
+	printf("\n");
+	printf("MID options:\n");
+	printf("   --mid-compress <0..3>        Asset compression level for MID64 (default: 1)\n");
 	printf("\n");
 }
 
@@ -146,6 +150,10 @@ void convert(const char *infn, const char *outfn1) {
 	} else if (strcasecmp(ext, ".sf2") == 0) {
 		char *outfn = changeext(outfn1, ".sf64");
 		if (sf_convert(infn, outfn) != 0) had_error = true;
+		free(outfn);
+	} else if (strcasecmp(ext, ".mid") == 0 || strcasecmp(ext, ".midi") == 0) {
+		char *outfn = changeext(outfn1, ".mid64");
+		if (mid_convert(infn, outfn) != 0) had_error = true;
 		free(outfn);
 	} else {
 		fprintf(stderr, "WARNING: ignoring unknown file: %s\n", infn);
@@ -227,7 +235,7 @@ int main(int argc, char *argv[]) {
 	for (i=1; i<argc; i++) {
 		if (argv[i][0] == '-') {	
 			if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
-				flag_verbose = true;
+				flag_verbose++;
 			} else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
 				usage();
 				return 0;
@@ -431,6 +439,16 @@ int main(int argc, char *argv[]) {
 					flag_sf_compress = 1;
 				else {
 					fprintf(stderr, "invalid argument for --sf-compress: %s\n", argv[i]);
+					return 1;
+				}
+			} else if (!strcmp(argv[i], "--mid-compress")) {
+				if (++i == argc) {
+					fprintf(stderr, "missing argument for --mid-compress\n");
+					return 1;
+				}
+				flag_mid_compress = atoi(argv[i]);
+				if (flag_mid_compress < 0 || flag_mid_compress > MAX_COMPRESSION) {
+					fprintf(stderr, "invalid argument for --mid-compress: %s\n", argv[i]);
 					return 1;
 				}
 			} else {

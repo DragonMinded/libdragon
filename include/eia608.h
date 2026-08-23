@@ -48,6 +48,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -126,16 +127,21 @@ typedef enum {
 
 /**
  * @brief Initialize the eia608 library
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void eia608_init(void);
 
 /**
  * @brief Deinitialize the eia608 library
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void eia608_close(void);
 
 /**
  * @brief Start emitting a EIA-608 compliant signal on the video output.
+ * @preview
  * 
  * This function configures the module to start emitting EIA-608 on the current
  * configured resolution, and starts the signal generation.
@@ -153,10 +159,12 @@ void eia608_close(void);
  * 
  * @see #eia608_stop
  */
+LIBDRAGON_PREVIEW_API
 void eia608_start(void);
 
 /**
  * @brief Stop emitting a EIA-608 compliant signal on the video output.
+ * @preview
  * 
  * This function stops the EIA-608 signal generation, and resets the internal
  * state of the module. It should be called before making any changes to the
@@ -165,10 +173,12 @@ void eia608_start(void);
  * 
  * @see #eia608_start
  */
+LIBDRAGON_PREVIEW_API
 void eia608_stop(void);
 
 /**
  * @brief Emit raw data to the EIA-608 signal.
+ * @preview
  * 
  * This is an advanced function that allows you to emit raw data to the
  * EIA-608 signal. It is mainly useful for testing or for emitting special
@@ -185,10 +195,12 @@ void eia608_stop(void);
  * 
  * @return                  True if the data was emitted, false if the buffer is full
  */
+LIBDRAGON_PREVIEW_API
 bool eia608_write_raw(uint16_t data, bool calc_parity);
 
 /**
  * @brief Write a control code to the EIA-608 signal.
+ * @preview
  * 
  * @note Control codes are quite low level and their exact semantic is non-trivial,
  *       as it depends on the current state of the EIA-608 signal. Please 
@@ -196,10 +208,12 @@ bool eia608_write_raw(uint16_t data, bool calc_parity);
  * 
  * @param ctrl        The control code to write
  */
+LIBDRAGON_PREVIEW_API
 void eia608_write_ctrl_raw(eia608_ctrl_t ctrl);
 
 /**
  * @brief Emit a caption, with automatic positioning on the screen.
+ * @preview
  * 
  * EIA-608 captions are divided into maximum 4 lines of 32 characters each.
  * This function will automatically word-wrap the caption into multiple lines if
@@ -236,10 +250,12 @@ void eia608_write_ctrl_raw(eia608_ctrl_t ctrl);
  * 
  * @see Wikipedia article on EIA-608: https://en.wikipedia.org/wiki/EIA-608
  */
+LIBDRAGON_PREVIEW_API
 void eia608_caption_prepare(eia608_channel_t cc, const char *utf8_str, eia608_captionparms_t *parms);
 
 /**
  * @brief Show a caption that was previously prepared with #eia608_caption_prepare
+ * @preview
  * 
  * This shows a caption that was prepared by #eia608_caption_prepare. The caption
  * will be displayed on the screen for the specified duration, and then hidden.
@@ -247,6 +263,7 @@ void eia608_caption_prepare(eia608_channel_t cc, const char *utf8_str, eia608_ca
  * @param cc                Channel in which the caption was prepared.
  * @param duration_secs     The duration in seconds to display the caption
  */
+LIBDRAGON_PREVIEW_API
 void eia608_caption_show(eia608_channel_t cc, float duration_secs);
 
 #ifdef __cplusplus

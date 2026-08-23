@@ -25,6 +25,7 @@
 #define LIBDRAGON_FAT_H
 
 #include <stdint.h>
+#include "preview.h"
 #include "ioctl.h"
 
 #ifdef __cplusplus
@@ -200,6 +201,7 @@ typedef struct {
 
 /**
  * @brief Mount a new FAT volume through the FatFs library.
+ * @preview
  * 
  * This function allows to mount a new FAT volume through the FatFs library.
  * Access to the actual disk is done through the provided disk operations,
@@ -238,10 +240,12 @@ typedef struct {
  *         usage
  * @return -1 on mount failure (errno will be set). Eg: corrupted FAT header
  */
+LIBDRAGON_PREVIEW_API
 int fat_mount(const char *prefix, const fat_disk_t* disk, int flags);
 
 /**
  * @brief Unmount a FAT volume previously mounted with #fat_mount.
+ * @preview
  *
  * This function releases a FAT volume identified by the volume ID returned by
  * #fat_mount. If the volume was mounted with a stdio prefix, the filesystem
@@ -252,6 +256,7 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags);
  * @return 0 on success
  * @return -1 on failure (errno will be set)
  */
+LIBDRAGON_PREVIEW_API
 int fat_unmount(int vol_id);
 
 #ifdef __cplusplus

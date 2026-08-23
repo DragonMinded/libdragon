@@ -5,6 +5,7 @@
 #ifndef __LIBDRAGON_WAV64_INTERNAL_H
 #define __LIBDRAGON_WAV64_INTERNAL_H
 
+#include "n64types.h"
 #include "mixer_internal.h"
 
 #define WAV64_ID            "WV64"    ///< WAV64 file identifier
@@ -48,7 +49,7 @@ typedef struct wav64_state_s {
 	int current_fd;			 ///< File descriptor for the wav64 file
 	int base_offset;		 ///< Start of Wav64 data (as offset from start of the file)
 	/** PI bus address of file start (0 if not a DFS file / async DMA unavailable). */
-	uint32_t rom_base;
+	pi_addr_t rom_base;
 	uint8_t flags;           ///< Misc flags
 	/**
 	 * First N compressed VADPCM frames kept in RDRAM so a note-on from the

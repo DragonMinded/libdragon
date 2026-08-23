@@ -98,13 +98,34 @@ vadpcm_error vadpcm_decode(int predictor_count, int order,
                            size_t frame_count, int16_t *VADPCM_RESTRICT dest,
                            const void *VADPCM_RESTRICT src);
 
+// Dither applied to the residual before it is quantized to four bits.
+typedef enum {
+    // No dither. The residual is rounded to the nearest representable value,
+    // which gives the lowest error energy. The error is correlated with the
+    // signal, so what remains is heard as distortion rather than as noise.
+    kVADPCMDitherNone,
+
+    // Rectangular dither. A random value, uniformly distributed over one
+    // quantization step, is added to the residual before it is rounded. This
+    // decorrelates the error from the signal, so the error is heard as noise,
+    // and costs about 3 dB of signal-to-noise ratio: the error variance is
+    // d^2/6 rather than d^2/12, for a quantization step of d.
+    kVADPCMDitherRectangular,
+} vadpcm_dither;
+
 // Parameters for VADPCM encoding.
 struct vadpcm_params {
     // The number of predictors to put in the codebook.
     int predictor_count;
 
+    // The dither to apply when quantizing residuals. Note that the zero value
+    // is kVADPCMDitherNone; the vadpcm command-line tool defaults to
+    // kVADPCMDitherRectangular instead.
+    vadpcm_dither dither;
+
     // Optional clamp range for encoded residual values. Valid range is [-8, 7].
-    // Use the default full-range values to match upstream behavior.
+    // Use the default full-range values (-8, 7) to match classic VADPCM.
+    // Libdragon extension: supports encoding with fewer residual bits.
     int min_residual;
     int max_residual;
 };

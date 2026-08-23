@@ -25,9 +25,42 @@ int menu_sel = 0;
 static char* songfiles[4096];
 static int num_songs = 0;
 
+static char* bankfiles[64];
+static int num_banks = 0;
+static int bank_sel = 0;
+
+/** Mixer channels reserved for SF64 polyphony when playing MID64. */
+#define MID_VOICES  24
+
+static sf64_bank_t *g_sf64_bank;
+/** RDRAM held by #g_sf64_bank (heap delta across #sf64_load). */
+static int g_sf64_bank_ramsz;
+
+/** Heap bytes currently used (see #sys_get_heap_stats). */
+static int heap_used(void) {
+	heap_stats_t st;
+	sys_get_heap_stats(&st);
+	return st.used;
+}
+
+/** Load @p path as the current SF64 bank; updates #g_sf64_bank_ramsz. */
+static void load_sf64_bank(const char *path) {
+	int before = heap_used();
+	g_sf64_bank = sf64_load(path);
+	assertf(g_sf64_bank, "cannot load %s", path);
+	g_sf64_bank_ramsz = heap_used() - before;
+}
+
+/** Filename without "rom:/" prefix and extension (writes into @p out). */
+static void asset_basename(const char *path, char *out, int out_sz) {
+	strlcpy(out, path + 5, out_sz);
+	char *dot = strrchr(out, '.');
+	if (dot) *dot = '\0';
+}
+
 static void draw_header(display_context_t disp) {
-	graphics_draw_text(disp, 200-70, 10, "XM/YM Module Audio Player");
-	graphics_draw_text(disp, 200-45, 20, "v2.0 - by Rasky");
+	graphics_draw_text(disp, 200-70, 10, "XM/YM/MID Audio Player");
+	graphics_draw_text(disp, 200-45, 20, "v2.1 - by Rasky");
 }
 
 static bool strendswith(const char *str, const char *suffix) {
@@ -63,17 +96,16 @@ enum Page page_intro(void) {
 	graphics_fill_screen(disp, 0);
 	draw_header(disp);
 
-	graphics_draw_text(disp, 30, 50, "This player is capable of playing .XM/.YM modules,");
+	graphics_draw_text(disp, 30, 50, "This player plays .XM/.YM modules and .MID songs,");
 	graphics_draw_text(disp, 30, 58, "up to 32 channels and 48Khz, using an optimized");
 	graphics_draw_text(disp, 30, 66, "engine that uses little CPU and RSP time. ");
 
-	graphics_draw_text(disp, 30, 80, "XM/YM files must first be converted into XM64/YM64,");
-	graphics_draw_text(disp, 30, 88, "using the audioconv64 tool. This format is");
-	graphics_draw_text(disp, 30, 96, "designed for native playback on N64.");
+	graphics_draw_text(disp, 30, 80, "Files are converted with audioconv64 into XM64,");
+	graphics_draw_text(disp, 30, 88, "YM64, or MID64. MIDI synthesis uses SF64 banks");
+	graphics_draw_text(disp, 30, 96, "(default: florestan-full). Press Z to cycle banks.");
 
-	graphics_draw_text(disp, 30,112, "The player will stream most of the data");
-	graphics_draw_text(disp, 30,120, "directly from the ROM, so also the amount of");
-	graphics_draw_text(disp, 30,128, "RDRAM that will be used will be very little.");
+	graphics_draw_text(disp, 30,112, "Most sample data is streamed from ROM, so RDRAM");
+	graphics_draw_text(disp, 30,120, "usage stays modest even with large banks.");
 
 	graphics_draw_text(disp, 30,144, "Press START to begin!");
 
@@ -93,7 +125,7 @@ enum Page page_intro_error(void) {
 	display_context_t disp = display_get();
 	graphics_fill_screen(disp, 0);
 	draw_header(disp);
-	graphics_draw_text(disp, 40, 50, "No .XM64 roms found in the filesystem");
+	graphics_draw_text(disp, 40, 50, "No XM64/YM64/MID64 files in the filesystem");
 	display_show(disp);
 	abort();
 }
@@ -173,17 +205,25 @@ enum Page page_song(void) {
 	char sbuf[1024];
 	int64_t tot_time = 0, tot_cpu = 0, tot_rsp = 0, tot_dma = 0, tot_frames = 0;
 	int64_t avg_time = 0, avg_cpu = 0, avg_rsp = 0, avg_dma = 0;
+	int poly_max = 0, poly_disp = 0;
+	uint32_t poly_win = TICKS_READ();
 	int screen_first_inst = 0;
-	enum SONG_TYPE { SONG_XM, SONG_YM };
+	enum SONG_TYPE { SONG_XM, SONG_YM, SONG_MID };
 
 	xm64player_t xm;
 	ym64player_t ym; ym64player_songinfo_t yminfo;
+	mid64player_t *mid = NULL;
+	sf64_synth_t *synth = NULL;
 	enum SONG_TYPE song_type;
 	const char *song_name; int song_channels;
-	int song_romsz=0, song_ramsz=0;
+	int song_romsz = 0;
+	int heap_base = 0;
+	static char mid_name[64];
 
 	if (strendswith(cur_rom, ".ym64") || strendswith(cur_rom, ".YM64"))
 		song_type = SONG_YM;
+	else if (strendswith(cur_rom, ".mid64") || strendswith(cur_rom, ".MID64"))
+		song_type = SONG_MID;
 	else
 		song_type = SONG_XM;
 
@@ -192,6 +232,11 @@ enum Page page_song(void) {
 		song_romsz = dfs_size(fh);
 		dfs_close(fh);
 	}
+
+	// Everything allocated for this song (player, synth, mixer rings, …)
+	// is measured as a heap delta from here. The SF64 bank is shared across
+	// MID songs and is added separately below.
+	heap_base = heap_used();
 
 	debugf("Loading %s\n", cur_rom);
 	if (song_type == SONG_XM) {
@@ -210,24 +255,26 @@ enum Page page_song(void) {
 		// 	}
 		// }
 		#endif
-
-		song_ramsz = sizeof(xm64player_t) + xm.ctx->ctx_size;
-		#if XM_STREAM_PATTERNS
-		song_ramsz -= xm.ctx->ctx_size_all_patterns;
-		song_ramsz += xm.ctx->ctx_size_stream_pattern_buf;
-		#endif
-		#if XM_STREAM_WAVEFORMS
-		song_ramsz -= xm.ctx->ctx_size_all_samples;
-		song_ramsz += xm.stream_ramsz;
-		#endif
-	} else {
+	} else if (song_type == SONG_YM) {
 		ym64player_open(&ym, cur_rom, &yminfo);
 		ym64player_play(&ym, 0);
 		song_name = yminfo.name;
 		song_channels = 3;
 		wrap(yminfo.comment, 40);
-		song_ramsz = sizeof(ym64player_t);
-		if (ym.decoder) song_ramsz += sizeof(*ym.decoder);
+	} else {
+		assertf(g_sf64_bank, "MID64: SF64 bank not loaded");
+		synth = sf64_synth_create(g_sf64_bank);
+		sf64_synth_set_channels(synth, 0, MID_VOICES, MIXER_PRIORITY_MUSIC);
+		for (int i = 0; i < MID_VOICES; i++)
+			mixer_ch_set_limits(i, 0, 96000, 0);
+
+		mid = mid64player_load(cur_rom);
+		mid64player_set_loop(mid, true);
+		mid64player_play(mid, sf64_synth_midi_target(synth));
+
+		asset_basename(cur_rom, mid_name, sizeof(mid_name));
+		song_name = mid_name;
+		song_channels = SF64_MIDI_CHANNELS;
 	}
 
 	// Unmute all channels
@@ -244,9 +291,17 @@ enum Page page_song(void) {
 		sprintf(sbuf, "Song: %s", song_name);
 		graphics_draw_text(disp, 20, 50, sbuf);
 
-		sprintf(sbuf, "Channels: %d", song_channels);
+		if (song_type == SONG_MID)
+			sprintf(sbuf, "MIDI channels: %d", song_channels);
+		else
+			sprintf(sbuf, "Channels: %d", song_channels);
 		graphics_draw_text(disp, 20, 60, sbuf);
 
+		// Live heap delta: mixer rings are allocated lazily on first use.
+		int song_ramsz = heap_used() - heap_base;
+		if (song_type == SONG_MID)
+			song_ramsz += g_sf64_bank_ramsz;
+		if (song_ramsz < 0) song_ramsz = 0;
 		sprintf(sbuf, "ROM: %d KiB | RDRAM: %d KiB", (song_romsz+512)/1024, (song_ramsz+512)/1024);
 		graphics_draw_text(disp, 20, 70, sbuf);
 
@@ -262,6 +317,13 @@ enum Page page_song(void) {
 			ym64player_tell(&ym, &pos, NULL);
 			sprintf(sbuf, "Pos: %04x/%04x\n", pos, len);
 			graphics_draw_text(disp, 280, 50, sbuf);						
+		} else if (song_type == SONG_MID) {
+			uint32_t cur_ms = mid64player_tell_ms(mid);
+			uint32_t tot_ms = mid64player_get_duration_ms(mid);
+			sprintf(sbuf, "Time: %ld:%02ld / %ld:%02ld\n",
+				(long)(cur_ms / 1000 / 60), (long)((cur_ms / 1000) % 60),
+				(long)(tot_ms / 1000 / 60), (long)((tot_ms / 1000) % 60));
+			graphics_draw_text(disp, 280, 50, sbuf);
 		}
 
 		sprintf(sbuf, "CPU: %lldus\n", avg_time);
@@ -290,7 +352,7 @@ enum Page page_song(void) {
 					break;
 				graphics_draw_text(disp, 120, 120+i*10, xm.ctx->module.instruments[screen_first_inst+i].name);
 			}
-		} else {
+		} else if (song_type == SONG_YM) {
 			// Display the YM song information (author and comment).
 			sprintf(sbuf, "Author: %s", yminfo.author);
 			graphics_draw_text(disp, 120, 120, sbuf);
@@ -304,6 +366,28 @@ enum Page page_song(void) {
 				ypos += 10;
 				line = strtok(NULL, "\n");
 			}
+		} else {
+			char bank_name[64];
+			asset_basename(bankfiles[bank_sel], bank_name, sizeof(bank_name));
+			sprintf(sbuf, num_banks > 1 ? "Bank: %s  (Z: next)" : "Bank: %s", bank_name);
+			graphics_draw_text(disp, 120, 120, sbuf);
+			sprintf(sbuf, "PPQN: %d", mid64player_get_ppqn(mid));
+			graphics_draw_text(disp, 120, 130, sbuf);
+			sprintf(sbuf, "Tempo: %ld us/qn", (long)mid64player_get_tempo(mid));
+			graphics_draw_text(disp, 120, 140, sbuf);
+			sprintf(sbuf, "Duration: %ld ticks", (long)mid64player_get_duration_ticks(mid));
+			graphics_draw_text(disp, 120, 150, sbuf);
+			int poly = 0;
+			for (int i = 0; i < MID_VOICES; i++)
+				if (mixer_ch_playing(i)) poly++;
+			if (poly > poly_max) poly_max = poly;
+			if (TICKS_DISTANCE(poly_win, TICKS_READ()) >= TICKS_PER_SECOND / 2) {
+				poly_disp = poly_max;
+				poly_max = 0;
+				poly_win = TICKS_READ();
+			}
+			sprintf(sbuf, "Polyphony: %d / %d", poly_disp, MID_VOICES);
+			graphics_draw_text(disp, 120, 160, sbuf);
 		}
 
 		display_show(disp);
@@ -378,6 +462,8 @@ enum Page page_song(void) {
 				mute[chselect] = !mute[chselect];
 				if (song_type == SONG_XM)
 					xm_mute_channel(xm.ctx, chselect+1, mute[chselect]);
+				else if (song_type == SONG_MID)
+					sf64_synth_mute_channel(synth, chselect, mute[chselect]);
 				break;
 			}
 			if (ckeys.c_up) { 
@@ -387,15 +473,46 @@ enum Page page_song(void) {
 						mute[i] = !mute[chselect];
 					if (song_type == SONG_XM)
 						xm_mute_channel(xm.ctx, i+1, mute[i]);
+					else if (song_type == SONG_MID)
+						sf64_synth_mute_channel(synth, i, mute[i]);
 				}
+				break;
+			}
+
+			if (ckeys.z && song_type == SONG_MID && num_banks > 1) {
+				bank_sel = (bank_sel + 1) % num_banks;
+				mid64player_close(mid);
+				sf64_synth_close(synth);
+				for (int i = 0; i < MID_VOICES; i++)
+					mixer_ch_set_limits(i, 0, 0, 0);
+				sf64_close(g_sf64_bank);
+				load_sf64_bank(bankfiles[bank_sel]);
+				// Bank is already counted via g_sf64_bank_ramsz; reset the
+				// song baseline so mid/synth/mixer are measured afresh.
+				heap_base = heap_used();
+				synth = sf64_synth_create(g_sf64_bank);
+				sf64_synth_set_channels(synth, 0, MID_VOICES, MIXER_PRIORITY_MUSIC);
+				for (int i = 0; i < MID_VOICES; i++)
+					mixer_ch_set_limits(i, 0, 96000, 0);
+				mid = mid64player_load(cur_rom);
+				mid64player_set_loop(mid, true);
+				mid64player_play(mid, sf64_synth_midi_target(synth));
+				memset(mute, 0, sizeof(mute));
+				chselect = 0;
 				break;
 			}
 
 			if (ckeys.b) {
 				if (song_type == SONG_XM)
 					xm64player_close(&xm);
-				else
+				else if (song_type == SONG_YM)
 					ym64player_close(&ym);
+				else {
+					mid64player_close(mid);
+					sf64_synth_close(synth);
+					for (int i = 0; i < MID_VOICES; i++)
+						mixer_ch_set_limits(i, 0, 0, 0);
+				}
 				return PAGE_MENU;
 			}
 		} while (0);
@@ -414,9 +531,14 @@ int main(void) {
 	dir_t dir;
 	if (dir_findfirst("rom:/", &dir) == 0) do {
 		if (strendswith(dir.d_name, ".xm64") || strendswith(dir.d_name, ".XM64") || 
-			strendswith(dir.d_name, ".ym64") || strendswith(dir.d_name, ".YM64")) {
+			strendswith(dir.d_name, ".ym64") || strendswith(dir.d_name, ".YM64") ||
+			strendswith(dir.d_name, ".mid64") || strendswith(dir.d_name, ".MID64")) {
 			sprintf(sbuf, "rom:/%s", dir.d_name);
 			songfiles[num_songs++] = strdup(sbuf);
+		}
+		if (strendswith(dir.d_name, ".sf64") || strendswith(dir.d_name, ".SF64")) {
+			sprintf(sbuf, "rom:/%s", dir.d_name);
+			bankfiles[num_banks++] = strdup(sbuf);
 		}
 
 	} while (dir_findnext("rom:/", &dir) == 0);
@@ -435,6 +557,16 @@ int main(void) {
 
 	audio_init(44100, 4);
 	mixer_init(32);
+
+	// Default GM bank for MID64; Z cycles through every SF64 in rom:/.
+	for (int i = 0; i < num_banks; i++) {
+		if (strstr(bankfiles[i], "florestan-full")) {
+			bank_sel = i;
+			break;
+		}
+	}
+	assertf(num_banks > 0, "no SF64 banks in rom:/");
+	load_sf64_bank(bankfiles[bank_sel]);
 
 	profile_parms_t pparms = {
 		.num_slots = 32,

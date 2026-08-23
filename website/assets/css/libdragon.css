@@ -3,3 +3,42 @@ img#gh-dark-mode-only { display: none; }
     img#gh-light-mode-only { display: none; }
     img#gh-dark-mode-only { display: inline; }
 }
+
+/* "Preview API" boxes, produced by the @preview alias (see ALIASES in
+   doxygen-public.conf). Doxygen tags an xrefitem with its key as the CSS class,
+   but only styles the built-in ones, so give ours the same treatment as @note,
+   in a distinct color. */
+:root {
+    --preview-color-bg: #ede7f6;
+    --preview-color-hl: #6a3ab2;
+    --preview-color-text: #3d1f70;
+}
+
+@media (prefers-color-scheme: dark) {
+    html:not(.dark-mode) {
+        --preview-color-bg: #241a33;
+        --preview-color-hl: #a179e0;
+        --preview-color-text: #c9b3ea;
+    }
+}
+
+dl.preview {
+    padding: 10px;
+    margin: 10px 0px;
+    margin-left: 0;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--preview-color-bg);
+    border-left: 8px solid var(--preview-color-hl);
+    color: var(--preview-color-text);
+}
+
+/* The heading is a link to the index of all preview APIs, so it needs the
+   color to be set on the anchor as well. */
+dl.preview dt, dl.preview dt a {
+    color: var(--preview-color-hl);
+}
+
+dl.preview dd {
+    margin-inline-start: 0px;
+}

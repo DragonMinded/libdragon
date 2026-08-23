@@ -27,9 +27,9 @@ sf64_bank_t *sf64_load(const char *fn)
 			"cannot load SF2 file: %s\nPlease convert to SF64 with audioconv64", fn);
 		assertf(0, "cannot load SF64 file: %s\nFile corrupted", fn);
 	}
-	assertf(head.version == 1,
-		"cannot load SF64 file: %s\nVersion %d not supported, please convert again with audioconv64",
-		fn, head.version);
+	assertf(head.version == SF64_VERSION,
+		"cannot load SF64 file: %s\nInvalid version %d (expected %d); please convert again with audioconv64",
+		fn, head.version, SF64_VERSION);
 
 	lseek(fd, head.metadata_offset, SEEK_SET);
 	int meta_sz = head.metadata_size;

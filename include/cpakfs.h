@@ -117,6 +117,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include "preview.h"
 #include "ioctl.h"
 #include "joypad.h"
 
@@ -213,6 +214,7 @@ typedef void (*cpakfs_report_fn)(void *ctx, cpakfs_issue_t issue, cpakfs_issue_l
 
 /**
  * @brief Mount the controller pak as filesystem
+ * @preview
  * 
  * This function mounts the contents of a controller pak as a virtual
  * filesystem, with the specified prefix. After this function successfully
@@ -257,10 +259,12 @@ typedef void (*cpakfs_report_fn)(void *ctx, cpakfs_issue_t issue, cpakfs_issue_l
  *                          port (1..4).
  * @return 0 if success, negative value in case of error (and errno is set)
  */
+LIBDRAGON_PREVIEW_API
 int cpakfs_mount(joypad_port_t port, const char *prefix);
 
 /**
  * @brief Unmount the controller pak filesystem
+ * @preview
  * 
  * This function unmounts the controller pak filesystem, waiting for all
  * pending operations to complete.
@@ -268,10 +272,12 @@ int cpakfs_mount(joypad_port_t port, const char *prefix);
  * @param port              The controller pak to unmount
  * @return 0 if success, negative value in case of error (and errno is set)
  */
+LIBDRAGON_PREVIEW_API
 int cpakfs_unmount(joypad_port_t port);
 
 /**
  * @brief Read the serial number of a controller pak
+ * @preview
  * 
  * This function reads the 24-byte serial number of a controller pak.
  * This is a unique identifier that can be used to distinguish between
@@ -285,10 +291,12 @@ int cpakfs_unmount(joypad_port_t port);
  * @return negative     if an error occurred (eg: no cpak on the specified port),
  *                      and errno is set accordingly.
  */
+LIBDRAGON_PREVIEW_API
 int cpakfs_get_serial(joypad_port_t port, uint8_t serial[24]);
 
 /**
  * @brief Read the usage state of a controller pak
+ * @preview
  * 
  * @note The filesystem must be mounted before calling this function.
  * 
@@ -298,10 +306,12 @@ int cpakfs_get_serial(joypad_port_t port, uint8_t serial[24]);
  * @return negative     if an error occurred (eg: no cpak on the specified port),
  *                      and errno is set accordingly.
  */
+LIBDRAGON_PREVIEW_API
 int cpakfs_get_stats(joypad_port_t port, cpakfs_stats_t *stats);
 
 /**
  * @brief Check the integrity of a controller pak
+ * @preview
  * 
  * This function checks the integrity of a controller pak filesystem, and
  * optionally tries also to repair it if unreadable, and recover as much as
@@ -324,11 +334,13 @@ int cpakfs_get_stats(joypad_port_t port, cpakfs_stats_t *stats);
  * @return negative     If a physical error occurred (eg: no cpak on the specified port),
  *                      and errno will be set accordingly. 
  */
+LIBDRAGON_PREVIEW_API
 int cpakfs_fsck(joypad_port_t port, bool fix_errors,
         cpakfs_report_fn report, void *report_ctx);
 
 /**
  * @brief Format a controller pak
+ * @preview
  * 
  * This function formats a controller pak, resetting to a pristine, valid
  * empty state. By default, the function only erases the filesystem
@@ -342,6 +354,7 @@ int cpakfs_fsck(joypad_port_t port, bool fix_errors,
  * @param erase     Whether to erase all content or just the metadata
  * @return          0 on success, negative on error
  */
+LIBDRAGON_PREVIEW_API
 int cpakfs_format(joypad_port_t port, bool erase);
 
 
@@ -405,6 +418,7 @@ typedef enum {
 
 /**
  * @brief Parse a cpakfs fullpath into its components
+ * @preview
  * 
  * This function parses a full path in the format "GAMECODE.PU-filename.ext"
  * and extracts the game code, publisher code, filename, and extension into
@@ -422,10 +436,12 @@ typedef enum {
  * @result 0 on success, or a negative value indicating the type of error. See
  *         #cpakfs_parse_err_t for details.
  */
+LIBDRAGON_PREVIEW_API
 cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *path, const char **error_pos);
 
 /**
  * @brief Format a cpakfs path structure into a full path string
+ * @preview
  * 
  * This function will always succeed, as it will find a way to format any
  * combination of game code, publisher code, filename, and extension, including
@@ -445,6 +461,7 @@ cpakfs_parse_err_t cpakfs_path_parse(const char *utf8_fullname, cpakfs_path_t *p
  * @param buflen                Size of the output buffer (including space for null terminator)
  * @return                      0 on success, -1 if the buffer was too small
  */
+LIBDRAGON_PREVIEW_API
 int cpakfs_path_format(const cpakfs_path_t *path, char *utf8_fullname, int buflen);
 
 

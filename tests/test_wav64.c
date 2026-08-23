@@ -7,6 +7,7 @@
  */
 #include <libdragon.h>
 #include <malloc.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -590,7 +591,8 @@ static void sv_init(void)
 }
 
 // The frames are generated on the fly, so switching the residual width of the
-// streamed waveforms is just a matter of telling generator and mixer about it.
+// streamed waveforms updates the shared codec; mixer_ch_play must pick up the
+// new VADPCM frame size even though the waveform uuid is unchanged.
 static void sv_set_bits(int bits)
 {
     sv_bits = bits;
@@ -865,6 +867,208 @@ static bool test_mixer_loop(void)
 }
 
 //////////////////////////////////////////////////////////////////////////////
+// Reconfigure after the samplebuffer is no longer configured for the wave
+//
+// mixer_ch_play skips set_unit_bytes when wave_uuid still matches. Several
+// paths close/reinit the ring (or just the stereo-R one) without clearing that
+// uuid: the next play of the same waveform then leaves unit_bytes at 0 and
+// mixer_channel_window divides by it. The start hook records the ring so the
+// tests can observe the state without going through Mixer internals.
+//////////////////////////////////////////////////////////////////////////////
+
+static samplebuffer_t *ru_sbuf;
+
+static void ru_start(void *ctx, samplebuffer_t *sbuf)
+{
+	(void)ctx;
+	ru_sbuf = sbuf;
+}
+
+// Drop any ring left by a previous test and forget the waveform uuid so the
+// next play is a full configure. set_limits closes the buffer when the limit
+// actually changes.
+static void ru_reset(waveform_t *w)
+{
+	sv_silence();
+	w->__uuid = 0;
+	w->start = ru_start;
+	mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 2048);
+	mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+	mixer_ch_set_limits(SV_CHANNEL + 1, 0, 48000, 2048);
+	mixer_ch_set_limits(SV_CHANNEL + 1, 0, 0, 0);
+	ru_sbuf = NULL;
+}
+
+// End state of "ring closed and reinited, configure skipped": uuid and wave
+// pointer still say this waveform, but unit_bytes is 0. Replay must restore it.
+static bool test_mixer_stale_unit_bytes(void)
+{
+	waveform_t *w = &sv_wave;
+	WaveformStart prev = w->start;
+	ru_reset(w);
+
+	mixer_ch_play(SV_CHANNEL, w);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	if (!ru_sbuf || ru_sbuf->unit_bytes == 0) {
+		printf("FAILED stale unit_bytes: first play did not configure the ring\n");
+		w->start = prev;
+		return false;
+	}
+	samplebuffer_t *sbuf = ru_sbuf;
+	int ub = sbuf->unit_bytes;
+
+	mixer_ch_stop(SV_CHANNEL);
+	// step=0 so mixer_refresh_max_ns does not divide by the zeroed unit_bytes
+	// during the next play (the bug would otherwise teq there already).
+	mixer_ch_set_freq(SV_CHANNEL, 0);
+	sbuf->unit_bytes = 0;
+
+	ru_sbuf = NULL;
+	mixer_ch_play(SV_CHANNEL, w);
+	w->start = prev;
+
+	if (sbuf->unit_bytes == 0) {
+		printf("FAILED stale unit_bytes: replay of %s left unit_bytes=0 "
+			"(uuid reuse without reconfigure)\n", w->name);
+		sbuf->unit_bytes = ub;
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+	if (sbuf->unit_bytes != ub) {
+		printf("FAILED stale unit_bytes: unit_bytes %d, expected %d\n",
+			sbuf->unit_bytes, ub);
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+
+	mixer_ch_set_freq(SV_CHANNEL, SV_FREQ);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	sv_mix(2048);
+	sv_mix(4096);
+	if (!sv_check_lr("stale unit_bytes", 4096))
+		return false;
+	return true;
+}
+
+// mixer_ch_set_limits on the secondary channel frees its ring and clears only
+// that channel's uuid. Replaying the same stereo VADPCM on the owner used to
+// keep the owner's uuid, skip reconfigure, and leave R with unit_bytes=0.
+static bool test_mixer_stereo_r_reopen(void)
+{
+	waveform_t *w = &sv_wave;
+	WaveformStart prev = w->start;
+	ru_reset(w);
+
+	mixer_ch_play(SV_CHANNEL, w);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	if (!ru_sbuf || !samplebuffer_is_inited(ru_sbuf + 1) ||
+		(ru_sbuf + 1)->unit_bytes == 0) {
+		printf("FAILED stereo R reopen: first play did not configure R\n");
+		w->start = prev;
+		return false;
+	}
+	samplebuffer_t *sbuf = ru_sbuf;
+
+	mixer_ch_stop(SV_CHANNEL);
+	// Any real change closes the ring; max_buf_sz is independent of the
+	// output rate so this stays a no-op-free trigger across audio_init values.
+	mixer_ch_set_limits(SV_CHANNEL + 1, 0, 0, 2048);
+	if (samplebuffer_is_inited(sbuf + 1)) {
+		printf("FAILED stereo R reopen: set_limits did not free R\n");
+		w->start = prev;
+		return false;
+	}
+
+	ru_sbuf = NULL;
+	mixer_ch_play(SV_CHANNEL, w);
+	w->start = prev;
+
+	samplebuffer_t *cur = ru_sbuf ? ru_sbuf : sbuf;
+	if (!samplebuffer_is_inited(cur + 1) || (cur + 1)->unit_bytes == 0) {
+		printf("FAILED stereo R reopen: replay of %s left R unconfigured "
+			"(owner uuid kept after secondary ring was freed)\n", w->name);
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	sv_mix(2048);
+	sv_mix(4096);
+	if (!sv_check_lr("stereo R reopen", 4096))
+		return false;
+	return true;
+}
+
+// Same waveform again after the ring was closed and reinited while wave_uuid
+// was kept: the capacity_bytes < need path inside mixer_ch_play does exactly
+// that. We replay the end state here (close+init, wave pointer restored so the
+// debug assertf does not fire first) and require that play reconfigures.
+static bool test_mixer_realloc_same_wave(void)
+{
+	waveform_t *w = &sv_wave;
+	WaveformStart prev = w->start;
+	ru_reset(w);
+
+	mixer_ch_play(SV_CHANNEL, w);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	if (!ru_sbuf || ru_sbuf->unit_bytes == 0) {
+		printf("FAILED realloc same wave: first play did not configure the ring\n");
+		w->start = prev;
+		return false;
+	}
+	samplebuffer_t *sbuf = ru_sbuf;
+	int ub = sbuf->unit_bytes;
+	int cap = sbuf->capacity_bytes;
+	int state_size = sbuf->state_size;
+
+	mixer_ch_stop(SV_CHANNEL);
+	// End state of the capacity-too-small branch: ring reinited, unit_bytes 0,
+	// channel uuid still matching. Restoring wave avoids the assertf that
+	// currently guards this path in debug builds; without a reconfigure,
+	// unit_bytes stays 0 either way.
+	samplebuffer_close(sbuf);
+	void *ptr = malloc_uncached(cap + state_size);
+	if (!ptr) {
+		printf("FAILED realloc same wave: out of memory\n");
+		w->start = prev;
+		return false;
+	}
+	samplebuffer_init(sbuf, ptr, cap, state_size);
+	sbuf->wave = w;
+
+	ru_sbuf = NULL;
+	mixer_ch_set_freq(SV_CHANNEL, 0);
+	mixer_ch_play(SV_CHANNEL, w);
+	w->start = prev;
+
+	if (sbuf->unit_bytes == 0) {
+		printf("FAILED realloc same wave: replay of %s left unit_bytes=0 "
+			"after close+reinit with uuid kept\n", w->name);
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+	if (sbuf->unit_bytes != ub) {
+		printf("FAILED realloc same wave: unit_bytes %d, expected %d\n",
+			sbuf->unit_bytes, ub);
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+	if (!ru_sbuf) {
+		printf("FAILED realloc same wave: configure/start did not run on replay\n");
+		mixer_ch_stop(SV_CHANNEL);
+		return false;
+	}
+
+	mixer_ch_set_freq(SV_CHANNEL, SV_FREQ);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	sv_mix(2048);
+	sv_mix(4096);
+	if (!sv_check_lr("realloc same wave", 4096))
+		return false;
+	return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
 // Streamed mono PCM through the mixer
 //
 // Covers two bugs that only show up with uncompressed PCM (the path XM takes
@@ -931,6 +1135,96 @@ static bool test_mixer_stream_pcm8(float freq, int startsample)
     if (peak < 256) {
         printf("FAILED mixer stream pcm8: silent (peak %d) freq=%d start=%d\n",
             peak, (int)freq, startsample);
+        return false;
+    }
+    return true;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Block codec at a loop point
+//
+// A block codec (ULC, Opus) decodes whole blocks and undoes whatever crosses
+// the end of the waveform; the mixer then appends the loop overread right
+// after, in the same fetch and with no flush in between. Both writes reach
+// RDRAM through SP DMA, which needs an 8-byte aligned destination, so the trim
+// cannot stop at an arbitrary sample: it rounds up and keeps a few of the
+// samples it already decoded past the end.
+//////////////////////////////////////////////////////////////////////////////
+
+#define BC_LEN      4099    // not a multiple of the 4 samples of an 8-byte slot
+#define BC_BLOCK    1024
+#define BC_CHANNEL  2
+
+// Triangle over the whole loop, so the waveform is continuous across the wrap
+// and any jump in the output is a defect rather than the signal.
+static int16_t bc_sample(int pos)
+{
+    int half = BC_LEN / 2;
+    int v = pos < half ? pos : BC_LEN - pos;
+    return (int16_t)(v * 12000 / half);
+}
+
+static int bc_calls, bc_units;
+
+static void bc_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking)
+{
+    (void)ctx; (void)seeking;
+    int n = ROUND_UP(wlen, BC_BLOCK);
+    bc_calls++; bc_units += n;
+    int16_t *out = samplebuffer_append(sbuf, n);
+    for (int i = 0; i < n; i++)
+        out[i] = bc_sample((wpos + i) % BC_LEN);
+
+    // Keep the samples the block already holds up to the next 8-byte boundary,
+    // which is what leaves the write cursor where the next block can land.
+    int valid = ROUND_UP(BC_LEN - wpos, 4);
+    if (n > valid)
+        samplebuffer_undo(sbuf, n - valid);
+}
+
+static waveform_t bc_wave = {
+    .name = "bc-block", .bits = 16, .channels = 1, .frequency = 44100,
+    .len = BC_LEN, .loop_len = BC_LEN, .read = bc_read,
+    .append_units = BC_BLOCK, .rsp_written = true, .loop_restart_only = true,
+};
+
+static bool test_mixer_block_codec_loop(float freq)
+{
+    mixer_ch_stop(BC_CHANNEL);
+    sv_mix(2048);
+
+    mixer_ch_set_limits(BC_CHANNEL, 16, 48000, 0);
+    mixer_ch_play(BC_CHANNEL, &bc_wave);
+    mixer_ch_set_freq(BC_CHANNEL, freq);
+    mixer_ch_set_vol(BC_CHANNEL, 0.5f, 0.5f);
+    sv_mix(2048);
+
+    // Several laps of the loop, so the trim and the refill happen many times.
+    bc_calls = bc_units = 0;
+    int peak = 0, maxjump = 0, worst = -1, prev = 0;
+    for (int i = 0; i < 4; i++) {
+        sv_mix(4096);
+        for (int j = 0; j < 4096; j++) {
+            int s = sv_out[j*2];
+            int a = s < 0 ? -s : s;
+            int d = s - prev; if (d < 0) d = -d;
+            if (a > peak) peak = a;
+            if ((i || j) && d > maxjump) { maxjump = d; worst = i*4096 + j; }
+            prev = s;
+        }
+    }
+    mixer_ch_stop(BC_CHANNEL);
+    sv_mix(2048);
+
+    if (peak < 1024) {
+        printf("FAILED block codec loop: silent (peak %d) freq=%d\n", peak, (int)freq);
+        return false;
+    }
+    // The slope is a handful of units per sample at most, so anything beyond
+    // this is the ring handing out samples from the wrong place.
+    if (maxjump > 200) {
+        printf("FAILED block codec loop: discontinuity %d at %d freq=%d (reads=%d units=%d)\n",
+            maxjump, worst, (int)freq, bc_calls, bc_units);
         return false;
     }
     return true;
@@ -2160,6 +2454,57 @@ static bool test_mixer_freq_change(void)
     return true;
 }
 
+// A frequency ramp is piecewise-constant per mix round: the waveform position
+// must advance faster in the second half than in the first. Use a oneshot so
+// the playhead cannot wrap mid-measurement.
+static bool test_mixer_freq_ramp(void)
+{
+	const int nramp = 2048, half = nramp / 2;
+
+	bl_init();
+	sv_silence();
+	mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);
+	mixer_ch_play(SV_CHANNEL, &bl_wave_oneshot_res);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	mixer_ch_set_pos(SV_CHANNEL, 0);
+	mixer_ch_set_freq(SV_CHANNEL, BL_FREQ / 2);
+	sv_mix(128);
+
+	mixer_ch_set_freq_ramp(SV_CHANNEL, BL_FREQ, nramp, mixer_ramp_linear, 0);
+	double p0 = mixer_ch_get_pos(SV_CHANNEL);
+	sv_mix(half);
+	double p1 = mixer_ch_get_pos(SV_CHANNEL);
+	sv_mix(half);
+	double p2 = mixer_ch_get_pos(SV_CHANNEL);
+
+	if (!mixer_ch_playing(SV_CHANNEL)) {
+		printf("FAILED freq ramp: oneshot ended early (pos %.1f)\n", p2);
+		return false;
+	}
+
+	double a0 = p1 - p0, a1 = p2 - p1;
+	if (a0 >= a1) {
+		printf("FAILED freq ramp: first-half advance %.2f >= second-half %.2f\n",
+			a0, a1);
+		return false;
+	}
+	// Ideal mean rates 0.625 and 0.875 of output rate; allow round granularity.
+	if (a0 < half * 0.50 || a0 > half * 0.75 ||
+		a1 < half * 0.75 || a1 > half * 1.05) {
+		printf("FAILED freq ramp: advances %.2f / %.2f (half=%d)\n", a0, a1, half);
+		return false;
+	}
+
+	double p3 = mixer_ch_get_pos(SV_CHANNEL);
+	sv_mix(256);
+	double a2 = mixer_ch_get_pos(SV_CHANNEL) - p3;
+	if (a2 < 256 - 4 || a2 > 256 + 4) {
+		printf("FAILED freq ramp: post-ramp advance %.2f, expected ~256\n", a2);
+		return false;
+	}
+	return true;
+}
+
 // Stop while the playhead is still inside the waveform, not at the end.
 static bool test_mixer_stop_mid(void)
 {
@@ -2384,6 +2729,61 @@ static bool test_mixer_vol_ramp_land(void)
     return true;
 }
 
+// Mono gain ramps are independent of L/R volume: a linear gain fade matches
+// vol_ramp shape, a dB fade follows exp(-9.226·t/T) toward silence, and a
+// mid-ramp set_vol scales the envelope without restarting it.
+static bool test_mixer_gain_ramp(void)
+{
+	const int nramp = 4096, ntail = 1024;
+
+	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_linear, 0);
+	sv_mix(nramp + ntail);
+	if (!vr_check_linear("gain ramp linear", nramp, 1.0f, 0.0f, vr_amp))
+		return false;
+	if (!vr_check_level("gain ramp linear", nramp + 512, nramp + ntail, 0.0f, vr_amp))
+		return false;
+
+	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_exp, 0);
+	sv_mix(nramp + ntail);
+	// Piecewise-linear per round: check a few interior points against the
+	// SF2 silence curve, not every sample.
+	for (int k = 1; k <= 3; k++) {
+		int i = nramp * k / 4;
+		float g = expf(-9.226f * (float)i / (float)nramp);
+		int want = (int)(BL_AMP * g);
+		int d = vr_amp(i) - want; if (d < 0) d = -d;
+		if (d > VR_TOL_LEVEL * 2) {
+			printf("FAILED gain ramp db: amp %d at %d, expected %d\n",
+				vr_amp(i), i, want);
+			return false;
+		}
+	}
+	if (!vr_check_level("gain ramp db", nramp + 512, nramp + ntail, 0.0f, vr_amp))
+		return false;
+
+	// Vol can move under a running gain ramp without restarting it.
+	vr_start(&bl_wave_loop_res, 1.0f, 1.0f);
+	mixer_ch_set_gain_ramp(SV_CHANNEL, 0.0f, nramp, mixer_ramp_linear, 0);
+	sv_mix(nramp / 2);
+	int a_full = vr_amp(nramp / 2 - 32);
+	mixer_ch_set_vol(SV_CHANNEL, 0.5f, 0.5f);
+	sv_mix(256); // past #MIXER_DECLICK_SAMPLES
+	int a_half = vr_amp(200);
+	// Must be quieter than before set_vol (gain also keeps falling), but not
+	// silent: a tight absolute curve is hard here because the RSP walks the
+	// product of two ramps as one linear chord per round.
+	if (a_half > a_full * 3 / 4 || a_half < a_full / 5) {
+		printf("FAILED gain×vol: amp %d after set_vol 0.5 (was %d)\n",
+			a_half, a_full);
+		return false;
+	}
+	sv_mix(nramp / 2 - 256 + ntail);
+	return vr_check_level("gain×vol", nramp / 2 - 256 + 512,
+		nramp / 2 - 256 + ntail, 0.0f, vr_amp);
+}
+
 // The ramp moves at every output sample, and not once per group of eight: a
 // steep ramp comes out as a line and not as a staircase. What this looks for
 // is the jump between two neighbouring samples, which stepping once per group
@@ -2456,6 +2856,310 @@ static bool test_mixer_resident_vadpcm_loop(void)
         rf_wave_resident.__uuid = 0;
     }
     return test_mixer_loop_exact(&rf_wave_resident, RF_LOOP_START - 64);
+}
+
+//////////////////////////////////////////////////////////////////////////////
+// Channel allocation / mixer_play
+//////////////////////////////////////////////////////////////////////////////
+
+static void alloc_silence(void)
+{
+	for (int i = 0; i < 8; i++)
+		mixer_ch_stop(i);
+	sv_mix(256);
+}
+
+/** Free preferred over steal; quieter over louder; older over newer. */
+static bool test_mixer_alloc_order(void)
+{
+	alloc_silence();
+	int out[4];
+
+	// Fill ch0-2; ch3 free → alloc prefers the free channel.
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_set_priority(1, MIXER_PRIORITY_SFX);
+	mixer_ch_play(2, &bl_wave_loop_res);
+	mixer_ch_set_priority(2, MIXER_PRIORITY_SFX);
+	if (mixer_ch_alloc(0, 4, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 3) {
+		printf("FAILED alloc order: free channel not preferred (got %d)\n",
+			out[0]);
+		return false;
+	}
+
+	// All busy, same prio: quieter wins.
+	mixer_ch_play(3, &bl_wave_loop_res);
+	mixer_ch_set_priority(3, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(0, 1.0f, 1.0f, 0);
+	mixer_ch_set_vol_ramp(1, 0.25f, 0.25f, 0);
+	mixer_ch_set_vol_ramp(2, 0.75f, 0.75f, 0);
+	mixer_ch_set_vol_ramp(3, 0.5f, 0.5f, 0);
+	if (mixer_ch_alloc(0, 4, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 1) {
+		printf("FAILED alloc order: quietest not preferred (got %d)\n", out[0]);
+		return false;
+	}
+
+	// Equal volume: oldest wins. Restart 1/2/3 after aging ch0.
+	alloc_silence();
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(0, 0.5f, 0.5f, 0);
+	sv_mix(512);
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_set_priority(1, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(1, 0.5f, 0.5f, 0);
+	mixer_ch_play(2, &bl_wave_loop_res);
+	mixer_ch_set_priority(2, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(2, 0.5f, 0.5f, 0);
+	if (mixer_ch_alloc(0, 3, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 0) {
+		printf("FAILED alloc order: oldest not preferred (got %d)\n", out[0]);
+		return false;
+	}
+
+	return true;
+}
+
+/** Victims with prio > request are not stealable. */
+static bool test_mixer_alloc_priority(void)
+{
+	alloc_silence();
+	int out[2];
+
+	for (int i = 0; i < 4; i++) {
+		mixer_ch_play(i, &bl_wave_loop_res);
+		// Leave default MIXER_PRIORITY_MAX from mixer_ch_play.
+	}
+	if (mixer_ch_alloc(0, 4, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 0) {
+		printf("FAILED alloc prio: stole a MAX-priority channel\n");
+		return false;
+	}
+
+	mixer_ch_set_priority(2, MIXER_PRIORITY_SFX);
+	if (mixer_ch_alloc(0, 4, 1, false, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 2) {
+		printf("FAILED alloc prio: expected ch2 (got n=%d ch=%d)\n",
+			out[0] >= 0 ? 1 : 0, out[0]);
+		return false;
+	}
+
+	// Equal priority is stealable.
+	mixer_ch_set_priority(0, 100);
+	mixer_ch_set_priority(1, 100);
+	mixer_ch_set_priority(2, 100);
+	mixer_ch_set_priority(3, 100);
+	if (mixer_ch_alloc(0, 4, 1, false, 100, NULL, out) != 1) {
+		printf("FAILED alloc prio: equal priority should be stealable\n");
+		return false;
+	}
+	return true;
+}
+
+/** count larger than availability returns a partial plan. */
+static bool test_mixer_alloc_partial(void)
+{
+	alloc_silence();
+	int out[8];
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_set_priority(1, MIXER_PRIORITY_SFX);
+	// Only 2 free in a window of 4.
+	int n = mixer_ch_alloc(0, 4, 4, false, MIXER_PRIORITY_MIN, NULL, out);
+	if (n != 2 || out[0] != 2 || out[1] != 3) {
+		printf("FAILED alloc partial: n=%d out=%d,%d (want 2: 2,3)\n",
+			n, out[0], out[1]);
+		return false;
+	}
+	return true;
+}
+
+/** Plan-only: channels keep playing; repeated calls are stable. */
+static bool test_mixer_alloc_plan_only(void)
+{
+	alloc_silence();
+	int out1[2], out2[2];
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(0, 0.5f, 0.5f, 0);
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_set_priority(1, MIXER_PRIORITY_SFX);
+	mixer_ch_set_vol_ramp(1, 0.5f, 0.5f, 0);
+
+	if (mixer_ch_alloc(0, 2, 1, false, MIXER_PRIORITY_SFX, NULL, out1) != 1) {
+		printf("FAILED alloc plan-only: first plan empty\n");
+		return false;
+	}
+	if (!mixer_ch_playing(0) || !mixer_ch_playing(1)) {
+		printf("FAILED alloc plan-only: plan stopped a channel\n");
+		return false;
+	}
+	if (mixer_ch_alloc(0, 2, 1, false, MIXER_PRIORITY_SFX, NULL, out2) != 1 ||
+		out2[0] != out1[0]) {
+		printf("FAILED alloc plan-only: second plan differs (%d vs %d)\n",
+			out1[0], out2[0]);
+		return false;
+	}
+	return true;
+}
+
+/** Stereo pairs: contiguous primary, never last channel, never scattered. */
+static bool test_mixer_alloc_stereo(void)
+{
+	alloc_silence();
+	int out[4];
+
+	// Free window: lowest contiguous pair.
+	if (mixer_ch_alloc(0, 8, 1, true, MIXER_PRIORITY_SFX, NULL, out) != 1 ||
+		out[0] != 0) {
+		printf("FAILED alloc stereo: expected primary 0, got %d\n", out[0]);
+		return false;
+	}
+
+	// Occupy 0; next pair is 1-2? Actually 0-1 is busy if 0 plays stereo.
+	mixer_ch_play(0, &bl_wave_loop_stereo);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	if (mixer_ch_alloc(0, 8, 1, true, MIXER_PRIORITY_MIN, NULL, out) != 1 ||
+		out[0] != 2) {
+		printf("FAILED alloc stereo: expected next free pair at 2, got %d\n",
+			out[0]);
+		return false;
+	}
+
+	// Never return the stereo sub as a primary (mono alloc over a stereo pair).
+	if (mixer_ch_alloc(0, 8, 1, false, MIXER_PRIORITY_MIN, NULL, out) != 1 ||
+		out[0] == 1) {
+		printf("FAILED alloc stereo: returned STEREO_SUB as primary (%d)\n",
+			out[0]);
+		return false;
+	}
+
+	// Window with no contiguous free pair even if scattered frees exist.
+	alloc_silence();
+	mixer_ch_play(1, &bl_wave_loop_res);
+	mixer_ch_play(3, &bl_wave_loop_res);
+	// Free: 0,2,4,5,6,7 — but in window [0,4) free are 0 and 2 (not a pair).
+	if (mixer_ch_alloc(0, 4, 1, true, MIXER_PRIORITY_MIN, NULL, out) != 0) {
+		printf("FAILED alloc stereo: found pair in scattered window (ch=%d)\n",
+			out[0]);
+		return false;
+	}
+
+	// Last mixer channel cannot be a stereo primary.
+	alloc_silence();
+	for (int i = 0; i < 7; i++)
+		mixer_ch_play(i, &bl_wave_loop_res);
+	if (mixer_ch_alloc(0, 8, 1, true, MIXER_PRIORITY_MIN, NULL, out) != 0) {
+		printf("FAILED alloc stereo: planned last channel as stereo primary\n");
+		return false;
+	}
+	return true;
+}
+
+/** Channels whose limits reject the waveform are skipped. */
+static bool test_mixer_alloc_limits(void)
+{
+	alloc_silence();
+	int out[2];
+
+	mixer_ch_set_limits(0, 8, BL_FREQ, 0);
+	mixer_ch_set_limits(1, 16, 8000, 0);
+	// ch2 keeps defaults (16-bit, full rate) and is free.
+	if (mixer_ch_alloc(0, 3, 1, false, MIXER_PRIORITY_SFX,
+		&bl_wave_loop_res, out) != 1 || out[0] != 2) {
+		printf("FAILED alloc limits: expected ch2, got %d\n", out[0]);
+		mixer_ch_set_limits(0, 16, BL_FREQ, 0);
+		mixer_ch_set_limits(1, 16, BL_FREQ, 0);
+		return false;
+	}
+	mixer_ch_set_limits(0, 16, BL_FREQ, 0);
+	mixer_ch_set_limits(1, 16, BL_FREQ, 0);
+	return true;
+}
+
+/** mixer_play: free channel, steal SFX, refuse music, stereo, state reset. */
+static bool test_mixer_play(void)
+{
+	alloc_silence();
+
+	int ch = mixer_play(&bl_wave_oneshot_res, MIXER_PRIORITY_SFX);
+	if (ch < 0 || !mixer_ch_playing(ch)) {
+		printf("FAILED mixer_play: free-channel play failed (ch=%d)\n", ch);
+		return false;
+	}
+
+	// Saturate with SFX; next play steals one of them.
+	alloc_silence();
+	int occupied[8];
+	for (int i = 0; i < 8; i++) {
+		occupied[i] = mixer_play(&bl_wave_loop_res, MIXER_PRIORITY_SFX);
+		if (occupied[i] < 0) {
+			printf("FAILED mixer_play: could not fill channel %d\n", i);
+			return false;
+		}
+	}
+	int stolen = mixer_play(&bl_wave_oneshot_res, MIXER_PRIORITY_SFX);
+	if (stolen < 0) {
+		printf("FAILED mixer_play: failed to steal another SFX\n");
+		return false;
+	}
+
+	// Music-priority channels are not stolen by SFX.
+	alloc_silence();
+	for (int i = 0; i < 8; i++) {
+		mixer_ch_play(i, &bl_wave_loop_res);
+		mixer_ch_set_priority(i, MIXER_PRIORITY_MUSIC);
+	}
+	if (mixer_play(&bl_wave_oneshot_res, MIXER_PRIORITY_SFX) != -1) {
+		printf("FAILED mixer_play: stole a MUSIC-priority channel\n");
+		return false;
+	}
+
+	// Stereo picks a contiguous pair.
+	alloc_silence();
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_priority(0, MIXER_PRIORITY_SFX);
+	ch = mixer_play(&bl_wave_loop_stereo, MIXER_PRIORITY_SFX);
+	if (ch != 1) {
+		printf("FAILED mixer_play: stereo expected ch1, got %d\n", ch);
+		return false;
+	}
+	if (!mixer_ch_playing(1) || !mixer_ch_playing(2)) {
+		printf("FAILED mixer_play: stereo pair not both playing\n");
+		return false;
+	}
+
+	// Volume/pan and force_mono are reset before play.
+	alloc_silence();
+	mixer_ch_play(0, &bl_wave_loop_res);
+	mixer_ch_set_vol_pan(0, 0.25f, 1.0f);
+	mixer_ch_set_force_mono(0, true);
+	mixer_ch_stop(0);
+	ch = mixer_play(&bl_wave_oneshot_res, MIXER_PRIORITY_SFX);
+	if (ch != 0) {
+		printf("FAILED mixer_play: reset test expected ch0, got %d\n", ch);
+		return false;
+	}
+	if (mixer_ch_get_force_mono(0)) {
+		printf("FAILED mixer_play: force_mono not cleared\n");
+		return false;
+	}
+	// Settled volume should be full (1,1): mix a little and check amplitude.
+	sv_mix(256);
+	int peak = 0;
+	for (int i = 0; i < 256; i++) {
+		int a = sv_out[i * 2];
+		if (a < 0) a = -a;
+		if (a > peak) peak = a;
+	}
+	if (peak < BL_AMP * 3 / 4) {
+		printf("FAILED mixer_play: volume not reset (peak=%d)\n", peak);
+		return false;
+	}
+	return true;
 }
 
 int main(void)
@@ -2539,6 +3243,13 @@ int main(void)
         }
     }
 
+    const float bc_freqs[] = { 48000, 44100, 32000, 22050 };
+    for (int i = 0; i < 4; i++) {
+        total++;
+        if (!test_mixer_block_codec_loop(bc_freqs[i]))
+            failed++;
+    }
+
     printf("Streamed stereo VADPCM tests\n");
     fflush(stdout);
     const float sv_freqs[] = { 32000, 44100, 22050, 33333, 48000 };
@@ -2561,6 +3272,9 @@ int main(void)
     total++; if (!test_mixer_stop_releases_sub()) failed++;
     total++; if (!test_mixer_switch_waveform()) failed++;
     total++; if (!test_mixer_loop()) failed++;
+    total++; if (!test_mixer_stale_unit_bytes()) failed++;
+    total++; if (!test_mixer_stereo_r_reopen()) failed++;
+    total++; if (!test_mixer_realloc_same_wave()) failed++;
 
     // The same stream at the narrower widths. Frames get shorter, so every
     // size and offset the mixer derives from them changes with the width.
@@ -2689,12 +3403,24 @@ int main(void)
     total++; if (!test_mixer_vol_ramp_replace()) failed++;
     total++; if (!test_mixer_vol_ramp_land()) failed++;
     total++; if (!test_mixer_vol_ramp_smooth()) failed++;
+    total++; if (!test_mixer_gain_ramp()) failed++;
     total++; if (!test_mixer_declick()) failed++;
 
     total++; if (!test_mixer_freq_change()) failed++;
+    total++; if (!test_mixer_freq_ramp()) failed++;
     total++; if (!test_mixer_stop_mid()) failed++;
     rf_init(4);
     total++; if (!test_mixer_resident_vadpcm_loop()) failed++;
+
+    printf("Channel allocation\n");
+    fflush(stdout);
+    total++; if (!test_mixer_alloc_order()) failed++;
+    total++; if (!test_mixer_alloc_priority()) failed++;
+    total++; if (!test_mixer_alloc_partial()) failed++;
+    total++; if (!test_mixer_alloc_plan_only()) failed++;
+    total++; if (!test_mixer_alloc_stereo()) failed++;
+    total++; if (!test_mixer_alloc_limits()) failed++;
+    total++; if (!test_mixer_play()) failed++;
 
     sv_silence();
     mixer_ch_set_limits(SV_CHANNEL, 0, 48000, 0);

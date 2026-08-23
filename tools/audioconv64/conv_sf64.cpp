@@ -17,16 +17,17 @@
 #define _GNU_SOURCE
 #endif
 #include <math.h>
-#include <string.h>
 #include <vector>
 #include <map>
 #include <set>
 #include <string>
+#include <cstdint>
 
 #include "../common/binout.h"
 #include "../common/polyfill.h"
 #include "../common/utils.h"
 #include "../common/assetcomp.h"
+#include "../common/crc64.c"
 #include "audioconv64.h"
 #include "../../src/audio/sf64_internal.h"
 
@@ -35,23 +36,16 @@
 
 int flag_sf_compress = 1;
 
-static uint32_t fnv1a(uint32_t h, const void *data, size_t n)
-{
-	const uint8_t *p = (const uint8_t*)data;
-	for (size_t i = 0; i < n; i++)
-		h = (h ^ p[i]) * 16777619u;
-	return h;
-}
-
-static uint32_t hash_sample_variant(const int16_t *pcm, int cnt, int rate, int ch,
+/** CRC-64 over PCM + playback variant params (rate/channels/loop). */
+static uint64_t hash_sample_variant(const int16_t *pcm, int cnt, int rate, int ch,
 	int loop_start, int loop_end)
 {
-	uint32_t h = 2166136261u;
-	h = fnv1a(h, pcm, cnt * ch * sizeof(int16_t));
-	h = fnv1a(h, &rate, sizeof(rate));
-	h = fnv1a(h, &ch, sizeof(ch));
-	h = fnv1a(h, &loop_start, sizeof(loop_start));
-	h = fnv1a(h, &loop_end, sizeof(loop_end));
+	uint64_t h = 0;
+	h = crc64(h, (const unsigned char *)pcm, (uint64_t)cnt * ch * sizeof(int16_t));
+	h = crc64(h, (const unsigned char *)&rate, sizeof(rate));
+	h = crc64(h, (const unsigned char *)&ch, sizeof(ch));
+	h = crc64(h, (const unsigned char *)&loop_start, sizeof(loop_start));
+	h = crc64(h, (const unsigned char *)&loop_end, sizeof(loop_end));
 	return h;
 }
 
@@ -64,14 +58,12 @@ static int16_t secs_to_timecents(float sec)
 	return (int16_t)lroundf(tc);
 }
 
-static int16_t gain_to_centibels(float gain)
+/** Centibels of attenuation → linear gain in [0,1]. */
+static float centibels_to_gain(int cb)
 {
-	if (gain >= 1.0f) return 0;
-	if (gain <= 0.0f) return 1440;
-	float cb = -200.0f * log10f(gain);
-	if (cb < 0.0f) return 0;
-	if (cb > 1440.0f) return 1440;
-	return (int16_t)lroundf(cb);
+	if (cb <= 0) return 1.0f;
+	if (cb >= 1440) return 0.0f;
+	return powf(10.0f, -cb / 200.0f);
 }
 
 /** Hold/decay may still be in timecents when keynum scaling is active. */
@@ -88,7 +80,8 @@ static void copy_amp_env(sf64_envelope_t *dst, const struct tsf_envelope *src)
 	dst->attack_timecents = secs_to_timecents(src->attack);
 	dst->hold_timecents = env_time_field(src->hold, src->keynumToHold);
 	dst->decay_timecents = env_time_field(src->decay, src->keynumToDecay);
-	dst->sustain_centibels = gain_to_centibels(src->sustain);
+	dst->sustain_gain = src->sustain < 0.0f ? 0.0f :
+		(src->sustain > 1.0f ? 1.0f : src->sustain);
 	dst->release_timecents = secs_to_timecents(src->release);
 	dst->keynum_to_hold = (int16_t)lroundf(src->keynumToHold);
 	dst->keynum_to_decay = (int16_t)lroundf(src->keynumToDecay);
@@ -103,12 +96,31 @@ static bool env_used(const struct tsf_envelope *e)
 	return e->sustain < 0.999f;
 }
 
-static void warn_unsupported(const char *preset, int region, const char *feat, std::set<std::string> &seen)
+static void note_unsupported(const char *preset, const char *feat,
+	std::map<std::string, std::set<std::string>> &warns)
 {
-	std::string key = std::string(feat) + "@" + preset;
-	if (!seen.insert(key).second) return;
-	fprintf(stderr, "WARNING: SF2 preset '%s' region %d: ignoring unsupported %s\n",
-		preset, region, feat);
+	warns[feat].insert(preset);
+}
+
+static void flush_unsupported(const std::map<std::string, std::set<std::string>> &warns)
+{
+	const size_t max_names = flag_verbose >= 2 ? SIZE_MAX : 10;
+	for (auto &kv : warns) {
+		fprintf(stderr, "WARNING: SF2 ignoring unsupported %s (%zu instruments):",
+			kv.first.c_str(), kv.second.size());
+		const char *sep = " ";
+		size_t n = 0;
+		for (auto &name : kv.second) {
+			if (n >= max_names) {
+				fprintf(stderr, ", ...");
+				break;
+			}
+			fprintf(stderr, "%s%s", sep, name.c_str());
+			sep = ", ";
+			n++;
+		}
+		fprintf(stderr, "\n");
+	}
 }
 
 static void write_env(FILE *f, const sf64_envelope_t *e)
@@ -117,7 +129,7 @@ static void write_env(FILE *f, const sf64_envelope_t *e)
 	w16(f, e->attack_timecents);
 	w16(f, e->hold_timecents);
 	w16(f, e->decay_timecents);
-	w16(f, e->sustain_centibels);
+	wf32(f, e->sustain_gain);
 	w16(f, e->release_timecents);
 	w16(f, e->keynum_to_hold);
 	w16(f, e->keynum_to_decay);
@@ -135,8 +147,8 @@ int sf_convert(const char *infn, const char *outfn)
 	std::vector<sf64_region_t> regions;
 	std::vector<sf64_sample_t> samples;
 	std::vector<std::string> names;
-	std::map<uint32_t, int> sample_by_hash;
-	std::set<std::string> warn_seen;
+	std::map<uint64_t, int> sample_by_hash;
+	std::map<std::string, std::set<std::string>> warn_feats;
 	int64_t raw_pcm_bytes = 0;
 	int64_t unique_pcm_bytes = 0;
 	int64_t embedded_wav = 0;
@@ -146,7 +158,7 @@ int sf_convert(const char *infn, const char *outfn)
 	placeholder_clear();
 
 	wa(out, SF64_ID, 4);
-	w8(out, 1); // version
+	w8(out, SF64_VERSION);
 	w8(out, 0); // flags
 	w16_placeholderf(out, "num_presets");
 	w16_placeholderf(out, "num_regions");
@@ -169,16 +181,16 @@ int sf_convert(const char *infn, const char *outfn)
 		for (int ri = 0; ri < p->regionNum; ri++) {
 			struct tsf_region *r = &p->regions[ri];
 
-			if (env_used(&r->modenv))
-				warn_unsupported(p->presetName, ri, "modulation envelope", warn_seen);
 			if (r->initialFilterFc != 13500 || r->initialFilterQ != 0)
-				warn_unsupported(p->presetName, ri, "filter", warn_seen);
-			if (r->modEnvToPitch || r->modEnvToFilterFc)
-				warn_unsupported(p->presetName, ri, "modEnvToPitch/FilterFc", warn_seen);
+				note_unsupported(p->presetName, "filter", warn_feats);
+			if (r->modEnvToFilterFc)
+				note_unsupported(p->presetName, "modEnvToFilterFc", warn_feats);
+			if (env_used(&r->modenv) && !r->modEnvToPitch && !r->modEnvToFilterFc)
+				note_unsupported(p->presetName, "modulation envelope", warn_feats);
 			if (r->modLfoToPitch || r->modLfoToFilterFc || r->modLfoToVolume || r->freqModLFO)
-				warn_unsupported(p->presetName, ri, "modulation LFO", warn_seen);
+				note_unsupported(p->presetName, "modulation LFO", warn_feats);
 			if (r->vibLfoToPitch || r->freqVibLFO)
-				warn_unsupported(p->presetName, ri, "vibrato LFO", warn_seen);
+				note_unsupported(p->presetName, "vibrato LFO", warn_feats);
 
 			unsigned int start = r->offset;
 			unsigned int end = r->end;
@@ -209,8 +221,10 @@ int sf_convert(const char *infn, const char *outfn)
 				pcm[i] = (int16_t)lroundf(s * 32767.0f);
 			}
 
-			uint32_t hash = hash_sample_variant(pcm, cnt, (int)r->sample_rate, 1,
-				loop_start, loop_end);
+			int loop_start_meta = loop_mode != SF64_LOOP_NONE ? loop_start : 0;
+			int loop_end_meta = loop_mode != SF64_LOOP_NONE ? loop_end : 0;
+			uint64_t hash = hash_sample_variant(pcm, cnt, (int)r->sample_rate, 1,
+				loop_start_meta, loop_end_meta);
 			raw_pcm_bytes += (int64_t)cnt * 2;
 
 			int sample_index;
@@ -240,22 +254,28 @@ int sf_convert(const char *infn, const char *outfn)
 				uint32_t wav_sz = ftell(out) - wav_off;
 				embedded_wav += wav_sz;
 
+				if (samples.size() >= 0xffffu)
+					fatal("ERROR: too many unique samples (max 65535)\n");
+
 				sf64_sample_t ss = {};
 				ss.wav64_offset = wav_off;
 				ss.wav64_size = wav_sz;
 				ss.pcm_hash = hash;
 				ss.sample_start = 0;
-				ss.sample_end = wav.cnt;
-				ss.loop_start = wav.looping ? (uint32_t)wav.loopOffset : 0;
-				ss.loop_end = wav.looping
-					? (uint32_t)(wav.loopEnd ? wav.loopEnd : wav.cnt) : 0;
-				ss.sample_rate = wav.sampleRate;
+				// Keep the pre-padding logical length (wav64_write may pad cnt).
+				ss.sample_end = (uint32_t)cnt;
+				ss.loop_start = (uint32_t)loop_start_meta;
+				ss.loop_end = (uint32_t)loop_end_meta;
+				ss.sample_rate = (uint32_t)r->sample_rate;
 				ss.channels = 1;
 				sample_index = (int)samples.size();
 				samples.push_back(ss);
 				sample_by_hash[hash] = sample_index;
 				free(wav.samples);
 			}
+
+			if (regions.size() >= 0xffffu)
+				fatal("ERROR: too many regions (max 65535)\n");
 
 			sf64_region_t sr = {};
 			sr.sample_index = (uint16_t)sample_index;
@@ -269,14 +289,24 @@ int sf_convert(const char *infn, const char *outfn)
 			sr.coarse_tune = (int8_t)r->transpose;
 			sr.fine_tune = (int16_t)r->tune;
 			sr.pitch_keytrack = (int16_t)r->pitch_keytrack;
-			sr.attenuation_cb = (int16_t)lroundf(r->attenuation * 10.0f);
+			// TinySoundFont applies InitialAttenuation with factor 0.01 instead
+			// of the SF2 0.1 (cB→dB). Multiply by 100 to recover centibels,
+			// then bake the linear gain once so the N64 never runs powf for it.
+			int attn_cb = (int)lroundf(r->attenuation * 100.0f);
+			if (attn_cb < 0) attn_cb = 0;
+			if (attn_cb > 1440) attn_cb = 1440;
+			sr.gain = centibels_to_gain(attn_cb);
 			sr.pan = (int16_t)lroundf(r->pan * 1000.0f);
 			copy_amp_env(&sr.amp_env, &r->ampenv);
+			copy_amp_env(&sr.mod_env, &r->modenv);
+			sr.mod_env_to_pitch = (int16_t)r->modEnvToPitch;
 			regions.push_back(sr);
 			sp.num_regions++;
 		}
 
 		if (sp.num_regions) {
+			if (presets.size() >= 0xffffu)
+				fatal("ERROR: too many presets (max 65535)\n");
 			names.push_back(p->presetName);
 			presets.push_back(sp);
 		}
@@ -318,16 +348,17 @@ int sf_convert(const char *infn, const char *outfn)
 		w8(meta, r.coarse_tune);
 		w16(meta, r.fine_tune);
 		w16(meta, r.pitch_keytrack);
-		w16(meta, r.attenuation_cb);
 		w16(meta, r.pan);
+		wf32(meta, r.gain);
 		write_env(meta, &r.amp_env);
+		write_env(meta, &r.mod_env);
+		w16(meta, r.mod_env_to_pitch);
 		w16(meta, r.reserved_flags);
-		for (int i = 0; i < 4; i++) w16(meta, r.reserved[i]);
 	}
 	for (auto &s : samples) {
 		w32(meta, s.wav64_offset);
 		w32(meta, s.wav64_size);
-		w32(meta, s.pcm_hash);
+		w64(meta, s.pcm_hash);
 		w32(meta, s.sample_start);
 		w32(meta, s.sample_end);
 		w32(meta, s.loop_start);
@@ -355,7 +386,12 @@ int sf_convert(const char *infn, const char *outfn)
 	placeholder_clear();
 	fclose(out);
 
+	flush_unsupported(warn_feats);
+
 	if (flag_verbose) {
+		int nwarn = 0;
+		for (auto &kv : warn_feats)
+			nwarn += (int)kv.second.size();
 		fprintf(stderr, "Converting: %s => %s\n", infn, outfn);
 		fprintf(stderr, "  SF2 presets selected:     %zu\n", presets.size());
 		fprintf(stderr, "  resolved regions:         %zu\n", regions.size());
@@ -363,7 +399,7 @@ int sf_convert(const char *infn, const char *outfn)
 		fprintf(stderr, "  embedded WAV64 size:      %lld KiB\n", (long long)(embedded_wav / 1024));
 		fprintf(stderr, "  deduplicated size saved:  %lld KiB\n",
 			(long long)((raw_pcm_bytes - unique_pcm_bytes) / 1024));
-		fprintf(stderr, "  unsupported generators:   %d\n", (int)warn_seen.size());
+		fprintf(stderr, "  unsupported generators:   %d\n", nwarn);
 		fprintf(stderr, "  stereo voices:            0\n");
 	}
 

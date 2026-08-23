@@ -6,6 +6,7 @@
 #ifndef PROFILE_H
 #define PROFILE_H
 
+#include "preview.h"
 #include "n64sys.h"
 #include "emux.h"
 #include <stdint.h>
@@ -54,6 +55,7 @@ typedef struct {
 
 /**
  * @brief Initialize the profiler.
+ * @preview
  *
  * Initialize the profiler. This must be called before using any of the
  * PROFILE_* macros.
@@ -62,15 +64,19 @@ typedef struct {
  * 
  * @see #profile_parms_t
  */
+LIBDRAGON_PREVIEW_API
 void profile_init(profile_parms_t *parms);
 
 /**
  * @brief Close the profiler.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void profile_close(void);
 
 /**
  * @brief Reset the profiler.
+ * @preview
  * 
  * Reset the profiler. This will clear all accumulated profile data and reset
  * the counters to 0.
@@ -81,10 +87,12 @@ void profile_close(void);
  * @see #profile_parms_t
  * @see #profile_init
  */
+LIBDRAGON_PREVIEW_API
 void profile_reset(void);
 
 /**
  * @brief Register a new profile slot
+ * @preview
  * 
  * This function register a slot to be used with the PROFILE_* macros. It allows
  * to specify the name with which the slot will be identified in the dumps.
@@ -96,10 +104,12 @@ void profile_reset(void);
  * @see #profile_parms_t
  * @see #profile_init
  */
+LIBDRAGON_PREVIEW_API
 void profile_register(int slot, const char *name, int nest_level);
 
 /**
  * @brief Communicate to the profiler the target frame rate
+ * @preview
  *
  * This is an optional function that can be called to communicate to the
  * profiler the target frame rate. When the profiler is aware of the target
@@ -108,10 +118,12 @@ void profile_register(int slot, const char *name, int nest_level);
  +
  * @param fps 			Target frame rate in frames per second
  */
+LIBDRAGON_PREVIEW_API
 void profile_set_target_fps(float fps);
 
 /**
  * @brief Mark the start of the next frame
+ * @preview
  * 
  * This function must be called at the end of each frame. It will accumulate the
  * profile data for the current frame and prepare the profiler for the next frame.
@@ -127,10 +139,12 @@ void profile_set_target_fps(float fps);
  * @see #profile_parms_t
  * @see #profile_dump
  */
+LIBDRAGON_PREVIEW_API
 void profile_next_frame(void);
 
 /**
  * @brief Dump the profiler data to the console
+ * @preview
  * 
  * This function will dump the current profiler data to the debugging channel.
  *
@@ -141,6 +155,7 @@ void profile_next_frame(void);
  *
  * @see #profile_reset
  */
+LIBDRAGON_PREVIEW_API
 void profile_dump(void);
 
 ///@cond
@@ -258,8 +273,8 @@ inline void __profile_record(int slot, int32_t len) {
 			   __profile_record(slot, TICKS_READ() - get_system_ticks() - __prof_start_##slot); }))
 #else
 	///@cond
-	#define PROFILE_START(slot, ...)  ((void)(false), false)
-	#define PROFILE_STOP(slot, ...)   ((void)(false), false)
+	#define PROFILE_START(slot, ...)  ((void)0)
+	#define PROFILE_STOP(slot, ...)   ((void)0)
 	#define PROFILE_SCOPE(slot)     for (bool __prof_once_##slot = true; __prof_once_##slot; __prof_once_##slot = false)
 	///@endcond
 

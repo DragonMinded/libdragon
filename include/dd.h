@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <time.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,10 +30,16 @@ extern bool dd_found;
 /** @brief Write control register address for 64DD ASIC */
 #define DD_ASIC_WCTRL   (DD_ASIC_BASE + 0x10)
 
-/** @brief Writes a 16-bit value to the 64DD ASIC */
+/** @brief Writes a 16-bit value to the 64DD ASIC
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void dd_write(uint32_t address, uint16_t value);
 
-/** @brief Reads a 16-bit value from the 64DD ASIC */
+/** @brief Reads a 16-bit value from the 64DD ASIC
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 uint16_t dd_read(uint32_t address);
 
 /** @brief 64DD command codes */
@@ -46,7 +53,10 @@ typedef enum {
 	DD_CMD_RTC_GET_MINSEC    = 0x14, ///< Get RTC minute/second command
 } dd_cmd_t;
 
-/** @brief Sends a command to the 64DD ASIC */
+/** @brief Sends a command to the 64DD ASIC
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 uint16_t dd_command(dd_cmd_t cmd);
 
 /** @brief 64DD RTC minimum timestamp (1996-01-01 00:00:00) */
@@ -56,6 +66,7 @@ uint16_t dd_command(dd_cmd_t cmd);
 
 /**
  * @brief Read the time from the 64DD real-time clock as a UNIX timestamp
+ * @preview
  *
  * @param[out] out pointer to the output time_t
  *
@@ -64,10 +75,12 @@ uint16_t dd_command(dd_cmd_t cmd);
  * @retval RTC_EBADCLOCK if the RTC is not operational
  * @retval RTC_EBADTIME if the RTC time is not representable
  */
+LIBDRAGON_PREVIEW_API
 int dd_rtc_get_time( time_t *out );
 
 /**
  * @brief Set the date/time on the 64DD real-time clock.
+ * @preview
  *
  * @param new_time the new RTC time as a UNIX timestamp
  *
@@ -76,9 +89,13 @@ int dd_rtc_get_time( time_t *out );
  * @retval RTC_EBADCLOCK if the RTC is not operational
  * @retval RTC_EBADTIME if the RTC cannot represent the new time
  */
+LIBDRAGON_PREVIEW_API
 int dd_rtc_set_time( time_t new_time );
 
-/** @brief Checks if 64DD hardware is present */
+/** @brief Checks if 64DD hardware is present
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 inline bool sys_dd(void) {
     return dd_found;
 }

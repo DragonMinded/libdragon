@@ -11,6 +11,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <memory.h>
+#include "preview.h"
 #include "fmath.h"
 
 #ifdef __cplusplus
@@ -67,8 +68,10 @@ typedef struct {
 
 /**
  * @brief Negate a 3D vector.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_negate(fm_vec3_t *out, const fm_vec3_t *v)
 {
     for (int i = 0; i < 3; i++) out->v[i] = -v->v[i];
@@ -76,8 +79,10 @@ inline void fm_vec3_negate(fm_vec3_t *out, const fm_vec3_t *v)
 
 /**
  * @brief Add two 3D vectors component-wise.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_add(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
     for (int i = 0; i < 3; i++) out->v[i] = a->v[i] + b->v[i];
@@ -85,8 +90,10 @@ inline void fm_vec3_add(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 
 /**
  * @brief Subtract two 3D vectors component-wise.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_sub(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
     for (int i = 0; i < 3; i++) out->v[i] = a->v[i] - b->v[i];
@@ -94,10 +101,12 @@ inline void fm_vec3_sub(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 
 /**
  * @brief Multiply two 3D vectors component-wise.
+ * @preview
  * @note  If you need the dot product, use #fm_vec3_dot instead. 
  *        If you need the cross product, use #fm_vec3_cross instead.
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_mul(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
     for (int i = 0; i < 3; i++) out->v[i] = a->v[i] * b->v[i];
@@ -105,8 +114,10 @@ inline void fm_vec3_mul(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 
 /**
  * @brief Divide two 3D vectors component-wise.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_div(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
     for (int i = 0; i < 3; i++) out->v[i] = a->v[i] / b->v[i];
@@ -114,8 +125,10 @@ inline void fm_vec3_div(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 
 /**
  * @brief Scale a 3D vector by a factor.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_scale(fm_vec3_t *out, const fm_vec3_t *a, float s)
 {
     for (int i = 0; i < 3; i++) out->v[i] = a->v[i] * s;
@@ -123,7 +136,9 @@ inline void fm_vec3_scale(fm_vec3_t *out, const fm_vec3_t *a, float s)
 
 /** 
  * @brief Compute the dot product of two 3D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec3_dot(const fm_vec3_t *a, const fm_vec3_t *b)
 {
     return a->x * b->x + a->y * b->y + a->z * b->z;
@@ -131,7 +146,9 @@ inline float fm_vec3_dot(const fm_vec3_t *a, const fm_vec3_t *b)
 
 /**
  * @brief Compute the square magnitude of a 3D vector.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec3_len2(const fm_vec3_t *a)
 {
     return fm_vec3_dot(a, a);
@@ -139,7 +156,9 @@ inline float fm_vec3_len2(const fm_vec3_t *a)
 
 /**
  * @brief Compute the magnitude of a 3D vector.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec3_len(const fm_vec3_t *a)
 {
     return sqrtf(fm_vec3_len2(a));
@@ -147,7 +166,9 @@ inline float fm_vec3_len(const fm_vec3_t *a)
 
 /**
  * @brief Compute the square distance between two 3D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec3_distance2(const fm_vec3_t *a, const fm_vec3_t *b)
 {
     fm_vec3_t diff;
@@ -157,7 +178,9 @@ inline float fm_vec3_distance2(const fm_vec3_t *a, const fm_vec3_t *b)
 
 /**
  * @brief Compute the distance between two 3D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_vec3_distance(const fm_vec3_t *a, const fm_vec3_t *b)
 {
     return sqrtf(fm_vec3_distance2(a, b));
@@ -165,8 +188,10 @@ inline float fm_vec3_distance(const fm_vec3_t *a, const fm_vec3_t *b)
 
 /**
  * @brief Normalize a 3D vector.
+ * @preview
  * @note  This function still works if input and output are in the same memory location.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_norm(fm_vec3_t *out, const fm_vec3_t *a)
 {
     float len = fm_vec3_len(a);
@@ -179,7 +204,9 @@ inline void fm_vec3_norm(fm_vec3_t *out, const fm_vec3_t *a)
 
 /**
  * @brief Compute the cross product of two 3D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_cross(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b)
 {
     *out = (fm_vec3_t){{ a->y * b->z - a->z * b->y,
@@ -189,7 +216,9 @@ inline void fm_vec3_cross(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b
 
 /**
  * @brief Linearly interpolate between two 3D vectors.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_vec3_lerp(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b, float t)
 {
     for (int i = 0; i < 3; i++) out->v[i] = a->v[i] + (b->v[i] - a->v[i]) * t;
@@ -197,15 +226,18 @@ inline void fm_vec3_lerp(fm_vec3_t *out, const fm_vec3_t *a, const fm_vec3_t *b,
 
 /**
  * @brief Compute the reflection of an incident vector off a surface.
+ * @preview
  * 
  * @param[out] out  Will contain the reflected vector.
  * @param[in]  i    The incident vector.
  * @param[in]  n    The surface's normal vector. Must be normalized.
  */
+LIBDRAGON_PREVIEW_API
 void fm_vec3_reflect(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n);
 
 /**
  * @brief Compute the refraction of an incident vector through a surface.
+ * @preview
  * 
  * @param[out] out  Will contain the refracted vector.
  * @param[in]  i    The incident vector. Must be normalized.
@@ -213,22 +245,27 @@ void fm_vec3_reflect(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n);
  * @param[in]  eta  The ratio of indices of refraction (incident/transmitted)
  * @return          True if refraction occurs; false if total internal reflection occurs.
  */
+LIBDRAGON_PREVIEW_API
 bool fm_vec3_refract(fm_vec3_t *out, const fm_vec3_t *i, const fm_vec3_t *n, float eta);
 
 /**
  * @brief Rotates a given vector by a quaternion
+ * @preview
  * 
  * @param out Will contain rotated vector
  * @param i The vector to rotate
  * @param q The quaternion
  */
+LIBDRAGON_PREVIEW_API
 void fm_vec3_rotate(fm_vec3_t *out, const fm_vec3_t *i, const fm_quat_t *q);
 
 /******** QUAT **********/
 
 /**
  * @brief Create an identity quaternion.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_quat_identity(fm_quat_t *out)
 {
     *out = (fm_quat_t){{ 0, 0, 0, 1 }};
@@ -236,20 +273,24 @@ inline void fm_quat_identity(fm_quat_t *out)
 
 /**
  * @brief Create a quaternion from euler angles, applying the rotations in ZYX order.
+ * @preview
  * 
  * @param[out] out  Will contain the created quaternion.
  * @param[in]  x    Rotation around the X axis in radians.
  * @param[in]  y    Rotation around the Y axis in radians.
  * @param[in]  z    Rotation around the Z axis in radians.
  */
+LIBDRAGON_PREVIEW_API
 void fm_quat_from_euler_zyx(fm_quat_t *out, float x, float y, float z);
 
 /**
  * @brief Create a quaternion from an axis of rotation and an angle.
+ * @preview
  * @param[out] out      Will contain the created quaternion.
  * @param[in]  axis     The axis of rotation. Must be normalized.
  * @param[in]  angle    The angle in radians.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_quat_from_axis_angle(fm_quat_t *out, const fm_vec3_t *axis, float angle)
 {
     float s, c;
@@ -260,18 +301,24 @@ inline void fm_quat_from_axis_angle(fm_quat_t *out, const fm_vec3_t *axis, float
 
 /**
  * @brief Multiply two quaternions.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void fm_quat_mul(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b);
 
 /**
  * @brief Rotate a quaternion around an axis by some angle.
+ * @preview
  * @note This is just a shorthand for #fm_quat_from_axis_angle and #fm_quat_mul.
  */
+LIBDRAGON_PREVIEW_API
 void fm_quat_rotate(fm_quat_t *out, const fm_quat_t *q, const fm_vec3_t *axis, float angle);
 
 /**
  * @brief Compute the dot product of two quaternions.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline float fm_quat_dot(const fm_quat_t *a, const fm_quat_t *b)
 {
     return a->x * b->x + a->y * b->y + a->z * b->z + a->w * b->w;
@@ -279,8 +326,10 @@ inline float fm_quat_dot(const fm_quat_t *a, const fm_quat_t *b)
 
 /**
  * @brief Compute the inverse of a quaternion.
+ * @preview
  * @note The input quaternion must have non-zero magnitude.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_quat_inverse(fm_quat_t *out, const fm_quat_t *q)
 {
     float inv_mag2 = 1.0f / fm_quat_dot(q, q);
@@ -290,7 +339,9 @@ inline void fm_quat_inverse(fm_quat_t *out, const fm_quat_t *q)
 
 /**
  * @brief Normalize a quaternion.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_quat_norm(fm_quat_t *out, const fm_quat_t *q)
 {
     float len = sqrtf(fm_quat_dot(q, q));
@@ -303,15 +354,19 @@ inline void fm_quat_norm(fm_quat_t *out, const fm_quat_t *q)
 
 /**
  * @brief Compute normalized linear interpolation between two quaternions.
+ * @preview
  * @note This function is faster than #fm_quat_slerp, but produces a non-constant angular velocity when used for animation.
  */
+LIBDRAGON_PREVIEW_API
 void fm_quat_nlerp(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b, float t);
 
 
 /**
  * @brief Compute spherical linear interpolation between two quaternions.
+ * @preview
  * @note As opposed to #fm_quat_nlerp, this function produces constant angular velocity when used for animation, but is slower.
  */
+LIBDRAGON_PREVIEW_API
 void fm_quat_slerp(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b, float t);
 
 
@@ -319,7 +374,9 @@ void fm_quat_slerp(fm_quat_t *out, const fm_quat_t *a, const fm_quat_t *b, float
 
 /**
  * @brief Create a 4x4 identity matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_identity(fm_mat4_t *out)
 {
     *out = (fm_mat4_t){};
@@ -331,7 +388,9 @@ inline void fm_mat4_identity(fm_mat4_t *out)
 
 /**
  * @brief Apply scale to a 4x4 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_scale(fm_mat4_t *out, const fm_vec3_t *scale)
 {
     for (int i=0; i<4; i++) out->m[i][0] *= scale->x;
@@ -341,7 +400,9 @@ inline void fm_mat4_scale(fm_mat4_t *out, const fm_vec3_t *scale)
 
 /**
  * @brief Apply translation to a 4x4 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_translate(fm_mat4_t *out, const fm_vec3_t *translate)
 {
     for (int i=0; i<3; i++) out->m[3][i] += translate->v[i];
@@ -349,33 +410,43 @@ inline void fm_mat4_translate(fm_mat4_t *out, const fm_vec3_t *translate)
 
 /**
  * @brief Apply rotation to a 4x4 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat4_rotate(fm_mat4_t *out, const fm_quat_t *rotation);
 
 /**
  * @brief Create a rotation matrix from an axis of rotation and an angle.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat4_from_axis_angle(fm_mat4_t *out, const fm_vec3_t *axis, float angle);
 
 /**
  * @brief Create an affine transformation matrix from scale, rotation and translation.
+ * @preview
  * 
  * The rotation is accepted as a quaternion.
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat4_from_srt(fm_mat4_t *out, const fm_vec3_t *scale, const fm_quat_t *quat, const fm_vec3_t *translate);
 
 /**
  * @brief Create an affine transformation matrix from scale, rotation and translation.
+ * @preview
  * 
  * The rotation is accepted as euler angles.
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat4_from_srt_euler(fm_mat4_t *out, const fm_vec3_t *scale, const float euler[3], const fm_vec3_t *translate);
 
 /**
  * @brief Create a rigid transformation matrix from rotation and translation.
+ * @preview
  * 
  * The rotation is accepted as a quaternion.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_from_rt(fm_mat4_t *out, const fm_quat_t *quat, const fm_vec3_t *translate)
 {
     const fm_vec3_t scale = {{1, 1, 1}};
@@ -384,9 +455,11 @@ inline void fm_mat4_from_rt(fm_mat4_t *out, const fm_quat_t *quat, const fm_vec3
 
 /**
  * @brief Create a rigid transformation matrix from rotation and translation.
+ * @preview
  * 
  * The rotation is accepted as euler angles.
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_from_rt_euler(fm_mat4_t *out, const float euler[3], const fm_vec3_t *translate)
 {
     const fm_vec3_t scale = {{1, 1, 1}};
@@ -395,7 +468,9 @@ inline void fm_mat4_from_rt_euler(fm_mat4_t *out, const float euler[3], const fm
 
 /**
  * @brief Create a translation matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_from_translation(fm_mat4_t *out, const fm_vec3_t *translate)
 {
     fm_mat4_identity(out);
@@ -404,7 +479,9 @@ inline void fm_mat4_from_translation(fm_mat4_t *out, const fm_vec3_t *translate)
 
 /**
  * @brief Create a rotation matrix from a quaternion.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_from_rotation(fm_mat4_t *out, const fm_quat_t *rotation)
 {
     const fm_vec3_t translate = {{0, 0, 0}};
@@ -413,7 +490,9 @@ inline void fm_mat4_from_rotation(fm_mat4_t *out, const fm_quat_t *rotation)
 
 /**
  * @brief Create a scale matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_from_scale(fm_mat4_t *out, const fm_vec3_t *scale)
 {
     fm_mat4_identity(out);
@@ -422,7 +501,9 @@ inline void fm_mat4_from_scale(fm_mat4_t *out, const fm_vec3_t *scale)
 
 /**
  * @brief Multiply two 4x4 matrices.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_mul(fm_mat4_t *out, const fm_mat4_t *a, const fm_mat4_t *b)
 {
     fm_mat4_t tmp;
@@ -441,7 +522,9 @@ inline void fm_mat4_mul(fm_mat4_t *out, const fm_mat4_t *a, const fm_mat4_t *b)
 
 /**
  * @brief Transpose a 4x4 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_transpose(fm_mat4_t *out, const fm_mat4_t *m)
 {
     for (int i = 0; i < 4; i++)
@@ -455,17 +538,22 @@ inline void fm_mat4_transpose(fm_mat4_t *out, const fm_mat4_t *m)
 
 /**
  * @brief Compute the determinant of a 4x4 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 float fm_mat4_det(const fm_mat4_t *m);
 
 /**
  * @brief Compute the inverse of a 4x4 matrix.
+ * @preview
  * @note The input matrix must be invertible.
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat4_inverse(fm_mat4_t *out, const fm_mat4_t *m);
 
 /**
  * @brief Compute a normal matrix from an affine 4x4 matrix.
+ * @preview
  * 
  * The resulting matrix can be used to transform face normal vectors while preserving
  * their property of being perpendicular to the surface.
@@ -486,22 +574,29 @@ void fm_mat4_inverse(fm_mat4_t *out, const fm_mat4_t *m);
  * @param[in]   m   The input matrix. Must be affine.
  * @note The upper-left 3x3 part of the input must be invertible.
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat4_affine_to_normal_mat(fm_mat4_t *out, const fm_mat4_t *m);
 
 /**
  * @brief Create a view matrix that represents a camera looking in a certain direction from some position.
+ * @preview
  * @note The direction vector is expected to be normalized. The up vector must not be collinear with it.
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat4_look(fm_mat4_t *out, const fm_vec3_t *eye, const fm_vec3_t *dir, const fm_vec3_t *up);
 
 /**
  * @brief Create a view matrix that represents a camera looking at a target point from some position.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 void fm_mat4_lookat(fm_mat4_t *out, const fm_vec3_t *eye, const fm_vec3_t *target, const fm_vec3_t *up);
 
 /**
  * @brief Multiply a 3D vector by a 4x4 matrix by assuming 1 as the hypothetical 4th component of the vector.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_mul_vec3(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec3_t *v)
 {
     for (int i = 0; i < 4; i++)
@@ -515,7 +610,9 @@ inline void fm_mat4_mul_vec3(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec3_t
 
 /**
  * @brief Multiply a 4D vector by a 4x4 matrix.
+ * @preview
  */
+LIBDRAGON_PREVIEW_API
 inline void fm_mat4_mul_vec4(fm_vec4_t *out, const fm_mat4_t *m, const fm_vec4_t *v)
 {
     fm_vec4_t tmp;

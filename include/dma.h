@@ -8,8 +8,10 @@
 #ifndef __LIBDRAGON_DMA_H
 #define __LIBDRAGON_DMA_H
 
+
 #include <stdbool.h>
 #include <stdint.h>
+#include "preview.h"
 #include "n64types.h"
 
 /**
@@ -57,6 +59,22 @@ extern "C" {
 #define PI_STATUS_IO_BUSY       (1 << 1)        ///< PI status: IO is in progress
 #define PI_STATUS_ERROR         (1 << 2)        ///< PI status: error occurred
 /** @} */
+
+/**
+ * @brief PI BSD domain bus timing parameters.
+ *
+ * These map directly onto a PI domain's LAT/PWD/PGS/RLS registers
+ * (PI_BSD_DOM1_* for cartridge ROM, PI_BSD_DOM2_* for SRAM/FlashRAM), which
+ * configure the bus timing the PI uses to talk to a peripheral in that domain.
+ * Each field is the raw register value.
+ */
+typedef struct
+{
+    uint8_t latency;      ///< PI_BSD_DOMx_LAT: bus latency.
+    uint8_t pulse_width;  ///< PI_BSD_DOMx_PWD: pulse width.
+    uint8_t page_size;    ///< PI_BSD_DOMx_PGS: page size; DMA auto-split boundary is 2^(page_size+2) bytes.
+    uint8_t release;      ///< PI_BSD_DOMx_RLS: release duration.
+} pi_dom_timings_t;
 
 /**
  * @brief Start writing data to a peripheral through PI DMA (low-level)
@@ -189,25 +207,30 @@ void dma_wait(void);
 
 /**
  * @brief Wait until an async DMA transfer has started.
+ * @preview
  *
  * If the kernel is running, the calling thread yields while the transfer is
  * still queued. A transfer which has already completed is considered started.
  *
  * @param ticket    Ticket returned by an async DMA function
  */
+LIBDRAGON_PREVIEW_API
 void dma_wait_started(uint64_t ticket);
 
 /**
  * @brief Wait until an async DMA transfer is finished.
+ * @preview
  *
  * If the kernel is running, the calling thread yields while waiting.
  *
  * @param ticket    Ticket returned by an async DMA function
  */
+LIBDRAGON_PREVIEW_API
 void dma_wait_finished(uint64_t ticket);
 
 /**
  * @brief Return the progress of an async DMA transfer.
+ * @preview
  *
  * If the transfer has not started yet, this function returns zero.
  *
@@ -221,14 +244,17 @@ void dma_wait_finished(uint64_t ticket);
  * @param ticket    Ticket returned by an async DMA function
  * @return          Number of bytes already transferred
  */
+LIBDRAGON_PREVIEW_API
 unsigned long dma_get_progress(uint64_t ticket);
 
 /**
  * @brief Check whether an async DMA transfer is finished.
+ * @preview
  *
  * @param ticket    Ticket returned by an async DMA function
  * @return          True if the transfer is fully complete
  */
+LIBDRAGON_PREVIEW_API
 bool dma_finished(uint64_t ticket);
 
 

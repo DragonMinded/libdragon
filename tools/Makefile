@@ -8,12 +8,15 @@ C_CXX_FLAGS += -O2 -pthread -Wall -Werror
 C_CXX_FLAGS += -I../include -MMD
 C_CXX_FLAGS += -fdiagnostics-color=always
 C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
+C_CXX_FLAGS += -D__LIBDRAGON_INTERNAL_BUILD
 
 LDFLAGS += -pthread
 
 # With mingw (even if crosscompiling), we need to link with ntdll
-# and produce .exe files
+# and produce .exe files. Also disable -Werror: MinGW updates at
+# random intervals and often emits extra warnings that break the build.
 ifeq ($(findstring mingw,$(TARGET)),mingw)
+C_CXX_FLAGS += -Wno-error
 LDLIBS += -lntdll
 EXE = .exe
 else
@@ -85,7 +88,7 @@ mksprite/x264_amalgam.o:           CFLAGS += -Wno-all -Wno-error -Wno-constant-l
 mksprite/x264_amalgam.o:           CFLAGS += -Imksprite/x264
 mksprite/x264_amalgam2.o:          CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand -fno-strict-aliasing
 mksprite/x264_amalgam2.o:          CFLAGS += -Imksprite/x264
-audioconv64/libvadpcm.o:           CFLAGS += -Iaudioconv64/vadpcm
+audioconv64/libvadpcm.o:           CFLAGS += -Iaudioconv64/vadpcm -ffp-contract=off -fno-fast-math
 audioconv64/libulc.o:              CFLAGS += -Wno-unused-but-set-variable -Wno-error
 
 
@@ -117,7 +120,7 @@ combexpr_OBJS = mkmaterial/combexpr_cli.o mkmaterial/combexpr_disasm.o
 n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
 n64dso-extern_OBJS = n64dso/n64dso-extern.o
 n64dso-msym_OBJS = n64dso/n64dso-msym.o
-audioconv64_OBJS = audioconv64/audioconv64.o audioconv64/conv_wav64.o audioconv64/conv_xm64.o audioconv64/conv_ym64.o audioconv64/conv_sf64.o audioconv64/libvadpcm.o audioconv64/libopus.o audioconv64/libsamplerate.o audioconv64/liblzh5.o audioconv64/libxm.o audioconv64/libulc.o common/binout.o common/assetcomp.a
+audioconv64_OBJS = audioconv64/audioconv64.o audioconv64/conv_wav64.o audioconv64/conv_xm64.o audioconv64/conv_ym64.o audioconv64/conv_sf64.o audioconv64/conv_mid64.o audioconv64/libvadpcm.o audioconv64/libopus.o audioconv64/libsamplerate.o audioconv64/liblzh5.o audioconv64/libxm.o audioconv64/libulc.o common/binout.o common/assetcomp.a
 videoconv64_OBJS = videoconv64/videoconv64.o videoconv64/vconv_analyze.o videoconv64/vconv_encode.o videoconv64/vconv_encode_mpeg1.o videoconv64/vconv_encode_h264.o videoconv64/vconv_audio.o videoconv64/vconv_subtitles.o videoconv64/vconv_utils.o videoconv64/vconv_seek.o common/binout.o common/assetcomp.a
 rdpvalidate_OBJS = rdpvalidate/rdpvalidate.o
 mkdfs_OBJS = mkdfs/mkdfs.o

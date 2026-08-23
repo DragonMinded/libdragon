@@ -570,7 +570,14 @@ static void waveform_ulc_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wle
 
     rspq_highpri_end();
 
-    int valid = wav->wave.loop_len ? MIN(appended, wav->wave.len - wpos) : appended;
+    // Trimming the samples past the end of the waveform has to stop on a
+    // boundary the RSP can write to (see #samplebuffer_align_units), because
+    // the mixer appends the loop overread right after, in the same fetch. The
+    // few samples the block already holds beyond the end are kept, which puts
+    // the loop point up to three samples late, once per lap.
+    int align = samplebuffer_align_units(sbuf);
+    int valid = wav->wave.loop_len
+        ? MIN(appended, ROUND_UP(wav->wave.len - wpos, align)) : appended;
     if (appended > valid) {
         samplebuffer_undo(sbuf, appended - valid);
         rspq_highpri_sync();

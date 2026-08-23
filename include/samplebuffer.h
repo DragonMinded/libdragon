@@ -8,8 +8,10 @@
 #ifndef __LIBDRAGON_SAMPLEBUFFER_H
 #define __LIBDRAGON_SAMPLEBUFFER_H
 
+
 #include <stdint.h>
 #include <stdbool.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,10 +44,12 @@ typedef uint32_t sample_ptr_t;
 
 /**
  * @brief Size of the mirrored tail, in units, for the given append granularity.
+ * @preview
  *
  * The caller that allocates the memory of a samplebuffer has to add this on
  * top of the usable size it wants (see #samplebuffer_t::margin_units).
  */
+LIBDRAGON_PREVIEW_API
 inline int samplebuffer_margin_units(int append_units)
 {
     return append_units > SAMPLEBUFFER_MARGIN_UNITS
@@ -88,6 +92,7 @@ typedef struct samplebuffer_s {
     sample_ptr_t ptr_and_flags;
 
     /**
+     * @preview
      * Bytes per logical unit counted by wpos/widx/size.
      * PCM: 1, 2, or 4. Compressed frame stores: e.g. 9 for mono VADPCM.
      */
@@ -99,17 +104,21 @@ typedef struct samplebuffer_s {
     int size;
 
     /**
+     * @preview
      * Granularity in units of the appends done by the producer, or 0 if
      * unknown: declared via #waveform_t::append_units. The mirrored tail is
      * sized to #margin_units = MAX(#SAMPLEBUFFER_MARGIN_UNITS, this), so a
      * single append of that size is always contiguous.
      */
+    LIBDRAGON_PREVIEW_SYM
     int append_units;
 
     /**
+     * @preview
      * Size of the mirrored tail in units: MAX(#SAMPLEBUFFER_MARGIN_UNITS,
      * #append_units). Fixed for the life of a configuration.
      */
+    LIBDRAGON_PREVIEW_SYM
     int margin_units;
 
     /**
@@ -135,17 +144,23 @@ typedef struct samplebuffer_s {
 
     /**
      * @brief Pointer to the state of the waveform decoder.
+     * @preview
      */
+    LIBDRAGON_PREVIEW_SYM
     void *state;
 
     /**
      * @brief Allocated state size
+     * @preview
      */
+    LIBDRAGON_PREVIEW_SYM
     int state_size;
 
     /**
+     * @preview
      * Waveform being played back on this sample buffer.
      */
+    LIBDRAGON_PREVIEW_SYM
     waveform_t *wave;
 
     /**
@@ -155,27 +170,36 @@ typedef struct samplebuffer_s {
     WaveformRead wv_read;
 
     /**
+     * @preview
      * Ticket of the most recent async PI DMA into this buffer (0 = none).
      * Producers set it when issuing dma_read_async; consumers wait via
      * #samplebuffer_dma_wait before touching the bytes or freeing memory.
      */
+    LIBDRAGON_PREVIEW_SYM
     uint64_t dma_ticket;
 
-    /** Total bytes allocated for the sample area (usable size + margin). */
+    /**
+     * @preview 
+     * Total bytes allocated for the sample area (usable size + margin). */
+    LIBDRAGON_PREVIEW_SYM
     int capacity_bytes;
 
     /**
+     * @preview
      * Physical index (0 .. size-1) of #wpos in the circular sample area.
      * A unit at relative offset `rel` from wpos lives at
      * `(head + rel) % size`. Advances when the oldest units are discarded.
      */
+    LIBDRAGON_PREVIEW_SYM
     int head;
 
     /**
+     * @preview
      * Units of the latest append that spilled past #size into the margin and
      * still need to be copied back to the start of the sample area. 0 means
      * nothing pending. Flushed by the next get/append/flush/undo.
      */
+    LIBDRAGON_PREVIEW_SYM
     int spill;
 } samplebuffer_t;
 
@@ -240,6 +264,7 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen);
 
 /**
  * @brief Start fetching samples that will be requested later (zero-wait).
+ * @preview
  *
  * Fetches the part of [wpos, wpos+wlen) that the buffer does not hold yet,
  * leaving any PI DMA in flight: the next #samplebuffer_get finds the samples
@@ -251,7 +276,28 @@ void* samplebuffer_get(samplebuffer_t *buf, int wpos, int *wlen);
  * what the buffer holds (a seek is coming, so anything fetched now would be
  * discarded), or if the samplebuffer has no room for it.
  */
+LIBDRAGON_PREVIEW_API
 void samplebuffer_prefetch(samplebuffer_t *buf, int wpos, int wlen);
+
+/**
+ * @brief Granularity, in units, that keeps appends 8-byte aligned.
+ * @preview
+ *
+ * A producer that writes through the RSP (#waveform_t::rsp_written) deposits
+ * its samples with SP DMA, which needs an 8-byte aligned destination. Appends
+ * of whole blocks preserve that alignment on their own, but a producer that
+ * undoes part of what it appended — a block codec trimming the samples past the
+ * end of a waveform — has to round the part it keeps to this granularity, or
+ * the next append lands mid-word. #samplebuffer_append checks it.
+ */
+LIBDRAGON_PREVIEW_API
+inline int samplebuffer_align_units(const samplebuffer_t *buf)
+{
+    int n = 1;
+    while ((n * buf->unit_bytes) & 7)
+        n++;
+    return n;
+}
 
 /**
  * @brief Append samples into the buffer (zero-copy).
@@ -274,8 +320,10 @@ void samplebuffer_undo(samplebuffer_t *buf, int wlen);
 void samplebuffer_flush(samplebuffer_t *buf);
 
 /**
+ * @preview
  * Wait for any in-flight async PI DMA into this buffer to complete.
  */
+LIBDRAGON_PREVIEW_API
 void samplebuffer_dma_wait(samplebuffer_t *buf);
 
 /**

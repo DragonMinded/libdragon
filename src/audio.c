@@ -53,16 +53,23 @@
  */
 #define CALC_BUFFER(x)  ( ( ( ( x ) / BUFFERS_PER_SECOND ) + 15 ) & ~15 )
 
+/** @brief Maximum number of AI buffers (width of the buf_full bitmask) */
+#define AUDIO_MAX_BUFFERS  32
+
 /** @brief The actual frequency the AI will run at */
 static int _frequency = 0;
-/** @brief The number of buffers currently allocated */
+/** @brief Required multiple for buffer length, or 0 for default */
+static int _granularity = 0;
+/** @brief The number of buffers currently carved from #pool */
 static int _num_buf = 0;
-/** @brief The buffer size in bytes for each buffer allocated */
+/** @brief Stereo samples per carved buffer */
 static int _buf_size = 0;
-/** @brief Array of pointers to the allocated buffers */
-static short **buffers = NULL;
-/** @brief Array of pointers to the allocated buffers (original pointers to free) */
-static short **buffers_orig = NULL;
+/** @brief Total stereo samples reserved for the latency headroom */
+static int _pool_samples = 0;
+/** @brief Single uncached allocation holding all AI buffers */
+static short *pool = NULL;
+/** @brief Pointers into #pool for each carved buffer */
+static short *buffers[AUDIO_MAX_BUFFERS];
 
 static audio_fill_buffer_callback _fill_buffer_callback = NULL;
 static audio_fill_buffer_callback _orig_fill_buffer_callback = NULL;
@@ -79,6 +86,8 @@ static volatile int now_empty = 0;
 static volatile int now_writing = 0;
 /** @brief Bitmask of buffers indicating which buffers are full */
 static volatile int buf_full = 0;
+
+_Static_assert(sizeof(buf_full) * 8 == AUDIO_MAX_BUFFERS, "buf_full width");
 
 /** @brief Structure used to interact with the AI registers */
 static volatile struct AI_regs_s * const AI_regs = (struct AI_regs_s *)0xa4500000;
@@ -112,7 +121,7 @@ static volatile inline int __full()
 static void audio_callback()
 {
     /* Do not copy more data if we've freed the audio system */
-    if(!buffers)
+    if(!pool)
     {
         return;
     }
@@ -176,6 +185,42 @@ static void audio_callback()
     enable_interrupts();
 }
 
+/**
+ * @brief Carve #buffers[] as slices of #pool for the current granularity.
+ *
+ * Each slice is followed by 8 bytes of padding so the AI DMA boundary
+ * workaround can shift a pointer without overlapping the next slice.
+ */
+static void audio_carve_buffers(void)
+{
+    int ideal = CALC_BUFFER(_frequency);
+    if (_granularity > 0)
+        _buf_size = MAX(_granularity, (int)lroundf(ideal / (float)_granularity) * _granularity);
+    else
+        _buf_size = ideal;
+
+    _num_buf = _pool_samples / _buf_size;
+    assertf(_num_buf >= 2, "buffer granularity %d too large for configured latency", _granularity);
+    if (_num_buf > (int)AUDIO_MAX_BUFFERS)
+        _num_buf = AUDIO_MAX_BUFFERS;
+
+    short *p = pool;
+    for (int i = 0; i < _num_buf; i++) {
+        /* Stereo buffer, plus 8 bytes of padding for the AI DMA bug. */
+        buffers[i] = p;
+        if (((uint32_t)(p + 2 * _buf_size) & 0x1FFF) == 0)
+            buffers[i] = p + 4;
+        memset(buffers[i], 0, sizeof(short) * 2 * _buf_size);
+        p += 2 * _buf_size + 4;
+    }
+
+    now_playing = 0;
+    playing_queue = 0;
+    now_empty = 0;
+    now_writing = 0;
+    buf_full = 0;
+}
+
 void audio_init(const int frequency, float latency)
 {
     int clockrate;
@@ -224,47 +269,37 @@ void audio_init(const int frequency, float latency)
     register_AI_handler(audio_callback);
     set_AI_interrupt(1);
 
-    /* Set up buffers */
-    _buf_size = CALC_BUFFER(_frequency);
-
     if (latency <= 1.0f)
         latency = AUDIO_DEFAULT_LATENCY;
+    _granularity = 0;
 
-    _num_buf = (int)ceilf(latency * _frequency / (25.0f * (float)_buf_size));
+    /* Size the pool for the default carving so later granularity changes only
+       re-slice it. Keep 8 bytes of pad per possible buffer for the AI DMA bug. */
+    int ideal = CALC_BUFFER(_frequency);
+    _num_buf = (int)ceilf(latency * _frequency / (25.0f * (float)ideal));
     if (_num_buf < 2)
         _num_buf = 2;
-    if (_num_buf > (int)(sizeof(buf_full) * 8))
-        _num_buf = sizeof(buf_full) * 8;
-    buffers = malloc(_num_buf * sizeof(short *));
-    buffers_orig = malloc(_num_buf * sizeof(short *));
-    assertf(buffers && buffers_orig, "Out of memory");
+    if (_num_buf > (int)AUDIO_MAX_BUFFERS)
+        _num_buf = AUDIO_MAX_BUFFERS;
+    _pool_samples = _num_buf * ideal;
 
-    for(int i = 0; i < _num_buf; i++)
-    {
-        /* Stereo buffers, interleaved, plus 8 bytes of padding */
-        buffers_orig[i] = buffers[i] =
-            malloc_uncached(sizeof(short) * 2 * _buf_size + 8);
-        assertf(buffers[i], "Out of memory");
+    pool = malloc_uncached(sizeof(short) * 2 * _pool_samples + AUDIO_MAX_BUFFERS * 8);
+    assertf(pool, "Out of memory");
 
-        /* Workaround AI DMA hardware bug. If a buffer ends exactly
-         * at a 0x2000 address boundary, AI DMA gets confused because
-         * of a delayed internal carry. Avoid using such buffers,
-         * and since we allocated 8 bytes of padding, we can move
-         * our pointer a bit.
-         */
-        if (((uint32_t)(buffers[i] + 2 * _buf_size) & 0x1FFF) == 0)
-            buffers[i] += 4;
-
-        memset(buffers[i], 0, sizeof(short) * 2 * _buf_size);
-    }
-
-    /* Set up ring buffer pointers */
-    now_playing = 0;
-    playing_queue = 0;
-    now_empty = 0;
-    now_writing = 0;
-    buf_full = 0;
+    audio_carve_buffers();
     _paused = false;
+}
+
+void audio_set_buffer_granularity(int nsamples)
+{
+    assertf(pool, "audio_init() must be called first");
+    assertf(nsamples > 0 && (nsamples & 15) == 0,
+        "buffer granularity must be a positive multiple of 16");
+    assertf(audio_get_queued_buffers() == 0 && playing_queue == 0,
+        "audio_set_buffer_granularity() requires an empty AI queue");
+
+    _granularity = nsamples;
+    audio_carve_buffers();
 }
 
 void audio_set_buffer_callback(audio_fill_buffer_callback fill_buffer_callback)
@@ -289,27 +324,16 @@ void audio_close()
     AI_regs->bitrate = 0;
     AI_regs->status = 0;
 
-    if(buffers)
-    {
-        for(int i = 0; i < _num_buf; i++)
-        {
-            /* Nuke anything that isn't freed */
-            if(buffers_orig[i])
-            {
-                free_uncached(buffers_orig[i]);
-                buffers_orig[i] = buffers[i] = 0;
-            }
-        }
-
-        /* Nuke array of buffers we init'd earlier */
-        free(buffers);
-        buffers = 0;
-        free(buffers_orig);
-        buffers_orig = 0;
+    if (pool) {
+        free_uncached(pool);
+        pool = NULL;
     }
 
     _frequency = 0;
+    _granularity = 0;
     _buf_size = 0;
+    _pool_samples = 0;
+    _num_buf = 0;
 }
 
 static void audio_paused_callback(short *buffer, size_t numsamples)
@@ -353,7 +377,7 @@ void audio_pause(bool pause) {
  */
 void audio_write(const short * const buffer)
 {
-    if(!buffers)
+    if(!pool)
     {
         return;
     }
@@ -380,7 +404,7 @@ void audio_write(const short * const buffer)
 
 short* audio_write_begin(void) 
 {
-    if(!buffers)
+    if(!pool)
     {
         return NULL;
     }
@@ -414,7 +438,7 @@ void audio_write_end(void)
 
 void audio_write_silence()
 {
-    if(!buffers)
+    if(!pool)
     {
         return;
     }
@@ -441,7 +465,7 @@ void audio_write_silence()
 
 volatile int audio_can_write()
 {
-    if(!buffers)
+    if(!pool)
     {
         return 0;
     }
@@ -493,12 +517,12 @@ int audio_get_buffer_length()
 
 int audio_get_num_buffers()
 {
-    return buffers ? _num_buf : 0;
+    return pool ? _num_buf : 0;
 }
 
 int audio_get_queued_buffers()
 {
-    if (!buffers)
+    if (!pool)
         return 0;
 
     uint32_t mask = buf_full;

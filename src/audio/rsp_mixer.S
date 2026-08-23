@@ -42,11 +42,11 @@
 	# ============
 	#
 	# Each MIX_CHANNEL carries the volume the channel starts the round with,
-	# the one its ramp ends on and the increment between the two, per block
-	# of four output samples. The mixing loop walks the volume one output
-	# sample at a time and clamps it to the two ends, so a ramp can land
-	# anywhere inside a round; a channel with no ramp sends an increment of
-	# zero and the clamp simply holds the volume. None of it costs a cycle:
+	# the one it ends the round on and the increment between the two, per
+	# block of four output samples. The mixing loop walks the volume one
+	# output sample at a time and clamps it to the two ends, so a ramp can
+	# land anywhere inside a round; a channel with no ramp sends an increment
+	# of zero and the clamp simply holds the volume. None of it costs a cycle:
 	# it all fits vector slots the loop leaves empty. The CPU recomputes the
 	# three values from absolute time at every round, so rounding of the
 	# increment cannot accumulate into drift (see mixer_ch_set_vol_ramp).
@@ -323,9 +323,9 @@ CH_FLAGS:                 .half  0
 CH_IDX:                   .half  0
 CH_LVOL:                  .half  0
 CH_RVOL:                  .half  0
-# Volume the ramp of this command is heading for, [left:16][right:16]. Together
-# with CH_LVOL/CH_RVOL it gives the two ends of the ramp, which are the bounds
-# the mixing loops clamp to. Equal to CH_LVOL/CH_RVOL when no ramp is running.
+# Volume this command's round ends on, [left:16][right:16]. Together with
+# CH_LVOL/CH_RVOL it gives the two ends of the round, which are the bounds the
+# mixing loops clamp to. Equal to CH_LVOL/CH_RVOL when no ramp is running.
 	.align 2
 CH_TVOL:                  .long  0
 # Volume the ramp advances by every four output samples, [left:16][right:16].
@@ -387,7 +387,7 @@ CH_VNFRAMES_TOT:          .long  0
 #   +20: loop_len
 #   +24: ptr  (0 = nothing to mix)
 #   +28: [dlvol:16][drvol:16]     volume ramp, per block of 4 samples
-#   +32: [tlvol:16][trvol:16]     volume the ramp ends on (= lvol/rvol if none)
+#   +32: [tlvol:16][trvol:16]     volume the round ends on (= lvol/rvol if none)
 #
 # nsamples is the same for every channel of a round and is always even
 # (see mixer_round_length), so every MIX_CHANNEL latches nsamples/2 from a0
@@ -434,7 +434,7 @@ CH_VNFRAMES_TOT:          .long  0
 	# what is left of the step and goes to zero as the ramp lands.
 	#
 	# The ramp is a slope and nothing else: what stops it on the value the
-	# CPU asked for is the clamp to [v_vlo, v_vhi], the two ends of the ramp
+	# CPU asked for is the clamp to [v_vlo, v_vhi], the two ends of the round
 	# sorted, which is also why a round never has to be cut short at the
 	# point a ramp lands. With no ramp running the two bounds coincide and
 	# the clamp simply holds the volume.
@@ -583,8 +583,8 @@ MIX_CHANNEL:
 	addi t0, -1
 
 MIX_CHANNEL_NoClear:
-	# Splat the volume this round starts at, the one its ramp ends on and
-	# the step between two of its points into [L,R,L,R,L,R,L,R] vectors.
+	# Splat the volume this round starts at, the one it ends on and the
+	# step between two of its points into [L,R,L,R,L,R,L,R] vectors.
 	# All three are stored as adjacent halfword pairs in DMEM, so one word
 	# replicated four times does each of them.
 	li s0, %lo(RSPQ_SCRATCH_MEM)
@@ -610,12 +610,12 @@ MIX_CHANNEL_NoClear:
 	lh ticks, %lo(ROUND_NSAMPLES)
 	beqz ticks, MIX_CHANNEL_Done
 
-	# Sort the two ends of the ramp into the bounds the mixing loop clamps
+	# Sort the two ends of the round into the bounds the mixing loop clamps
 	# to. v_vlo lands in the zero vector, so it is also stashed: every path
 	# that leaves the loop wants the zero back and reloads it from there.
-	# They are the ends of the whole ramp, so they are the same for every
-	# lane: what the stagger below adds is a fraction of one step, and no
-	# lane of the round can start further along than the ramp ends.
+	# They are the ends of the round as a whole, so they are the same for
+	# every lane: the stagger below adds a fraction of one step to them, and
+	# any lane it pushes past the far end is pinned there by the clamp.
 	vlt v_vlo, v_xvol, v_vhi
 	vge v_vhi, v_xvol, v_vhi
 	li s0, %lo(DMEM_VLO)

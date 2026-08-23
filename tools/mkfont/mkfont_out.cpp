@@ -15,7 +15,7 @@
 #include <mutex>
 #include "phf.h"
 #include "phf.cpp"
-#include "crc64.c"
+#include "../common/crc64.c"
 #include "../common/thread_utils.h"
 
 static std::string codepoint_to_utf8(uint32_t codepoint) {

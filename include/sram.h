@@ -14,6 +14,7 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,23 +24,28 @@ extern "C" {
 
 /**
  * @brief Initialize the SRAM subsystem
+ * @preview
  * 
  * This function configures the PI DOM2 registers to enable access to the SRAM
  * in the cartridge. It must be called before any other SRAM functions are used.
  */
+LIBDRAGON_PREVIEW_API
 void sram_init(void);
 
 /**
  * @brief Detect if SRAM is present in the cartridge
+ * @preview
  * 
  * This function checks if the cartridge has SRAM available for use.
  * 
  * @return Size of available SRAM if is detected, -1 otherwise.
  */
+LIBDRAGON_PREVIEW_API
 int sram_detect(void);
 
 /**
  * @brief Read data from SRAM
+ * @preview
  * 
  * This function reads data from the SRAM in the cartridge and stores them into
  * the provided destination buffer. To read the entire content of the SRAM,
@@ -50,10 +56,12 @@ int sram_detect(void);
  * @param len Number of bytes to read.
  * @return Number of bytes read, or negative value in case of error.
  */
+LIBDRAGON_PREVIEW_API
 int sram_read(void* dst, size_t offset, size_t len);
 
 /**
  * @brief Write data to SRAM
+ * @preview
  * 
  * This function writes data to the SRAM in the cartridge from the provided
  * source buffer. To write the entire content of the SRAM, the length should
@@ -64,6 +72,7 @@ int sram_read(void* dst, size_t offset, size_t len);
  * @param len Number of bytes to write.
  * @return Number of bytes written, or negative value in case of error.
  */
+LIBDRAGON_PREVIEW_API
 int sram_write(const void* src, size_t offset, size_t len);
 
 #ifdef __cplusplus

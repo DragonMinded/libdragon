@@ -8,6 +8,8 @@
 #ifndef __LIBDRAGON_MGFX_H
 #define __LIBDRAGON_MGFX_H
 
+
+#include "preview.h"
 #include "magma.h"
 #include "mgfx_constants.h"
 #include "mgfx_macros.h"
@@ -131,9 +133,11 @@ extern "C" {
 
 /** 
  * @brief Returns a pointer to the mgfx shader ucode. Use this to create a pipeline with this shader.
+ * @preview
  * 
  * @see #mg_pipeline_create
  */
+LIBDRAGON_PREVIEW_API
 inline rsp_ucode_t *mgfx_get_shader_ucode(mgfx_features_t features)
 {
     extern rsp_ucode_t rsp_mgfx;
@@ -143,28 +147,52 @@ inline rsp_ucode_t *mgfx_get_shader_ucode(mgfx_features_t features)
     return &rsp_mgfx;
 }
 
-/** @brief Convert matrices parameters to the internal data structure of the matrices uniform. */
+/** @brief Convert matrices parameters to the internal data structure of the matrices uniform.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void mgfx_get_matrices(mgfx_matrices_t *dst, const mgfx_matrices_parms_t *parms);
 
-/** @brief Convert texturing parameters to the internal data structure of the texturing uniform. */
+/** @brief Convert texturing parameters to the internal data structure of the texturing uniform.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void mgfx_get_texturing(mgfx_texturing_t *dst, const mgfx_texturing_parms_t *parms);
 
-/** @brief Convert lighting parameters to the internal data structure of the lighting uniform. */
+/** @brief Convert lighting parameters to the internal data structure of the lighting uniform.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void mgfx_get_lighting(mgfx_lighting_t *dst, const mgfx_lighting_parms_t *parms);
 
-/** @brief Convert fog parameters to the internal data structure of the fog uniform. */
+/** @brief Convert fog parameters to the internal data structure of the fog uniform.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void mgfx_get_fog(mgfx_fog_t *dst, const mgfx_fog_parms_t *parms);
 
-/** @brief Set the value of the matrices uniform inline. */
+/** @brief Set the value of the matrices uniform inline.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void mgfx_set_matrices_inline(const mg_uniform_t *uniform, const mgfx_matrices_parms_t *parms);
 
-/** @brief Set the value of the texturing uniform inline. */
+/** @brief Set the value of the texturing uniform inline.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void mgfx_set_texturing_inline(const mg_uniform_t *uniform, const mgfx_texturing_parms_t *parms);
 
-/** @brief Set the value of the lighting uniform inline. */
+/** @brief Set the value of the lighting uniform inline.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void mgfx_set_lighting_inline(const mg_uniform_t *uniform, const mgfx_lighting_parms_t *parms);
 
-/** @brief Set the value of the fog uniform inline. */
+/** @brief Set the value of the fog uniform inline.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
 void mgfx_set_fog_inline(const mg_uniform_t *uniform, const mgfx_fog_parms_t *parms);
 
 #ifdef __cplusplus

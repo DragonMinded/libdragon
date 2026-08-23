@@ -191,26 +191,39 @@ static void resample_progress_print(int64_t bytes_done, int64_t bytes_total, int
  * Insert @p ncopy samples of the loop prefix at @p loopEnd, shifting the
  * release tail forward. Both loop bounds advance by @p ncopy so the loop
  * content is a rotation of the original (used to align loopStart).
+ *
+ * The copy runs a little past the new loop end, over the first samples of the
+ * shifted tail. The rotation leaves those out of phase with the loop, and the
+ * compressed frame that straddles the loop end would have to encode the jump
+ * together with the last samples of the loop, on a single scale factor: enough
+ * to flatten them, and the loop is what plays over and over. Rewriting up to
+ * the frame boundary also covers the taps the resampler reads past the loop.
  */
 static void wav_rotate_loop_at_end(wav_data_t *wav, int ncopy)
 {
+	const int FRAME = kVADPCMFrameSampleCount;
 	int ch = wav->channels;
 	int loop_end = wav->loopEnd ? wav->loopEnd : wav->cnt;
 	int loop_len = loop_end - wav->loopOffset;
-	assert(ncopy > 0 && loop_len > 0 && loop_end <= wav->cnt);
+	int tail = wav->cnt - loop_end;
+	assert(ncopy > 0 && loop_len > 0 && tail >= 0);
+
+	int end = loop_end + ncopy;
+	int over = (end + 3 + FRAME-1) / FRAME * FRAME - end;
+	if (over > tail) over = tail;
 
 	wav->samples = (int16_t*)realloc(wav->samples, (wav->cnt + ncopy) * ch * sizeof(int16_t));
-	memmove(&wav->samples[(loop_end + ncopy) * ch],
+	memmove(&wav->samples[end * ch],
 		&wav->samples[loop_end * ch],
-		(wav->cnt - loop_end) * ch * sizeof(int16_t));
-	for (int i = 0; i < ncopy; i++) {
+		tail * ch * sizeof(int16_t));
+	for (int i = 0; i < ncopy + over; i++) {
 		int src = wav->loopOffset + (i % loop_len);
 		for (int c = 0; c < ch; c++)
 			wav->samples[(loop_end + i) * ch + c] = wav->samples[src * ch + c];
 	}
 	wav->cnt += ncopy;
 	wav->loopOffset += ncopy;
-	wav->loopEnd = loop_end + ncopy;
+	wav->loopEnd = end;
 }
 
 /**
@@ -388,6 +401,8 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 		struct vadpcm_vector *codebook = (struct vadpcm_vector *)alloca(kPREDICTORS * kVADPCMEncodeOrder * wav->channels * sizeof(struct vadpcm_vector));
 		struct vadpcm_params parms = { 
 			.predictor_count = kPREDICTORS,
+			// Match previous encoder behavior (always dithered residuals).
+			.dither = kVADPCMDitherRectangular,
 			.min_residual = -(1 << (flag_wav_compress_vadpcm_bits-1)),
 			.max_residual = (1 << (flag_wav_compress_vadpcm_bits-1)) - 1
 		};
@@ -971,13 +986,7 @@ bool wav64_write(const char *infn, const char *outfn, FILE *out, wav_data_t* wav
 				fprintf(stderr, "  writing uncompressed file %s\n", wav2fn);
 
 			out = fopen(outfn, "rb");
-			fseek(out, 20, SEEK_SET);
-			int start_offset = 0;
-			start_offset |= fgetc(out) << 24;
-			start_offset |= fgetc(out) << 16;
-			start_offset |= fgetc(out) << 8;
-			start_offset |= fgetc(out);
-			fseek(out, start_offset, SEEK_SET);
+			fseek(out, samples_start, SEEK_SET);
 			OpusCustomDecoder *dec = opus_custom_decoder_create(
 					custom_mode, wav->channels, &err);
 			if (err != OPUS_OK) {

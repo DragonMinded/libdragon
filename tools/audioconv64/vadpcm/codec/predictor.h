@@ -61,13 +61,30 @@ void vadpcm_meancorrs(size_t frame_count, int predictor_count,
                       double (*restrict pcorr)[6], int *restrict count);
 
 // Calculate the predictor coefficients, given an autocorrelation matrix. The
-// coefficients are chosen to minimize vadpcm_eval.
+// coefficients are chosen to minimize vadpcm_eval. The result may describe an
+// unstable filter, so prefer vadpcm_solve_stable unless the unconstrained
+// solution is specifically what is wanted.
 void vadpcm_solve(const double *restrict corr, double *restrict coeff);
 
 // Adjust predictor coefficients to make them stable. Return 0 if the input
 // coefficients are stable and 1 if the input coefficients are unstable and
 // were modified.
+//
+// This moves the coefficients to the nearest stable point as measured in the
+// coefficient plane, which is not the nearest stable point as measured in
+// prediction error. The two can differ by an order of magnitude. Prefer
+// vadpcm_solve_stable, which minimizes the error directly.
 int vadpcm_stabilize(double *restrict coeff);
+
+// Calculate the predictor coefficients which minimize vadpcm_eval among all
+// stable predictors, given an autocorrelation matrix. Return 0 if the
+// unconstrained solution was already stable, and 1 if the stability constraint
+// was active.
+//
+// Every predictor which reaches a codebook should come from this function. An
+// unstable predictor makes the codebook vectors grow without bound, and the
+// decoder has no way to recover from one.
+int vadpcm_solve_stable(const double *restrict corr, double *restrict coeff);
 
 // Assign a predictor to each frame.
 vadpcm_error vadpcm_assign_predictors(size_t frame_count, int predictor_count,

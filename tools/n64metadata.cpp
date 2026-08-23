@@ -504,7 +504,7 @@ int main(int argc, char **argv)
 	}
 
 	static std::vector<std::string> metaKeys = {
-        "name", "author", "release-date", "osi-license", "website", "age-rating", "short-desc", "long-desc", "screenshots"
+        "name", "author", "release-date", "osi-license", "website", "age-rating", "num-players", "short-desc", "long-desc", "screenshots"
     };
 	static std::vector<std::string> boxartKeys = { "front", "back", "top", "bottom", "left", "right" };
 	static std::vector<std::string> cartartKeys = { "front", "back" };

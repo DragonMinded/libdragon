@@ -1,6 +1,7 @@
 /**
  * @file audio.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @author thekovic <https://github.com/thekovic>
  * @brief Audio Subsystem
  * @ingroup audio
@@ -8,8 +9,10 @@
 #ifndef __LIBDRAGON_AUDIO_H
 #define __LIBDRAGON_AUDIO_H
 
+
 #include <stdbool.h>
 #include <stddef.h>
+#include "preview.h"
 
 /**
  * @defgroup audio Audio Subsystem
@@ -88,6 +91,23 @@ typedef void(*audio_fill_buffer_callback)(short *buffer, size_t numsamples);
 void audio_init(const int frequency, float latency);
 
 /**
+ * @brief Require AI buffer lengths to be a multiple of @p nsamples
+ * @preview
+ *
+ * After this call, #audio_get_buffer_length returns a multiple of @p nsamples,
+ * chosen closest to the default size for the current frequency. The audio
+ * headroom configured in #audio_init is preserved.
+ *
+ * Must be called while no buffers are queued for playback (typically right
+ * after #audio_init). #mixer_init calls this automatically.
+ *
+ * @param[in] nsamples
+ *            Granularity in stereo samples; must be a positive multiple of 16
+ */
+LIBDRAGON_PREVIEW_API
+void audio_set_buffer_granularity(int nsamples);
+
+/**
  * @brief Install a audio callback to fill the audio buffer when required.
  * 
  * This function allows to implement a pull-based audio system. It registers
@@ -156,14 +176,17 @@ int audio_get_buffer_length();
 
 /**
  * @brief Return the number of internal audio buffers
+ * @preview
  *
  * @return Number of buffers configured by #audio_init, or zero if the
  *         audio subsystem is not initialized
  */
+LIBDRAGON_PREVIEW_API
 int audio_get_num_buffers(void);
 
 /**
  * @brief Return the number of audio buffers currently containing data
+ * @preview
  *
  * The count includes buffers already submitted to AI and buffers waiting
  * to be submitted. The value is a snapshot and may change asynchronously
@@ -173,6 +196,7 @@ int audio_get_num_buffers(void);
  * @return Number of currently full buffers, or zero if the audio subsystem
  *         is not initialized
  */
+LIBDRAGON_PREVIEW_API
 int audio_get_queued_buffers(void);
 
 
