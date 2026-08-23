@@ -27,6 +27,14 @@
 #ifdef __cplusplus
 #include <cassert>
 #endif
+// NOTE: <filesystem> declares std::filesystem::rename() with a 3-argument
+// overload, which cannot be parsed once our own rename() macro (see below) is
+// defined. Include it upfront so that this header can be included anywhere,
+// even before <filesystem> itself. As a consequence, std::filesystem::rename()
+// cannot be called by tools; use the C rename() instead.
+#ifdef __cplusplus
+#include <filesystem>
+#endif
 #include <stdlib.h>
 #include <errno.h>
 #include <stdint.h>
