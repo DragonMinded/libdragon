@@ -1,18 +1,32 @@
 LIBDRAGON_OBJS += \
+	$(BUILD_DIR)/GL/array_convert.o \
+	$(BUILD_DIR)/GL/array_module.o \
+	$(BUILD_DIR)/GL/array_object.o \
+	$(BUILD_DIR)/GL/buffer.o \
+	$(BUILD_DIR)/GL/cpu_pipeline.o \
+	$(BUILD_DIR)/GL/data_cache.o \
+	$(BUILD_DIR)/GL/data_source.o \
+	$(BUILD_DIR)/GL/draw_call_cache.o \
 	$(BUILD_DIR)/GL/gl.o \
+	$(BUILD_DIR)/GL/glu.o \
+	$(BUILD_DIR)/GL/indices.o \
 	$(BUILD_DIR)/GL/lighting.o \
+	$(BUILD_DIR)/GL/list.o \
 	$(BUILD_DIR)/GL/matrix.o \
+	$(BUILD_DIR)/GL/mg_ex.o \
+	$(BUILD_DIR)/GL/pipelines.o \
+	$(BUILD_DIR)/GL/pixelrect.o \
 	$(BUILD_DIR)/GL/primitive.o \
 	$(BUILD_DIR)/GL/query.o \
 	$(BUILD_DIR)/GL/rendermode.o \
-	$(BUILD_DIR)/GL/texture.o \
-	$(BUILD_DIR)/GL/array.o \
-	$(BUILD_DIR)/GL/pixelrect.o \
-	$(BUILD_DIR)/GL/obj_map.o \
-	$(BUILD_DIR)/GL/list.o \
-	$(BUILD_DIR)/GL/buffer.o \
+	$(BUILD_DIR)/GL/ringbuffer.o \
 	$(BUILD_DIR)/GL/rsp_gl.o \
+	$(BUILD_DIR)/GL/rsp_gl2.o \
+	$(BUILD_DIR)/GL/rsp_gl_pipeline_env_nrm.o \
+	$(BUILD_DIR)/GL/rsp_gl_pipeline_env.o \
+	$(BUILD_DIR)/GL/rsp_gl_pipeline_nrm.o \
 	$(BUILD_DIR)/GL/rsp_gl_pipeline.o \
-	$(BUILD_DIR)/GL/glu.o \
-	$(BUILD_DIR)/GL/cpu_pipeline.o \
-	$(BUILD_DIR)/GL/rsp_pipeline.o 
+	$(BUILD_DIR)/GL/rsp_pipeline.o \
+	$(BUILD_DIR)/GL/texture.o \
+	$(BUILD_DIR)/GL/vertex_layout_cache.o \
+	$(BUILD_DIR)/GL/vertex_layout.o

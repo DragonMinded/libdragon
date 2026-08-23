@@ -2,6 +2,7 @@
 #include <GL/gl.h>
 #include <GL/gl_integration.h>
 #include <rdpq_debug.h>
+#include <magma.h>
 
 #undef ABS
 #include "../src/GL/gl_internal.h"
@@ -12,6 +13,8 @@
     DEFER(surface_free(&test_surf)); \
     surface_t test_z = surface_alloc(FMT_RGBA16, w, h); \
     DEFER(surface_free(&test_z)); \
+    mg_init(); \
+    DEFER(mg_close()); \
     gl_init(); \
     DEFER(gl_close()); \
     rdpq_attach(&test_surf, &test_z); \
