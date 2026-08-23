@@ -12,7 +12,6 @@
 
 #include "../common/json.hpp"
 #include "../common/utils.h"
-#include "../common/polyfill.h"
 
 #include <string>
 #include <errno.h>

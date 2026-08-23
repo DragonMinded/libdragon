@@ -12,7 +12,6 @@
 
 #include "../common/subprocess.h"
 #include "../common/json.hpp"
-#include "../common/polyfill.h"
 
 #include <time.h>
 #include <thread>

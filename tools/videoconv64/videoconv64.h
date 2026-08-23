@@ -24,6 +24,11 @@
 #include <vector>
 #include <stdint.h>
 
+// Included here so that every module gets it. Among other things, it provides
+// a rename() that replaces the destination file, as the Windows one fails if
+// the destination already exists.
+#include "../common/polyfill.h"
+
 struct Config {
 	std::string input_file;
 	std::string output_dir;          // directory only
