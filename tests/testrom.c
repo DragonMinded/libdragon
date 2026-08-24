@@ -603,5 +603,5 @@ int main() {
 
 	console_set_debug(true);
 	printf("\nTestsuite finished in %02lld:%02lld\n", total_time/60, total_time%60);
-	printf("Passed: %d out of %d (%d skipped)\n", successes, NUM_TESTS, skipped);
+	printf("Passed: %d out of %d (%d skipped)\n", successes, NUM_TESTS-skipped, skipped);
 }
