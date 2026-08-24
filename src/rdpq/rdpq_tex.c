@@ -684,7 +684,7 @@ void __rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitp
         return;
     }
     // Check which implementation to use, depending on the requested features.
-    if (F2I(parms->theta) == 0) {
+    if (F2I(parms->theta) == 0 && !parms->filtering) {
         if (F2I(parms->scale_x) == 0 && F2I(parms->scale_y) == 0)
                 tex_xblit_norotate_noscale(surf, x0, y0, parms, ltd);
             else
