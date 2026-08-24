@@ -330,6 +330,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_blendfx_source_rebind,  0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_blendfx_partial_feedback, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_blendfx_block,          0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_blendfx_multi_across_block, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_blendfx_blit_semantics, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_blendfx_blit_rotation_semantics, 0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_dynamic,               0, TEST_FLAGS_NO_BENCHMARK),

@@ -143,6 +143,11 @@ static struct {
    a multi-blit scope allows compatible consecutive calls to reuse upper TMEM. */
 static int destex_multi_depth;
 
+/* Command stream the cached state describes. Residency belongs to the stream
+   being written, not to the CPU: a source uploaded into the immediate queue is
+   absent from a block recorded afterwards, and vice versa. */
+static rspq_block_t *destex_cached_stream;
+
 static inline rdpq_tile_t destex_feedback_load_tile(rdpq_tile_t source_tile)
 {
     /* TEX1 occupies source_tile+1. Use the following descriptor only for
@@ -791,6 +796,7 @@ static void destex_blit_rotated(const surface_t *dest, rdpq_tile_t tile,
 
 static void destex_reset_cached_state(void)
 {
+    destex_cached_stream = rspq_block;
     destex_residency.valid = false;
     destex_residency.source_tile_ready = false;
     destex_feedback_tile.valid = false;
@@ -954,7 +960,9 @@ static void destex_blit_scoped(const surface_t *surf, float x0, float y0,
     float uv_scale, const rdpq_blitparms_t *parms)
 {
     bool standalone = destex_multi_depth == 0;
-    if (standalone)
+    /* Crossing a block boundary keeps a multi scope open but changes stream, so
+       the source must be uploaded again to keep every stream self-contained. */
+    if (standalone || destex_cached_stream != rspq_block)
         destex_reset_cached_state();
     destex_blit_inner(surf, x0, y0, uv_scale, parms);
     if (standalone)

@@ -476,6 +476,60 @@ void test_rdpq_blendfx_block(TestContext *ctx)
         "replaying a BlendFX block modified its recording-time target");
 }
 
+void test_rdpq_blendfx_multi_across_block(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    surface_t fb = surface_alloc(FMT_RGBA16, 48, 24);
+    surface_t source = surface_alloc(FMT_RGBA16, 16, 16);
+    surface_t clobber = surface_alloc(FMT_RGBA16, 16, 16);
+    DEFER(surface_free(&fb));
+    DEFER(surface_free(&source));
+    DEFER(surface_free(&clobber));
+
+    uint16_t background = color_to_packed16(RGBA32(16, 16, 16, 255));
+    for (int i = 0; i < fb.width * fb.height; i++)
+        ((uint16_t *)fb.buffer)[i] = background;
+    for (int i = 0; i < source.width * source.height; i++) {
+        ((uint16_t *)source.buffer)[i] = color_to_packed16(RGBA32(0, 0, 255, 255));
+        ((uint16_t *)clobber.buffer)[i] = color_to_packed16(RGBA32(255, 0, 0, 255));
+    }
+
+    /* Open the multi scope in the immediate queue, then record a blit of the
+       same source inside a block. TMEM residency belongs to the stream being
+       written, so the block must carry its own source upload. */
+    rdpq_attach(&fb, NULL);
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_set_blendfx_parms(RDPQ_BLENDFX_ADD, NULL);
+    rdpq_blendfx_multi_begin();
+    rdpq_blendfx_blit(&source, 4, 4, &(rdpq_blitparms_t){ .filtering = true });
+    rspq_block_begin();
+        rdpq_blendfx_blit(&source, 28, 4,
+            &(rdpq_blitparms_t){ .filtering = true });
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+    rdpq_blendfx_multi_end();
+
+    /* Overwrite the upper TMEM half that BlendFX reserves for its source. */
+    rdpq_tex_upload(TILE0, &clobber, &(rdpq_texparms_t){ .tmem_addr = 2048 });
+
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+    rdpq_set_blendfx_parms(RDPQ_BLENDFX_ADD, NULL);
+    rspq_block_run(block);
+    rdpq_detach_wait();
+
+    uint16_t *pixels = fb.buffer;
+    color_t immediate = color_from_packed16(pixels[12 * fb.width + 12]);
+    ASSERT(immediate.b > immediate.r,
+        "BlendFX immediate blit did not composite its own source");
+
+    color_t recorded = color_from_packed16(pixels[12 * fb.width + 36]);
+    ASSERT(recorded.b > recorded.r,
+        "BlendFX block reused a source uploaded outside the block");
+}
+
 
 typedef struct {
     const char *name;
