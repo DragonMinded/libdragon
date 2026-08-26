@@ -24,6 +24,11 @@
 #include <vector>
 #include <stdint.h>
 
+// Included here so that every module gets it. Among other things, it provides
+// a rename() that replaces the destination file, as the Windows one fails if
+// the destination already exists.
+#include "../common/polyfill.h"
+
 struct Config {
 	std::string input_file;
 	std::string output_dir;          // directory only
@@ -73,6 +78,15 @@ void verbose(int level, const char *str, ...);
 
 __attribute__((noreturn, format(printf, 1, 2)))
 void fatal(const char *str, ...);
+
+// Track an output file that must be deleted if the conversion fails. Without
+// this, a partial (or stale) file left behind would make build systems believe
+// that the conversion succeeded, and they would not run it again.
+void artifact_register(const std::string& path);
+
+// Declare all registered artifacts as final: from now on they will survive
+// even if the process exits with an error.
+void artifact_commit_all(void);
 
 // Shared small utilities (implemented in vconv_utils.cpp)
 int64_t now_ms(void);

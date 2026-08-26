@@ -11,14 +11,20 @@
     RSPQ_INIT(); \
     mg_init(); DEFER(mg_close());
 
+static uint32_t get_command_count(const uint32_t *block, uint32_t block_size)
+{
+    const uint32_t *block_end = block + block_size - 1;
+    uint32_t guard_cmd = *block_end;
+    while (*--block_end != guard_cmd) {}
+    return block_end - block;
+}
+
 void assert_block_contents(const uint32_t *expected_commands, uint32_t expected_commands_count, const rspq_block_t *block, TestContext *ctx) 
 {
     const uint32_t *current_cmd = block->cmds;
     uint32_t block_size = RSPQ_BLOCK_MIN_SIZE;
 
-    const uint32_t *block_end = current_cmd + block_size - 1;
-    while (*--block_end == 0x00) {}
-    uint32_t commands_left = block_end - current_cmd;
+    uint32_t commands_left = get_command_count(current_cmd, block_size);
 
     for (size_t i = 0; i < expected_commands_count; i++)
     {
@@ -32,9 +38,7 @@ void assert_block_contents(const uint32_t *expected_commands, uint32_t expected_
             if ((cmd>>24) == RSPQ_CMD_JUMP) {
                 current_cmd = (const uint32_t*)VirtualUncachedAddr(cmd & 0xFFFFFF);
                 if (block_size < RSPQ_BLOCK_MAX_SIZE) block_size *= 2;
-                const uint32_t *block_end = current_cmd + block_size - 1;
-                while (*--block_end == 0x00) {}
-                commands_left = block_end - current_cmd;
+                commands_left = get_command_count(current_cmd, block_size);
             } else {
                 break;
             }

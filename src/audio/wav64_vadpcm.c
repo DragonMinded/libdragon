@@ -17,6 +17,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <malloc.h>
 #include <alloca.h>
 
 
@@ -339,7 +340,7 @@ void wav64_vadpcm_preload(wav64_t *wav, void *dst)
 	if (vhead->flags & VADPCM_FLAG_HUFFMAN) {
 		wav64_state_vadpcm_t st = {0};
 		int scratch2_size = ROUND_UP(file_bytes * 2, 16);
-		void *scratch2 = malloc(scratch2_size);
+		void *scratch2 = memalign(16, scratch2_size);
 		assertf(scratch2, "Out of memory");
 		huffv_decompress(wav, &st, scratch, file_bytes, scratch2, scratch2_size);
 		free(scratch2);

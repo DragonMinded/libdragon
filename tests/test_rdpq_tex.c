@@ -634,6 +634,71 @@ void test_rdpq_tex_upload_tlut_alignments(TestContext *ctx)
     }
 }
 
+void test_rdpq_tex_blit_filtering(TestContext *ctx)
+{
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+
+    const int FBW = 8;
+    const int TEXW = 4;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBW, FBW);
+    DEFER(surface_free(&fb));
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXW, 4);
+    DEFER(surface_free(&tex));
+
+    // Alternating black/white columns: bilinear at a half-texel offset blends neighbors.
+    uint16_t black = color_to_packed16(RGBA32(0, 0, 0, 255));
+    uint16_t white = color_to_packed16(RGBA32(255, 255, 255, 255));
+    for (int y = 0; y < 4; y++)
+        for (int x = 0; x < TEXW; x++)
+            ((uint16_t*)tex.buffer)[y * TEXW + x] = (x & 1) ? white : black;
+
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+
+    // filtering=true must use the triangle xblit path (rectangles don't bilinear-filter interiors).
+    debug_rdp_stream_reset();
+    surface_clear(&fb, 0);
+    rdpq_tex_blit(&tex, 0, 0, &(rdpq_blitparms_t){ .filtering = true });
+    rspq_wait();
+    ASSERT(debug_rdp_stream_count_cmd(0xCA) > 0,
+        "filtering blit should use RDP triangles");
+    ASSERT_EQUAL_UNSIGNED(debug_rdp_stream_count_cmd(0xE4), 0,
+        "filtering blit should not use RDP texture rectangles");
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    // filtering=false on a simple blit should stay on the fast rectangle path.
+    debug_rdp_stream_reset();
+    surface_clear(&fb, 0);
+    rdpq_tex_blit(&tex, 0, 0, NULL);
+    rspq_wait();
+    ASSERT(debug_rdp_stream_count_cmd(0xE4) > 0,
+        "non-filtering blit should use RDP texture rectangles");
+    ASSERT_EQUAL_UNSIGNED(debug_rdp_stream_count_cmd(0xCA), 0,
+        "non-filtering blit should not use RDP triangles");
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    // Half-texel offset with filtering: interior pixels are bilinear blends (~gray).
+    surface_clear(&fb, 0);
+    rdpq_tex_blit(&tex, 0.5f, 0, &(rdpq_blitparms_t){ .filtering = true });
+    rspq_wait();
+    for (int y = 0; y < 4; y++) {
+        uint32_t *line = (uint32_t*)(fb.buffer + y * fb.stride);
+        for (int x = 1; x < TEXW; x++) {
+            uint32_t px = line[x];
+            uint8_t r = px & 0xFF, g = (px >> 8) & 0xFF, b = (px >> 16) & 0xFF;
+            ASSERT(r > 0x10 && r < 0xF0 && g > 0x10 && g < 0xF0 && b > 0x10 && b < 0xF0,
+                "filtering blit should bilinear-filter at (%d,%d), got %08lx", x, y, (unsigned long)px);
+            if (ctx->result == TEST_FAILED)
+                return;
+        }
+    }
+}
+
 void test_rdpq_tex_4bpp_odd(TestContext *ctx) {
     // Make sure loading a 4bpp texture with odd starting coordinates work
     // correctly. We used to have a bug in this case.

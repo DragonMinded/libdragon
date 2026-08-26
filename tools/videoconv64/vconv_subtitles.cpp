@@ -661,6 +661,7 @@ void vconv_process_subtitles(const AnalysisResult &ar) {
 		std::vector<VttCue> cues = parse_webvtt(vtt);
 		Sub64Metrics m;
 		std::string outp = output_sub64_path(lang, produced, total_out);
+		artifact_register(outp);
 		write_sub64(outp, cues, fps, sync_interval_frames, &m);
 		if (!asset_compress(outp.c_str(), outp.c_str(), DEFAULT_COMPRESSION, 256*1024)) {
 			fatal("subtitles: compression failed for %s", outp.c_str());

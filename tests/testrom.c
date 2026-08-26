@@ -407,6 +407,7 @@ static const struct Testsuite
 	TEST_FUNC(test_rdpq_tex_upload_multi,      0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_can_upload,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_blit_normal,       0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_rdpq_tex_blit_filtering,    0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_multi_i4,          0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload_tlut,       0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_rdpq_tex_upload_tlut_alignments, 0, TEST_FLAGS_NO_BENCHMARK),
@@ -603,5 +604,5 @@ int main() {
 
 	console_set_debug(true);
 	printf("\nTestsuite finished in %02lld:%02lld\n", total_time/60, total_time%60);
-	printf("Passed: %d out of %d (%d skipped)\n", successes, NUM_TESTS, skipped);
+	printf("Passed: %d out of %d (%d skipped)\n", successes, NUM_TESTS-skipped, skipped);
 }

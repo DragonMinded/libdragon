@@ -237,6 +237,7 @@ std::vector<seek_point_t> vconv_generate_seek(const CodecInfo &ci, const std::st
     // Write the seek file and compress it with default asset compression
 	if (pts.size() > 0) {
 		std::string seek_path = replace_ext(video_path, ".seek");
+		artifact_register(seek_path);
 		write_seek_file(seek_path, pts);
 		if (!asset_compress(seek_path.c_str(), seek_path.c_str(), DEFAULT_COMPRESSION, 256*1024)) {
 			fatal("seek: compression failed for %s", seek_path.c_str());

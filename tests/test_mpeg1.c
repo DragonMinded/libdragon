@@ -299,12 +299,9 @@ void test_mpeg1_block_predict(TestContext *ctx) {
 		}
 
 		rsp_mpeg1_block_predict(src_buffer + sy*BUFFER_SIZE+sx, BUFFER_SIZE, odd_h, odd_v, interpolate);
-		if (bs == 16) {		
-			// rsp_mpeg1_block_split();
-			rsp_mpeg1_block_switch_partition(0); rsp_mpeg1_store_pixels();
-			rsp_mpeg1_block_switch_partition(1); rsp_mpeg1_store_pixels();
-			rsp_mpeg1_block_switch_partition(2); rsp_mpeg1_store_pixels();
-			rsp_mpeg1_block_switch_partition(3); rsp_mpeg1_store_pixels();
+		if (bs == 16) {
+			rsp_mpeg1_block_switch_partition(0);
+			rsp_mpeg1_store_pixels();
 		} else {
 			rsp_mpeg1_store_pixels();
 		}
