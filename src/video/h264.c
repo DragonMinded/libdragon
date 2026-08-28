@@ -25,6 +25,72 @@
 
 #define H264BSD_EOF           (-1)
 
+// Per-frame log of the RSP DMA traffic and of the overlay switches emitted by
+// the H264 command stream, enabled by RSPH264_PROFILE (see rsph264_internal.h).
+// The DMA figures need an EMUX-capable emulator; the command counters work
+// anywhere.
+#if RSPH264_PROFILE
+#include "emux.h"
+
+static struct {
+    bool available;         ///< Whether the emux profiler answered
+    int frame;              ///< Number of frames logged so far
+    uint64_t dma_bytes;     ///< Counters sampled at the previous frame boundary
+    uint64_t rsp_cycles;
+    uint64_t rsp_idle;
+} bwprof;
+
+static void bwprof_sample(uint64_t *dma, uint64_t *cycles, uint64_t *idle)
+{
+    if (!bwprof.available) {
+        *dma = *cycles = *idle = 0;
+        return;
+    }
+    *dma    = emux_prof_read(-1, EMUX_PROF_RAM_RSPDMA_BYTES);
+    *cycles = emux_prof_read(-1, EMUX_PROF_RSP_CYCLES);
+    *idle   = emux_prof_read(-1, EMUX_PROF_RSP_IDLE);
+}
+
+static void bwprof_init(void)
+{
+    bwprof.available = (emux_detect(1) & EMUX_FEAT1_PROFILER) != 0;
+    debugf("h264: bandwidth profiling on (emux profiler: %s)\n",
+        bwprof.available ? "yes" : "NO, DMA figures unavailable");
+    bwprof_sample(&bwprof.dma_bytes, &bwprof.rsp_cycles, &bwprof.rsp_idle);
+    rsph264_stats_reset();
+}
+
+static void bwprof_frame_end(void)
+{
+    // The RSP runs behind the CPU, so drain it before sampling: otherwise this
+    // frame's DMA traffic would land in the next frame's window.
+    rspq_wait();
+
+    uint64_t dma, cycles, idle;
+    bwprof_sample(&dma, &cycles, &idle);
+
+    rsph264_stats_t st;
+    rsph264_stats_get(&st);
+
+    uint64_t elapsed = cycles - bwprof.rsp_cycles;
+    uint64_t busy = elapsed - (idle - bwprof.rsp_idle);
+
+    debugf("h264 frame %d: %lu cmds, %lu ovl switches, rspdma %u KiB, rsp busy %u/%u kcyc\n",
+        bwprof.frame, st.commands, st.ovl_switches,
+        (unsigned)((dma - bwprof.dma_bytes) / 1024),
+        (unsigned)(busy / 1000), (unsigned)(elapsed / 1000));
+
+    bwprof.frame++;
+    bwprof.dma_bytes  = dma;
+    bwprof.rsp_cycles = cycles;
+    bwprof.rsp_idle   = idle;
+    rsph264_stats_reset();
+}
+#else
+#define bwprof_init()       ((void)0)
+#define bwprof_frame_end()  ((void)0)
+#endif
+
 static const uint8_t H264_LD_BUFFER_UUID[16] = {
     'L', 'I', 'B', 'D', 'R', 'A', 'G', 'O', 'N', 0, 0, 0, 0, 0, 0, 0,
 };
@@ -204,6 +270,7 @@ static video_t* h264_open(const char *fn, const video_parms_t *parms) {
         player->max_buffered_pics = parms->buffered_pics;
 
     rsph264_init();
+    bwprof_init();
     h264bsdInitStorage(&player->s);
     h264bsdSetNumBufferedPics(&player->s, (u32)player->max_buffered_pics);
     
@@ -269,6 +336,7 @@ static poll_status_t poll(h264_t *player)
         return POLL_DECODING;
     case H264BSD_PIC_RDY:
         player->in_frame_decoding = false;
+        bwprof_frame_end();
         return POLL_READY;
     default:
         assertf(!"h264 status error", "status == %d (%s)\n", status, h264_status_str(status));

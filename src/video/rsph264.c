@@ -1,6 +1,34 @@
 /**
  * @file rsph264.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ *
+ * The H264 RSP code does not fit in IMEM, so it is split into two rspq
+ * overlays: rsph264_inter (motion compensation and inter residuals) and
+ * rsph264_intra (intra prediction and intra residuals). Both are essentially
+ * full: 4040 and 3960 bytes out of 4096, with roughly 1.5 KB of shared code
+ * from rsph264_common.inc duplicated into each. Merging them is not an option,
+ * and rspq keeps only its own engine resident, so there is no way to have a
+ * third always-loaded section for the common part.
+ *
+ * An overlay switch is therefore expensive: rspq reloads the whole
+ * overlay-specific text and data segments and saves/restores the shared state,
+ * which is about 6.3 KB of DMA to enter intra and 7.3 KB to enter inter (the
+ * latter also pulls in the shared state as an extra segment, since it is the
+ * destination of rspq_overlay_share_state). At a few hundred macroblocks per
+ * frame, even a couple of switches per macroblock are enough to make the
+ * decoder memory bandwidth bound rather than compute bound, so the number of
+ * switches matters more than the cost of the tasks themselves. Both the
+ * switches and the resulting DMA traffic can be measured by building with
+ * RSPH264_PROFILE (see rsph264_internal.h).
+ *
+ * The command stream is thus arranged to stay on one overlay for as long as
+ * possible. Task_SetPackedDeltaBuffer is assembled into both overlays with the
+ * same implementation and only touches state that the two share, so it is
+ * emitted to whichever overlay the RSP already has loaded, tracked CPU-side by
+ * cur_ovl_id. An inter macroblock is then served entirely by the inter overlay
+ * and costs no switch at all. An intra macroblock costs two, because its
+ * chroma residual is only implemented in the inter overlay: the intra work
+ * enters the intra overlay, and the chroma residual goes back to inter.
  */
 #include "rsph264_internal.h"
 #include "rspq.h"
@@ -42,6 +70,37 @@ enum {
     TASK_SET_PACKED_DELTA_BUFFER               = 15,
 };
 
+// Overlay that the RSP will have loaded when it reaches the point of the
+// command stream we are currently writing. rspq saves and restores the overlay
+// state around highpri preemptions, so this stays accurate even if another
+// subsystem interrupts us between two H264 commands. It only goes stale if
+// somebody else writes into the same lowpri queue, and in that case the worst
+// that happens is one extra overlay switch.
+static uint32_t cur_ovl_id = 0;
+
+#if RSPH264_PROFILE
+static rsph264_stats_t stats;
+#define STAT_INC(field)   (stats.field++)
+#else
+#define STAT_INC(field)   ((void)0)
+#endif
+
+static inline uint32_t track_ovl(uint32_t ovl_id)
+{
+    if (ovl_id != cur_ovl_id) {
+        cur_ovl_id = ovl_id;
+        STAT_INC(ovl_switches);
+    }
+    STAT_INC(commands);
+    return ovl_id;
+}
+
+// Wrapper over rspq_write that keeps cur_ovl_id and the statistics up to date.
+// rspq_write evaluates its ovl_id argument exactly once, so the side effects of
+// track_ovl() happen once per command.
+#define rsph264_write(ovl_id, cmd_id, ...) \
+    rspq_write(track_ovl(ovl_id), cmd_id, ##__VA_ARGS__)
+
 static const uint8_t *last_packed_delta_buf = NULL;
 
 // Weightp coefficients currently configured in RSP DMEM. They survive across
@@ -60,7 +119,20 @@ inline void rsph264_init(void)
     rsph264_inter_ovl_id = rspq_overlay_register(&rsph264_inter);
     rsph264_intra_ovl_id = rspq_overlay_register(&rsph264_intra);
     rspq_overlay_share_state(&rsph264_inter, &rsph264_intra);
+    cur_ovl_id = rsph264_intra_ovl_id;
 }
+
+#if RSPH264_PROFILE
+inline void rsph264_stats_reset(void)
+{
+    stats = (rsph264_stats_t){0};
+}
+
+inline void rsph264_stats_get(rsph264_stats_t *st)
+{
+    *st = stats;
+}
+#endif
 
 inline void rsph264_begin_frame(void)
 {
@@ -97,7 +169,7 @@ inline void rsph264_queue_interpolate_luma_overfill(
              fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, block_width);
     }
 #endif
-    rspq_write(rsph264_inter_ovl_id, TASK_OMX_INTERPOLATE_LUMA_OVERFILL,
+    rsph264_write(rsph264_inter_ovl_id, TASK_OMX_INTERPOLATE_LUMA_OVERFILL,
         PhysicalAddr(frame), frame_pitch,
         PhysicalAddr(dst), dst_pitch,
         frame_size, block_size,
@@ -126,7 +198,7 @@ inline void rsph264_queue_interpolate_chroma_overfill(
              fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, block_width);
     }
 #endif    
-    rspq_write(rsph264_inter_ovl_id, TASK_OMX_INTERPOLATE_CHROMA_OVERFILL,
+    rsph264_write(rsph264_inter_ovl_id, TASK_OMX_INTERPOLATE_CHROMA_OVERFILL,
         PhysicalAddr(frame), frame_pitch,
         PhysicalAddr(dst), dst_pitch,
         frame_size, block_size,
@@ -162,7 +234,7 @@ inline void rsph264_queue_intrapred_luma_4x4(
         fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*3-4, 12);
     }
 #endif
-    rspq_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_LUMA_4,
+    rsph264_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_LUMA_4,
         PhysicalAddr(src_l), PhysicalAddr(src_u), PhysicalAddr(src_ul),
         PhysicalAddr(dst), left_pitch, dst_pitch,
         mode, availability);
@@ -189,7 +261,7 @@ inline void rsph264_queue_intrapred_luma_16x16(
             fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*i, 16);
     }
 #endif
-    rspq_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_LUMA_16,
+    rsph264_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_LUMA_16,
         PhysicalAddr(src_l), PhysicalAddr(src_u), PhysicalAddr(src_ul),
         PhysicalAddr(dst), left_pitch, dst_pitch,
         mode, availability);
@@ -216,7 +288,7 @@ inline void rsph264_queue_intrapred_chroma_8x8(
             fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*i, 8);
     }
 #endif
-    rspq_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_CHROMA_8,
+    rsph264_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_CHROMA_8,
         PhysicalAddr(src_l), PhysicalAddr(src_u), PhysicalAddr(src_ul),
         PhysicalAddr(dst), left_pitch, dst_pitch,
         mode, availability);
@@ -242,7 +314,7 @@ inline void rsph264_queue_process_luma_intra4_residual(
         //     fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
     }
 #endif
-    rspq_write(rsph264_intra_ovl_id, TASK_PROCESS_LUMA_INTRA4_RESIDUAL,
+    rsph264_write(rsph264_intra_ovl_id, TASK_PROCESS_LUMA_INTRA4_RESIDUAL,
         PhysicalAddr(src), PhysicalAddr(dst),
         src_pitch, dst_pitch,
         ((uint32_t)modeAvail[3]) | ((uint32_t)modeAvail[2]<<8) | ((uint32_t)modeAvail[1]<<16) | ((uint32_t)modeAvail[0]<<24),
@@ -273,7 +345,7 @@ inline void rsph264_queue_process_luma_intra16_residual(
         //     fast_data_cache_hit_writeback_invalidate(dst+i*dst_pitch, 16);
     }
 #endif
-    rspq_write(rsph264_intra_ovl_id, TASK_PROCESS_LUMA_INTRA16_RESIDUAL,
+    rsph264_write(rsph264_intra_ovl_id, TASK_PROCESS_LUMA_INTRA16_RESIDUAL,
         PhysicalAddr(src), PhysicalAddr(dst),
         src_pitch, dst_pitch,
         mode, availability,
@@ -292,7 +364,7 @@ inline void rsph264_queue_set_weights_if_changed(
     last_weights[1] = cb;
     last_weights[2] = cr;
 
-    rspq_write(rsph264_inter_ovl_id, TASK_SET_WEIGHTS, 0, luma, cb, cr);
+    rsph264_write(rsph264_inter_ovl_id, TASK_SET_WEIGHTS, 0, luma, cb, cr);
 }
 
 inline void rsph264_queue_set_packed_delta_buffer_if_changed(
@@ -319,7 +391,9 @@ inline void rsph264_queue_set_packed_delta_buffer(
         fast_data_cache_hit_writeback(src, PACKED_DELTA_MAX);
     }
 
-    rspq_write(rsph264_intra_ovl_id, TASK_SET_PACKED_DELTA_BUFFER,
+    // Slot 15 of both overlays, so target the one already loaded (see the
+    // overlay switch discussion at the top of this file).
+    rsph264_write(cur_ovl_id, TASK_SET_PACKED_DELTA_BUFFER,
         PhysicalAddr(src));
 }
 
@@ -328,7 +402,7 @@ static void internal_queue_dequant_transform_residual(
     uint8_t *dst1, uint8_t *dst2, uint32_t dst_pitch,
     const int16_t *dc, uint32_t qp, uint32_t ac
 ) {
-    rspq_write(rsph264_inter_ovl_id, taskid,
+    rsph264_write(rsph264_inter_ovl_id, taskid,
         0,      // FIXME: remove, not needed anymore
         PhysicalAddr(dst1),
         dst_pitch,
@@ -368,7 +442,7 @@ inline void rsph264_queue_transform_dequant_lumadc(
         fast_data_cache_hit_writeback_invalidate(dst, 32);
     }
 
-    rspq_write(rsph264_intra_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_LUMADC,
+    rsph264_write(rsph264_intra_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_LUMADC,
         0, PhysicalAddr(dst),
         ((qp / 6) << 8) | (qp % 6));
 }
@@ -382,7 +456,7 @@ inline void rsph264_queue_transform_dequant_chromadc(
         fast_data_cache_hit_writeback_invalidate(dst, 8);
     }
 
-    rspq_write(rsph264_inter_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_CHROMADC,
+    rsph264_write(rsph264_inter_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_CHROMADC,
         0, PhysicalAddr(dst),
         ((qp / 6) << 8) | (qp % 6));
 
@@ -449,7 +523,7 @@ inline void rsph264_queue_interpolate_all_overfill(
 
     assert(cache_flags == RSPH264_CACHE_SKIP_ALL);
 
-    rspq_write(rsph264_inter_ovl_id, TASK_OMX_INTERPOLATE_LUMA_OVERFILL,
+    rsph264_write(rsph264_inter_ovl_id, TASK_OMX_INTERPOLATE_LUMA_OVERFILL,
         PhysicalAddr(frame_luma), frame_pitch,
         PhysicalAddr(dst_luma), dst_pitch,
         frame_size, block_size,
