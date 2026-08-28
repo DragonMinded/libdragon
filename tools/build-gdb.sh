@@ -67,8 +67,59 @@ download () {
     mv "$tmpfile" "$file"
 }
 
+find_gnumirror () {
+    local gnu_mirrors=()
+    readarray -t gnu_mirrors < gnumirrors.txt
+    local timeout=10
+    local url response_time
+    local best_url=''
+    local best_response_time=100
+    local exit_code
+
+    for url in "${gnu_mirrors[@]}"; do
+        if command_exists wget ; then
+            local start_time=$(date +%s.%N)
+            if wget --spider --quiet --timeout="$timeout" --tries=1 "$url" ; then
+                exit_code=0
+            else
+                exit_code=1
+            fi
+            local end_time=$(date +%s.%N)
+            response_time=$(awk "BEGIN {printf \"%.3f\", $end_time - $start_time}")
+        elif command_exists curl ; then
+            response_time=$(
+                curl -s -o /dev/null -I -w '%{time_total}' --max-time "$timeout" "$url"
+            )
+            exit_code=$?
+        else
+            echo "Install wget or curl to download toolchain sources" 1>&2
+            return 1
+        fi
+        if [[ $exit_code -eq 0 ]]; then
+            if (( $(echo $response_time $best_response_time | awk '{if ($1 < $2) print 1;}') )); then
+                best_url=$url
+                best_response_time=$response_time
+                timeout=$best_response_time
+            fi
+        fi
+    done
+    if [ -z "${best_url}" ]; then
+        echo "No gnu mirror found (are you online?)" 1>&2
+        return 1
+    fi
+    GNU_MIRROR=$best_url
+}
+
+download_gnumirror () {
+    local urlpath="$1"
+    if [ -z "${GNU_MIRROR-}" ]; then
+        find_gnumirror
+    fi
+    download "$GNU_MIRROR/$urlpath"
+}
+
 # Dependency downloads and unpack
-test -f "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" || download "https://ftpmirror.gnu.org/gnu/gdb/gdb-$GDB_V.tar.gz"
+test -f "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" || download_gnumirror "gdb/gdb-$GDB_V.tar.gz"
 test -d "$BUILD_PATH/gdb-$GDB_V"           || tar -xzf "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" -C "$BUILD_PATH"
 
 # Resolve dependencies on macOS via homebrew

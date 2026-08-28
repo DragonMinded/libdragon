@@ -78,6 +78,57 @@ download () {
     mv "$tmpfile" "$file"
 }
 
+find_gnumirror () {
+    local gnu_mirrors=()
+    readarray -t gnu_mirrors < gnumirrors.txt
+    local timeout=10
+    local url response_time
+    local best_url=''
+    local best_response_time=100
+    local exit_code
+
+    for url in "${gnu_mirrors[@]}"; do
+        if command_exists wget ; then
+            local start_time=$(date +%s.%N)
+            if wget --spider --quiet --timeout="$timeout" --tries=1 "$url" ; then
+                exit_code=0
+            else
+                exit_code=1
+            fi
+            local end_time=$(date +%s.%N)
+            response_time=$(awk "BEGIN {printf \"%.3f\", $end_time - $start_time}")
+        elif command_exists curl ; then
+            response_time=$(
+                curl -s -o /dev/null -I -w '%{time_total}' --max-time "$timeout" "$url"
+            )
+            exit_code=$?
+        else
+            echo "Install wget or curl to download toolchain sources" 1>&2
+            return 1
+        fi
+        if [[ $exit_code -eq 0 ]]; then
+            if (( $(echo $response_time $best_response_time | awk '{if ($1 < $2) print 1;}') )); then
+                best_url=$url
+                best_response_time=$response_time
+                timeout=$best_response_time
+            fi
+        fi
+    done
+    if [ -z "${best_url}" ]; then
+        echo "No gnu mirror found (are you online?)" 1>&2
+        return 1
+    fi
+    GNU_MIRROR=$best_url
+}
+
+download_gnumirror () {
+    local urlpath="$1"
+    if [ -z "${GNU_MIRROR-}" ]; then
+        find_gnumirror
+    fi
+    download "$GNU_MIRROR/$urlpath"
+}
+
 # Compilation on macOS via homebrew
 if [[ $OSTYPE == 'darwin'* ]]; then
     if ! command_exists brew; then
@@ -124,17 +175,17 @@ else
 fi
 
 # Dependency downloads and unpack
-test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download "https://ftpmirror.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.gz"
+test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download_gnumirror "binutils/binutils-$BINUTILS_V.tar.gz"
 test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
 
-test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download "https://ftpmirror.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
+test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download_gnumirror "gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
 test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
 
 test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
 test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
 
 if [ "$GMP_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download "https://ftpmirror.gnu.org/gnu/gmp/gmp-$GMP_V.tar.bz2"
+    test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download_gnumirror "gmp/gmp-$GMP_V.tar.bz2"
     test -d "$BUILD_PATH/gmp-$GMP_V"                 || tar -xf "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2" -C "$BUILD_PATH" # note: no .gz download file currently available
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"gmp-$GMP_V" "gmp"
@@ -142,7 +193,7 @@ if [ "$GMP_V" != "" ]; then
 fi
 
 if [ "$MPC_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"       || download "https://ftpmirror.gnu.org/gnu/mpc/mpc-$MPC_V.tar.gz"
+    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"       || download_gnumirror "mpc/mpc-$MPC_V.tar.gz"
     test -d "$BUILD_PATH/mpc-$MPC_V"                 || tar -xzf "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpc-$MPC_V" "mpc"
@@ -150,7 +201,7 @@ if [ "$MPC_V" != "" ]; then
 fi
 
 if [ "$MPFR_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz"     || download "https://ftpmirror.gnu.org/gnu/mpfr/mpfr-$MPFR_V.tar.gz"
+    test -f "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz"     || download_gnumirror "mpfr/mpfr-$MPFR_V.tar.gz"
     test -d "$BUILD_PATH/mpfr-$MPFR_V"               || tar -xzf "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpfr-$MPFR_V" "mpfr"
@@ -158,7 +209,7 @@ if [ "$MPFR_V" != "" ]; then
 fi
 
 if [ "$MAKE_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz"     || download "https://ftpmirror.gnu.org/gnu/make/make-$MAKE_V.tar.gz"
+    test -f "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz"     || download_gnumirror "make/make-$MAKE_V.tar.gz"
     test -d "$BUILD_PATH/make-$MAKE_V"               || tar -xzf "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz" -C "$BUILD_PATH"
 fi
 
