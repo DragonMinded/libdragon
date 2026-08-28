@@ -67,8 +67,12 @@ download () {
     mv "$tmpfile" "$file"
 }
 
+download_gnu () {
+    download "https://mirrors.kernel.org/gnu/$1"
+}
+
 # Dependency downloads and unpack
-test -f "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" || download "https://ftpmirror.gnu.org/gnu/gdb/gdb-$GDB_V.tar.gz"
+test -f "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" || download_gnu "gdb/gdb-$GDB_V.tar.gz"
 test -d "$BUILD_PATH/gdb-$GDB_V"           || tar -xzf "$DOWNLOAD_PATH/gdb-$GDB_V.tar.gz" -C "$BUILD_PATH"
 
 # Resolve dependencies on macOS via homebrew
