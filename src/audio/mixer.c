@@ -262,8 +262,8 @@ static struct {
 
 	mixer_channel_t channels[MIXER_MAX_CHANNELS];
 	mixer_chtbl_t chtbl[MIXER_MAX_CHANNELS];
-	float lvol[MIXER_MAX_CHANNELS];         ///< Target left volume [0..1]
-	float rvol[MIXER_MAX_CHANNELS];         ///< Target right volume [0..1]
+	float lvol[MIXER_MAX_CHANNELS];         ///< Target left volume [-1..1] (signed for Dolby)
+	float rvol[MIXER_MAX_CHANNELS];         ///< Target right volume [-1..1] (signed for Dolby)
 	float gain[MIXER_MAX_CHANNELS];         ///< Target mono gain [0..1] (default 1)
 	float freq[MIXER_MAX_CHANNELS];         ///< Target playback frequency (Hz)
 	mixer_ramp_t lvol_ramp[MIXER_MAX_CHANNELS];
@@ -646,9 +646,12 @@ static void mixer_ch_vol_at(int ch, int64_t t, mixer_fx15_t *lvol, mixer_fx15_t 
 
 static void mixer_ch_vol_to(int ch, float l, float r, int duration)
 {
-	if (l < 0.0f) l = 0.0f;
+	// Range [-1..1]: negative volumes invert phase. Dolby Pro Logic II matrix
+	// encoding needs that for the surrounds; the RSP already treats L/R as
+	// Q15 signed.
+	if (l < -1.0f) l = -1.0f;
 	if (l > 1.0f) l = 1.0f;
-	if (r < 0.0f) r = 0.0f;
+	if (r < -1.0f) r = -1.0f;
 	if (r > 1.0f) r = 1.0f;
 	mixer_ramp_to(&Mixer.lvol_ramp[ch], &Mixer.lvol[ch], l, duration,
 		mixer_ramp_linear, 0);

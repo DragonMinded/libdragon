@@ -159,16 +159,17 @@ float mixer_ramp_exp(float start, float end, float u);
  * #mixer_ch_set_gain times these volumes (gain defaults to 1.0).
  *
  * The volume is an attenuation (no amplification is performed).
- * Valid volume range in [0..1], where 0 is silence and 1 is original
- * channel sample volume (no attenuation performed).
+ * Valid volume range in [-1..1], where 0 is silence and 1 is original
+ * channel sample volume (no attenuation performed). Negative volumes
+ * invert the phase of that bus (used by #mixer_ch_set_vol_dolby).
  *
  * Notice that it's perfectly valid to set left/right volumes even if the
  * channel itself will play a mono waveforms, as it allows to balance a mono
  * sample between the two final output channels.
  *
  * @param[in]   ch              Channel index
- * @param[in]   lvol            Left volume (range [0..1])
- * @param[in]   rvol            Right volume (range [0..1])
+ * @param[in]   lvol            Left volume (range [-1..1])
+ * @param[in]   rvol            Right volume (range [-1..1])
  */
 void mixer_ch_set_vol(int ch, float lvol, float rvol);
 
@@ -196,8 +197,8 @@ void mixer_ch_set_vol(int ch, float lvol, float rvol);
  * of 4.
  *
  * @param[in]   ch              Channel index
- * @param[in]   lvol            Target left volume (range [0..1])
- * @param[in]   rvol            Target right volume (range [0..1])
+ * @param[in]   lvol            Target left volume (range [-1..1])
+ * @param[in]   rvol            Target right volume (range [-1..1])
  * @param[in]   duration        Length of the ramp, in output samples
  */
 LIBDRAGON_PREVIEW_API

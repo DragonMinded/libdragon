@@ -2839,6 +2839,79 @@ static bool test_mixer_declick(void)
     return vr_check_level("declick", nd + 8, 1024, 1.0f, vr_amp);
 }
 
+// Dolby Pro Logic II matrix encoding needs negative L/R coefficients so that
+// a decoder can recover the surrounds from the stereo sum. A [0..1] clamp on
+// the volume path zeros those signs and collapses surround into a quiet mono
+// bleed — which is exactly the regression the volume-ramp work introduced.
+static bool test_mixer_vol_dolby(void)
+{
+    // Same matrix constants as mixer_ch_set_vol_dolby.
+    const float ktot = 1.0f + 0.7071067811865476f + 0.8660254037844386f + 0.5f;
+    const float kan = 0.8660254037844386f / ktot;   // ~0.282
+    const float kbn = 0.5f / ktot;                  // ~0.163
+    const float kfn = 1.0f / ktot;                  // ~0.325
+    const int n = 1024;
+
+    // Surround left alone: L ≈ -KAn, R ≈ +KBn — opposite phase, unequal levels.
+    vr_start(&bl_wave_loop_res, 0.0f, 0.0f);
+    mixer_ch_set_vol_dolby(SV_CHANNEL, 0, 0, 0, 1.0f, 0);
+    sv_mix(n);
+    if (!vr_check_level("dolby SL L", 256, n, kan, vr_amp))
+        return false;
+    if (!vr_check_level("dolby SL R", 256, n, kbn, vr_amp_r))
+        return false;
+    for (int i = 256; i < n; i++) {
+        int l = sv_out[i*2], r = sv_out[i*2+1];
+        // Both buses carry the square wave; opposite signs are the phase cue.
+        if ((l < 0) == (r < 0) && (l > 256 || l < -256) && (r > 256 || r < -256)) {
+            printf("FAILED dolby SL: L and R same sign at %d (%d, %d)\n", i, l, r);
+            return false;
+        }
+    }
+
+    // Surround right alone: L ≈ -KBn, R ≈ +KAn — same phase cue, levels swapped.
+    vr_start(&bl_wave_loop_res, 0.0f, 0.0f);
+    mixer_ch_set_vol_dolby(SV_CHANNEL, 0, 0, 0, 0, 1.0f);
+    sv_mix(n);
+    if (!vr_check_level("dolby SR L", 256, n, kbn, vr_amp))
+        return false;
+    if (!vr_check_level("dolby SR R", 256, n, kan, vr_amp_r))
+        return false;
+    for (int i = 256; i < n; i++) {
+        int l = sv_out[i*2], r = sv_out[i*2+1];
+        if ((l < 0) == (r < 0) && (l > 256 || l < -256) && (r > 256 || r < -256)) {
+            printf("FAILED dolby SR: L and R same sign at %d (%d, %d)\n", i, l, r);
+            return false;
+        }
+    }
+
+    // Front left alone stays positive on L and silent on R (no phase flip).
+    vr_start(&bl_wave_loop_res, 0.0f, 0.0f);
+    mixer_ch_set_vol_dolby(SV_CHANNEL, 1.0f, 0, 0, 0, 0);
+    sv_mix(n);
+    if (!vr_check_level("dolby FL L", 256, n, kfn, vr_amp))
+        return false;
+    if (!vr_check_level("dolby FL R", 256, n, 0.0f, vr_amp_r))
+        return false;
+
+    // Negative volumes are first-class: set_vol itself can invert phase.
+    vr_start(&bl_wave_loop_res, 0.0f, 0.0f);
+    mixer_ch_set_vol(SV_CHANNEL, -0.5f, 0.5f);
+    sv_mix(n);
+    if (!vr_check_level("vol signed L", 256, n, 0.5f, vr_amp))
+        return false;
+    if (!vr_check_level("vol signed R", 256, n, 0.5f, vr_amp_r))
+        return false;
+    for (int i = 256; i < n; i++) {
+        int l = sv_out[i*2], r = sv_out[i*2+1];
+        if ((l < 0) == (r < 0) && (l > 256 || l < -256) && (r > 256 || r < -256)) {
+            printf("FAILED vol signed: L and R same sign at %d (%d, %d)\n", i, l, r);
+            return false;
+        }
+    }
+    return true;
+}
+
 // Resident VADPCM loop: same content as rf_wave, but addressed from RDRAM.
 static uint8_t *rf_mem_res;
 static waveform_t rf_wave_resident;
@@ -3405,6 +3478,7 @@ int main(void)
     total++; if (!test_mixer_vol_ramp_smooth()) failed++;
     total++; if (!test_mixer_gain_ramp()) failed++;
     total++; if (!test_mixer_declick()) failed++;
+    total++; if (!test_mixer_vol_dolby()) failed++;
 
     total++; if (!test_mixer_freq_change()) failed++;
     total++; if (!test_mixer_freq_ramp()) failed++;
