@@ -15,7 +15,7 @@
         RSPQ_DefineCommand Task_ProcessChromaResidual,           28
         RSPQ_DefineCommand OMX_Interpolate_Luma_Overfill,        44
         RSPQ_DefineCommand OMX_Interpolate_Chroma_Overfill,      44
-        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand Task_SetWeights,                      16
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
@@ -115,6 +115,12 @@ MB_OUTPUT:  .dcb.b 16*16
     # Scratch memory for intermediate computations
     .align 8   # 4 is sufficient, but 8 visually helps debugging
 MB_SCRATCH: .dcb.w 16*21
+
+    # Address of the WEIGHT_TAB entry of the chroma plane being processed.
+    # The two chroma components are interpolated by the same code, which
+    # is re-entered after the first one, so the plane must be tracked here.
+    .align 2
+WEIGHT_CUR: .dcb.w 1
 
 
     .text
@@ -563,6 +569,134 @@ Interpolate_ChromaLuma_DMADest:
     .endfunc
 
 
+####################################################################
+# ApplyWeight
+#
+# Apply explicit weighted prediction (weightp) in place to the
+# predicted macroblock in MB_OUTPUT, just before it is transferred
+# back to RDRAM.
+#
+# For each predicted pixel P, the standard requires:
+#
+#    CLIP1( ((W*P + (D ? 1<<(D-1) : 0)) >> D) + O )
+#
+# where W is the weight, O the offset and D the log2 denominator. All
+# three are constant over a slice for a given reference index, so the
+# CPU pre-folds D into the two coefficients we read from WEIGHT_TAB
+# (see rsph264_weight_pack):
+#
+#    KW = W << (8-D)          KO = O << 7
+#
+# Pixels are loaded with luv, so a pixel is P<<7 within its lane, and
+# vmulu accumulates (VS*VT + 0x4000)>>15, that is:
+#
+#    ((P<<7) * (W << (8-D)) + (1<<14)) >> 15   =   (P*W + (1<<(D-1))) >> D
+#
+# so the rounding built into vmulu is exactly the rounding required by
+# the standard (for D=0 the rounding term falls below the precision of
+# the result, as required). The offset is then accumulated as
+# KO * 256 * 2 = O<<16, that is +O at the precision of the result.
+#
+# The offset must be accumulated *before* reading the accumulator,
+# because the unsigned read clamps to zero: the standard clamps after
+# adding the offset, not before. The read also takes care of clamping
+# at the lower bound, while the upper bound (255) is applied by vcl.
+#
+# vcl only modifies VCCH, so the partition width mask that the
+# bootstrap left in VCCL survives and can be used to merge back the
+# pixels which are outside of the partition.
+#
+####################################################################
+# ARGS:
+#   s2: address of the WEIGHT_TAB entry of the plane being processed
+
+    .func ApplyWeight
+ApplyWeight:
+    lw t0, 0(s2)
+    li t1, LUMA_FIR_COEFFS
+    lui t2, 0x0100                   # identity transform (W=1, O=0, D=0)
+    beq t0, t2, ApplyWeightEnd       # nothing to do
+    lqv $v28,0, 0,t1                 # $v28[e15] = 255 (for clamping)
+
+    llv $v26,0, 0,s2                 # $v26[e8] = KW, $v26[e9] = KO
+    vxor $v27, $v27, $v27,0
+    addi s0, dst_unalign, %lo(MB_OUTPUT)
+    addi t3, width, -8               # t3 > 0 if a second 8-pixel column is needed
+
+    # vmacu reads the offset lane-wise, so broadcast it to all lanes.
+    vor $v27, $v27, $v26,9
+
+    # vcl expects no pending carries. All interpolation loops end with
+    # a vmrg, which clears them, but do not depend on that.
+    ctc2 zero, COP2_CTRL_VCO
+
+ApplyWeightLoopCol:
+    move t0, height
+    move s1, s0
+
+    ############################################################################
+    #  VU OPCODES                                   SU OPCODES                 #
+    ############################################################################
+
+    .align 3
+ApplyWeightLoop:
+                                                    luv $v00,0, 0,s1
+                                                    add s3, s1, dst_dma_width
+                                                    luv $v01,0, 0,s3
+    vmulu $v10, $v00, $v26,8;                       addi t0, -2
+    vmacu $v10, $v27, vshift8,15
+    vmulu $v11, $v01, $v26,8
+    vmacu $v11, $v27, vshift8,15
+
+    # Clamp at 255 (clamping at 0 was performed by the reads above)
+    vcl $v10, $v10, $v28,15
+    vcl $v11, $v11, $v28,15
+
+    # Back to the <<7 precision expected by suv, then merge with the
+    # original pixels to preserve those outside of the partition.
+    vsll $v10, $v10, 7
+    vsll $v11, $v11, 7
+    vmrg $v10, $v00, $v10,0
+    vmrg $v11, $v01, $v11,0
+                                                    suv $v10,0, 0,s1
+                                                    add s1, s3, dst_dma_width
+                                                    bgtz t0, ApplyWeightLoop
+                                                    suv $v11,0, 0,s3
+
+    # Next column (if any)
+    addi s0, 8
+    bgtz t3, ApplyWeightLoopCol
+    addi t3, -8
+
+ApplyWeightEnd:
+    jr ra
+    nop
+    .endfunc
+
+
+####################################################################
+# Task_SetWeights
+#
+# Configure the weightp coefficients used by ApplyWeight for the three
+# planes. They are packed by the CPU (see rsph264_weight_pack) and are
+# valid until the next call, so this command is normally issued once
+# per frame.
+####################################################################
+# ARGS:
+#   0: unused
+#   1: LUMA: packed luma coefficients
+#   2: CB: packed Cb coefficients
+#   3: CR: packed Cr coefficients
+
+    .func Task_SetWeights
+Task_SetWeights:
+    sw a1, %lo(WEIGHT_TAB)+0
+    sw a2, %lo(WEIGHT_TAB)+4
+    j RSPQ_Loop
+    sw a3, %lo(WEIGHT_TAB)+8
+    .endfunc
+
+
 ############################################################
 # Interpolate_CopyMacroblock
 #
@@ -633,6 +767,8 @@ Interpolate_CopyLoop:
 
     .func OMX_Interpolate_Chroma_Overfill
 OMX_Interpolate_Chroma_Overfill:
+    li t1, %lo(WEIGHT_TAB)+4         # first component is Cb
+    sw t1, %lo(WEIGHT_CUR)
     jal Interpolate_Bootstrap
     li t0, %lo(InterChromaMVConst)
 
@@ -640,6 +776,9 @@ ChromaPostBootstrap:
     addi s0, src_unalign, %lo(MB_INPUT)
     jal Interpolate_Chroma
     addi s4, dst_unalign, %lo(MB_OUTPUT)
+
+    jal ApplyWeight
+    lw s2, %lo(WEIGHT_CUR)
 
     jal Interpolate_ChromaLuma_DMADest
     li t2, DMA_OUT_ASYNC   # Direction: DMEM->RDRAM, background
@@ -657,6 +796,9 @@ ChromaPostBootstrap:
     lw t0, CMD_ADDR(40, 44)
     sub t1, dst, t1
     add dst, t0, t1
+
+    li t2, %lo(WEIGHT_TAB)+8         # second component is Cr
+    sw t2, %lo(WEIGHT_CUR)
 
     # Run only the phase 2 of bootstrap (dma input buffer + overfill), then
     # jump back to the beginning of this function.
@@ -935,6 +1077,9 @@ LumaCopy:
     jal_and_j Interpolate_CopyMacroblock, LumaEnd
 
 LumaEnd:
+    jal ApplyWeight
+    li s2, %lo(WEIGHT_TAB)
+
     jal Interpolate_ChromaLuma_DMADest
     li t2, DMA_OUT_ASYNC   # Direction: DMEM->RDRAM
 

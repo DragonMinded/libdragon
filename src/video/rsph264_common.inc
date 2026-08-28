@@ -154,6 +154,15 @@ RSPQ_BeginSavedState
 
     PACKED_DELTA_RDRAM: .long 0
     PACKED_DELTA_CUR:   .long 0
+
+    # Explicit weighted prediction (weightp) coefficients, one word per
+    # plane (luma, Cb, Cr). The high halfword is the weight multiplier and
+    # the low halfword the pixel offset, both pre-scaled by the CPU (see
+    # rsph264_weight_pack and ApplyWeight in rsph264_inter.S).
+    # 0x01000000 is the identity transform (weight 1, offset 0, denom 0),
+    # which ApplyWeight skips; it's also the value the CPU sends when
+    # weightp is disabled.
+    WEIGHT_TAB: .long 0x01000000, 0x01000000, 0x01000000
 RSPQ_EndSavedState
 
 CAVLC_BUF_RDRAM:    .long 0    # Original RDRAM pointer (start of buffer)

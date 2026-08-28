@@ -56,6 +56,7 @@
   n64PredictSamples(currImage,mv,refPic,colAndRow,part)
 
 static inline void n64PredictSamples(image_t *img, mv_t *mv, image_t *refPic, u32 colAndRow, u32 part);
+static inline void n64SetWeights(const sliceHeader_t *pSliceHeader, u32 refIdx);
 
 #endif
 
@@ -180,12 +181,14 @@ static inline void PredictPart(image_t *currImage, mv_t *pMv, image_t *refImage,
     u32 colAndRow, u32 part, u8 *pFill, u32 refIdx,
     const sliceHeader_t *pSliceHeader)
 {
+#if H264BSD_N64
+    /* the RSP applies the weights as part of the prediction task, so the
+     * coefficients must be configured before queueing it */
+    n64SetWeights(pSliceHeader, refIdx);
+#endif
     h264bsdPredictSamples(currImage, pMv, refImage, colAndRow, part, pFill);
 #if !H264BSD_N64
     ApplyWeightPart(currImage, pSliceHeader, part, refIdx);
-#else
-    (void)refIdx;
-    (void)pSliceHeader;
 #endif
 }
 
@@ -277,6 +280,33 @@ static const neighbour_t N_D_SUB_PART[4][4][4] = {
 
 #ifdef H264BSD_N64
 #include "../rsph264_internal.h"
+
+static inline void n64SetWeights(
+  const sliceHeader_t *pSliceHeader,
+  u32 refIdx) {
+
+  const predWeightTable_t *pWeights;
+  u32 lumaDenom, chromaDenom;
+
+  if (pSliceHeader == NULL || !pSliceHeader->weightedPredFlag) {
+    rsph264_queue_set_weights_if_changed(RSPH264_WEIGHT_IDENTITY,
+        RSPH264_WEIGHT_IDENTITY, RSPH264_WEIGHT_IDENTITY);
+    return;
+  }
+
+  assertf(refIdx < MAX_NUM_REF_PICS, "invalid reference index %u", (unsigned)refIdx);
+  pWeights = &pSliceHeader->predWeightTable;
+  lumaDenom = pWeights->lumaLog2WeightDenom;
+  chromaDenom = pWeights->chromaLog2WeightDenom;
+
+  rsph264_queue_set_weights_if_changed(
+      rsph264_weight_pack(pWeights->lumaWeightL0[refIdx],
+          pWeights->lumaOffsetL0[refIdx], lumaDenom),
+      rsph264_weight_pack(pWeights->chromaWeightL0[refIdx][0],
+          pWeights->chromaOffsetL0[refIdx][0], chromaDenom),
+      rsph264_weight_pack(pWeights->chromaWeightL0[refIdx][1],
+          pWeights->chromaOffsetL0[refIdx][1], chromaDenom));
+}
 
 static inline void n64PredictSamples(
   image_t *img,

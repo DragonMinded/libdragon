@@ -25,6 +25,7 @@ enum {
     TASK_PROCESS_CHROMA_RESIDUAL               = 4,
     TASK_OMX_INTERPOLATE_LUMA_OVERFILL         = 5,
     TASK_OMX_INTERPOLATE_CHROMA_OVERFILL       = 6,
+    TASK_SET_WEIGHTS                           = 7,
 
     //TASK_SET_PACKED_DELTA_BUFFER               = 15,
 };
@@ -42,6 +43,13 @@ enum {
 };
 
 static const uint8_t *last_packed_delta_buf = NULL;
+
+// Weightp coefficients currently configured in RSP DMEM. They survive across
+// frames (the RSP keeps them in the overlay saved state), so this mirrors the
+// initial content of WEIGHT_TAB in rsph264_common.inc.
+static uint32_t last_weights[3] = {
+    RSPH264_WEIGHT_IDENTITY, RSPH264_WEIGHT_IDENTITY, RSPH264_WEIGHT_IDENTITY,
+};
 
 inline void rsph264_init(void)
 {
@@ -273,6 +281,19 @@ inline void rsph264_queue_process_luma_intra16_residual(
         totalCoeffMask);
 }
 
+
+inline void rsph264_queue_set_weights_if_changed(
+    uint32_t luma, uint32_t cb, uint32_t cr) {
+
+    if (last_weights[0] == luma && last_weights[1] == cb && last_weights[2] == cr)
+        return;
+
+    last_weights[0] = luma;
+    last_weights[1] = cb;
+    last_weights[2] = cr;
+
+    rspq_write(rsph264_inter_ovl_id, TASK_SET_WEIGHTS, 0, luma, cb, cr);
+}
 
 inline void rsph264_queue_set_packed_delta_buffer_if_changed(
     int cache_flags,

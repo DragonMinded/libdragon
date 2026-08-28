@@ -43,7 +43,6 @@ struct Config {
 	std::string profile = "auto";
 	int quality = 80;                // 0..100
 	bool quick = false;
-	bool debug_weightp = false;     // hidden debug toggle: enable H.264 weightp
 	bool progress = true;
 	std::string deinterlace = "auto";
 	// TODO: decide how to expose automatic anamorphic PAR (non-square pixels) in the CLI.

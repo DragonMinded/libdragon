@@ -15,6 +15,7 @@
 #define RSPH264_H
 
 #include <stdint.h>
+#include <assert.h>
 
 /***********************************************************
  * Main API.
@@ -113,6 +114,39 @@ void rsph264_queue_intrapred_chroma_8x8(
     const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
     uint8_t *dst, uint32_t left_pitch, uint32_t dst_pitch,
     uint32_t mode, uint32_t availability);
+
+// Packed weightp coefficients of a plane whose prediction must be left
+// untouched (weight 1, offset 0, denominator 0). The RSP detects this value
+// and skips the weighting pass altogether.
+#define RSPH264_WEIGHT_IDENTITY   0x01000000
+
+// Pack the explicit weighted prediction coefficients of one plane into the
+// format expected by rsph264_queue_set_weights_if_changed(). The denominator
+// is folded into the weight, and the offset is pre-shifted to the precision
+// used by the RSP (see ApplyWeight in rsph264_inter.S).
+static inline uint32_t rsph264_weight_pack(int weight, int offset, int denom)
+{
+	// The bitstream can only code weights in [-128,127], but the default weight
+	// used when a reference has no explicit weights is 1<<denom, that is 128
+	// when denom is 7 (the denominator normally used by x264).
+	assert(weight >= -128 && weight <= 128);
+	assert(offset >= -128 && offset <= 127);
+	assert(denom >= 0 && denom <= 7);
+
+	if (weight == (1 << denom) && offset == 0)
+		return RSPH264_WEIGHT_IDENTITY;
+
+	uint32_t kw = (uint32_t)(weight * (1 << (8 - denom))) & 0xFFFF;
+	uint32_t ko = (uint32_t)(offset * 128) & 0xFFFF;
+	return (kw << 16) | ko;
+}
+
+// Configure the weightp coefficients used by subsequent interpolation tasks,
+// for the three planes. The coefficients must be packed with
+// rsph264_weight_pack(). The command is sent to the RSP only when the
+// coefficients actually change, so this can be called for every partition.
+void rsph264_queue_set_weights_if_changed(
+	uint32_t luma, uint32_t cb, uint32_t cr);
 
 void rsph264_queue_set_packed_delta_buffer(
 	int cache_flags,

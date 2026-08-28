@@ -326,9 +326,10 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 
 	verbose(1, "H.264 quality=%d -> crf=%d maxrate=%d kbps bufsize=%d kbps (fps=%.3f)",
 		cfg.quality, crf, maxrate_kbps, bufsize_kbps, ar.out_fps);
-	std::string x264_params = "no-deblock=1:no-info=1:slices=4";
-	x264_params += cfg.debug_weightp ? ":weightp=1" : ":weightp=0";
-	verbose(1, "H.264 debug weightp: %s", cfg.debug_weightp ? "on" : "off");
+	// Our decoder is baseline plus weighted prediction, so the stream must be
+	// Main profile with CABAC and 8x8 transform disabled (B-frames are already
+	// disabled via -bf below).
+	std::string x264_params = "no-deblock=1:no-info=1:slices=4:weightp=1:cabac=0:8x8dct=0";
 
 	std::vector<std::string> cmd = {
 		cfg.ffmpeg_path,
@@ -339,7 +340,7 @@ EncodeResult vconv_encode_h264(const CodecInfo &ci, const AnalysisResult &ar) {
 		"-an",
 		"-vf", vf,
 		"-c:v", "libx264",
-		"-profile:v", "baseline",
+		"-profile:v", "main",
 		"-pix_fmt", "yuv420p",
 		// Ensure output bitstream advertises the intended colorspace too (VUI).
 		"-colorspace", "bt709",

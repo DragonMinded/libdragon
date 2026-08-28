@@ -67,6 +67,8 @@ typedef struct {
     int x1, y1, x2, y2;      // position in source/destination
     int w, h;                // macroblock size
     int dx, dy;              // fractional offset
+    int wp;                  // apply H.264 weightp after prediction
+    int wp_weight, wp_offset, wp_denom;
 } InterpolationTest;
 
 typedef struct {
@@ -102,6 +104,35 @@ static uint32_t my_rand() {
 	TICKS_DISTANCE(start, stop); \
 })
 
+// H.264 explicit weighted prediction (P-slice list0), matching ApplyWeightPart.
+static void apply_weight(uint8_t *dst, int pitch, int w, int h,
+    int weight, int offset, int denom)
+{
+    int round = denom ? (1 << (denom - 1)) : 0;
+    for (int y = 0; y < h; y++) {
+        uint8_t *row = dst + y * pitch;
+        for (int x = 0; x < w; x++) {
+            int weighted = ((weight * row[x] + round) >> denom) + offset;
+            row[x] = CLIP1(weighted);
+        }
+    }
+}
+
+// Configure the RSP with the weightp coefficients of the plane that the task
+// under test will write. Standalone chroma tasks always use the Cb entry.
+static void queue_test_weights(InterpolationTest *test) {
+    uint32_t w = test->wp ?
+        rsph264_weight_pack(test->wp_weight, test->wp_offset, test->wp_denom) :
+        RSPH264_WEIGHT_IDENTITY;
+
+    if (test->func == INTERPOLATE_LUMA)
+        rsph264_queue_set_weights_if_changed(w,
+            RSPH264_WEIGHT_IDENTITY, RSPH264_WEIGHT_IDENTITY);
+    else
+        rsph264_queue_set_weights_if_changed(RSPH264_WEIGHT_IDENTITY,
+            w, RSPH264_WEIGHT_IDENTITY);
+}
+
 bool interpolation_test(InterpolationTest* test, int verbose) {
     uint8_t *src1 = test->buf.pSrc1+test->y1*SRC_PITCH+test->x1;
     uint8_t *src2 = test->buf.pSrc2+test->y1*SRC_PITCH+test->x1;
@@ -113,6 +144,7 @@ bool interpolation_test(InterpolationTest* test, int verbose) {
     int frame_height = SRC_SIZE;
 
     uint32_t rsp_time = 0, ref_time = 0;
+    queue_test_weights(test);
     switch (test->func) {
     case INTERPOLATE_LUMA:
         rsph264_queue_debug_random_status();
@@ -141,6 +173,9 @@ bool interpolation_test(InterpolationTest* test, int verbose) {
             armVCM4P10_Interpolate_Luma(
                 src2, SRC_PITCH, dst2, DST_SIZE,
                 test->w, test->h, test->dx, test->dy);
+            if (test->wp)
+                apply_weight(dst2, DST_SIZE, test->w, test->h,
+                    test->wp_weight, test->wp_offset, test->wp_denom);
         });
         break;
 
@@ -171,6 +206,9 @@ bool interpolation_test(InterpolationTest* test, int verbose) {
             armVCM4P10_Interpolate_Chroma(
                 src2, SRC_PITCH, dst2, DST_SIZE,
                 test->w, test->h, test->dx, test->dy);
+            if (test->wp)
+                apply_weight(dst2, DST_SIZE, test->w, test->h,
+                    test->wp_weight, test->wp_offset, test->wp_denom);
         });
         break;
 
@@ -186,7 +224,9 @@ bool interpolation_test(InterpolationTest* test, int verbose) {
             if (cdst[j*DST_SIZE+i] != dst2[j*DST_SIZE+i]) {
                 if (verbose >= 1) {   
                     printf("FAILED\n");
-                    printf("FAILED: sz:%d,%d d:%d,%d\n", test->w, test->h, test->dx, test->dy);
+                    printf("FAILED: sz:%d,%d d:%d,%d wp:%d,%d,%d\n",
+                        test->w, test->h, test->dx, test->dy,
+                        test->wp_weight, test->wp_offset, test->wp_denom);
                     printf("FAILED: difference at (%d,%d)\n", i, j);
                     printf("FAILED: src:(%d,%d) dst:(%d,%d)\n", test->x1, test->y1, test->x2, test->y2);
                     printf("FAILED: RSP=%02x    REF=%02x\n", cdst[j*DST_SIZE+i], dst2[j*DST_SIZE+i]);
@@ -651,6 +691,201 @@ void overfill_interpolation_test(InterpolationTest *test, int verbose) {
             }
         }
     }
+}
+
+void weightp_interpolation_test(InterpolationTest *test, int verbose) {
+    static const int luma_sizes[][2] = {
+        {4,4}, {8,8}, {16,16}, {8,4}, {4,8}, {16,8}, {8,16},
+    };
+    static const int chroma_sizes[][2] = {
+        {2,2}, {4,4}, {8,8}, {4,2}, {2,4}, {8,4}, {4,8},
+    };
+    static const int params[][3] = {
+        {   1,    0, 0 },   // identity, denom 0
+        {  64,    0, 6 },   // identity, denom 6
+        { 128,    0, 7 },   // identity, denom 7 (default weight of a stream)
+        {  64,   10, 6 },
+        {  80,  -16, 6 },
+        {   2,  -32, 1 },
+        {  -1,    0, 7 },
+        {   0,   50, 0 },
+        {-128,    0, 0 },
+        { 127,    0, 0 },
+        { 127,  127, 0 },   // clip high
+        {-128, -128, 0 },   // clip low
+        { 127,  127, 7 },
+    };
+    const int (*sizes)[2] = (test->func == INTERPOLATE_LUMA) ? luma_sizes : chroma_sizes;
+
+    test->wp = 1;
+    test->x1 = 40;
+    test->y1 = 40;
+    test->x2 = 32;
+    test->y2 = 32;
+
+    int max_dxy = (test->func == INTERPOLATE_LUMA) ? 4 : 8;
+
+    for (int s = 0; s < 7; s++) {
+        test->w = sizes[s][0];
+        test->h = sizes[s][1];
+
+        // All the weight combinations, on a plain copy and on an interpolation
+        for (unsigned p = 0; p < sizeof(params)/sizeof(params[0]); p++) {
+            test->wp_weight = params[p][0];
+            test->wp_offset = params[p][1];
+            test->wp_denom = params[p][2];
+
+            test->dx = 0;
+            test->dy = 0;
+            if (!interpolation_test(test, verbose))
+                abort();
+
+            test->dx = max_dxy/2;
+            test->dy = max_dxy/4;
+            if (!interpolation_test(test, verbose))
+                abort();
+        }
+
+        // All the interpolation paths, with a single weight combination:
+        // the weights are applied after interpolation, so the two are
+        // independent, but each path writes the output buffer differently.
+        test->wp_weight = 80;
+        test->wp_offset = -16;
+        test->wp_denom = 6;
+        for (test->dy = 0; test->dy < max_dxy; test->dy++) {
+            for (test->dx = 0; test->dx < max_dxy; test->dx++) {
+                if (!interpolation_test(test, verbose))
+                    abort();
+            }
+        }
+    }
+    test->wp = 0;
+}
+
+static bool weightp_rect_equal(uint8_t *rsp, uint8_t *ref, int pitch, int w, int h, int verbose) {
+    for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
+            if (rsp[j*pitch + i] != ref[j*pitch + i]) {
+                if (verbose >= 1) {
+                    printf("FAILED: difference at (%d,%d) RSP=%02x REF=%02x\n",
+                        i, j, rsp[j*pitch + i], ref[j*pitch + i]);
+                }
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// Weights of the three planes for one all-overfill test case. A denominator
+// is shared by the two chroma planes, as in a slice header.
+typedef struct {
+    int luma_w, luma_o, luma_d;
+    int cb_w, cb_o, cr_w, cr_o, chroma_d;
+    int dx, dy;              // fractional part of the luma motion vector
+} WeightpCase;
+
+static void weightp_all_overfill_case(InterpolationTest *test,
+    const WeightpCase *wc, int verbose)
+{
+    const int w = 16, h = 16;
+    const int x1 = 40, y1 = 40;
+    const int x2 = 32, y2 = 32;
+    const int luma_w = wc->luma_w, luma_o = wc->luma_o, luma_d = wc->luma_d;
+    const int cb_w = wc->cb_w, cb_o = wc->cb_o;
+    const int cr_w = wc->cr_w, cr_o = wc->cr_o, chroma_d = wc->chroma_d;
+
+    // The RSP finds the chroma planes right after the luma one, that is at
+    // frame_width*frame_height. This frame size is much smaller than the
+    // source buffer, and is chosen so that the chroma planes fall within the
+    // area where the two source buffers are identical: only pSrc2 has been
+    // pre-overfilled (the RSP does the overfilling by itself).
+    int frame_width = 192;
+    int frame_height = 72;
+    int16_t mvx = ((int16_t)(x1 - x2) << 2) | wc->dx;
+    int16_t mvy = ((int16_t)(y1 - y2) << 2) | wc->dy;
+
+    // The chroma planes see the same motion vector with one more fractional
+    // bit, because of subsampling.
+    int chroma_dx = mvx & 7, chroma_dy = mvy & 7;
+
+    uint8_t *src_luma_ref = test->buf.pSrc2 + y1*SRC_PITCH + x1;
+    uint8_t *src_cb_ref = test->buf.pSrc2 + frame_width*frame_height + (y1/2)*(SRC_PITCH/2) + (x1/2);
+    uint8_t *src_cr_ref = src_cb_ref + (frame_width/2)*(frame_height/2);
+
+    uint8_t *dst_luma_rsp = test->buf.pDst1 + y2*DST_SIZE + x2;
+    uint8_t *dst_luma_ref = test->buf.pDst2 + y2*DST_SIZE + x2;
+    uint8_t *dst_cb_rsp = test->buf.pDst1 + 200*DST_SIZE + x2;
+    uint8_t *dst_cb_ref = test->buf.pDst2 + 200*DST_SIZE + x2;
+    uint8_t *dst_cr_rsp = test->buf.pDst1 + 220*DST_SIZE + x2;
+    uint8_t *dst_cr_ref = test->buf.pDst2 + 220*DST_SIZE + x2;
+
+    // Fill the chroma destinations with a known pattern, so that pixels left
+    // untouched by the RSP are easy to spot.
+    memset(test->buf.pDst1 + 200*DST_SIZE, 0xAA, 24*DST_SIZE);
+    memset(test->buf.pDst2 + 200*DST_SIZE, 0xAA, 24*DST_SIZE);
+
+    rsph264_queue_set_weights_if_changed(
+        rsph264_weight_pack(luma_w, luma_o, luma_d),
+        rsph264_weight_pack(cb_w, cb_o, chroma_d),
+        rsph264_weight_pack(cr_w, cr_o, chroma_d));
+
+    rsph264_queue_interpolate_all_overfill(RSPH264_CACHE_SKIP_ALL,
+        test->buf.pSrc1, SRC_PITCH,
+        dst_luma_rsp, dst_cb_rsp, dst_cr_rsp, DST_SIZE,
+        (frame_width << 16) | frame_height,
+        (w << 16) | h,
+        ((uint32_t)mvx << 16) | ((uint32_t)(mvy & 0xFFFF)),
+        ((uint32_t)x2 << 16) | ((uint32_t)y2));
+    rsph264_sync();
+
+    armVCM4P10_Interpolate_Luma(src_luma_ref, SRC_PITCH, dst_luma_ref, DST_SIZE,
+        w, h, wc->dx, wc->dy);
+    apply_weight(dst_luma_ref, DST_SIZE, w, h, luma_w, luma_o, luma_d);
+    armVCM4P10_Interpolate_Chroma(src_cb_ref, SRC_PITCH/2, dst_cb_ref, DST_SIZE/2,
+        w/2, h/2, chroma_dx, chroma_dy);
+    apply_weight(dst_cb_ref, DST_SIZE/2, w/2, h/2, cb_w, cb_o, chroma_d);
+    armVCM4P10_Interpolate_Chroma(src_cr_ref, SRC_PITCH/2, dst_cr_ref, DST_SIZE/2,
+        w/2, h/2, chroma_dx, chroma_dy);
+    apply_weight(dst_cr_ref, DST_SIZE/2, w/2, h/2, cr_w, cr_o, chroma_d);
+
+    const char *plane = NULL;
+    if (!weightp_rect_equal(dst_luma_rsp, dst_luma_ref, DST_SIZE, w, h, verbose))
+        plane = "luma";
+    else if (!weightp_rect_equal(dst_cb_rsp, dst_cb_ref, DST_SIZE/2, w/2, h/2, verbose))
+        plane = "cb";
+    else if (!weightp_rect_equal(dst_cr_rsp, dst_cr_ref, DST_SIZE/2, w/2, h/2, verbose))
+        plane = "cr";
+    if (plane) {
+        printf("FAILED: weightp all-overfill %s\n", plane);
+        printf("FAILED: d:%d,%d luma:%d,%d,%d cb:%d,%d cr:%d,%d,%d\n",
+            wc->dx, wc->dy, luma_w, luma_o, luma_d,
+            cb_w, cb_o, cr_w, cr_o, chroma_d);
+        abort();
+    }
+}
+
+void weightp_all_overfill_test(InterpolationTest *test, int verbose) {
+    static const WeightpCase cases[] = {
+        // No weighting at all: verifies the reference of the test itself
+        {  1,   0, 0,     1, 0,   1, 0,  0,   0, 0 },
+        // Only one plane at a time, to check that the RSP does not mix up
+        // the coefficients of the three planes.
+        { 80, -16, 6,     1, 0,   1, 0,  0,   0, 0 },
+        {  1,   0, 0,    32, 8,   1, 0,  5,   0, 0 },
+        {  1,   0, 0,     1, 0, -40, 12, 5,   0, 0 },
+        // All planes, integer and fractional motion vectors
+        { 80, -16, 6,    32, 8, -40, 12, 5,   0, 0 },
+        { 80, -16, 6,    32, 8, -40, 12, 5,   2, 1 },
+        { 80, -16, 6,    32, 8, -40, 12, 5,   3, 3 },
+        { 127, 127, 0,  127, 127, -128, -128, 0,  1, 2 },
+    };
+
+    for (int i = 0; i < (int)(sizeof(cases) / sizeof(cases[0])); i++)
+        weightp_all_overfill_case(test, &cases[i], verbose);
+
+    rsph264_queue_set_weights_if_changed(RSPH264_WEIGHT_IDENTITY,
+        RSPH264_WEIGHT_IDENTITY, RSPH264_WEIGHT_IDENTITY);
 }
 
 bool dequant_test(DequantTest *test, int verbose) {
@@ -1348,11 +1583,6 @@ int main(void)
     buftest.pDst2 = pDst2;
 
     printf("OpenMAX VCM4P10:\n");
-#if 0
-    printf("OMX_DecodeCoeffsToPairCAVLC... "); fflush(stdout);
-    exhaustive_cavlc_test(16*1024, verbose);
-    printf("OK\n");
-#endif
     printf("OMX_DequantTransformResidual... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, OMX_LUMA_4x4, 4*1024, verbose);
     printf("OK\n");
@@ -1372,7 +1602,7 @@ int main(void)
     exhaustive_dequant_test(&buftest, OMX_CHROMADC_2x2, 4*1024, verbose);
     printf("OK\n");
 
-    InterpolationTest inttest;
+    InterpolationTest inttest = {0};
     inttest.buf = buftest;
 
     printf("OMX_InterpolateLuma... "); fflush(stdout);
@@ -1405,13 +1635,22 @@ int main(void)
     exhaustive_intrapred_test(&intratest, 2*1024, verbose);
     printf("OK\n");
 
-    printf("\nHigh-level:\n");
-
-#if 0
-    printf("DecodeResidual..."); fflush(stdout);
-    exhaustive_decoderesidual_test(16*1024, verbose);
+    printf("\nWeightP:\n");
+    printf("InterpolateLuma+WeightP... "); fflush(stdout);
+    inttest.func = INTERPOLATE_LUMA;
+    weightp_interpolation_test(&inttest, verbose);
     printf("OK\n");
-#endif
+
+    printf("InterpolateChroma+WeightP... "); fflush(stdout);
+    inttest.func = INTERPOLATE_CHROMA;
+    weightp_interpolation_test(&inttest, verbose);
+    printf("OK\n");
+
+    printf("InterpolateAll+WeightP... "); fflush(stdout);
+    weightp_all_overfill_test(&inttest, verbose);
+    printf("OK\n");
+
+    printf("\nHigh-level:\n");
 
     printf("ProcessLumaInterResidual... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, PROCESS_LUMA_16x16, 2048, verbose);

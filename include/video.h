@@ -15,7 +15,7 @@
  * Currently two video codecs are supported and provided as part of libdragon:
  * 
  * * #mpeg1_codec: MPEG1
- * * #h264_codec: H.264 Baseline Profile
+ * * #h264_codec: H.264 Custom Profile (Baseline + Weighted Prediction)
  * 
  * Higher-level information on how to encode videos and suggested settings can be found
  * in the Libdragon wiki: https://github.com/DragonMinded/libdragon/wiki/MPEG1-Player

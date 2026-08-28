@@ -266,14 +266,6 @@ u32 h264bsdDecodePicParamSet(strmData_t *pStrmData, picParamSet_t *pPicParamSet)
     if (tmp == END_OF_STREAM)
         return(HANTRO_NOK);
     pPicParamSet->weightedPredFlag = tmp;
-#ifdef H264BSD_N64
-    /* WeightP is unsupported on N64/RSP path. */
-    if (pPicParamSet->weightedPredFlag)
-    {
-        EPRINT("weighted_pred_flag");
-        return(HANTRO_NOK);
-    }
-#endif
 
     /* weighted_bipred_idc */
     tmp = h264bsdGetBits(pStrmData, 2);
