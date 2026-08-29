@@ -14,6 +14,7 @@
 #include "pifile.h"
 #include "n64sys.h"
 #include "system.h"
+#include "system_internal.h"
 #include "dma.h"
 
 /** @brief A PI-mapped open file */
@@ -25,7 +26,7 @@ typedef struct {
 
 static void *__pifile_open(char *name, int flags)
 {
-    if (flags != O_RDONLY) {
+    if ((flags & O_ACCMODE) != O_RDONLY) {
         errno = EACCES;
         return NULL;
     }
@@ -43,7 +44,7 @@ static void *__pifile_open(char *name, int flags)
         return NULL;
     }
 
-    pifile_t *file = malloc(sizeof(pifile_t));
+    pifile_t *file = fs_alloc_descriptor(sizeof(pifile_t), flags);
     if (!file) {
         errno = ENOMEM;
         return NULL;
@@ -126,7 +127,7 @@ static int __pifile_read(void *file, uint8_t *buf, int len)
 
 static int __pifile_close(void *file)
 {
-    free(file);
+    fs_free_descriptor(file);
     return 0;
 }
 

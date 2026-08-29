@@ -18,6 +18,7 @@
 #include "dma.h"
 #include "debug.h"
 #include "system.h"
+#include "system_internal.h"
 #include "dfs_internal.h"
 #include "rompak_internal.h"
 #include "utils.h"
@@ -746,7 +747,7 @@ static dfs_lookup_file_t *lookup_file(const char *const path)
     return NULL;
 }
 
-int dfs_open(const char *path)
+static int dfs_open_flags(const char *path, int flags)
 {
     dfs_open_file_t *file;
     //Skip initial slash
@@ -761,7 +762,7 @@ int dfs_open(const char *path)
             return DFS_ENOFILE;
         }
         /* Try to find a free slot */
-        file = malloc(sizeof(dfs_open_file_t));
+        file = fs_alloc_descriptor(sizeof(dfs_open_file_t), flags);
         if(!file)
         {
             return DFS_ENOMEM;
@@ -782,7 +783,7 @@ int dfs_open(const char *path)
         }
 
         /* Try to find a free slot */
-        file = malloc(sizeof(dfs_open_file_t));
+        file = fs_alloc_descriptor(sizeof(dfs_open_file_t), flags);
 
         if(!file)
         {
@@ -801,6 +802,11 @@ int dfs_open(const char *path)
     return OPENFILE_TO_HANDLE(file);
 }
 
+int dfs_open(const char *path)
+{
+    return dfs_open_flags(path, 0);
+}
+
 int dfs_close(uint32_t handle)
 {
     dfs_open_file_t *file = HANDLE_TO_OPENFILE(handle);
@@ -811,7 +817,7 @@ int dfs_close(uint32_t handle)
     }
 
     /* Free the open file */
-    free(file);
+    fs_free_descriptor(file);
 
     return DFS_ESUCCESS;
 }
@@ -1121,8 +1127,7 @@ static void *__open( char *name, int flags )
         return NULL;
     }
 
-    /* We disregard flags here */
-    int handle = dfs_open( name );
+    int handle = dfs_open_flags( name, flags );
     if (handle <= 0) {
         __dfs_set_errno(handle);
         return NULL;
