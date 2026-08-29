@@ -4,11 +4,11 @@
  *
  * The H264 RSP code does not fit in IMEM, so it is split into two rspq
  * overlays: rsph264_inter (motion compensation and inter residuals) and
- * rsph264_intra (intra prediction and intra residuals). Both are essentially
- * full: 4040 and 3960 bytes out of 4096, with roughly 1.5 KB of shared code
- * from rsph264_common.inc duplicated into each. Merging them is not an option,
- * and rspq keeps only its own engine resident, so there is no way to have a
- * third always-loaded section for the common part.
+ * rsph264_intra (intra prediction and intra residuals). Both are full: 4040
+ * and 4096 bytes out of 4096, with roughly 1.8 KB of shared code from
+ * rsph264_common.inc duplicated into each. Merging them is not an option, and
+ * rspq keeps only its own engine resident, so there is no way to have a third
+ * always-loaded section for the common part.
  *
  * An overlay switch is therefore expensive: rspq reloads the whole
  * overlay-specific text and data segments and saves/restores the shared state,
@@ -22,18 +22,22 @@
  * RSPH264_PROFILE (see rsph264_internal.h).
  *
  * The command stream is thus arranged to stay on one overlay for as long as
- * possible. Task_SetPackedDeltaBuffer is assembled into both overlays with the
- * same implementation and only touches state that the two share, so it is
- * emitted to whichever overlay the RSP already has loaded, tracked CPU-side by
- * cur_ovl_id. An inter macroblock is then served entirely by the inter overlay
- * and costs no switch at all. An intra macroblock costs two, because its
- * chroma residual is only implemented in the inter overlay: the intra work
- * enters the intra overlay, and the chroma residual goes back to inter.
+ * possible. A macroblock is served end to end by a single overlay, so a run of
+ * macroblocks of the same kind costs no switch at all, and only a transition
+ * between an inter and an intra macroblock does. Two commands make this
+ * possible: Task_SetPackedDeltaBuffer and Task_ProcessChromaResidual, which are
+ * assembled into both overlays from the same source and only touch state that
+ * the two share. The CPU sends them to whichever overlay the RSP already has
+ * loaded, tracked here by cur_ovl_id.
  */
 #include "rsph264_internal.h"
 #include "rspq.h"
 #include "fastcache.h"
 #include <assert.h>
+#include <string.h>
+#if RSPH264_PROFILE
+#include "emux.h"
+#endif
 
 DEFINE_RSP_UCODE(rsph264_inter);
 DEFINE_RSP_UCODE(rsph264_intra);
@@ -60,12 +64,13 @@ enum {
 
 enum {
     // Tasks in rsph264_intra
-    TASK_OMX_INTRAPREDICT_LUMA_4               = 0,
-    TASK_OMX_INTRAPREDICT_LUMA_16              = 1,
-    TASK_OMX_INTRAPREDICT_CHROMA_8             = 2,
-    TASK_PROCESS_LUMA_INTRA4_RESIDUAL          = 3,
-    TASK_PROCESS_LUMA_INTRA16_RESIDUAL         = 4,
-    TASK_OMX_TRANSFORM_DEQUANT_LUMADC          = 5,
+    TASK_OMX_INTRAPREDICT_CHROMA_8             = 0,
+    TASK_PROCESS_LUMA_INTRA4_RESIDUAL          = 1,
+    TASK_PROCESS_LUMA_INTRA16_RESIDUAL         = 2,
+    // Same implementation as TASK_PROCESS_CHROMA_RESIDUAL in the inter
+    // overlay, assembled here as well so that an intra macroblock never has
+    // to leave this overlay.
+    TASK_PROCESS_CHROMA_RESIDUAL_INTRA         = 3,
 
     TASK_SET_PACKED_DELTA_BUFFER               = 15,
 };
@@ -90,8 +95,10 @@ static inline uint32_t track_ovl(uint32_t ovl_id)
     if (ovl_id != cur_ovl_id) {
         cur_ovl_id = ovl_id;
         STAT_INC(ovl_switches);
+        STAT_INC(switches_to[ovl_id == rsph264_intra_ovl_id]);
     }
     STAT_INC(commands);
+    STAT_INC(cmds[ovl_id == rsph264_intra_ovl_id]);
     return ovl_id;
 }
 
@@ -132,6 +139,34 @@ inline void rsph264_stats_get(rsph264_stats_t *st)
 {
     *st = stats;
 }
+
+uint32_t rsph264_measure_overlay_switch_cost(void)
+{
+    // rsph264_queue_debug_load_overlay writes an RSPQ_Loop command, so a run of
+    // alternating ones does nothing but switch back and forth: apart from the
+    // 4 bytes of each command, all the DMA the RSP does in the meantime is the
+    // cost of the switches. The two directions are not symmetric (entering
+    // inter also pulls in the shared state, of which it is the owner), but
+    // switches necessarily alternate, so their average is what matters.
+    enum { N = 256 };
+
+    if (!(emux_detect(1) & EMUX_FEAT1_PROFILER))
+        return 0;
+
+    rsph264_queue_debug_load_overlay("inter");
+    rspq_wait();
+
+    uint64_t dma0 = emux_prof_read(-1, EMUX_PROF_RAM_RSPDMA_BYTES);
+    for (int i = 0; i < N; i++) {
+        rsph264_queue_debug_load_overlay("intra");
+        rsph264_queue_debug_load_overlay("inter");
+    }
+    rspq_wait();
+    uint64_t dma1 = emux_prof_read(-1, EMUX_PROF_RAM_RSPDMA_BYTES);
+
+    rsph264_stats_reset();
+    return (dma1 - dma0) / (2 * N);
+}
 #endif
 
 inline void rsph264_begin_frame(void)
@@ -147,6 +182,17 @@ inline void rsph264_sync(void)
 inline void rsph264_queue_debug_random_status(void)
 {
     // TODO: implement
+}
+
+inline void rsph264_queue_debug_load_overlay(const char *ovlname)
+{
+    // Slot 14 is an RSPQ_Loop placeholder in both overlays, so this is a no-op
+    // command whose only effect is the overlay switch it forces.
+    enum { TASK_NOP = 14 };
+
+    bool intra = !strcmp(ovlname, "intra");
+    assertf(intra || !strcmp(ovlname, "inter"), "unknown overlay: %s", ovlname);
+    rsph264_write(intra ? rsph264_intra_ovl_id : rsph264_inter_ovl_id, TASK_NOP);
 }
 
 inline void rsph264_queue_interpolate_luma_overfill(
@@ -208,64 +254,6 @@ inline void rsph264_queue_interpolate_chroma_overfill(
         0);
 }
 
-
-inline void rsph264_queue_intrapred_luma_4x4(
-    int cache_flags,
-    const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
-    uint8_t *dst, uint32_t left_pitch, uint32_t dst_pitch,
-    uint32_t mode, uint32_t availability
-) {
-    assert(((uint32_t)src_u & 3) == 0);
-    assert(((uint32_t)dst & 3) == 0);
-#if 0
-    if (!(cache_flags & RSPH264_CACHE_SKIP_SOURCE)) {
-        fast_data_cache_hit_writeback_invalidate(src_l+left_pitch*0, 1);
-        fast_data_cache_hit_writeback_invalidate(src_l+left_pitch*1, 1);
-        fast_data_cache_hit_writeback_invalidate(src_l+left_pitch*2, 1);
-        fast_data_cache_hit_writeback_invalidate(src_l+left_pitch*3, 1);
-        fast_data_cache_hit_writeback_invalidate(src_ul, 1);
-        fast_data_cache_hit_writeback_invalidate(src_u, 8);
-    }
-
-    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
-        fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*0-4, 12);
-        fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*1-4, 12);
-        fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*2-4, 12);
-        fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*3-4, 12);
-    }
-#endif
-    rsph264_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_LUMA_4,
-        PhysicalAddr(src_l), PhysicalAddr(src_u), PhysicalAddr(src_ul),
-        PhysicalAddr(dst), left_pitch, dst_pitch,
-        mode, availability);
-}
-
-inline void rsph264_queue_intrapred_luma_16x16(
-    int cache_flags,
-    const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
-    uint8_t *dst, uint32_t left_pitch, uint32_t dst_pitch,
-    uint32_t mode, uint32_t availability
-) {
-    assert(((uint32_t)src_u & 15) == 0);
-    assert(((uint32_t)dst & 15) == 0);
-#if 0
-    if (!(cache_flags & RSPH264_CACHE_SKIP_SOURCE)) {
-        for (int i=0;i<16;i++)
-            fast_data_cache_hit_writeback_invalidate(src_l+left_pitch*i, 1);
-        fast_data_cache_hit_writeback_invalidate(src_ul, 1);
-        fast_data_cache_hit_writeback_invalidate(src_u, 16);
-    }
-
-    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
-        for (int i=0;i<16;i++)
-            fast_data_cache_hit_writeback_invalidate(dst+dst_pitch*i, 16);
-    }
-#endif
-    rsph264_write(rsph264_intra_ovl_id, TASK_OMX_INTRAPREDICT_LUMA_16,
-        PhysicalAddr(src_l), PhysicalAddr(src_u), PhysicalAddr(src_ul),
-        PhysicalAddr(dst), left_pitch, dst_pitch,
-        mode, availability);
-}
 
 inline void rsph264_queue_intrapred_chroma_8x8(
     int cache_flags,
@@ -398,11 +386,11 @@ inline void rsph264_queue_set_packed_delta_buffer(
 }
 
 static void internal_queue_dequant_transform_residual(
-    int taskid, int cache_flags,
+    uint32_t ovl_id, int taskid, int cache_flags,
     uint8_t *dst1, uint8_t *dst2, uint32_t dst_pitch,
     const int16_t *dc, uint32_t qp, uint32_t ac
 ) {
-    rsph264_write(rsph264_inter_ovl_id, taskid,
+    rsph264_write(ovl_id, taskid,
         0,      // FIXME: remove, not needed anymore
         PhysicalAddr(dst1),
         dst_pitch,
@@ -428,24 +416,10 @@ inline void rsph264_queue_dequant_transform_residual(
 #endif        
 
     internal_queue_dequant_transform_residual(
-        TASK_OMX_DEQUANT_TRANSFORM_RESIDUAL,
+        rsph264_inter_ovl_id, TASK_OMX_DEQUANT_TRANSFORM_RESIDUAL,
         cache_flags, dst, NULL, dst_pitch, dc, qp, ac);
 }
 
-
-inline void rsph264_queue_transform_dequant_lumadc(
-    int cache_flags,
-    int16_t *dst, uint32_t qp
-) {
-    assert(((uint32_t)dst & 7) == 0);
-    if (!(cache_flags & RSPH264_CACHE_SKIP_DEST)) {
-        fast_data_cache_hit_writeback_invalidate(dst, 32);
-    }
-
-    rsph264_write(rsph264_intra_ovl_id, TASK_OMX_TRANSFORM_DEQUANT_LUMADC,
-        0, PhysicalAddr(dst),
-        ((qp / 6) << 8) | (qp % 6));
-}
 
 inline void rsph264_queue_transform_dequant_chromadc(
     int cache_flags,
@@ -485,7 +459,7 @@ inline void rsph264_queue_process_luma_inter_residual(
 
     // check_overlay(TASK_PROCESS_LUMA_INTER_RESIDUAL);
     internal_queue_dequant_transform_residual(
-        TASK_PROCESS_LUMA_INTER_RESIDUAL,
+        rsph264_inter_ovl_id, TASK_PROCESS_LUMA_INTER_RESIDUAL,
         cache_flags, dst, NULL, dst_pitch, dc, qp, totalCoeffMask);
 }
 
@@ -506,9 +480,14 @@ inline void rsph264_queue_process_chroma_residual(
         // }
     }
 
-    // check_overlay(TASK_PROCESS_CHROMA_RESIDUAL);
+    // Assembled into both overlays with the same implementation, so target
+    // the one already loaded (see the overlay switch discussion at the top of
+    // this file). This is what makes an intra macroblock cost no switch: its
+    // chroma residual no longer has to go back to the inter overlay.
+    bool on_intra = (cur_ovl_id == rsph264_intra_ovl_id);
     internal_queue_dequant_transform_residual(
-        TASK_PROCESS_CHROMA_RESIDUAL,
+        on_intra ? rsph264_intra_ovl_id : rsph264_inter_ovl_id,
+        on_intra ? TASK_PROCESS_CHROMA_RESIDUAL_INTRA : TASK_PROCESS_CHROMA_RESIDUAL,
         cache_flags, dst1, dst2, dst_pitch, NULL, qp, totalCoeffMask);
 }
 

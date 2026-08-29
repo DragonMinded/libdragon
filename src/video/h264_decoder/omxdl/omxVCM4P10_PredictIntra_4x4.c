@@ -95,11 +95,6 @@
  *
  */
 
-#define COMPARE_RSP 0
-#if COMPARE_RSP
-#include <stdio.h>
-#include <memory.h>
-#endif
 
 OMXResult omxVCM4P10_PredictIntra_4x4(
      const OMX_U8* pSrcLeft,
@@ -112,14 +107,6 @@ OMXResult omxVCM4P10_PredictIntra_4x4(
      OMX_S32 availability        
  )
 {
-#if H264BSD_N64_INTRA
-    rsph264_queue_intrapred_luma_4x4(0, //RSPH264_CACHE_SKIP_ALL,
-        pSrcLeft, pSrcAbove, pSrcAboveLeft,
-        pDst, leftStep, dstStep,
-        predMode, availability);
-    // rsph264_sync();
-    return OMX_Sts_NoErr;
-#else
     int x, y;
     OMX_U8 pTmp[10];
 
@@ -148,17 +135,6 @@ OMXResult omxVCM4P10_PredictIntra_4x4(
     armRetArgErrIf(predMode==OMX_VC_4X4_HU      && !(availability & OMX_VC_LEFT),       OMX_Sts_BadArgErr);
     armRetArgErrIf((unsigned)predMode > OMX_VC_4X4_HU,   OMX_Sts_BadArgErr);    
 
-#if COMPARE_RSP
-    #define FAKE_PITCH 16
-    static uint8_t fakeBuf[1024];
-    memset(fakeBuf, 0xAB, 1024);
-    uint8_t *fakeDst = fakeBuf+100;
-    rsph264_queue_intrapred_luma_4x4(0, //RSPH264_CACHE_SKIP_ALL,
-        pSrcLeft, pSrcAbove, pSrcAboveLeft,
-        fakeDst, leftStep, FAKE_PITCH,
-        predMode, availability);
-    rsph264_sync();
-#endif
 
     /* Note: This code must not read the pSrc arrays unless the corresponding
      * block is marked as available. If the block is not avaibable then pSrc
@@ -365,46 +341,9 @@ OMXResult omxVCM4P10_PredictIntra_4x4(
         break;
     }
 
-#if COMPARE_RSP
-    for (int y=0;y<4;y++) {
-        for (int x=0;x<4;x++) {
-            if (pDst[y*dstStep+x] != fakeDst[y*FAKE_PITCH+x]) {
-                printf("FAILED COMPARE INTRA 4x4:\n");
-                printf("predMode:%d, avail:0x%x\n", predMode, availability);
-                printf("REF:\n");
-                for (int yy=0;yy<4;yy++)
-                    printf("%02x %02x %02x %02x\n", pDst[yy*dstStep+0],pDst[yy*dstStep+1], pDst[yy*dstStep+2], pDst[yy*dstStep+3]);
-                printf("RSP:\n");
-                for (int yy=0;yy<4;yy++)
-                    printf("%02x %02x %02x %02x\n", fakeDst[yy*FAKE_PITCH+0],fakeDst[yy*FAKE_PITCH+1], fakeDst[yy*FAKE_PITCH+2], fakeDst[yy*FAKE_PITCH+3]);
-                while(1){}
-            }
-        }
-        // for (int x=-4;x<0;x++) {
-        //     if (fakeDst[y*FAKE_PITCH+x] != 0xAB) {
-        //         printf("FAILED INTRA OVERFLOW\n");
-        //         printf("RSP LINE: %d:\n", y);
-        //             printf("%02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", 
-        //                 fakeDst[y*FAKE_PITCH-4],fakeDst[y*FAKE_PITCH-3], fakeDst[y*FAKE_PITCH-2], fakeDst[y*FAKE_PITCH-1],
-        //                 fakeDst[y*FAKE_PITCH+0],fakeDst[y*FAKE_PITCH+1], fakeDst[y*FAKE_PITCH+2], fakeDst[y*FAKE_PITCH+3],
-        //                 fakeDst[y*FAKE_PITCH+4],fakeDst[y*FAKE_PITCH+5], fakeDst[y*FAKE_PITCH+6], fakeDst[y*FAKE_PITCH+7]
-        //                 );
-
-        //         while(1){}
-        //     }
-        // }
-        // for (int x=4;x<8;x++) {
-        //     if (fakeDst[y*FAKE_PITCH+x] != 0xAB) {
-        //         printf("FAILED INTRA OVERFLOW\n");
-        //         while(1){}
-        //     }
-        // }
-    }
-#endif
 
 
     return OMX_Sts_NoErr;
-#endif
 }
 
 OMXResult HIGHFUNC_PredictIntraTransform_4x4(

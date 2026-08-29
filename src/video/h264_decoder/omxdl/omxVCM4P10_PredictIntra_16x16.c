@@ -91,15 +91,6 @@ OMXResult omxVCM4P10_PredictIntra_16x16(
     OMXVCM4P10Intra16x16PredMode predMode, 
     OMX_S32 availability)
 {
-#if H264BSD_N64_INTRA
-    // FIXME: we must flush dest cache here, otherwise 1st frame
-    // of joker is corrupted. Investigate.
-    rsph264_queue_intrapred_luma_16x16(0,
-        pSrcLeft, pSrcAbove, pSrcAboveLeft,
-        pDst, leftStep, dstStep,
-        predMode, availability);
-    // rsph264_sync();
-#else
     int x,y,Sum,Count;
     int H,V,a,b,c;
 
@@ -206,7 +197,6 @@ OMXResult omxVCM4P10_PredictIntra_16x16(
         }
         break;
     }
-#endif
     return OMX_Sts_NoErr;
 }
 

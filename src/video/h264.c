@@ -56,6 +56,8 @@ static void bwprof_init(void)
     bwprof.available = (emux_detect(1) & EMUX_FEAT1_PROFILER) != 0;
     debugf("h264: bandwidth profiling on (emux profiler: %s)\n",
         bwprof.available ? "yes" : "NO, DMA figures unavailable");
+    debugf("h264: overlay switch costs %lu bytes of DMA\n",
+        rsph264_measure_overlay_switch_cost());
     bwprof_sample(&bwprof.dma_bytes, &bwprof.rsp_cycles, &bwprof.rsp_idle);
     rsph264_stats_reset();
 }
@@ -75,9 +77,12 @@ static void bwprof_frame_end(void)
     uint64_t elapsed = cycles - bwprof.rsp_cycles;
     uint64_t busy = elapsed - (idle - bwprof.rsp_idle);
 
-    debugf("h264 frame %d: %lu cmds, %lu ovl switches, rspdma %u KiB, rsp busy %u/%u kcyc\n",
-        bwprof.frame, st.commands, st.ovl_switches,
-        (unsigned)((dma - bwprof.dma_bytes) / 1024),
+    debugf("h264 frame %d: cmds %lu=%lu+%lu, sw %lu=%lu+%lu, rspdma %u B, rsp busy %u/%u kcyc\n",
+        bwprof.frame,
+        st.commands, st.cmds[RSPH264_STAT_INTER], st.cmds[RSPH264_STAT_INTRA],
+        st.ovl_switches,
+        st.switches_to[RSPH264_STAT_INTER], st.switches_to[RSPH264_STAT_INTRA],
+        (unsigned)(dma - bwprof.dma_bytes),
         (unsigned)(busy / 1000), (unsigned)(elapsed / 1000));
 
     bwprof.frame++;

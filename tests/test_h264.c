@@ -34,17 +34,18 @@
 #define INTERPOLATE_CHROMA 0
 #define INTERPOLATE_LUMA   1
 
-#define INTRAPRED_LUMA_4X4   0
-#define INTRAPRED_LUMA_16X16 1
-#define INTRAPRED_CHROMA_8X8 2
-#define INTRAPRED_PROCESS_LUMA4 3
-#define INTRAPRED_PROCESS_LUMA16 4
+#define INTRAPRED_CHROMA_8X8 0
+#define INTRAPRED_PROCESS_LUMA4 1
+#define INTRAPRED_PROCESS_LUMA16 2
 
 #define OMX_LUMA_4x4       0
 #define OMX_CHROMADC_2x2   1
-#define OMX_LUMADC_4x4     2
 #define PROCESS_LUMA_16x16 3
 #define PROCESS_CHROMA_8x8x2 4
+// Same as PROCESS_CHROMA_8x8x2, but with the intra overlay loaded: the command
+// is assembled into both overlays and the CPU sends it to whichever one is
+// current, so both instantiations need to be checked.
+#define PROCESS_CHROMA_8x8x2_INTRA 5
 
 typedef struct {
     uint8_t *pSrc1, *pSrc2;  // source buffers 
@@ -337,48 +338,6 @@ bool intrapred_test(IntraPredictionTest *test, int verbose) {
     uint32_t rsp_time = 0, ref_time = 0;
 
     switch (test->func) {
-    case INTRAPRED_LUMA_4X4:
-        rsph264_queue_debug_random_status();
-        rsph264_sync();
-
-        rsp_time = TIME_STATEMENT({
-            rsph264_queue_intrapred_luma_4x4(0,
-                src1-1, src1-SRC_PITCH, src1-SRC_PITCH-1,
-                dst1, SRC_PITCH, DST_SIZE,
-                test->mode[0], test->avail[0]);
-            rsph264_sync();
-        });
-
-        ref_time = TIME_STATEMENT({
-            int res = omxVCM4P10_PredictIntra_4x4(
-                src2-1, src2-SRC_PITCH, src2-SRC_PITCH-1,
-                dst2, SRC_PITCH, DST_SIZE,
-                test->mode[0], test->avail[0]);
-            assert(res == 0);
-        });
-        break;
-
-    case INTRAPRED_LUMA_16X16:
-        rsph264_queue_debug_random_status();
-        rsph264_sync();
-
-        rsp_time = TIME_STATEMENT({
-            rsph264_queue_intrapred_luma_16x16(0,
-                src1-1, src1-SRC_PITCH, src1-SRC_PITCH-1,
-                dst1, SRC_PITCH, DST_SIZE,
-                test->mode[0], test->avail[0]);
-            rsph264_sync();
-        });
-
-        ref_time = TIME_STATEMENT({
-            int res = omxVCM4P10_PredictIntra_16x16(
-                src2-1, src2-SRC_PITCH, src2-SRC_PITCH-1,
-                dst2, SRC_PITCH, DST_SIZE,
-                test->mode[0], test->avail[0]);
-            assert(res == 0);
-        });
-        break;
-
     case INTRAPRED_CHROMA_8X8:
         rsph264_queue_debug_random_status();
         rsph264_sync();
@@ -506,9 +465,7 @@ void exhaustive_intrapred_test(IntraPredictionTest *test, int repetitions, int v
     int numblocks = 0;
 
     switch (test->func) {
-    // The first 3 functions are single-block intraprediction.
-    case INTRAPRED_LUMA_4X4:   nummodes = 9; numblocks = 1; break;
-    case INTRAPRED_LUMA_16X16: nummodes = 4; numblocks = 1; break;
+    // Single-block intraprediction.
     case INTRAPRED_CHROMA_8X8: nummodes = 4; numblocks = 1; break;
     // This function covers the whole macroblock (with 16 4x4 blocks)
     case INTRAPRED_PROCESS_LUMA4: nummodes = 9; numblocks = 16; break;
@@ -582,23 +539,7 @@ void exhaustive_intrapred_test(IntraPredictionTest *test, int repetitions, int v
                         test->avail[b] |= OMX_VC_UPPER_RIGHT;
                 }
 
-                if (test->func == INTRAPRED_LUMA_4X4) {
-                    test->x1 &= ~3; test->x2 &= ~3;
-                    if (test->mode[b] == 2) { // OMX_VC_4X4_DC
-                        if (my_rand()%2 == 0)
-                            test->avail[b] &= ~OMX_VC_UPPER;
-                        if (my_rand()%2 == 0)
-                            test->avail[b] &= ~OMX_VC_LEFT;
-                    }                
-                } else if (test->func == INTRAPRED_LUMA_16X16) {
-                    test->x1 &= ~15; test->x2 &= ~15;
-                    if (test->mode[b] == 2) { // OMX_VC_16X16_DC
-                        if (my_rand()%2 == 0)
-                            test->avail[b] &= ~OMX_VC_UPPER;
-                        if (my_rand()%2 == 0)
-                            test->avail[b] &= ~OMX_VC_LEFT;
-                    }                
-                } else if (test->func == INTRAPRED_CHROMA_8X8) {
+                if (test->func == INTRAPRED_CHROMA_8X8) {
                     test->x1 &= ~7; test->x2 &= ~7;
                     if (test->mode[b] == 0) { // OMX_VC_CHROMA_DC
                         if (my_rand()%2 == 0)
@@ -945,7 +886,10 @@ bool dequant_test(DequantTest *test, int verbose) {
         break;
 
     case PROCESS_CHROMA_8x8x2:
+    case PROCESS_CHROMA_8x8x2_INTRA:
         rsph264_queue_debug_random_status();
+        rsph264_queue_debug_load_overlay(
+            test->func == PROCESS_CHROMA_8x8x2_INTRA ? "intra" : "inter");
         rsph264_sync();
 
         rsp_time = TIME_STATEMENT({
@@ -1033,23 +977,6 @@ bool dequant_dc_test(DequantTest *test, int verbose) {
 
         break;
 
-    case OMX_LUMADC_4x4:
-        rsp_time = TIME_STATEMENT({
-            rsph264_queue_set_packed_delta_buffer(0,
-                test->src);
-            rsph264_queue_transform_dequant_lumadc(0,
-                (int16_t*)dc1, test->qp);
-            rsph264_sync();
-        });
-
-        ref_time = TIME_STATEMENT({
-            OMXResult err = omxVCM4P10_TransformDequantLumaDCFromPair(
-                &csrc2,
-                (int16_t*)dc2, test->qp);
-            assert(err == OMX_Sts_NoErr);
-        });
-        break;
-
     default:
         assert(0);
     }
@@ -1087,7 +1014,8 @@ bool exhaustive_dequant_test(BufferTest *buf, int func, int numtests, int verbos
         my_srand(i+1024);
         test.x2 = (my_rand() % (DST_SIZE-MAX_DEQUANT_CHECK_SIZE)) + MAX_DEQUANT_CHECK_SIZE/2;
         test.y2 = (my_rand() % (DST_SIZE-MAX_DEQUANT_CHECK_SIZE)) + MAX_DEQUANT_CHECK_SIZE/2;
-        if (func == PROCESS_LUMA_16x16 || func == PROCESS_CHROMA_8x8x2)
+        if (func == PROCESS_LUMA_16x16 || func == PROCESS_CHROMA_8x8x2 ||
+            func == PROCESS_CHROMA_8x8x2_INTRA)
             test.x2 &= ~7;
         else
             test.x2 &= ~3;
@@ -1124,10 +1052,6 @@ bool exhaustive_dequant_test(BufferTest *buf, int func, int numtests, int verbos
             cidx += gen_coeff_delta(coeffs+cidx, cmask, 4);
             break;
 
-        case OMX_LUMADC_4x4:
-            cidx += gen_coeff_delta(coeffs+cidx, cmask, 16);
-            break;
-
         case OMX_LUMA_4x4:
             cidx += gen_coeff_delta(coeffs+cidx, cmask, 16);
             break;
@@ -1138,6 +1062,7 @@ bool exhaustive_dequant_test(BufferTest *buf, int func, int numtests, int verbos
             break;
 
         case PROCESS_CHROMA_8x8x2:
+        case PROCESS_CHROMA_8x8x2_INTRA:
             if (test.ac[25])
                 cidx += gen_coeff_delta(coeffs+cidx, cmask, 4);                
             if (test.ac[26])
@@ -1151,7 +1076,7 @@ bool exhaustive_dequant_test(BufferTest *buf, int func, int numtests, int verbos
         data_cache_hit_writeback(coeffs, 1024);
         test.src = &coeffs[src_offset];
 
-        if (func == OMX_CHROMADC_2x2 || func == OMX_LUMADC_4x4) {
+        if (func == OMX_CHROMADC_2x2) {
             if (!dequant_dc_test(&test, verbose)) {
                 printf("FAILED TEST: #%d\n", i);
                 abort();
@@ -1166,73 +1091,106 @@ bool exhaustive_dequant_test(BufferTest *buf, int func, int numtests, int verbos
     return true;
 }
 
-// Regression test for the TransformDequantLumaDC s16-overflow bug.
+// TransformDequantLumaDC, exercised through Task_ProcessLumaIntra16x16Residual
+// with large DC coefficients.
 //
-// exhaustive_dequant_test masks OMX_LUMADC_4x4 coefficients to ±256, so
-// the post-IHT operand T stays well inside ±s16/Scale and never crosses
-// the boundary where the old vmudn-based code truncated T*Scale to its
-// low 16 bits and flipped the sign. This test pokes that boundary
-// directly: a 1-coefficient packed delta places value T at position 0,
-// the inverse Hadamard fans it to all 16 lanes, and the RSP output is
-// compared against the OMX C reference for each (qp%6, qp/6).
+// exhaustive_intrapred_test masks residual coefficients to ±256, so it never
+// reaches the values where the dequantization overflows an s16 intermediate.
+// This test drives them directly: a 1-coefficient packed delta places value T
+// at position 0 of the LumaDC block and no AC coefficient anywhere, so the
+// inverse Hadamard fans T to all 16 blocks and the DC term is the only thing
+// the residual contributes.
+//
+// The neighbours are flat mid-gray, so DC prediction is exactly 128 and the
+// residual is the only thing that moves the output: a DC that comes out with
+// the wrong sign moves every pixel of the macroblock to the opposite side of
+// 128, which clamping cannot hide.
 static const uint8_t LumaDC_VMatrix[6] = { 10, 11, 13, 14, 16, 18 };
 
-static bool lumadc_overflow_one(int16_t T, int qp, int verbose) {
-    static uint8_t  delta_buf[16] __attribute__((aligned(8)));
-    static int16_t  dc_rsp[16]    __attribute__((aligned(8)));
-    static int16_t  dc_ref[16]    __attribute__((aligned(8)));
+static bool lumadc_overflow_one(BufferTest *buf, int16_t T, int qp, int verbose) {
+    static uint8_t delta_buf[16] __attribute__((aligned(8)));
 
     memset(delta_buf, 0, sizeof(delta_buf));
     delta_buf[0] = 0x10 | 0x20;            // 16-bit | last | position 0
     delta_buf[1] = (uint8_t)(T & 0xFF);
     delta_buf[2] = (uint8_t)((T >> 8) & 0xFF);
-
-    for (int i = 0; i < 16; i++)
-        dc_rsp[i] = dc_ref[i] = (int16_t)0xDEAD;
-
     data_cache_hit_writeback_invalidate(delta_buf, sizeof(delta_buf));
 
+    // Both offsets must keep the 16-byte alignment that the command requires.
+    enum { X = 32, Y = 32 };
+    uint8_t *src1 = buf->pSrc1 + Y*SRC_PITCH + X;
+    uint8_t *src2 = buf->pSrc2 + Y*SRC_PITCH + X;
+    uint8_t *dst1 = buf->pDst1 + Y*DST_SIZE  + X;
+    uint8_t *dst2 = buf->pDst2 + Y*DST_SIZE  + X;
+
+    for (int y = -1; y < 16; y++)
+        for (int x = -1; x < 16; x++)
+            src1[y*SRC_PITCH+x] = src2[y*SRC_PITCH+x] = 128;
+
+    uint8_t ac[27] = {0};
+    ac[24] = 1;                            // LumaDC present, no AC blocks
+
+    const uint32_t mode = 2;               // OMX_VC_16X16_DC
+    const uint32_t avail = OMX_VC_UPPER | OMX_VC_LEFT | OMX_VC_UPPER_LEFT;
+
     rsph264_queue_set_packed_delta_buffer(0, delta_buf);
-    rsph264_queue_transform_dequant_lumadc(0, dc_rsp, qp);
+    rsph264_queue_process_luma_intra16_residual(0,
+        src1, dst1, SRC_PITCH, DST_SIZE,
+        mode, avail, qp, h264bsdTotalCoeffMask(ac));
     rsph264_sync();
 
     const uint8_t *p = delta_buf;
-    OMXResult err = omxVCM4P10_TransformDequantLumaDCFromPair(&p, dc_ref, qp);
+    OMXResult err = HIGHFUNC_ProcessLumaIntra16x16Residual(
+        src2, dst2, SRC_PITCH, DST_SIZE, &p, ac, mode, avail, qp);
     assert(err == OMX_Sts_NoErr);
 
-    for (int i = 0; i < 16; i++) {
-        if (dc_rsp[i] != dc_ref[i]) {
-            if (verbose >= 1) {
-                printf("FAILED qp=%d T=%d lane=%d: rsp=%d ref=%d\n",
-                    qp, T, i, (int)dc_rsp[i], (int)dc_ref[i]);
+    for (int y = 0; y < 16; y++) {
+        for (int x = 0; x < 16; x++) {
+            if (dst1[y*DST_SIZE+x] != dst2[y*DST_SIZE+x]) {
+                if (verbose >= 1) {
+                    printf("FAILED qp=%d T=%d at (%d,%d): rsp=%d ref=%d\n",
+                        qp, T, x, y,
+                        dst1[y*DST_SIZE+x], dst2[y*DST_SIZE+x]);
+                }
+                return false;
             }
-            return false;
         }
     }
     return true;
 }
 
-bool lumadc_overflow_test(int verbose) {
-    // Right-shift paths (qp/6 ∈ {0,1}): only paths where the old
-    // vmudn-based code's s16 truncation flipped T*Scale's sign. One
-    // value past the boundary per qp triggers the bug — that's the
-    // exact failure the symptom report describes (qp=5, Scale=18 →
-    // T=-1821 saturates I_16x16 MBs to luma 0xFF).
-    for (int qp = 0; qp < 12; qp++) {
+bool lumadc_overflow_test(BufferTest *buf, int verbose) {
+    // qp < 6 dequantizes as (T*Scale + 2) >> 2, so a T just past 32767/Scale
+    // overflows the s16 intermediate while leaving the DC at ±8192, well
+    // within the ±16384 that the residual IDCT accepts (it pre-shifts the
+    // coefficients by 1 to use vmulf). Truncating T*Scale to its low 16 bits
+    // flips the sign of the DC, which is the failure the symptom report
+    // describes: qp=5, Scale=18, T=-1821 saturated I_16x16 macroblocks to
+    // luma 0xFF. Both signs, as the truncation is not symmetric.
+    for (int qp = 0; qp < 6; qp++) {
         int Scale = LumaDC_VMatrix[qp % 6];
-        int16_t T = -(32767 / Scale) - 1;
-        if (!lumadc_overflow_one(T, qp, verbose)) {
+        int16_t T = 32767 / Scale + 1;
+        if (!lumadc_overflow_one(buf, -T, qp, verbose) ||
+            !lumadc_overflow_one(buf,  T, qp, verbose)) {
             printf("FAILED LumaDC overflow case: qp=%d T=%d\n", qp, T);
             return false;
         }
     }
 
-    // Shift-left paths (qp/6 ≥ 2): unaffected by the bug, but the
-    // common.inc rewrite churned surrounding code — one sanity case
-    // per bucket guards against future regressions. T=128 keeps
-    // T*Scale << shift inside s16 for every Scale and shift up to 3.
-    if (!lumadc_overflow_one(128, 12, verbose)) return false; // shift 0
-    if (!lumadc_overflow_one(128, 30, verbose)) return false; // shift 3
+    // The higher qp buckets scale the DC up instead of down, so a T that
+    // overflows the s16 intermediate also produces a DC past what the IDCT
+    // accepts, and the two failures cannot be told apart through the pixels.
+    // Sweep them with the largest T that keeps the DC in range instead, which
+    // still covers the dequantization factors of every qp.
+    for (int qp = 6; qp < 52; qp++) {
+        int Scale = LumaDC_VMatrix[qp % 6];
+        int16_t T = 60000 / (Scale << (qp / 6));
+        if (!lumadc_overflow_one(buf, -T, qp, verbose) ||
+            !lumadc_overflow_one(buf,  T, qp, verbose)) {
+            printf("FAILED LumaDC dequant case: qp=%d T=%d\n", qp, T);
+            return false;
+        }
+    }
 
     return true;
 }
@@ -1587,17 +1545,6 @@ int main(void)
     exhaustive_dequant_test(&buftest, OMX_LUMA_4x4, 4*1024, verbose);
     printf("OK\n");
 
-    printf("OMX_TransformDequantLumaDC... "); fflush(stdout);
-    exhaustive_dequant_test(&buftest, OMX_LUMADC_4x4, 4*1024, verbose);
-    printf("OK\n");
-
-    printf("OMX_TransformDequantLumaDC overflow boundary... "); fflush(stdout);
-    if (!lumadc_overflow_test(verbose)) {
-        printf("FAILED\n");
-        abort();
-    }
-    printf("OK\n");
-
     printf("OMX_TransformDequantChromaDC... "); fflush(stdout);
     exhaustive_dequant_test(&buftest, OMX_CHROMADC_2x2, 4*1024, verbose);
     printf("OK\n");
@@ -1619,16 +1566,6 @@ int main(void)
 
     IntraPredictionTest intratest;
     intratest.buf = buftest;
-
-    printf("OMX_IntraPredictLuma4x4... "); fflush(stdout);
-    intratest.func = INTRAPRED_LUMA_4X4;
-    exhaustive_intrapred_test(&intratest, 1*1024, verbose);
-    printf("OK\n");
-
-    printf("OMX_IntraPredictLuma16x16... "); fflush(stdout);
-    intratest.func = INTRAPRED_LUMA_16X16;
-    exhaustive_intrapred_test(&intratest, 2*1024, verbose);
-    printf("OK\n");
 
     printf("OMX_IntraPredictChroma8x8... "); fflush(stdout);
     intratest.func = INTRAPRED_CHROMA_8X8;
@@ -1660,6 +1597,10 @@ int main(void)
     exhaustive_dequant_test(&buftest, PROCESS_CHROMA_8x8x2, 2048, verbose);
     printf("OK\n");
 
+    printf("ProcessChromaResidual (intra ovl). "); fflush(stdout);
+    exhaustive_dequant_test(&buftest, PROCESS_CHROMA_8x8x2_INTRA, 2048, verbose);
+    printf("OK\n");
+
     printf("ProcessLumaIntra4x4Residual... "); fflush(stdout);
     intratest.func = INTRAPRED_PROCESS_LUMA4;
     exhaustive_intrapred_test(&intratest, 512, verbose);
@@ -1668,6 +1609,13 @@ int main(void)
     printf("ProcessLumaIntra16x16Residual.. "); fflush(stdout);
     intratest.func = INTRAPRED_PROCESS_LUMA16;
     exhaustive_intrapred_test(&intratest, 512, verbose);
+    printf("OK\n");
+
+    printf("TransformDequantLumaDC........ "); fflush(stdout);
+    if (!lumadc_overflow_test(&buftest, verbose)) {
+        printf("FAILED\n");
+        abort();
+    }
     printf("OK\n");
 
     printf("\nALL TESTS PASSED\n");

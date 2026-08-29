@@ -62,13 +62,28 @@ void rsph264_sync(void);
 // Overlay switches are the dominant source of RSP DMA traffic in the H264
 // decoder (each one reloads a few KiB of IMEM and DMEM), so this counter is
 // the main knob to watch when optimizing memory bandwidth.
+// Index into the per-overlay arrays below.
+#define RSPH264_STAT_INTER   0
+#define RSPH264_STAT_INTRA   1
+
 typedef struct {
 	uint32_t commands;        // Commands written into the queue
 	uint32_t ovl_switches;    // Commands that forced an overlay switch
+	// Same two counters split per overlay: cmds[i] counts the commands sent to
+	// overlay i, switches_to[i] the switches that made it the current one.
+	// Together they say how the command stream is partitioned, which is what
+	// tells whether reordering the macroblocks could merge more runs.
+	uint32_t cmds[2];
+	uint32_t switches_to[2];
 } rsph264_stats_t;
 
 void rsph264_stats_reset(void);
 void rsph264_stats_get(rsph264_stats_t *stats);
+
+// Average DMA bytes that one overlay switch costs, measured at runtime by
+// issuing no-op commands that do nothing but force switches back and forth.
+// Needs an emux-capable emulator; returns 0 elsewhere.
+uint32_t rsph264_measure_overlay_switch_cost(void);
 
 #endif
 
@@ -132,18 +147,6 @@ void rsph264_queue_interpolate_all_overfill(
     uint32_t block_size,
     uint32_t mv, uint32_t pos);
 
-void rsph264_queue_intrapred_luma_4x4(
-    int cache_flags,
-    const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
-    uint8_t *dst, uint32_t left_pitch, uint32_t dst_pitch,
-    uint32_t mode, uint32_t availability);
-
-void rsph264_queue_intrapred_luma_16x16(
-    int cache_flags,
-    const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
-    uint8_t *dst, uint32_t left_pitch, uint32_t dst_pitch,
-    uint32_t mode, uint32_t availability);
-
 void rsph264_queue_intrapred_chroma_8x8(
     int cache_flags,
     const uint8_t *src_l, const uint8_t *src_u, const uint8_t *src_ul,
@@ -199,10 +202,6 @@ void rsph264_queue_dequant_transform_residual(
 	int cache_flags,
 	uint8_t *dst, uint32_t dst_pitch,
 	const int16_t *dc, uint32_t qp, uint32_t ac);
-
-void rsph264_queue_transform_dequant_lumadc(
-	int cache_flags,
-	int16_t *dst, uint32_t qp);
 
 void rsph264_queue_transform_dequant_chromadc(
 	int cache_flags,

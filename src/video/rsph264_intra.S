@@ -8,12 +8,12 @@
     .data
 
     RSPQ_BeginOverlayHeader
-        RSPQ_DefineCommand OMX_IntraPredictLuma4x4,              32
-        RSPQ_DefineCommand OMX_IntraPredictLuma16x16,            32
         RSPQ_DefineCommand OMX_IntraPredictChroma8x8,            32
         RSPQ_DefineCommand Task_ProcessLumaIntra4x4Residual,     40
         RSPQ_DefineCommand Task_ProcessLumaIntra16x16Residual,   32
-        RSPQ_DefineCommand OMX_TransformDequantLumaDC,           12
+        RSPQ_DefineCommand Task_ProcessChromaResidual,           28
+        RSPQ_DefineCommand RSPQ_Loop,                             4
+        RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand RSPQ_Loop,                             4
@@ -25,18 +25,6 @@
         RSPQ_DefineCommand RSPQ_Loop,                             4
         RSPQ_DefineCommand Task_SetPackedDeltaBuffer,             4
     RSPQ_EndOverlayHeader
-
-#if 0
-    # NOTE: this must be at the start of the .data overlay section
-    # so that it concatenates to the main table.
-DECLARE_OMXDL_TABLE(
-    OMX_IntraPredictLuma4x4 - _start,
-    OMX_IntraPredictLuma16x16 - _start,
-    OMX_IntraPredictChroma8x8 - _start,
-    Task_ProcessLumaIntra4x4Residual - _start,
-    Task_ProcessLumaIntra16x16Residual - _start
-)
-#endif
 
 #include "rsph264_common.inc"
 
@@ -342,67 +330,6 @@ IDCCheck:
 IDCFinal:
     jr ra
     nop
-    .endfunc
-
-
-####################################################################
-# OMX_IntraPredictLuma4x4
-#
-# Intra-prediction of a 4x4 luma macroblock partition.
-####################################################################
-# ARGS:
-#   0: srcbuf_l: pointer to first pixel in left column (-1,0)
-#   1: srcbuf_u: pointer to first pixel in top column (0,-1)
-#   2: srcbuf_ul: pointer to pixel in top-left corner (-1,-1)
-#   3: dstbuf: pointer to destination buffer
-#   4: src_dma_width: pitch of the source buffers
-#   5: dst_dma_width: pitch of the destination buffers
-#   6: mode: prediction mode
-#   7: availability: bitmask of availability of neighbor macroblocks
-
-    .func OMX_IntraPredictLuma4x4
-OMX_IntraPredictLuma4x4:    
-    lw src_dma_width, CMD_ADDR(16, 32)
-    lw dst_dma_width, CMD_ADDR(20, 32)
-    lw availability, CMD_ADDR(28, 32)
-
-    # Read UL into $v00.
-    # We only care about the first pixel.
-    move s0, srcbuf_ul
-    jal IntraSrcIn
-    li t0, DMA_SIZE(8,1)
-    luv $v00,0, 0,s4
-
-    # Read U. This is a sequence of 8 bytes, so request
-    # 16 bytes because of unalignment.
-    move s0, srcbuf_u
-    jal IntraSrcIn
-    li t0, DMA_SIZE(16,1)
-    luv $v01,0, 0,s4
-
-    # Now read L. We need a 8x4 DMA transfer
-    move s0, srcbuf_l
-    jal IntraSrcIn
-    li t0, DMA_SIZE(8,4)
-
-    # Prepare arguments for IL4x4 call. S3 must point to the left buffer,
-    # and t3 must be the pitch of the buffer.
-    move s3, s4
-    li t3, 8
-
-    # Copy 8x8 macroblock partition into DMEM (MB_OUTPUT).
-    jal IntraMBInOut
-    li t2, DMA_IN   # direction: RDRAM -> DMEM
-
-    # Run intra-prediction algorithm
-    lw t2, CMD_ADDR(24, 32)    # mode
-    jal IL4X4
-    li t4, 8   # destination pitch
-
-IntraLuma4Finish:
-    # Copy 8x8 macroblock partition back into RDRAM
-    li t2, DMA_OUT   # direction: DMEM -> RDRAM
-    jal_and_j IntraMBInOut, RSPQ_Loop
     .endfunc
 
 ####################################################################
@@ -1014,35 +941,6 @@ LoopPlane8:
 ####################################################################
 ####################################################################
 
-####################################################################
-# OMX_IntraPredictLuma16x16
-#
-# Intra-prediction of a 16x16 luma macroblock partition.
-####################################################################
-# ARGS:
-#   0: srcbuf_l: pointer to first pixel in left column (-1,0)
-#   1: srcbuf_u: pointer to first pixel in top column (0,-1)
-#   2: srcbuf_ul: pointer to pixel in top-left corner (-1,-1)
-#   3: dstbuf: pointer to destination buffer
-#   4: src_dma_width: pitch of the source buffers
-#   5: dst_dma_width: pitch of the destination buffers
-#   6: mode: prediction mode
-#   7: availability: bitmask of availability of neighbor macroblocks
-
-    .func OMX_IntraPredictLuma16x16
-OMX_IntraPredictLuma16x16:    
-    lw src_dma_width, CMD_ADDR(16, 32)
-    lw dst_dma_width, CMD_ADDR(20, 32)
-    lw availability, CMD_ADDR(28, 32)
-
-    jal IL16x16
-    lw t3, CMD_ADDR(24, 32)   # mode
-
-    # Copy 16x16 macroblock back into RDRAM
-    li t2, DMA_OUT   # direction: DMEM -> RDRAM
-    jal_and_j IntraMB16InOut, RSPQ_Loop
-    .endfunc
-
 
 ####################################################################
 # IL16x16
@@ -1469,28 +1367,16 @@ LumaBlockLoopEnd:
     li s0, %lo(MB_INPUT)+INTRA4RES_INITIAL_OFFSET
     li s4, %lo(MB_OUTPUT)
 
-    # Copy 4 lines at a time
-    li t0, 3
+    # Copy one line at a time
+    li t0, 15
 Intra4Res_CopyLoop:
-    luv $v00,0, 0*8,s0  # row 0
+    luv $v00,0, 0*8,s0
     luv $v01,0, 1*8,s0
-    luv $v02,0, 5*8,s0  # row 1
-    luv $v03,0, 6*8,s0
-    luv $v04,0, 10*8,s0 # row 2
-    luv $v05,0, 11*8,s0
-    luv $v06,0, 15*8,s0 # row 3
-    luv $v07,0, 16*8,s0
     suv $v00,0, 0*8,s4
     suv $v01,0, 1*8,s4
-    suv $v02,0, 2*8,s4
-    suv $v03,0, 3*8,s4
-    suv $v04,0, 4*8,s4
-    suv $v05,0, 5*8,s4
-    suv $v06,0, 6*8,s4
-    suv $v07,0, 7*8,s4
 
-    addi s0, 4*INTRA4RES_MBINPUT_WIDTH
-    addi s4, 4*16
+    addi s0, INTRA4RES_MBINPUT_WIDTH
+    addi s4, 16
     bnez t0, Intra4Res_CopyLoop
     addi t0, -1
 
@@ -1627,34 +1513,6 @@ LumaDCEnd:
     jr ra
     sqv $v01,0, 1*16,s4
 
-    .endfunc
-
-####################################################################
-# OMX_TransformDequantLumaDC
-#
-# Reconstruct the 4x4 LumaDC block from packed delta buffer, run the
-# Hadamard inverse transform + dequantization, and DMA the result back
-# to RDRAM. Lives in the intra overlay because TransformDequantLumaDC
-# is only assembled there (inter overlay can't spare the IMEM).
-#
-#  a0: <unused>
-#  a1: dst (RDRAM, 8-byte aligned, 32 bytes)
-#  a2: qp = ((qpY/6) << 8) | (qpY%6)
-####################################################################
-    .func OMX_TransformDequantLumaDC
-OMX_TransformDequantLumaDC:
-    jal CalcDequantFactors
-    move t0, a2                  # qp (delay slot)
-
-    jal UnpackNextDeltaBlock
-    li s4, %lo(LUMA_DC)          # delay slot
-
-    jal TransformDequantLumaDC
-    move t1, a2                  # qp (delay slot)
-
-    li t0, DMA_SIZE(32, 1)
-    move s0, a1                  # dst RDRAM addr
-    jal_and_j DMAOut, RSPQ_Loop
     .endfunc
 
 
