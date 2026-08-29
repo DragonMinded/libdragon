@@ -1558,8 +1558,8 @@ Luma16Predict:
     # Go through the 16 4x4 blocks
     li npart, 0
 Luma16ResidualLoop:
-    # Read AC for the current block from TCOEFF_TABLE
-    # Read DC for the current block from LUMA_DC
+    # Check whether AC is present for this block (totalCoeffMask bit) and
+    # whether DC is non-zero (from LUMA_DC).
     lbu t1, %lo(DC_DEQUANT_INDEX)(npart)
     srlv t0, tcmask, npart
     andi t0, 1

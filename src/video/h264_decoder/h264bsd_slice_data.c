@@ -39,11 +39,6 @@
 
 #include "../profile.h"
 
-#ifdef H264BSD_N64
-#include "../rsph264_internal.h"
-#include "../fastcache.h"
-#endif
-
 /*------------------------------------------------------------------------------
     2. External compiler flags
 --------------------------------------------------------------------------------
@@ -199,22 +194,6 @@ u32 h264bsdDecodeSliceData(strmData_t *pStrmData, storage_t *pStorage,
         }
 
         if (!prevSkipped) {
-            #if H264BSD_N64_CAVLC
-            // Read back the stream buffer pointer from RSP.
-            // This does a smart sync waiting just for the CAVLC
-            // function to finish (not a full sync).
-            rsph264_cur_cavlc_buffer((const u8**)&pStrmData->pStrmCurrPos, (int*)&pStrmData->bitPosInWord);
-
-            // Copy the totalCoeff into the macroblock. This is important
-            // because CAVLC will use totalCoeff of adjacent macroblocks.
-            // (to compute the "nc" value).
-            mbStorage_t *pMb = pStorage->mb + currMbAddr;
-            H264SwDecMemcpy(pMb->totalCoeff,
-                            mbLayer->residual.totalCoeff,
-                            27*sizeof(*pMb->totalCoeff));
-            pMb->totalCoeffMask = h264bsdTotalCoeffMask(pMb->totalCoeff);
-            #endif
-
             // Update the stream buffer read bits counter.
             #ifndef H264BSD_N64
             pStrmData->strmBuffReadBits =

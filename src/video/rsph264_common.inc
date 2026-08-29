@@ -18,7 +18,6 @@
 
 # Asertion codes
 #define ASSERT_DELTA_BUFFER_TOO_SMALL  0xAF00
-#define ASSERT_CAVLC_BUFFER_TOO_SMALL  0xAF01
 
 ################################################################################
 # DATA
@@ -149,8 +148,6 @@ RSPQ_BeginSavedState
     #define PACKED_DELTA_MAX 840  // keep this in sync with rsph264.c
         # Buffer for delta coefficients
     PACKED_DELTA: .dcb.b PACKED_DELTA_MAX
-    #define CAVLC_BUF_MAX    208  // keep this in sync with rsph264.c
-    CAVLC_BUF: .dcb.b    CAVLC_BUF_MAX
 
     PACKED_DELTA_RDRAM: .long 0
     PACKED_DELTA_CUR:   .long 0
@@ -164,33 +161,6 @@ RSPQ_BeginSavedState
     # weightp is disabled.
     WEIGHT_TAB: .long 0x01000000, 0x01000000, 0x01000000
 RSPQ_EndSavedState
-
-CAVLC_BUF_RDRAM:    .long 0    # Original RDRAM pointer (start of buffer)
-CAVLC_BUF_CUR:      .long 0    # Current pointer in DMEM << 3 + bitoffset
-
-    .align 3
-    # CALVC buffer descriptor. This is synchronized back to RDRAM
-    # through CAVLCBufferUpdateRDRAM.
-CAVLC_OUT_RDRAM:    .long 0    # Updated RDRAM pointer
-CAVLC_OUT_BITOFF:   .long 0    # Updated bit offset
-
-    # TCOEFF_TABLE contains TotalCoeff coefficients for all
-    # luma/chroma blocks, with also room available for the neighbor
-    # blocks (neighbor blocks totalCoeff is used during cavlc decoding).
-    #
-    # This is the layout:
-    #
-    #          Y             Cb       Cr
-    #
-    #     24 25 26 27      32 33     36 37
-    #     -----------      -----     -- --
-    #  28| 0  1  4  5   34|16 17  38|20 21
-    #  29| 2  3  6  7   35|18 19  39|22 23
-    #  30| 8  9 12 13
-    #  31|10 11 14 15
-    #
-    .align 4
-TCOEFF_TABLE: .dcb.b 40
 
     .align 4
 LUMA_DC:            .half 0,0,0,0

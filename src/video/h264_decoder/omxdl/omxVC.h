@@ -3228,17 +3228,6 @@ OMXResult omxVCM4P10_DecodeCoeffsToPairCAVLC (
 );
 
 
-__attribute__((weak))
-OMXResult HIGHFUNC_DecodeResidual(
-    const OMX_U8 **ppSrc, OMX_S32 *pSrcBit, 
-    OMX_U8 **ppPosCoefBuf,
-    OMX_U8 *totalCoeff,
-    const OMX_U8 *totalCoeffLeft,
-    const OMX_U8 *totalCoeffUp,
-    OMX_U32 codedBlockPattern,
-    OMX_INT is16x16
-);
-
 /**
  * Function:  omxVCM4P10_TransformDequantLumaDCFromPair   (6.3.4.2.1)
  *

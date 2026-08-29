@@ -8,7 +8,6 @@
 // Activate N64 specific codepath
 #define H264BSD_N64         1
 #define H264BSD_N64_INTRA   1     // Intraprediction on RSP
-#define H264BSD_N64_CAVLC   0     // CAVLC on RSP
 
 // Disable all code related to concealment (recovering of corrupted data).
 // This must be defined before including the h264bsd headers, as it changes

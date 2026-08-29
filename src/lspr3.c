@@ -174,9 +174,9 @@ static void lspr3_decode_intra_slice(
     i32 qpY = (i32)pps.picInitQp + slice.sliceQpDelta;
     u32 currMbAddr = 0;
 
-    // Each MB writes its CAVLC packed delta records into
+    // Each MB writes its packed delta residual records into
     // mbLayer.residual.posCoefBuf, which the RSP later DMAs asynchronously.
-    // Reusing a slot before the RSP has consumed it would race MB N+1's CAVLC
+    // Reusing a slot before the RSP has consumed it would race MB N+1's CPU
     // writes against MB N's pending DMA. A 2-slot ring paced with rspq
     // syncpoints makes this deterministic: before reusing a slot we wait on
     // the syncpoint recorded right after that slot's RSP work was queued, so
@@ -221,7 +221,7 @@ static void lspr3_decode_intra_slice(
     }
 
     // Drain the RSP queue before freeing `mb`: the RSP asynchronously DMAs
-    // neighbour data and CAVLC/residual records out of it, so it must be idle
+    // neighbour data and residual records out of it, so it must be idle
     // before the memory is released.
     rsph264_sync();
     assertf(currMbAddr == pic_size_in_mbs, "H264I: incomplete slice");

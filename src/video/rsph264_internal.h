@@ -237,41 +237,6 @@ void rsph264_queue_write_macroblock(
 	uint8_t *dst_luma, uint8_t *dst_cb, uint8_t *dst_cr,
 	uint32_t mb_width);
 
-void rsph264_queue_set_cavlc_buffer(
-	int cache_flags,
-	const uint8_t *src,
-    uint8_t bitOff);
-
-void rsph264_queue_set_cavlc_buffer_if_changed(
-    int cache_flags,
-    const uint8_t *src,
-    uint8_t bitOff);
-
-void rsph264_queue_decode_coeffs_pair_cavlc(
-    int cache_flags,
-    uint8_t nc,
-    uint8_t maxcoeffs);
-
-void rsph264_queue_decode_coeffs_pair_cavlc(
-    int cache_flags,
-    uint8_t nc,
-    uint8_t maxcoeffs);
-
-void rsph264_queue_decode_chromadc_coeffs_pair_cavlc(
-    int cache_flags
-);
-
-int rsph264_DEBUG_cavlc(uint8_t* packed_delta, int *len, uint8_t *numCoeffs, uint8_t *totalZeroes);
-
-void rsph264_queue_decode_residual(
-    int cache_flags,
-    uint8_t *packedCoeff, uint8_t *totalCoeff, 
-    const uint8_t *totalCoeffLeft, const uint8_t *totalCoeffUp,
-    uint32_t codedBlockPattern, int is16x16
-);
-
-int rsph264_cur_cavlc_buffer(const uint8_t **ptr, int *bitOff);
-
 // debugging functions (only for tests)
 void rsph264_queue_debug_random_status(void);
 void rsph264_queue_debug_load_overlay(const char* ovlname);

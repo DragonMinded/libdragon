@@ -60,7 +60,6 @@
 
 #ifdef H264BSD_N64
 #include "../rsph264_internal.h"
-#include "../fastcache.h"
 #endif
 /*------------------------------------------------------------------------------
     2. External compiler flags
@@ -145,10 +144,6 @@ u32 h264bsdDecodeMacroblockLayer(strmData_t *pStrmData,
 #else
     H264SwDecMemset(pMbLayer, 0, sizeof(macroblockLayer_t));
 #endif
-
-    #if H264BSD_N64_CAVLC
-    rsph264_queue_reset_total_coeff();
-    #endif
 
     PROFILE_STOP(PS_H264_LAYER_CLEAR);
 
@@ -515,50 +510,6 @@ u32 DecodeSubMbPred(strmData_t *pStrmData, subMbPred_t *pSubMbPred,
 
 }
 
-#if H264BSD_N64_CAVLC
-
-/*------------------------------------------------------------------------------
-
-    Function: DecodeResidual
-
-        Functional description:
-          Parse residual information from bit stream and store in 'pResidual'.
-
-------------------------------------------------------------------------------*/
-
-u32 DecodeResidual(strmData_t *pStrmData, residual_t *pResidual,
-    mbStorage_t *pMb, mbType_e mbType, u32 codedBlockPattern)
-{
-    OMXResult omxRes;
-    OMX_U8 *pPosCoefBuf = pResidual->posCoefBuf;
-    OMX_U8 *totalCoeffLeft = NULL, *totalCoeffUp = NULL;
-
-    if (h264bsdIsNeighbourAvailable(pMb, pMb->mbA))
-        totalCoeffLeft = pMb->mbA->totalCoeff;
-    if (h264bsdIsNeighbourAvailable(pMb, pMb->mbB))
-        totalCoeffUp = pMb->mbB->totalCoeff;
-
-    OMX_U8 *strmCurr = STRM_CURR_PTR(pStrmData);
-    OMX_S32 strmBitOff = STRM_CURR_BITOFF(pStrmData);
-    omxRes = HIGHFUNC_DecodeResidual(
-        (const OMX_U8 **) (&strmCurr),
-        (OMX_S32*) (&strmBitOff),
-        &pPosCoefBuf,
-        pResidual->totalCoeff,
-        totalCoeffLeft,
-        totalCoeffUp,
-        codedBlockPattern,
-        h264bsdMbPartPredMode(mbType) == PRED_MODE_INTRA16x16
-    );
-    pStrmData->pCurr = ((u64)(u32)(strmCurr)<<3)+strmBitOff;
-
-    if (omxRes != OMX_Sts_NoErr) {
-        return (HANTRO_NOK);
-    }
-    return (HANTRO_OK);
-}
-
-#else
 /*------------------------------------------------------------------------------
 
     Function: DecodeResidual
@@ -746,8 +697,6 @@ u32 DecodeResidual(strmData_t *pStrmData, residual_t *pResidual,
     pResidual->totalCoeff[26] = chromaDCB;
     return (HANTRO_OK);
 }
-
-#endif
 
 /*------------------------------------------------------------------------------
 
@@ -984,12 +933,10 @@ u32 h264bsdDecodeMacroblock(mbStorage_t *pMb, macroblockLayer_t *pMbLayer,
 
         if (mbType != P_Skip)
         {
-            #if !H264BSD_N64_CAVLC
             H264SwDecMemcpy(pMb->totalCoeff,
                             pMbLayer->residual.totalCoeff,
                             27*sizeof(*pMb->totalCoeff));
             pMb->totalCoeffMask = h264bsdTotalCoeffMask(pMb->totalCoeff);
-            #endif
 
             /* update qpY */
             if (pMbLayer->mbQpDelta)
