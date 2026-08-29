@@ -14,6 +14,11 @@
     ASSERT_EQUAL_HEX(cc, exp, "invalid CC value for material " mat); \
 })
 
+#define ASSERT_REGISTER(cmd_id, expected_rgba) ({ \
+    uint32_t actual_rgba = debug_rdp_stream_find_last_cmd((cmd_id))&0xFFFFFFFF; \
+    ASSERT_EQUAL_HEX(actual_rgba, expected_rgba, "Invalid register color!"); \
+})
+
 void test_rdpq_mat_basic(TestContext *ctx)
 {
     RDPQ_INIT();
@@ -132,6 +137,150 @@ void test_rdpq_mat_blender(TestContext *ctx)
     ASSERT_MAT_SOM("blender_additive", SOM_BLEND_MASK, exp_additive);
     rdpq_mat_draw_end(blender_additive);
     ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+}
+
+void test_rdpq_mat_blender_raw(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_blender_t exp_raw = get_expected_blender(RDPQ_BLENDER2((IN_RGB,SHADE_ALPHA,FOG_RGB,INV_MUX_ALPHA),(CYCLE1_RGB,IN_ALPHA,MEMORY_RGB,INV_MUX_ALPHA)));
+    rdpq_set_mode_standard();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *blender_raw = rdpq_matdb_load(mdb, "blender_raw");
+    ASSERT(blender_raw != NULL, "Failed to load material 'blender_raw'");
+
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+    rdpq_mat_draw_begin(blender_raw);
+    ASSERT_MAT_SOM("blender_raw", SOM_BLEND_MASK, exp_raw);
+    rdpq_mat_draw_end(blender_raw);
+    ASSERT_MAT_SOM("<none>", SOM_BLEND_MASK, 0);
+}
+
+void test_rdpq_mat_blend_rgb(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *blend_rgb = rdpq_matdb_load(mdb, "blend_rgb");
+    ASSERT(blend_rgb != NULL, "Failed to load material 'blend_rgb'");
+
+    debug_rdp_stream_init();
+
+    rdpq_set_blend_color(RGBA32(255, 255, 255, 255));
+    rdpq_mat_draw_begin(blend_rgb);
+    rspq_wait();
+
+    ASSERT_REGISTER(RDPQ_CMD_SET_BLEND_COLOR, 0x1A334DFF);
+}
+
+void test_rdpq_mat_blend_rgb_with_alphacompare(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *blend_rgb_with_alphacompare = rdpq_matdb_load(mdb, "blend_rgb_with_alphacompare");
+    ASSERT(blend_rgb_with_alphacompare != NULL, "Failed to load material 'blend_rgb_with_alphacompare'");
+
+    debug_rdp_stream_init();
+
+    rdpq_set_blend_color(RGBA32(255, 255, 255, 255));
+    rdpq_mat_draw_begin(blend_rgb_with_alphacompare);
+    rspq_wait();
+
+    ASSERT_REGISTER(RDPQ_CMD_SET_BLEND_COLOR, 0x1A334D78);
+}
+
+void test_rdpq_mat_fog_rgb(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+    
+    rdpq_mat_t *fog_rgb = rdpq_matdb_load(mdb, "fog_rgb");
+    ASSERT(fog_rgb != NULL, "Failed to load material 'fog_rgb'");
+    
+    debug_rdp_stream_init();
+    
+    rdpq_set_fog_color(RGBA32(255, 255, 255, 255));
+    rdpq_mat_draw_begin(fog_rgb);
+    rspq_wait();
+    
+    ASSERT_REGISTER(RDPQ_CMD_SET_FOG_COLOR, 0x1A334DFF);
+}
+
+void test_rdpq_mat_fog_alpha(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *fog_alpha = rdpq_matdb_load(mdb, "fog_alpha");
+    ASSERT(fog_alpha != NULL, "Failed to load material 'fog_alpha'");
+
+    debug_rdp_stream_init();
+
+    rdpq_set_fog_color(RGBA32(255, 255, 255, 255));
+    rdpq_mat_draw_begin(fog_alpha);
+    rspq_wait();
+
+    ASSERT_REGISTER(RDPQ_CMD_SET_FOG_COLOR, 0xFFFFFF80);
+}
+
+void test_rdpq_mat_fog_rgb_and_alpha(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *fog_rgb_and_alpha = rdpq_matdb_load(mdb, "fog_rgb_and_alpha");
+    ASSERT(fog_rgb_and_alpha != NULL, "Failed to load material 'fog_rgb_and_alpha'");
+
+    debug_rdp_stream_init();
+
+    rdpq_set_fog_color(RGBA32(255, 255, 255, 255));
+    rdpq_mat_draw_begin(fog_rgb_and_alpha);
+    rspq_wait();
+
+    ASSERT_REGISTER(RDPQ_CMD_SET_FOG_COLOR, 0x1A334D66);
+}
+
+void test_rdpq_mat_fog_rgb_and_const(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *fog_rgb_and_const = rdpq_matdb_load(mdb, "fog_rgb_and_const");
+    ASSERT(fog_rgb_and_const != NULL, "Failed to load material 'fog_rgb_and_const'");
+
+    debug_rdp_stream_init();
+
+    rdpq_set_fog_color(RGBA32(255, 255, 255, 255));
+    rdpq_mat_draw_begin(fog_rgb_and_const);
+    rspq_wait();
+
+    ASSERT_REGISTER(RDPQ_CMD_SET_FOG_COLOR, 0x1A334D99);
+}
+
+void test_rdpq_mat_blender_const(TestContext *ctx)
+{
+    RDPQ_INIT();
+    rdpq_matdb_t *mdb = rdpq_matdb_open("rom:/basic.mdb");
+    DEFER(rdpq_matdb_close(mdb));
+
+    rdpq_mat_t *blender_multiply_const = rdpq_matdb_load(mdb, "blender_multiply_const");
+    ASSERT(blender_multiply_const != NULL, "Failed to load material 'blender_multiply_const'");
+
+    debug_rdp_stream_init();
+
+    rdpq_set_fog_color(RGBA32(255, 255, 255, 255));
+    rdpq_mat_draw_begin(blender_multiply_const);
+    rspq_wait();
+
+    ASSERT_REGISTER(RDPQ_CMD_SET_FOG_COLOR, 0xFFFFFF99);
 }
 
 void test_rdpq_mat_ext(TestContext *ctx)

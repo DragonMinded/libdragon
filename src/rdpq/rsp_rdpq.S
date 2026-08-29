@@ -47,8 +47,8 @@
         RSPQ_DefineCommand RDPQCmd_Triangle,                4   # 0xDE Triangle (assembled by RSP)
         RSPQ_DefineCommand RDPQCmd_TriangleData,            28  # 0xDF Set Triangle Data
 
-        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE0
-        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE1
+        RSPQ_DefineCommand RDPQCmd_SetFogColorComponent,    8   # 0xE0 Set Fog Color Component (rgb or alpha)
+        RSPQ_DefineCommand RDPQCmd_SetBlendColorComponent,  8   # 0xE1 Set Blend Color Component (rgb or alpha)
         RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE2
         RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE3
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE4 TEXTURE_RECTANGLE
@@ -71,8 +71,8 @@
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xF5 SET_TILE
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xF6 FILL_RECTANGLE
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xF7 SET_FILL_COLOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xF8 SET_FOG_COLOR
-        RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xF9 SET_BLEND_COLOR
+        RSPQ_DefineCommand RDPQCmd_SetFogColor,             8   # 0xF8 SET_FOG_COLOR
+        RSPQ_DefineCommand RDPQCmd_SetBlendColor,           8   # 0xF9 SET_BLEND_COLOR
         RSPQ_DefineCommand RDPQCmd_SetPrimColor,            8   # 0xFA SET_PRIM_COLOR
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xFB SET_ENV_COLOR
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xFC SET_COMBINE_MODE
@@ -108,6 +108,8 @@ RDPQ_AUTOTMEM_ENABLED:  .byte  0
     .align 4
 RDPQ_PRIM_COLOR_EX:     .word  0
 RDPQ_PRIM_COLOR_RGBA:   .word  0
+RDPQ_FOG_COLOR:         .word  0
+RDPQ_BLEND_COLOR:       .word  0
 
     .align 4
 # Stack slots for 3 saved RDP modes
@@ -148,6 +150,30 @@ RDPQCmd_Passthrough16:
 
 
     #############################################################
+    # RDPQCmd_SetFogColor
+    #
+    # Forwards the RDP command contained in a0 and a1 to the RDP stream.
+    # and saves the FOG color data into DMEM for sync
+    #############################################################
+    .func RDPQCmd_SetFogColor
+RDPQCmd_SetFogColor:
+    j RDPQCmd_Passthrough8
+    sw a1, %lo(RDPQ_FOG_COLOR)
+    .endfunc
+
+    #############################################################
+    # RDPQCmd_SetBlendColor
+    #
+    # Forwards the RDP command contained in a0 and a1 to the RDP stream.
+    # and saves the BLEND color data into DMEM for sync
+    #############################################################
+    .func RDPQCmd_SetBlendColor
+RDPQCmd_SetBlendColor:
+    j RDPQCmd_Passthrough8
+    sw a1, %lo(RDPQ_BLEND_COLOR)
+    .endfunc
+
+    #############################################################
     # RDPQCmd_SetPrimColor
     #
     # Forwards the RDP command contained in a0 and a1 to the RDP stream.
@@ -158,6 +184,58 @@ RDPQCmd_SetPrimColor:
     sw a0, %lo(RDPQ_PRIM_COLOR_EX)
     j RDPQCmd_Passthrough8
     sw a1, %lo(RDPQ_PRIM_COLOR_RGBA)
+    .endfunc
+
+    #############################################################
+    # RDPQCmd_SetFogColorComponent
+    #
+    # Sets either rgb or alpha of the fog color and submits a SET_FOG_COLOR command to the RDP
+    #############################################################
+    .func RDPQCmd_SetFogColorComponent
+RDPQCmd_SetFogColorComponent:
+    j RDPQ_SetColorRegisterComponent
+    li s1, %lo(RDPQ_FOG_COLOR)
+    .endfunc
+
+    #############################################################
+    # RDPQCmd_SetBlendColorComponent
+    #
+    # Sets either rgb or alpha of the blend color and submits a SET_BLEND_COLOR command to the RDP
+    #############################################################
+    .func RDPQCmd_SetBlendColorComponent
+RDPQCmd_SetBlendColorComponent:
+    li s1, %lo(RDPQ_BLEND_COLOR)
+    # fallthrough!
+    .endfunc
+
+    #############################################################
+    # RDPQ_SetColorRegisterComponent
+    #
+    # Sets either the rgb or alpha component of a color register pointed to by s1.
+    # - If the LSB of a0 is 0, sets rgb.
+    # - Otherwise, sets alpha.
+    # Afterwards, forwards the command in a0 and a1 to the RDP.
+    # The command is patched to be one of SET_FOG_COLOR or SET_BLEND_COLOR,
+    # corresponding to the original command.
+    #############################################################
+    .func RDPQ_SetColorRegisterComponent
+RDPQ_SetColorRegisterComponent:
+    # This results in the following mapping:
+    # * Set Fog Color Component -> SET_FOG_COLOR
+    # * Set Blend Color Component -> SET_BLEND_COLOR
+    lui t0, 0xE000 ^ 0xF800
+    xor a0, t0
+
+    lw t1, (s1)
+    andi t3, a0, 1 # the selection is stored in the lowest bit of a0
+    beqz t3, set_rgb
+    li t2, 0x000000FF
+    not t2 # invert the mask if setting alpha instead
+set_rgb:
+    and t1, t2
+    or a1, t1
+    j RDPQCmd_Passthrough8
+    sw a1, (s1)
     .endfunc
 
     #############################################################

@@ -326,7 +326,7 @@ void glAlphaFunc(GLenum func, GLclampf ref)
     case GL_ALWAYS:
         gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, alpha_func), (uint16_t)func);
         gl_set_byte(GL_UPDATE_NONE, offsetof(gl_server_state_t, alpha_ref), FLOAT_TO_U8(ref));
-        rdpq_set_blend_color(RGBA32(0, 0, 0, FLOAT_TO_U8(ref)));
+        rdpq_set_blend_color_alpha(FLOAT_TO_U8(ref));
         break;
     case GL_NEVER:
     case GL_EQUAL:

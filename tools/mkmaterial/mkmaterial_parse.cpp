@@ -89,17 +89,20 @@ std::vector<std::string> split_string(std::string str, char delimiter) {
     return tokens;
 }
 
-Vec4 parse_color(std::string value)
+Vec4 parse_color(std::string value, bool allow_alpha)
 {
     std::vector<std::string> tokens = split_string(value, ',');
     if (tokens.size() != 3 && tokens.size() != 4) {
         throw std::runtime_error("invalid color value: " + value);
     }
+    if (!allow_alpha && tokens.size() == 4) {
+        throw std::runtime_error("invalid rgb-only color value: " + value);
+    }
     Vec4 color{};
     for (size_t i = 0; i < tokens.size(); i++) {
         color[i] = parse_float(tokens[i], 0, 1);
     }
-    if (tokens.size() < 4) {
+    if (allow_alpha && tokens.size() < 4) {
         color[3] = 1;
     }
     return color;
@@ -128,7 +131,7 @@ void CombinerRegister::parse_float(std::string value)
 
 void CombinerRegister::parse_color(std::string value)
 {
-    this->value = ::parse_color(value);
+    this->value = ::parse_color(value, true);
     is_set = true;
 }
 
@@ -204,12 +207,50 @@ uint64_t Combiner::to_rdpq_mode_arg(void)
     return full.rdp_command() & ~(0x3Full << 56);
 }
 
+void BlenderRegister::parse_rgb(std::string value)
+{
+    Vec4 rgb = parse_color(value, false);
+    this->value[0] = rgb[0];
+    this->value[1] = rgb[1];
+    this->value[2] = rgb[2];
+    rgb_set = true;
+}
+
+void BlenderRegister::parse_alpha(std::string value)
+{
+    this->value[3] = parse_float(value, 0, 1);
+    alpha_set = true;
+}
+
+uint32_t BlenderRegister::get_rgb() const {
+    uint32_t result = 0;
+    size_t shift = 24;
+    for (size_t i = 0; i < 3; i++) {
+        result |= (int)(value[i] * 255 + 0.5f) << shift;
+        shift -= 8;
+    }
+    
+    return result;
+}
+
+uint8_t BlenderRegister::get_alpha() const {
+    return (int)(value[3] * 255 + 0.5f);
+}
+
 void Blender::parse_attr(std::string key, std::string value)
 {
     if (key == "mode") {
         mode = parse_enum(value, {"none", "multiply", "multiply_const", "additive"});
+    } else if (key == "mode.raw") {
+        mode_raw = parse_blender(value);
     } else if (key == "const") {
         constant = parse_float(value, 0, 1);
+    } else if (key == "reg.blend.rgb") {
+        reg_blend.parse_rgb(value);
+    } else if (key == "reg.fog.rgb") {
+        reg_fog.parse_rgb(value);
+    } else if (key == "reg.fog.alpha") {
+        reg_fog.parse_alpha(value);
     } else {
         throw std::runtime_error("Unknown blender key: " + key);
     }
@@ -223,10 +264,16 @@ void Blender::validate(void)
         throw std::runtime_error("blender.const must be specified for mode multiply_const");
     if (mode.to_str() != "multiply_const" && constant >= 0)
         throw std::runtime_error("blender.const is only valid for mode multiply_const");
+    if (mode.to_str() == "multiply_const" && reg_fog.alpha_set)
+        throw std::runtime_error("blender.reg.fog.alpha cannot be set if mode is multiply_const");
 }
 
 uint32_t Blender::to_rdpq_mode_arg(void)
 {
+    if (mode_raw.is_set) {
+        return mode_raw.blender;
+    }
+
     static const uint32_t builtin_modes[] = {
         0,
         RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, INV_MUX_ALPHA)),
@@ -235,6 +282,16 @@ uint32_t Blender::to_rdpq_mode_arg(void)
     };
 
     return builtin_modes[mode];
+}
+
+uint8_t Blender::get_fog_alpha() const {
+    if (reg_fog.alpha_set) {
+        return reg_fog.get_alpha();
+    }
+    if (constant >= 0) {
+        return (int)(constant * 255 + 0.5f);
+    }
+    return 0;
 }
 
 void Texture::validate_name(void)

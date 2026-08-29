@@ -30,6 +30,31 @@ blender.const = 0.6
 [blender_additive]
 blender.mode = additive
 
+[blender_raw]
+blender.mode.raw = (in_rgb,shade_alpha,fog_rgb,inv_mux_alpha),(cycle1_rgb,in_alpha,memory_rgb,inv_mux_alpha)
+
+[blend_rgb]
+blender.reg.blend.rgb = 0.1,0.2,0.3
+
+[blend_rgb_with_alphacompare]
+blender.reg.blend.rgb = 0.1,0.2,0.3
+rm.alpha_compare = 120
+
+[fog_rgb]
+blender.reg.fog.rgb = 0.1,0.2,0.3
+
+[fog_alpha]
+blender.reg.fog.alpha = 0.5
+
+[fog_rgb_and_alpha]
+blender.reg.fog.rgb = 0.1,0.2,0.3
+blender.reg.fog.alpha = 0.4
+
+[fog_rgb_and_const]
+blender.mode = multiply_const
+blender.const = 0.6
+blender.reg.fog.rgb = 0.1,0.2,0.3
+
 [ext_test]
 combiner.rgb = prim
 
