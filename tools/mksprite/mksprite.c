@@ -131,6 +131,8 @@ void print_args( char * name )
     fprintf(stderr, "   -f/--format <fmt>                       Specify output RDP surface format (default: AUTO)\n");
     fprintf(stderr, "   -g/--gamma                              Convert colors to linear scale (use with runtime\n");
     fprintf(stderr, "                                            VI gamma correction enabled)\n");
+    fprintf(stderr, "   -b/--bleedfix                           Extend opaque colors into transparent regions\n");
+    fprintf(stderr, "                                            to mitigate a white halo\n");
     fprintf(stderr, "   -d/--debug                              Dump computed images as PNGs (eg: mipmaps)\n");
     fprintf(stderr, "\n");
     fprintf(stderr, "Lossless sprite (default mode):\n");
@@ -978,6 +980,283 @@ bool spritemaker_gamma_correct(spritemaker_t *spr) {
     }
 
     return true;
+}
+
+
+static const struct {
+    int x, y;
+} bleedfix_neighbors[] = {
+    { 1,  0}, { 0, -1}, { 0,  1}, {-1,  0}, // 0..3 straight
+    {-1, -1}, {-1,  1}, { 1, -1}, { 1,  1}  // 4..7 diagonal
+};
+
+static int bleedfix_adjust_palette(spritemaker_t *spr) {
+    image_t *image = &spr->images[0];
+
+    int pi_edge_counts_total = 0;
+    int pi_edge_counts[256] = {};
+    int pi_transparent = -1;
+    int num_unique_edge_colors = 0;
+
+    // Find transparent color
+    for (int pi=0; pi<spr->palette.used_colors; pi++) {
+        if (spr->palette.colors[pi][3] == 0) {
+            if (pi_transparent != -1) {
+                if (flag_verbose)
+                    fprintf(stderr, "bleedfix: multiple transparent colors found in palette; can't continue\n");
+                return 0;
+            }
+            pi_transparent = pi;
+        }
+    }
+
+    if (pi_transparent == -1) {
+        if (flag_verbose)
+            fprintf(stderr, "bleedfix: no fully transparent color found in palette\n");
+        return 0;
+    }
+
+    // Count number of opaque neighbors for each transparent pixel
+    uint8_t *img = image->image;
+    for (int y=0;y<image->height;y++) {
+        for (int x=0;x<image->width;x++) {
+            int idx_center = y * image->width + x;
+            int pi_center = img[idx_center];
+
+            // If this pixel is transparent, check for opaque neighbors
+            if (pi_center == pi_transparent) {
+                int num_neighbors = 0;
+                for (int k = 0; k < 8; k++) {
+                    int nx = x + bleedfix_neighbors[k].x;
+                    int ny = y + bleedfix_neighbors[k].y;
+                    if (nx >= 0 && nx < image->width && ny >= 0 && ny < image->height) {
+                        int idx_neighbor = (ny * image->width + nx);
+                        int pi_neighbor = img[idx_neighbor];
+                        if (pi_neighbor != pi_transparent) {
+                            if (pi_edge_counts[pi_neighbor] == 0) {
+                                num_unique_edge_colors++;
+                            }
+                            num_neighbors++;
+                            pi_edge_counts[pi_neighbor]++;
+                            pi_edge_counts_total++;
+                        }
+                    }
+                    if (k == 3 && num_neighbors > 0) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Palette contains a transparent color, but the whole image is fully
+    // transparent or fully opague? We have nothing do here.
+    if (num_unique_edge_colors == 0) {
+        if (flag_verbose)
+            fprintf(stderr, "bleedfix: no transparent/opaque neighbors found\n");
+        return 0;
+    }
+
+    int num_free_colors = (image->fmt == FMT_CI4 ? 16 : 256) - spr->palette.used_colors;
+
+    // No free colors left in the palette or we only have a single unique edge
+    // color? Just replace the one existing transparent color with a better 
+    // "background color" that is the average of all edge colors.
+    if (num_free_colors == 0 || num_unique_edge_colors == 1) {
+        int r = 0, g = 0, b = 0;
+        for (int pi=0; pi<spr->palette.used_colors; pi++) {
+            if (pi != pi_transparent) {
+                r += spr->palette.colors[pi][0] * pi_edge_counts[pi];
+                g += spr->palette.colors[pi][1] * pi_edge_counts[pi];
+                b += spr->palette.colors[pi][2] * pi_edge_counts[pi];
+            }
+        }
+        
+        spr->palette.colors[pi_transparent][0] = r / pi_edge_counts_total;
+        spr->palette.colors[pi_transparent][1] = g / pi_edge_counts_total;
+        spr->palette.colors[pi_transparent][2] = b / pi_edge_counts_total;
+
+        if (flag_verbose)
+            fprintf(stderr, "bleedfix: adjusted existing transparent color in palette\n");
+        return 0;
+    }
+
+    // Multiple unique edge colors and some space in the palette?
+    // This produces a new palette with transparent colors that we can 
+    // append to the existing palette. The caller can then re-quantize with
+    // this new palette.
+    else {
+
+        // We actually have one more spot than num_free_colors available: 
+        // the existing transparent color.
+        int edge_pal_len = num_free_colors + 1;
+        uint8_t edge_pal[edge_pal_len * 4];
+
+        // Can we fit all unique edge colors into the remaining palette space?
+        if (num_unique_edge_colors <= edge_pal_len) {
+            edge_pal_len = 0;
+            for (int pi=0; pi<spr->palette.used_colors; pi++) {
+                if (pi != pi_transparent && pi_edge_counts[pi] > 0) {
+                    edge_pal[edge_pal_len * 4 + 0] = spr->palette.colors[pi][0];
+                    edge_pal[edge_pal_len * 4 + 1] = spr->palette.colors[pi][1];
+                    edge_pal[edge_pal_len * 4 + 2] = spr->palette.colors[pi][2];
+                    edge_pal[edge_pal_len * 4 + 3] = 0;
+                    edge_pal_len++;
+                }
+            }
+        }
+
+        // Less free space than unique edge colors? Create a buffer that 
+        // contains all edge colors with their counts to feed into exoquant and
+        // quantize to fill the remaining palette.
+        else {
+            uint8_t *img_edge = malloc(pi_edge_counts_total * 4);
+            int i = 0;
+            for (int pi=0; pi<spr->palette.used_colors; pi++) {
+                if (pi != pi_transparent) {
+                    for (int c = 0; c < pi_edge_counts[pi]; c++, i += 4) {
+                        img_edge[i + 0] = spr->palette.colors[pi][0];
+                        img_edge[i + 1] = spr->palette.colors[pi][1];
+                        img_edge[i + 2] = spr->palette.colors[pi][2];
+                        img_edge[i + 3] = 0;
+                    }
+                }
+            }
+
+            exq_data *exq = exq_init();
+            exq->numBitsPerChannel = 5;
+            exq_no_transparency(exq);
+            exq_feed(exq, img_edge, pi_edge_counts_total);
+            exq_quantize_hq(exq, edge_pal_len);
+            exq_get_palette(exq, edge_pal, edge_pal_len);
+            exq_free(exq);
+            free(img_edge);
+        }
+
+        // First color of the new edge palette can be stored in the original
+        // transparent color entry.
+        spr->palette.colors[pi_transparent][0] = edge_pal[0 + 0];
+        spr->palette.colors[pi_transparent][1] = edge_pal[0 + 1];
+        spr->palette.colors[pi_transparent][2] = edge_pal[0 + 2];
+        spr->palette.colors[pi_transparent][3] = edge_pal[0 + 3];
+
+        // Append all other edge colors at the end of the existing palette
+        for (int i = 1; i < edge_pal_len; i++) {
+            int pal_idx = spr->palette.used_colors + i - 1;
+            int edge_pal_idx = i * 4;
+            spr->palette.colors[pal_idx][0] = edge_pal[edge_pal_idx + 0];
+            spr->palette.colors[pal_idx][1] = edge_pal[edge_pal_idx + 1];
+            spr->palette.colors[pal_idx][2] = edge_pal[edge_pal_idx + 2];
+            spr->palette.colors[pal_idx][3] = edge_pal[edge_pal_idx + 3];
+        }
+
+        int num_new_colors = edge_pal_len - 1;
+        spr->palette.used_colors += num_new_colors;
+
+        if (flag_verbose)
+            fprintf(stderr, "bleedfix: extended palette with %d new transparent colors (total used: %d)\n", num_new_colors, spr->palette.used_colors);
+        return num_new_colors;
+    }
+}
+
+static void bleedfix_silhouette(spritemaker_t *spr, image_t *image, int bytes_per_pixel) {
+    assert(bytes_per_pixel >= 2 && bytes_per_pixel <= 4);
+
+    // We expect the alpha component in the last byte of the color, ie. after
+    // all color components.
+    uint32_t color_components = bytes_per_pixel - 1;
+
+    uint8_t *img = image->image;
+    uint32_t num_bytes = image->width * image->height * bytes_per_pixel;
+    uint8_t *img_scratch = malloc(num_bytes);
+    memcpy(img_scratch, img, num_bytes);
+
+    for (int y=0;y<image->height;y++) {
+        for (int x=0;x<image->width;x++) {
+            int idx_center = (y * image->width + x) * bytes_per_pixel;
+
+            // If this pixel is transparent, look for opaque neighbors and
+            // average their colors.
+            if (img[idx_center + color_components] == 0) {
+                int sums[3] = {};
+                int num_opaque_neighbors = 0;
+
+                for (int k = 0; k < 8; k++) {
+                    int nx = x + bleedfix_neighbors[k].x;
+                    int ny = y + bleedfix_neighbors[k].y;
+                    if (nx >= 0 && nx < image->width && ny >= 0 && ny < image->height) {
+                        int idx_neighbor = (ny * image->width + nx) * bytes_per_pixel;
+                        
+                        if (img[idx_neighbor + color_components] > 0) {
+                            for (int i = 0; i < color_components; i++) {
+                                sums[i] += img[idx_neighbor + i];
+                            }        
+                            num_opaque_neighbors++;
+                        }
+                    }
+
+                    // If this transparent pixel had opaque neighbors to the
+                    // top, left, right or bottom (i.e. the first 4 entries in 
+                    // bleedfix_neighbors), we are done for this pixel. 
+                    // Otherwise continue with checking the diagonals (the 
+                    // remaining 4 entries in bleedfix_neighbors).
+                    if (k == 3 && num_opaque_neighbors > 0) {
+                        break;
+                    }
+                }
+
+                // If we found some opaque neighbors, average all color
+                // components and write them to this pixel. The pixel's alpha
+                // component will remain at 0.
+                if (num_opaque_neighbors > 0) {
+                    for (int i = 0; i < color_components; i++) {
+                        img_scratch[idx_center + i] = sums[i] / num_opaque_neighbors;
+                    }
+                }
+            }
+        }
+    }
+    memcpy(img, img_scratch, num_bytes);
+    free(img_scratch);
+}
+
+void spritemaker_bleedfix(spritemaker_t *spr) {
+    if (spr->images[0].ct == LCT_PALETTE) {
+        int num_new_colors = bleedfix_adjust_palette(spr);
+
+        // If we were able to expand the palette with some new colors, we can 
+        // re-quantize all images to distribute those.
+        if (num_new_colors > 0) {
+            palette_t orig_palette = spr->palette;
+            int fmt_colors = spr->images[0].fmt == FMT_CI8 ? 256 : 16;
+
+            // Expand to RGBA, run bleedfix on all images and quantize again
+            spritemaker_expand_rgba(spr);
+            for (int m=0; m<MAX_IMAGES; m++) {
+                image_t *image = &spr->images[m];
+                if (image->image != NULL) {
+                    bleedfix_silhouette(spr, image, 4);
+                }
+            }
+            spritemaker_quantize(spr, orig_palette.colors[0], fmt_colors, spr->ditheralgo);
+            spr->palette = orig_palette;
+        }
+    }
+    else if (spr->images[0].ct == LCT_RGBA || spr->images[0].ct == LCT_GREY_ALPHA) {
+        if (flag_verbose)
+            fprintf(stderr, "bleedfix: expanding sprite silhouette by 1px\n");
+
+        for (int m=0; m<MAX_IMAGES; m++) {
+            image_t *image = &spr->images[m];
+            if (image->image != NULL) {
+                if (image->ct == LCT_RGBA) {
+                    bleedfix_silhouette(spr, image, 4);
+                } else if (image->ct == LCT_GREY_ALPHA) {
+                    bleedfix_silhouette(spr, image, 2);
+                }    
+            }            
+        }
+    }
 }
 
 bool spritemaker_convert_ihq(spritemaker_t *spr) {
@@ -2019,6 +2298,10 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
             goto error;
     }
 
+    // Run bleedfix last, importantly after quantization
+    if (pm->bleedfix)
+        spritemaker_bleedfix(&spr);
+
     // Dump TMEM usage
     if (flag_verbose) {
         int tmem_usage; spritemaker_fit_tmem(&spr, &tmem_usage);
@@ -2343,6 +2626,12 @@ int main(int argc, char *argv[])
                 if (pm.lossy_quality < 100) {
                     flag_lossy = true;
                 }
+            }
+
+            /* ---------------- BLEEDFIX console argument ------------------- */
+            /* -b/--bleedfix Extend opaque colors into transparent regions to mitigate a white halo */
+            else if (!strcmp(argv[i], "-b") || !strcmp(argv[i], "--bleedfix")) {
+                pm.bleedfix = 1;
             }
 
             /* ---------------- TEXTURE PARAMETERS console argument ------------------- */
