@@ -1271,9 +1271,10 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
     assertf(height <= 1024, "Texture height out of range [1,1024]: %d", height);
     assertf(index <= 15, "Lookup address index out of range [0,15]: %d", index);
     extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
+    extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
     // NOTE: we also encode the texture height in the command (split in two halves...)
     // to help the validator to a better job. The RDP hardware ignores those bits.
-    __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_TEXTURE_IMAGE,
+    (index == 0 ? __rdpq_write8_syncchange : __rdpq_fixup_write8_syncchange)(RDPQ_CMD_SET_TEXTURE_IMAGE,
         _carg(format, 0x1F, 19) | _carg(width-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
         _carg(index, 0xF, 26) | (offset & 0x1FFFFFF) | _carg((height-1)>>9, 0x1, 31),
         AUTOSYNC_PIPE);
@@ -1459,6 +1460,29 @@ inline void rdpq_set_other_modes_raw(uint64_t mode)
     __rdpq_set_other_modes(
         (mode >> 32) & 0x00FFFFFF,
         mode & 0xFFFFFFFF);
+}
+
+/**
+ * @brief Directly set the other modes register in the RDP.
+ * 
+ * This function enqueues a command directly to the RDP to set the other modes register.
+ * 
+ * Like rdpq_set_other_modes_raw this function requires a good knowledge of the
+ * RDP. Calls that modify values stored in other modes will undo changes made
+ * using this function as the rdpq overlay will not be aware of calls made to 
+ * this function because it skips the RSP altogether
+ * 
+ * @note If possible, prefer using the RDPQ mode API (defined in rdpq_mode.h),
+ * that expose a higher level API for changing the RDP modes
+ * 
+ * @param      mode     The new render mode. See the RDP_RM
+ */
+inline void rdpq_set_other_modes_unsafe(uint64_t mode) {
+    extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_OTHER_MODES,
+        (mode >> 32) & 0x00FFFFFF,
+        mode & 0xFFFFFFFF,
+        AUTOSYNC_PIPE);   
 }
 
 /**
