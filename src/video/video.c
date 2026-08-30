@@ -10,6 +10,7 @@
 #include "video_internal.h"
 #include "debug.h"
 #include "asset.h"
+#include "dlfcn.h"
 #include <sys/stat.h>
 
 static video_codec_t *registered_codecs = NULL;
@@ -102,6 +103,42 @@ void video_register_codec(video_codec_t *codec)
     }
     codec->next_codec = registered_codecs;
     registered_codecs = codec;
+}
+
+void* video_register_codec_dso(const char *dso_path) {
+    void *dso_handle = dlopen(dso_path, 0);
+    assertf(dso_handle != NULL, "DSO dlopen failed");
+
+    video_codec_t **codecp = dlsym(dso_handle, "video_codec");
+    assertf(codecp != NULL, "Can't find video_codec in DSO");
+
+    video_register_codec(*codecp);
+
+    return dso_handle;
+}
+
+void video_unregister_codec_dso(void *handle) {
+    void *dso_handle = handle;
+
+    video_codec_t **codecp = dlsym(dso_handle, "video_codec");
+
+    // Remove codec from the registered_codecs linked list
+    video_codec_t *prev = NULL;
+    video_codec_t *iter = registered_codecs;
+    while (iter) {
+        if (iter == *codecp) {
+            if (prev == NULL) {
+                registered_codecs = iter->next_codec;
+            } else {
+                prev->next_codec = iter->next_codec;
+            }
+            break;
+        }
+        prev = iter;
+        iter = iter->next_codec;
+    }
+
+    dlclose(dso_handle);
 }
 
 video_t* video_open(const char *fn, const video_parms_t *parms)

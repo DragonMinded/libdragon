@@ -136,13 +136,45 @@ typedef struct video_info_s {
  * @preview
  * 
  * This function registers a video codec into the video subsystem. It is necessary
- * to call this function for each codec that the video subsystem must support,
+ * to register each codec that the video subsystem must support,
  * before calling #video_open.
  * 
  * @param codec         Video codec to register
+ *
+ * @see video_register_codec_dso
  */
 LIBDRAGON_PREVIEW_API
 void video_register_codec(video_codec_t *codec);
+
+/**
+ * @brief Register a video codec located in a DSO
+ * @preview
+ *
+ * Build system wise, you are responsible for making the video codec DSO
+ * available at the @p dso_path path.
+ * Typically, this path would be a rom:/ path and you have to put the dso
+ * (and its sym file) into the dfs. Use n64.mk's N64_VIDEO_CODEC_*_DSO and
+ * N64_VIDEO_CODEC_*_DSO_SYM to copy the dso and sym file into your dfs.
+ *
+ * @param dso_path      Path to the DSO containing the video codec to register
+ * @return              Handle to unregister the codec with #video_unregister_codec_dso
+ *
+ * @see video_register_codec
+ * @see video_unregister_codec_dso
+ */
+LIBDRAGON_PREVIEW_API
+void* video_register_codec_dso(const char *dso_path);
+
+/**
+ * @brief Unregister a video codec located in a DSO
+ * @preview
+ *
+ * @param handle        Handle previously returned by #video_register_codec_dso
+ *
+ * @see video_register_codec_dso
+ */
+LIBDRAGON_PREVIEW_API
+void video_unregister_codec_dso(void *handle);
 
 /**
  * @brief Open a video file and decode its header info
