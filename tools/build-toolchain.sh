@@ -23,6 +23,10 @@ DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
 exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
 echo "Build started at: $(date)"
 
+# Additional directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+
 # Defines the build system variables to allow cross compilation.
 N64_BUILD=${N64_BUILD:-""}
 N64_HOST=${N64_HOST:-""}
@@ -223,7 +227,11 @@ fi
 
 # Patch GCC to build a relevant multilib environment for the N64
 pushd "gcc-$GCC_V"
-patch -p1 --forward -i ../../tools/gcc-n64-multilib.patch || if [[ $? > 1 ]]; then exit; fi
+awk -v start=": <<'__GCC_ABI_PATCH_BLOCK__'" -v end="__GCC_ABI_PATCH_BLOCK__" '
+    $0 == start {capture=1; next}
+    $0 == end {exit}
+    capture {print}
+' "$SCRIPT_PATH" | patch -p1 --forward -i - || if [[ $? > 1 ]]; then exit; fi
 popd
 
 # Build zlib. This is only required on mingw, as all other systems do have
@@ -444,3 +452,58 @@ echo "Libdragon toolchain correctly built and installed"
 echo "Installation directory: \"${N64_INST}\""
 echo "Build directory: \"${BUILD_PATH}\" (can be removed now)"
 echo "If you would like to install GDB in your toolchain, run build-gdb.sh"
+
+
+: <<'__GCC_ABI_PATCH_BLOCK__'
+diff --git a/gcc/config.gcc b/gcc/config.gcc
+index 743421768ea..d29e891f0f3 100644
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -2884,8 +2884,8 @@ mips64r5900-*-elf* | mips64r5900el-*-elf*)
+ 	tm_defines="${tm_defines} MIPS_ISA_DEFAULT=MIPS_ISA_MIPS3 MIPS_ABI_DEFAULT=ABI_N32"
+ 	;;
+ mips64-*-elf* | mips64el-*-elf*)
+-	tm_file="elfos.h newlib-stdint.h ${tm_file} mips/elf.h"
+-	tmake_file="mips/t-elf"
++	tm_file="elfos.h newlib-stdint.h ${tm_file} mips/n64.h mips/elf.h"
++	tmake_file="mips/t-n64"
+ 	tm_defines="${tm_defines} MIPS_ISA_DEFAULT=MIPS_ISA_MIPS3 MIPS_ABI_DEFAULT=ABI_O64"
+ 	;;
+ mips64vr-*-elf* | mips64vrel-*-elf*)
+diff --git a/gcc/config/mips/n64.h b/gcc/config/mips/n64.h
+new file mode 100644
+index 00000000000..92fab2d41cd
+--- /dev/null
++++ b/gcc/config/mips/n64.h
+@@ -0,0 +1,10 @@
++#undef DRIVER_SELF_SPECS
++#define DRIVER_SELF_SPECS \
++	/* Make -mabi=eabi imply 32-bit longs */			\
++	"%{mabi=eabi:%{!mlong*:-mlong32}}"                              \
++									\
++	/* Infer the default float setting from -march.  */		\
++	MIPS_ARCH_FLOAT_SPEC,						\
++									\
++	/* Configuration-independent MIPS rules.  */			\
++	BASE_DRIVER_SELF_SPECS
+diff --git a/gcc/config/mips/t-n64 b/gcc/config/mips/t-n64
+new file mode 100644
+index 00000000000..a3f7df4c808
+--- /dev/null
++++ b/gcc/config/mips/t-n64
+@@ -0,0 +1,14 @@
++MULTILIB_OPTIONS = \
++    mabi=32/mabi=o64/mabi=n32/mabi=eabi \
++    mgp32
++
++MULTILIB_DIRNAMES = \
++    o32 o64 n32 eabi \
++    gp32
++
++MULTILIB_REQUIRED = \
++    mabi=32 \
++    mabi=o64 \
++    mabi=n32 \
++    mabi=eabi \
++    mabi=eabi/mgp32
+__GCC_ABI_PATCH_BLOCK__
