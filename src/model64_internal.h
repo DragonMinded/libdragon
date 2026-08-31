@@ -9,6 +9,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include "mgfx_mesh_types.h"
+#include "rdpq_mat.h"
+
 /** @brief model64 file magic header */
 #define MODEL64_MAGIC           0x4D444C48 // "MDLH"
 /** @brief model64 loaded model buffer magic */
@@ -16,7 +19,7 @@
 /** @brief model64 owned model buffer magic */
 #define MODEL64_MAGIC_OWNED     0x4D444C4F // "MDLO"
 /** @brief Current version of model64 */
-#define MODEL64_VERSION         2
+#define MODEL64_VERSION         3
 
 /** @brief Animation component index for position. */
 #define ANIM_COMPONENT_POS 0
@@ -28,34 +31,7 @@
 /** @brief Maximum number of active animations per model instance. */
 #define MAX_ACTIVE_ANIMS 4
 
-/** @brief A special empty value for both local_texture and shared_texture fields */
-#define TEXTURE_INDEX_MISSING 0xFFFFFFLU
-
-/** @brief Parameters for a single vertex attribute (part of #primitive_t) */
-typedef struct attribute_s {
-    uint32_t size;                  ///< Number of components per vertex. If 0, this attribute is not defined
-    uint32_t type;                  ///< The data type of each component (for example GL_FLOAT)
-    uint32_t stride;                ///< The byte offset between consecutive vertices. If 0, the values are tightly packed
-    void *pointer;                  ///< Pointer to the first value
-} attribute_t;
-
-/** @brief A single draw call that makes up part of a mesh (part of #mesh_t) */
-typedef struct primitive_s {
-    uint32_t mode;                  ///< Primitive assembly mode (for example GL_TRIANGLES)
-    attribute_t position;           ///< Vertex position attribute, if defined
-    attribute_t color;              ///< Vertex color attribyte, if defined
-    attribute_t texcoord;           ///< Texture coordinate attribute, if defined
-    attribute_t normal;             ///< Vertex normals, if defined
-    attribute_t mtx_index;          ///< Matrix indices (aka bones), if defined
-    uint32_t vertex_precision;      ///< If the vertex positions use fixed point values, this defines the precision
-    uint32_t texcoord_precision;    ///< If the texture coordinates use fixed point values, this defines the precision
-    uint32_t index_type;            ///< Data type of indices (for example GL_UNSIGNED_SHORT)
-    uint32_t num_vertices;          ///< Number of vertices
-    uint32_t num_indices;           ///< Number of indices
-    uint32_t local_texture;         ///< Texture index in this model
-    uint32_t shared_texture;        ///< A shared texture index between other models
-    void *indices;                  ///< Pointer to the first index value. If NULL, indices are not used
-} primitive_t;
+#define INDEX_MISSING  -1
 
 /** @brief Transform of a node of a model */
 typedef struct node_transform_s {
@@ -72,12 +48,6 @@ typedef struct node_transform_state_s {
     float world_mtx[16];            ///< World matrix for a node
 } node_transform_state_t;
 
-/** @brief A mesh of the model */
-typedef struct mesh_s {
-    uint32_t num_primitives;        ///< Number of primitives
-    primitive_t *primitives;        ///< Pointer to the first primitive
-} mesh_t;
-
 /** @brief A joint of the model */
 typedef struct model64_joint_s {
     uint32_t node_idx;              ///< Index of node joint is attached to
@@ -93,12 +63,14 @@ typedef struct model64_skin_s {
 /** @brief A node of the model */
 typedef struct model64_node_s {
     char *name;                     ///< Name of a node
-    mesh_t *mesh;                   ///< Mesh a node refers to
+    uint32_t mesh_index;
     model64_skin_t *skin;           ///< Skin a node refers to
     node_transform_t transform;     ///< Initial transform of a node
     uint32_t parent;                ///< Index of parent node
     uint32_t num_children;          ///< Number of children nodes
     uint32_t *children;             ///< List of children node indices
+    uint32_t num_materials;
+    uint32_t *material_indices;
 } model64_node_t;
 
 /** @brief A keyframe of an animation */
@@ -123,30 +95,44 @@ typedef struct model64_anim_s {
     uint16_t *tracks;               ///< Top 2 bits: target component; lowest 14 bits: target node
 } model64_anim_t;
 
+typedef struct submesh_state_s {
+    uint32_t vertex_vbo;
+    uint32_t index_vbo;
+    uint32_t mtx_indices_vbo;
+    uint32_t vao;
+    uint32_t prim_mode;
+} submesh_state_t;
+
+typedef struct mesh_state_s {
+    submesh_state_t *submeshes;
+} mesh_state_t;
+
+typedef struct runtime_state_s {
+    mesh_state_t *meshes;
+    rdpq_mat_t **materials;
+} runtime_state_t;
+
 /** @brief A model64 file containing a model */
 typedef struct model64_data_s {
     uint32_t magic;             ///< Magic header (MODEL64_MAGIC)
     uint32_t ref_count;         ///< Number of times model data is used
     uint32_t version;           ///< Version of this file
-    uint32_t header_size;       ///< Size of the header in bytes
-    uint32_t mesh_size;         ///< Size of a mesh header in bytes
-    uint32_t primitive_size;    ///< Size of a primitive header in bytes
-    uint32_t node_size;         ///< Size of a node in bytes
-    uint32_t skin_size;         ///< Size of a skin in bytes
-    uint32_t anim_size;         ///< Size of an animation in bytes
     uint32_t num_nodes;         ///< Number of nodes
     model64_node_t *nodes;      ///< Pointer to the first node
     uint32_t root_node;         ///< Root node of the model
     uint32_t num_skins;         ///< Number of skins
     model64_skin_t *skins;      ///< Pointer to the first skin
     uint32_t num_meshes;        ///< Number of meshes
-    mesh_t *meshes;             ///< Pointer to the first mesh
+    mgfx_mesh_t *meshes;        ///< Pointer to the first mesh
     uint32_t num_anims;         ///< Number of animations
     model64_anim_t *anims;      ///< Pointer to first animation
+    uint32_t num_materials;
+    char **materials;
+    uint32_t matdb_size;
+    rdpq_matdb_t *matdb;
     uint32_t max_tracks;        ///< Maximum number of tracks for animation
     void *anim_data_handle;     ///< Handle for animation data (0 means animations are not streamed)
-    uint32_t num_textures;      ///< Number of texture paths
-    char **texture_paths;       ///< Pointer to first texture path
+    runtime_state_t *runtime_state;
 } model64_data_t;
 
 /** @brief Decoded data for a keyframe */

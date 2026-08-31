@@ -1,0 +1,573 @@
+include "rsp_magma.inc"
+#include "../../include/magma_constants.h"
+#include "gl_constants.h"
+
+//#define TRACE_VTX_LOOP          1
+
+#define SCRATCH_MAT_DIFFUSE  0x30
+#define SCRATCH_MAT_AMBIENT  0x40
+#define SCRATCH_MAT_EMISSIVE 0x50
+#define SCRATCH_RGBA_IN      0x60
+
+state
+{
+    extern u16    RSPQ_SCRATCH_MEM;
+    extern u16    MG_SCRATCH_MEM;
+    
+    extern vec16  MG_NORMAL_MASK[8];
+    
+    extern u16    MG_VERTEX_CACHE;
+    extern u16    MG_VERTEX_CACHE_END;
+    
+    extern vec16  MG_VIEWPORT[8];
+    extern vec16  MG_CLIP_FACTORS[4];
+    extern vec16  MG_VERTEX_SIZE[4];
+    extern u32    MG_VERTEX_BUFFER;
+}
+
+uniform<GLP_BINDING_MATRICES> MATRICES
+{
+    vec16 MATRICES_MVP[4];
+    vec16 MATRICES_MV[4];
+    vec16 MATRICES_NORMAL[2];
+}
+
+uniform<GLP_BINDING_TEXTURING> TEXTURING
+{
+    vec16 TEXTURE_MATRIX[3];
+    s16 TEXTURE_SIZE[2];
+    s16 TEXTURE_OFFSET[2];
+}
+
+uniform<GLP_BINDING_LIGHTING> LIGHTING
+{
+    u8 LIGHTING_LIGHTS[GLP_LIGHT_SIZE][LIGHT_COUNT];
+    s16 LIGHTING_AMBIENT[3];
+    u8 LIGHTING_HAS_POINTS;
+    u8 LIGHTING_COUNT;
+    s16 MATERIAL_DIFFUSE[4];
+    s16 MATERIAL_AMBIENT[3];
+    u16 MATERIAL_FLAGS;
+    s16 MATERIAL_EMISSIVE[3];
+}
+
+uniform<GLP_BINDING_FOG> FOG
+{
+    s16 FOG_PARAMS[3];
+    u8 FOG_MASK;
+}
+
+attribute<GLP_ATTRIBUTE_POSITION>  s16 POSITION[3];
+attribute<GLP_ATTRIBUTE_NORMAL>    s16 NORMAL?;
+attribute<GLP_ATTRIBUTE_COLOR>     u32 COLOR?;
+attribute<GLP_ATTRIBUTE_TEXCOORD>  s16 TEXCOORD[2]?;
+
+macro __pack_clip_codes(u16 codes, u16 t0, u16 t1)
+{
+    t0 = codes & 0x707;
+    t1 = t0 >> 5;
+}
+
+macro pack_clip_codes(u8 result, u16 codes)
+{
+    u16 t0, t1;
+    __pack_clip_codes(codes, t0, t1);
+    result = t0 | t1;
+}
+
+macro pack_clip_codes_inv(u8 result, u16 codes)
+{
+    u16 t0, t1;
+    __pack_clip_codes(codes, t0, t1);
+    result = t0 ~| t1;
+}
+
+macro pack_clip_codes2(u8 result0, u8 result1, u16 codes)
+{
+    u16 codes2 = codes >> 4;
+    pack_clip_codes(result0, codes);
+    pack_clip_codes(result1, codes2);
+}
+
+macro pack_clip_codes2_inv(u8 result0, u8 result1, u16 codes)
+{
+    u16 codes2 = codes >> 4;
+    pack_clip_codes_inv(result0, codes);
+    pack_clip_codes_inv(result1, codes2);
+}
+
+macro load_mat4x4(vec32 m0, vec32 m1, vec32 m2, vec32 m3, u16 address)
+{
+    m0:sint   = load(address, 0x00).xyzwxyzw;
+    m0:ufract = load(address, 0x20).xyzwxyzw;
+    m1:sint   = load(address, 0x08).xyzwxyzw;
+    m1:ufract = load(address, 0x28).xyzwxyzw;
+    m2:sint   = load(address, 0x10).xyzwxyzw;
+    m2:ufract = load(address, 0x30).xyzwxyzw;
+    m3:sint   = load(address, 0x18).xyzwxyzw;
+    m3:ufract = load(address, 0x38).xyzwxyzw;
+}
+
+shader gl_pipeline()
+{
+    u16<$t8> vtx_size;
+    u16<$t9> vtx_size2;
+    u16<$s4> vtx_in0_ptr;
+    u16<$s6> vtx_in_end;
+    u16<$s7> vtx_out0_ptr;
+
+    {
+        u32 inputs_ptr = get_cmd_address(0x2);
+        vec16 vvtx_size = load(MG_VERTEX_SIZE).xyzw;
+        vec16 vinputs = load(inputs_ptr).xyzw;
+        
+        vec32 vproducts = vinputs * vvtx_size;
+        @Barrier("inputs0") store(vproducts:ufract.xyzw, RSPQ_SCRATCH_MEM);
+        @Barrier("inputs1") store(vproducts.x, RSPQ_SCRATCH_MEM, 0x8);
+    }
+    
+    {
+        s16<$t0> dma_size;
+
+        @Barrier("inputs0") vtx_out0_ptr = load(RSPQ_SCRATCH_MEM, 0x2);
+        u16 vertices_size;
+        @Barrier("inputs0") vertices_size = load(RSPQ_SCRATCH_MEM, 0x4);
+        u32 buffer_offset;
+        @Barrier("inputs1") buffer_offset = load(RSPQ_SCRATCH_MEM, 0x8);
+        
+        u32<$s0> vtx_buffer = load(MG_VERTEX_BUFFER);
+        vtx_buffer += buffer_offset;
+        
+        u32 misalignment = buffer_offset & 0x7;
+        dma_size = vertices_size + misalignment;
+        dma_size += 0x7;
+        dma_size &= 0xFF8;
+        
+        vtx_in0_ptr = MG_VERTEX_CACHE_END;
+        vtx_in0_ptr -= dma_size;
+        
+        dma_in(vtx_in0_ptr, vtx_buffer, dma_size);
+
+        vtx_size = load(MG_VERTEX_SIZE);
+        vtx_size2 = vtx_size * 2;
+
+        vtx_in_end = vtx_in0_ptr + vertices_size;
+        vtx_out0_ptr += MG_VERTEX_CACHE;
+    }
+    
+    vec32<$v01> vmvp0;
+    vec32<$v03> vmvp1;
+    vec32<$v05> vmvp2;
+    vec32<$v07> vmvp3;
+    {
+        u16 mvpaddr = MATRICES_MVP;
+        load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, mvpaddr);
+    }
+            
+    vec16 vmn0, vmn1, vmn2;
+    vmn0 = load(MATRICES_NORMAL, 0x00).xyzwxyzw;
+    vmn1 = load(MATRICES_NORMAL, 0x08).xyzwxyzw;
+    vmn2 = load(MATRICES_NORMAL, 0x10).xyzwxyzw;
+    
+    vec16 vnormmask = load(MG_NORMAL_MASK,0x0).xyzwxyzw;
+    vec16 vnormfactor = load(MG_NORMAL_MASK,0x8).xyzwxyzw;
+
+    #ifndef ENABLE_ENV_MAP
+    u8 has_points = load(LIGHTING_HAS_POINTS);
+    #endif
+
+    u16 vtx_in1_ptr = vtx_in0_ptr + vtx_size;
+    u16 vtx_out1_ptr = vtx_out0_ptr + MG_VTX_SIZE;
+
+    u16 prev_out0 = MG_SCRATCH_MEM;
+    u16 prev_out1 = MG_SCRATCH_MEM;
+
+    u8 c0, c1, tr0, tr1;
+    
+    vec16 vpos;
+    vec16 vnorm;
+    vec16 vtex;
+    vec16 vrgba;
+    vec16 vrgba_in;
+    vec32 vpos_clip;
+
+    u16 mat_ptr_diffuse  = SCRATCH_MAT_DIFFUSE;
+    u16 mat_ptr_ambient  = SCRATCH_MAT_AMBIENT;
+    u16 mat_ptr_emissive = SCRATCH_MAT_EMISSIVE;
+
+    {
+        vec16 vdiffuse = load(MATERIAL_DIFFUSE).xyzwxyzw;
+        vec16 vambient = load(MATERIAL_AMBIENT).xyzwxyzw;
+        vec16 vemissive = load(MATERIAL_EMISSIVE).xyzwxyzw;
+
+        store(vdiffuse, MG_SCRATCH_MEM, SCRATCH_MAT_DIFFUSE);
+        store(vambient, MG_SCRATCH_MEM, SCRATCH_MAT_AMBIENT);
+        store(vemissive, MG_SCRATCH_MEM, SCRATCH_MAT_EMISSIVE);
+
+        u16 mat_flags = load(MATERIAL_FLAGS);
+        u16 tmp = mat_flags & GLP_MATERIAL_FLAG_DIFFUSE;
+        if (tmp != 0) {
+            mat_ptr_diffuse = SCRATCH_RGBA_IN;
+        }
+        tmp = mat_flags & GLP_MATERIAL_FLAG_AMBIENT;
+        if (tmp != 0 ) {
+            mat_ptr_ambient = SCRATCH_RGBA_IN;
+        }
+        tmp = mat_flags & GLP_MATERIAL_FLAG_EMISSIVE;
+        if (tmp != 0) {
+            mat_ptr_emissive = SCRATCH_RGBA_IN;
+        }
+    }
+
+    @AttrLoader("NORMAL") vnorm.x = load(vtx_in0_ptr).x;
+    @AttrLoader("NORMAL") vnorm.X = load(vtx_in1_ptr).x;
+    @AttrLoader("POSITION") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+    @AttrLoader("POSITION") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+    @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
+    @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
+
+    #ifdef TRACE_VTX_LOOP
+        asm("emux_trace_start");
+    #endif
+    {
+    VERTEX_LOOP:
+
+        @Barrier("st_c0") @Barrier("st_tr0") store(vpos_clip:sint.xyzw, prev_out0, MG_VTX_XYZ);
+        @Barrier("st_c1") @Barrier("st_tr1") store(vpos_clip:sint.XYZW, prev_out1, MG_VTX_XYZ);
+
+        @Barrier("st_c0") store(c0, prev_out0, MG_VTX_CLIP_CODE);
+        @Barrier("st_c1") store(c1, prev_out1, MG_VTX_CLIP_CODE);
+        @Barrier("st_tr0") store(tr0, prev_out0, MG_VTX_TR_CODE);
+        @Barrier("st_tr1") store(tr1, prev_out1, MG_VTX_TR_CODE);
+
+        @Barrier("st_tex0") store_vec_u8(vrgba.x, prev_out0, MG_VTX_RGBA);
+        @Barrier("st_tex1") store_vec_u8(vrgba.X, prev_out1, MG_VTX_RGBA);
+
+        @Barrier("st_tex0") store(vtex.xy, prev_out0, MG_VTX_ST);
+        @Barrier("st_tex1") store(vtex.XY, prev_out1, MG_VTX_ST);
+
+        @Barrier("unpack_col") store(vrgba_in.xyzw, RSPQ_SCRATCH_MEM);
+        @Barrier("unpack_col") vrgba_in = load_vec_u8(RSPQ_SCRATCH_MEM);
+        store(vrgba_in, MG_SCRATCH_MEM, SCRATCH_RGBA_IN);
+
+        #ifndef ENABLE_ENV_MAP
+        @Barrier("st_cp0") @Barrier("st_cp1") @Barrier("st_w0") @Barrier("st_w1") @Barrier("st_iw0") @Barrier("st_iw1") 
+        @AttrLoader("TEXCOORD") vtex.xy = load(vtx_in0_ptr).xy;
+
+        @Barrier("st_cp0") @Barrier("st_cp1") @Barrier("st_w0") @Barrier("st_w1") @Barrier("st_iw0") @Barrier("st_iw1") 
+        @AttrLoader("TEXCOORD") vtex.XY = load(vtx_in1_ptr).xy;
+        #endif
+        
+        // Eye space normals
+        vnorm = vnormmask & vnorm.xxxxXXXX;
+        vnorm *= vnormfactor;
+
+        // Clip space position
+        VTEMP = vmvp0  * vpos.xxxxXXXX;
+        VTEMP = vmvp1 +* vpos.yyyyYYYY;
+        VTEMP = vmvp2 +* vpos.zzzzZZZZ;
+        vpos_clip = vmvp3 +* 0x20;
+
+        VTEMP = vmn0:sfract  * vnorm:sfract.xxxxXXXX;
+        VTEMP = vmn1:sfract +* vnorm:sfract.yyyyYYYY;
+        vnorm = vmn2:sfract +* vnorm:sfract.zzzzZZZZ;
+
+        #ifdef ENABLE_NORMALIZE
+        {
+            vec32 vsqdist = vnorm * vnorm;
+            vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+            vsqdist = vtmp + vsqdist.zzzzZZZZ;
+
+            vec32 vinvdist;
+            vinvdist.x = invert_half_sqrt(vsqdist).x;
+            vinvdist.X = invert_half_sqrt(vsqdist).X;
+
+            vnorm *= vinvdist.xxxxXXXX;
+        }
+        #endif
+
+        {   // Clip codes
+
+            vec16 vclip_factors = load(MG_CLIP_FACTORS).xyzwxyzw;
+            vec32 vguard = vpos_clip * vclip_factors;
+            u16 clip_codes = clip(vguard, vguard.wwwwWWWW);
+            pack_clip_codes2(c0, c1, clip_codes);
+
+            // Trivial reject codes
+            u16 tr_codes = clip(vpos_clip, vpos_clip.wwwwWWWW);
+            pack_clip_codes2_inv(tr0, tr1, tr_codes);
+        }
+        
+        @Barrier("st_cp0") store(vpos_clip.xyzw, vtx_out0_ptr, MG_VTX_CS_POSi);
+        @Barrier("st_cp1") store(vpos_clip.XYZW, vtx_out1_ptr, MG_VTX_CS_POSi);
+
+        vec16 vfog;
+        {   // Fog
+            vec16 vfog_parms = load(FOG_PARAMS).xyzwxyzw;
+            vec16 vtmp:ufract = vpos_clip:ufract + vfog_parms:ufract.yyyyYYYY;
+            vfog:sint = vpos_clip:sint + vfog_parms:sint.xxxxXXXX;
+            
+            VTEMP = vtmp:ufract * vfog_parms:sint.zzzzZZZZ;
+            vfog = vfog:sint +* vfog_parms:sint.zzzzZZZZ;
+            vfog = max(VZERO, vfog.zzzzZZZZ);
+        }   
+
+        vec16 vviewscale = load(MG_VIEWPORT, 0).xyzwxyzw;
+        vec16 vviewoff = load(MG_VIEWPORT, 8).xyzwxyzw;
+
+        vpos_clip *= vviewscale:sfract.wwwwWWWW;
+        
+        // Screen space position + normalized W
+        @Barrier("st_w0") store(vpos_clip.w, vtx_out0_ptr, MG_VTX_Wi);
+        @Barrier("st_w1") store(vpos_clip.W, vtx_out1_ptr, MG_VTX_Wi);
+        
+        vec32 vinvw;
+        vinvw.w = invert_half(vpos_clip).w;
+        vinvw.W = invert_half(vpos_clip).W;
+
+        @Barrier("st_iw0") store(vinvw.w, vtx_out0_ptr, MG_VTX_INVWi);
+        @Barrier("st_iw1") store(vinvw.W, vtx_out1_ptr, MG_VTX_INVWi);
+        
+        vpos_clip *= vinvw.wwwwWWWW;
+
+        undef vinvw;
+        
+        VTEMP = vviewoff:sint * 1;
+        vpos_clip = vpos_clip +* vviewscale;
+
+        undef vviewscale;
+        undef vviewoff;
+
+        #ifndef ENABLE_ENV_MAP
+        if (has_points != 0)
+        #endif
+        {
+            u16 addr = MATRICES_MV;
+            load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
+            
+            VTEMP = vmvp0  * vpos.xxxxXXXX;
+            VTEMP = vmvp1 +* vpos.yyyyYYYY;
+            VTEMP = vmvp2 +* vpos.zzzzZZZZ;
+            vpos = vmvp3 +* 0x20;
+        }
+        
+        vrgba = load(LIGHTING_AMBIENT).xyzwxyzw;
+
+        vec16 vdiffuse = load(mat_ptr_diffuse, MG_SCRATCH_MEM);
+        vec16 vambient = load(mat_ptr_ambient, MG_SCRATCH_MEM);
+        vec16 vemissive = load(mat_ptr_emissive, MG_SCRATCH_MEM);
+
+        VTEMP = vemissive:sint * 1;
+        vrgba:sfract = vrgba:sfract +* vambient:sfract;
+
+        undef vemissive;
+
+        u8 light_count = load(LIGHTING_COUNT);
+
+        u16 light_ptr = LIGHTING_LIGHTS;
+        if (light_count == 0) goto LIGHT_END;
+        {
+        LIGHT_LOOP:
+            u16 amb_ptr = light_ptr + GLP_LIGHT_AMBIENT;
+            vec16 vlambient = load(amb_ptr, 0).xyzwxyzw;
+            vec16 vlcol = load(light_ptr, GLP_LIGHT_DIFFUSE).xyzwxyzw;
+            vec16 vlpos = load(light_ptr, GLP_LIGHT_POSITION).xyzwxyzw;
+
+            vlcol:sfract *= vdiffuse;
+            
+            s16 light_w = load(light_ptr, GLP_LIGHT_POSITIONW);
+            if (light_w != 0)
+            {
+                undef vmvp0;
+                undef vmvp1;
+                undef vmvp2;
+                undef vmvp3;
+
+                {
+                    u16 att_ptr = light_ptr + GLP_LIGHT_ATT_INT;
+                    vec32 vatten;
+                    vatten:sint = load(att_ptr, 0).xyzwxyzw;
+                    att_ptr += 6;
+                    vatten:ufract = load(att_ptr, 0).xyzwxyzw;
+
+                    vlpos -= vpos;
+                    vec32 vsqdist = vlpos * vlpos;
+                    vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+                    vsqdist = vtmp + vsqdist.zzzzZZZZ;
+                    
+                    vtmp.x = invert_half_sqrt(vsqdist).x;
+                    vtmp.X = invert_half_sqrt(vsqdist).X;
+
+                    vec32 vdist = vtmp * vsqdist;
+                    
+                    vlpos *= vtmp.xxxxXXXX;
+
+                    VTEMP = vatten * 1;
+                    VTEMP = vdist +* vatten.yyyyYYYY;
+                    vatten = vsqdist +* vatten.zzzzZZZZ;
+
+                    vatten.x = invert_half(vatten).x;
+                    vatten.X = invert_half(vatten).X;
+                    
+                    vlcol *= vatten.xxxxXXXX;
+                }
+
+                vec32<$v01> vmvp0;
+                vec32<$v03> vmvp1;
+                vec32<$v05> vmvp2;
+                vec32<$v07> vmvp3;
+
+                #ifndef ENABLE_ENV_MAP
+                u16 addr = MATRICES_MVP;
+                load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
+                #endif
+            }
+            
+            vlpos *= vnorm:sfract;
+            VTEMP = vlambient * vambient;
+            VTEMP = vlcol:sfract +* vlpos:sfract.xxxxXXXX;
+            VTEMP = vlcol:sfract +* vlpos:sfract.yyyyYYYY;
+            vlcol = vlcol:sfract +* vlpos:sfract.zzzzZZZZ;
+            vlcol = max(vlcol, VZERO);
+            
+            vrgba:sint += vlcol; // Cast to sint to force saturated addition
+            
+            light_ptr += GLP_LIGHT_SIZE;
+            light_count -= 1;
+            if (light_count != 0) goto LIGHT_LOOP;
+        }
+        
+    LIGHT_END:
+        vrgba.w = vdiffuse.w;
+        vrgba.W = vdiffuse.W;
+
+        undef vambient;
+        undef vdiffuse;
+
+        {
+            u8 fog_mask = load(FOG_MASK);
+            set_vcc(fog_mask);
+            vrgba = select(vrgba, vfog.zzzzZZZZ);
+        }
+        
+        undef vfog;
+        
+        #ifdef ENABLE_ENV_MAP
+
+        u16 addr = MATRICES_MVP;
+        load_mat4x4(vmvp0, vmvp1, vmvp2, vmvp3, addr);
+        
+        {   // Environment mapping
+            vec32 vsqdist = vpos * vpos;
+            vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+            vsqdist = vtmp + vsqdist.zzzzZZZZ;
+            
+            vtmp.x = invert_half_sqrt(vsqdist).x;
+            vtmp.X = invert_half_sqrt(vsqdist).X;
+            
+            vpos *= vtmp.xxxxXXXX;
+            undef vtmp;
+            
+            vec16 vdot = vpos:sfract * vnorm:sfract;
+            vec16 vtmp:sint = vdot + vdot.yyyyYYYY;
+            vdot:sint = vtmp + vdot.zzzzZZZZ;
+            undef vtmp;
+            vdot = min(vdot, VZERO);
+            vdot = VZERO - vdot;
+
+            vec16 vzunit = VZERO;
+            vzunit.z = vnormmask.w;
+            vzunit.Z = vnormmask.w;
+            
+            VTEMP = vnorm:sfract  * vdot.xxxxXXXX;
+            VTEMP = vnorm:sfract +* vdot.xxxxXXXX;
+            VTEMP = vpos:sint +* 1;
+            VTEMP = vzunit:sint +* 1;
+            undef vzunit;
+            undef vdot;
+            vec32 vrefl = get_acc();
+            
+            vsqdist = vrefl * vrefl;
+            vec32 vtmp = vsqdist + vsqdist.yyyyYYYY;
+            vsqdist = vtmp + vsqdist.zzzzZZZZ;
+            
+            vtmp.x = invert_half_sqrt(vsqdist).x;
+            vtmp.X = invert_half_sqrt(vsqdist).X;
+            
+            vtex = 0x80;
+            VTEMP = vtex:sint * 1;
+            vtex:sint = vrefl +* vtmp.xxxxXXXX;
+        }
+        #endif
+
+        vec32 vtex_transformed;
+
+        {
+            vec32 vmt0;
+            vec32 vmt1;
+            vec32 vmt3;
+
+            vmt0:sint   = load(TEXTURE_MATRIX, 0x00).xyzwxyzw;
+            vmt0:ufract = load(TEXTURE_MATRIX, 0x18).xyzwxyzw;
+            vmt1:sint   = load(TEXTURE_MATRIX, 0x08).xyzwxyzw;
+            vmt1:ufract = load(TEXTURE_MATRIX, 0x20).xyzwxyzw;
+            vmt3:sint   = load(TEXTURE_MATRIX, 0x10).xyzwxyzw;
+            vmt3:ufract = load(TEXTURE_MATRIX, 0x28).xyzwxyzw;
+
+            VTEMP = vmt0  * vtex.xxxxXXXX;
+            VTEMP = vmt1 +* vtex.yyyyYYYY;
+            vtex_transformed = vmt3 +* 0x100;
+        }
+
+        {
+            vec32 vinv_tex;
+            vinv_tex.x = invert_half(vtex_transformed).w;
+            vinv_tex.X = invert_half(vtex_transformed).W;
+
+            vtex_transformed *= vinv_tex.xxxxXXXX;
+        }
+
+        vec16 vtex_size, vtex_offset;
+        vtex_size.xy = load(TEXTURE_SIZE).xy;
+        vtex_size.XY = load(TEXTURE_SIZE).xy;
+        vtex_offset.xy = load(TEXTURE_OFFSET).xy;
+        vtex_offset.XY = load(TEXTURE_OFFSET).xy;
+
+        VTEMP = vtex_offset:sint * 1;
+        vtex = vtex_transformed +* vtex_size;
+
+        prev_out0 = vtx_out0_ptr;
+        prev_out1 = vtx_out1_ptr;
+        vtx_in0_ptr += vtx_size2;
+        vtx_in1_ptr += vtx_size2;
+        vtx_out0_ptr += MG_VTX_SIZE2;
+        vtx_out1_ptr += MG_VTX_SIZE2;
+
+        @AttrLoader("NORMAL") vnorm.x = load(vtx_in0_ptr).x;
+        @AttrLoader("NORMAL") vnorm.X = load(vtx_in1_ptr).x;
+        @AttrLoader("POSITION") vpos.xyzw = load(vtx_in0_ptr).xyzw;
+        @AttrLoader("POSITION") vpos.XYZW = load(vtx_in1_ptr).xyzw;
+        @AttrLoader("COLOR") vrgba_in.xy = load(vtx_in0_ptr).xy;
+        @AttrLoader("COLOR") vrgba_in.zw = load(vtx_in1_ptr).xy;
+
+        if (vtx_in0_ptr < vtx_in_end) goto VERTEX_LOOP;
+
+        #ifdef TRACE_VTX_LOOP
+            asm("emux_trace_stop");
+        #endif
+
+        @Barrier("st_c0") @Barrier("st_tr0") store(vpos_clip:sint.xyzw, prev_out0, MG_VTX_XYZ);
+        @Barrier("st_c1") @Barrier("st_tr1") store(vpos_clip:sint.XYZW, prev_out1, MG_VTX_XYZ);
+
+        @Barrier("st_c0") store(c0, prev_out0, MG_VTX_CLIP_CODE);
+        @Barrier("st_c1") store(c1, prev_out1, MG_VTX_CLIP_CODE);
+        @Barrier("st_tr0") store(tr0, prev_out0, MG_VTX_TR_CODE);
+        @Barrier("st_tr1") store(tr1, prev_out1, MG_VTX_TR_CODE);
+
+        @Barrier("st_tex0") store_vec_u8(vrgba.x, prev_out0, MG_VTX_RGBA);
+        @Barrier("st_tex1") store_vec_u8(vrgba.X, prev_out1, MG_VTX_RGBA);
+
+        @Barrier("st_tex0") store(vtex.xy, prev_out0, MG_VTX_ST);
+        @Barrier("st_tex1") store(vtex.XY, prev_out1, MG_VTX_ST);
+    }
+}

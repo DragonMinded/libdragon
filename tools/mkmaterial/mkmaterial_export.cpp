@@ -54,9 +54,13 @@ void texconvert(Texture &tex)
     static char *mksprite = NULL;
     if (!mksprite) asprintf(&mksprite, "%s/bin/mksprite", n64_inst);
 
-    // Read intput file into memory
-    verbose("converting %s...\n", tex.name.c_str());
-    auto png = slurp(tex.name.c_str());
+    // Read input file into memory
+    if (!tex.name.empty()) {
+        verbose("converting %s...\n", tex.name.c_str());
+        tex.data = slurp(tex.name.c_str());
+    } else {
+        verbose("converting embedded texture...\n");
+    }
 
     // Prepare mksprite command line
     struct subprocess_s subp;
@@ -97,7 +101,7 @@ void texconvert(Texture &tex)
     }
 
     FILE *mksprite_in = subprocess_stdin(&subp);
-    fwrite(&png[0], 1, png.size(), mksprite_in);
+    fwrite(&tex.data[0], 1, tex.data.size(), mksprite_in);
     fclose(mksprite_in); subp.stdin_file = SUBPROCESS_NULL;
 
     // Read stdout
@@ -194,11 +198,11 @@ void Material::write(FILE *f)
     if (rm.z_override >= 0)     flags |= MATFLAG_RMO_ZPRIM;
     if (rm.perspective >= 0)    flags |= MATFLAG_RMO_PERSP;
     if (rm.alpha_compare >= 0)  flags |= MATFLAG_RMO_ACMP;
-    if (has_uni(combexpr::UNIFORM_K4K5))          flags |= MATFLAG_UNIFORM_K4K5;
-    if (has_uni(combexpr::UNIFORM_CHROMAKEY))     flags |= MATFLAG_UNIFORM_CHROMAKEY;
-    if (has_uni(combexpr::UNIFORM_PRIM_LOD_FRAC)) flags |= MATFLAG_UNIFORM_PRIMLODFRAC;
-    if (has_uni(combexpr::UNIFORM_PRIM))          flags |= MATFLAG_UNIFORM_PRIM;
-    if (has_uni(combexpr::UNIFORM_ENV))           flags |= MATFLAG_UNIFORM_ENV;
+    if (has_uni(combexpr::UNIFORM_K4K5))            flags |= MATFLAG_UNIFORM_K4K5;
+    if (has_uni(combexpr::UNIFORM_CHROMAKEY))       flags |= MATFLAG_UNIFORM_CHROMAKEY;
+    if (has_uni(combexpr::UNIFORM_PRIM_LOD_FRAC))   flags |= MATFLAG_UNIFORM_PRIMLODFRAC;
+    if (has_uni(combexpr::UNIFORM_PRIM))            flags |= MATFLAG_UNIFORM_PRIM;
+    if (has_uni(combexpr::UNIFORM_ENV))             flags |= MATFLAG_UNIFORM_ENV;
 
     w16(f, flags);
     int ext_off_pos = ftell(f);

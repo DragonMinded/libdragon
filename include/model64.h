@@ -29,12 +29,6 @@ typedef enum {
 struct model64_s;
 typedef struct model64_s model64_t;
 
-struct mesh_s;
-typedef struct mesh_s mesh_t;
-
-struct primitive_s;
-typedef struct primitive_s primitive_t;
-
 struct model64_node_s;
 typedef struct model64_node_s model64_node_t;
 /// @endcond
@@ -47,21 +41,6 @@ LIBDRAGON_PREVIEW_API
 void model64_free(model64_t *model);
 LIBDRAGON_PREVIEW_API
 model64_t *model64_clone(model64_t *model);
-
-/**
- * @brief Return the number of meshes in this model.
- * @preview
- */
-LIBDRAGON_PREVIEW_API
-uint32_t model64_get_mesh_count(model64_t *model);
-
-/**
- * @brief Return the mesh at the specified index.
- * @preview
- */
-LIBDRAGON_PREVIEW_API
-mesh_t *model64_get_mesh(model64_t *model, uint32_t mesh_index);
-
 
 /**
  * @brief Return the number of nodes in this model.
@@ -120,20 +99,6 @@ LIBDRAGON_PREVIEW_API
 void model64_get_node_world_mtx(model64_t *model, model64_node_t *node, float dst[16]);
 
 /**
- * @brief Return the number of primitives in this mesh.
- * @preview
- */
-LIBDRAGON_PREVIEW_API
-uint32_t model64_get_primitive_count(mesh_t *mesh);
-
-/**
- * @brief Return the primitive at the specified index.
- * @preview
- */
-LIBDRAGON_PREVIEW_API
-primitive_t *model64_get_primitive(mesh_t *mesh, uint32_t primitive_index);
-
-/**
  * @brief Draw an entire model.
  * @preview
  * 
@@ -143,15 +108,6 @@ LIBDRAGON_PREVIEW_API
 void model64_draw(model64_t *model);
 
 /**
- * @brief Draw a single mesh.
- * @preview
- * 
- * This will draw all of the given mesh's primitives.
- */
-LIBDRAGON_PREVIEW_API
-void model64_draw_mesh(mesh_t *mesh);
-
-/**
  * @brief Draw a single node.
  * @preview
  * 
@@ -159,13 +115,6 @@ void model64_draw_mesh(mesh_t *mesh);
  */
 LIBDRAGON_PREVIEW_API
 void model64_draw_node(model64_t *model, model64_node_t *node);
-
-/**
- * @brief Draw a single primitive.
- * @preview
- */
-LIBDRAGON_PREVIEW_API
-void model64_draw_primitive(primitive_t *primitive);
 
 LIBDRAGON_PREVIEW_API
 void model64_anim_play(model64_t *model, const char *anim, model64_anim_slot_t slot, bool paused, float start_time);

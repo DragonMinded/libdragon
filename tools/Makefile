@@ -114,7 +114,7 @@ $(DECOMP_STUBS):
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
 mksprite_OBJS = mksprite/mksprite.o mksprite/mksprite_h264i.o mksprite/mksprite_bc1q.o mksprite/x264_amalgam.o mksprite/x264_amalgam2.o common/assetcomp.a
 mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o mkfont/plutosvg/plutosvg-amalgam.o common/assetcomp.a
-mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a
+mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a common/meshoptimizer/vcacheoptimizer.o
 mkmaterial_OBJS = mkmaterial/mkmaterial.o mkmaterial/mkmaterial_parse.o mkmaterial/mkmaterial_export.o common/assetcomp.a 
 combexpr_OBJS = mkmaterial/combexpr_cli.o mkmaterial/combexpr_disasm.o
 n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
@@ -132,8 +132,9 @@ n64symdump_OBJS = n64sym/n64symdump.o n64sym/n64sym_huffman.o n64sym/n64sym_shri
 n64metadata_OBJS = n64metadata.o
 ed64romconfig_OBJS = ed64romconfig.o
 n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
+mkmesh_OBJS = mkmesh/mkmesh.o common/assetcomp.a common/meshoptimizer/vcacheoptimizer.o
 n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
-TOOLS = n64tool n64metadata n64sym n64symdump n64elfcompress ed64romconfig audioconv64 videoconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel mkmaterial n64dso n64dso-msym n64dso-extern rdpvalidate combexpr cpaktool
+TOOLS = n64tool n64metadata n64sym n64symdump n64elfcompress ed64romconfig audioconv64 videoconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel mkmaterial n64dso n64dso-msym n64dso-extern rdpvalidate combexpr cpaktool mkmesh
 
 ifeq ($(OS),Windows_NT)
 MANIFEST = $(if $(findstring Windows,$(OS)),manifest.o,)

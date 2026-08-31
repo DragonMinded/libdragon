@@ -49,6 +49,8 @@ static uint32_t* hashtable_lookup_slot(hashtable_t *h, uint32_t k) {
         if (*kk == TOMBSTONE_KEY && !tomb_key) tomb_key = kk;
         if (*kk == EMPTY_KEY) return tomb_key ? tomb_key : kk;
     }
+
+    if (tomb_key) return tomb_key;
     
     // If no EMPTY_KEY was found but we saw a tombstone, reuse it.
     if (tomb_key) return tomb_key;
