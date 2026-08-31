@@ -5,6 +5,7 @@
  */
 
 #include "fmv.h"
+#include "n64sys.h"
 #include "video.h"
 #include "video_sync.h"
 #include "yuv.h"
@@ -20,7 +21,10 @@
 
 void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 {
-    video_t *video = video_open(video_fn, &(video_parms_t){ .buffered_pics = 8 });
+    int buffered_pics = (parms && parms->buffered_pics)
+        ? parms->buffered_pics
+        : (is_memory_expanded() ? 8 : 4);
+    video_t *video = video_open(video_fn, &(video_parms_t){ .buffered_pics = buffered_pics });
     video_info_t info = video_get_info(video);
     if (!parms) {
         parms = alloca(sizeof(fmv_parms_t));
