@@ -211,6 +211,11 @@ else
     fi
 fi
 
+# Patch GCC to build a relevant multilib environment for the N64
+pushd "gcc-$GCC_V"
+patch -p1 --forward -i ../../tools/gcc-n64-multilib.patch || if [[ $? > 1 ]]; then exit; fi
+popd
+
 # Build zlib. This is only required on mingw, as all other systems do have
 # zlib installed by default. So we only implement build process for mingw.
 if [ "$ZLIB_V" != "" ]; then
@@ -265,6 +270,7 @@ pushd binutils_compile_target
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
+    --enable-targets=mips64-sgi-irix6 \
     --disable-werror
 make -j "$JOBS"
 make install-strip || sudo make install-strip || su -c "make install-strip"
@@ -333,6 +339,7 @@ else
         --build="$N64_BUILD" \
         --host="$N64_HOST" \
         --target="$N64_TARGET" \
+        --enable-targets=mips64-sgi-irix6 \
         --disable-werror \
         --without-msgpack
     make -j "$JOBS"
