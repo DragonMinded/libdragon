@@ -227,11 +227,14 @@ fi
 
 # Patch GCC to build a relevant multilib environment for the N64
 pushd "gcc-$GCC_V"
+cp gcc/config.gcc.orig gcc/config.gcc || true
+cp gcc/config.gcc gcc/config.gcc.orig
+rm -f gcc/config/mips/t-n64 gcc/config/mips/n64.h
 awk -v start=": <<'__GCC_ABI_PATCH_BLOCK__'" -v end="__GCC_ABI_PATCH_BLOCK__" '
     $0 == start {capture=1; next}
     $0 == end {exit}
     capture {print}
-' "$SCRIPT_PATH" | patch -p1 --forward -i - || if [[ $? > 1 ]]; then exit; fi
+' "$SCRIPT_PATH" | patch -p1 -i -
 popd
 
 # Build zlib. This is only required on mingw, as all other systems do have
