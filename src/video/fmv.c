@@ -21,8 +21,8 @@
 
 void fmv_play(const char *video_fn, const fmv_parms_t *parms)
 {
-    int buffered_pics = (parms && parms->buffered_pics)
-        ? parms->buffered_pics
+    int buffered_pics = (parms && parms->decode_ahead_pics)
+        ? parms->decode_ahead_pics
         : (is_memory_expanded() ? 8 : 4);
     video_t *video = video_open(video_fn, &(video_parms_t){ .buffered_pics = buffered_pics });
     video_info_t info = video_get_info(video);

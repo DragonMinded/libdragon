@@ -164,12 +164,17 @@ typedef struct fmv_parms_s {
     yuv_blitter_t (*create_yuv_blitter)(void *osd_ctx, video_info_t *info);
 
     /**
-     * @brief Number of decoded pictures to buffer in the DPB.
-     *
-     * If 0, defaults to 4 on a 4 MiB N64 and 8 with an Expansion Pak. Each
-     * buffered picture adds `picSizeInMbs * 384` bytes to the DPB.
+     * @brief Number of pictures to decode ahead of the current picture.
+     * 
+     * Decoding time can vary significantly between pictures. This parameter
+     * controls how many decoded pictures the player may buffer ahead, allowing
+     * faster pictures to compensate for slower ones and reducing the risk of
+     * playback stalls. Higher values can improve playback smoothness at the cost
+     * of increased memory usage.
+     * 
+     * If 0, defaults to 4 on a 4 MiB N64 and 8 with an Expansion Pak.
      */
-    int buffered_pics;
+    int decode_ahead_pics;
 } fmv_parms_t;
 
 
