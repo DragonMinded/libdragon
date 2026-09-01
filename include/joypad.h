@@ -225,6 +225,31 @@ typedef union joypad_buttons_u
     /// @endcond
 } joypad_buttons_t;
 
+/**
+ * @brief Enumeration of individual joypad buttons.
+ *
+ * Button values correspond to bit positions in #joypad_buttons_t::raw
+ */
+typedef enum
+{
+    JOYPAD_BUTTON_A       = 0,   ///< @brief A button
+    JOYPAD_BUTTON_B       = 1,   ///< @brief B button
+    JOYPAD_BUTTON_Z       = 2,   ///< @brief Z button
+    JOYPAD_BUTTON_START   = 3,   ///< @brief Start button
+    JOYPAD_BUTTON_D_UP    = 4,   ///< @brief D-Pad Up
+    JOYPAD_BUTTON_D_DOWN  = 5,   ///< @brief D-Pad Down
+    JOYPAD_BUTTON_D_LEFT  = 6,   ///< @brief D-Pad Left
+    JOYPAD_BUTTON_D_RIGHT = 7,   ///< @brief D-Pad Right
+    JOYPAD_BUTTON_Y       = 8,   ///< @brief Y button (GameCube only)
+    JOYPAD_BUTTON_X       = 9,   ///< @brief X button (GameCube only)
+    JOYPAD_BUTTON_L       = 10,  ///< @brief L trigger (digital)
+    JOYPAD_BUTTON_R       = 11,  ///< @brief R trigger (digital)
+    JOYPAD_BUTTON_C_UP    = 12,  ///< @brief C-Up button
+    JOYPAD_BUTTON_C_DOWN  = 13,  ///< @brief C-Down button
+    JOYPAD_BUTTON_C_LEFT  = 14,  ///< @brief C-Left button
+    JOYPAD_BUTTON_C_RIGHT = 15,  ///< @brief C-Right button
+} joypad_button_t;
+
 /** @brief Joypad Inputs Unified State Structure */
 typedef struct __attribute__((packed)) joypad_inputs_s
 {
@@ -574,6 +599,42 @@ joypad_buttons_t joypad_get_buttons_released(joypad_port_t port);
 joypad_buttons_t joypad_get_buttons_held(joypad_port_t port);
 
 /**
+ * @brief Get the current state of a specific button.
+ *
+ * @param port Joypad port number (#joypad_port_t)
+ * @param button Button to check (#joypad_button_t)
+ * @return true if button is currently pressed, false otherwise
+ */
+bool joypad_get_button(joypad_port_t port, joypad_button_t button);
+
+/**
+ * @brief Check if a specific button was just pressed this frame.
+ *
+ * @param port Joypad port number (#joypad_port_t)
+ * @param button Button to check (#joypad_button_t)
+ * @return true if button transitioned from released to pressed, false otherwise
+ */
+bool joypad_get_button_pressed(joypad_port_t port, joypad_button_t button);
+
+/**
+ * @brief Check if a specific button was just released this frame.
+ *
+ * @param port Joypad port number (#joypad_port_t)
+ * @param button Button to check (#joypad_button_t)
+ * @return true if button transitioned from pressed to released, false otherwise
+ */
+bool joypad_get_button_released(joypad_port_t port, joypad_button_t button);
+
+/**
+ * @brief Check if a specific button is being held.
+ *
+ * @param port Joypad port number (#joypad_port_t)
+ * @param button Button to check (#joypad_button_t)
+ * @return true if button was pressed last frame and is still pressed, false otherwise
+ */
+bool joypad_get_button_held(joypad_port_t port, joypad_button_t button);
+
+/**
  * @brief Get the 8-way direction for a Joypad port's directional axes.
  * 
  * @param port Joypad port number (#joypad_port_t)
@@ -581,6 +642,16 @@ joypad_buttons_t joypad_get_buttons_held(joypad_port_t port);
  * @return Joypad 8-way direction enumeration value (#joypad_8way_t) 
  */
 joypad_8way_t joypad_get_direction(joypad_port_t port, joypad_2d_t axes);
+
+/**
+ * @brief Get the current analog value of an axis on a Joypad port.
+ * 
+ * @param port Joypad port number (#joypad_port_t)
+ * @param axis Joypad axis enumeration value (#joypad_axis_t)
+ * 
+ * @return Current analog axis value
+ */
+int joypad_get_axis(joypad_port_t port, joypad_axis_t axis);
 
 /**
  * @brief Get the direction of a "press" of an axis on a Joypad port.
