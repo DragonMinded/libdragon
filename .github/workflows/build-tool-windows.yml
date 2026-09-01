@@ -22,7 +22,7 @@ jobs:
             unzip
           update: true
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1 # Using a shallow checkout. Change to `0` if a full fetch is required.
 
