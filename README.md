@@ -181,6 +181,7 @@ to check the relevant header files yourself to check what is changed.
 
  * [API reference](https://dragonminded.github.io/libdragon/ref/topics.html)
  * [Examples](https://github.com/DragonMinded/libdragon/tree/trunk/examples)
+ * [ROM Metadata Viewer](https://dragonminded.github.io/libdragon/static/metadata.html)
  * [Wiki](https://github.com/DragonMinded/libdragon/wiki) (contains tutorials
    and troubleshooting guides)
  * [Discord n64brew](https://discord.gg/WqFgNWf)
