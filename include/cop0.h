@@ -349,17 +349,17 @@
 #define C0_INTERRUPT_TIMER  C0_INTERRUPT_7  ///< Status/Cause: HW interrupt 7 (Timer)
 
 /**
- * @brief Get the CE value from the COP0 status register
+ * @brief Get the CE value from the COP0 cause register
  *
  * Gets the Coprocessor unit number referenced by a coprocessor unusable
- * exception from the given COP0 Status register value.
+ * exception from the given COP0 Cause register value.
  */
 #define C0_GET_CAUSE_CE(cr) (((cr) & C0_CAUSE_CE) >> 28)
 
 /**
- * @brief Get the exception code value from the COP0 status register value
+ * @brief Get the exception code value from the COP0 cause register value
  */
-#define C0_GET_CAUSE_EXC_CODE(sr) (((sr) & C0_CAUSE_EXC_CODE) >> 2)
+#define C0_GET_CAUSE_EXC_CODE(cr) (((cr) & C0_CAUSE_EXC_CODE) >> 2)
 
 /* Flag bits valid for COP0 ENTRYLO0/ENTRYLO1 registers */
 #define C0_ENTRYLO_GLOBAL      (1<<0)       ///< ENTRYLO: mapping is global (all ASIDs)
