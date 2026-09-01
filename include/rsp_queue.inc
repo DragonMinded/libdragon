@@ -511,7 +511,7 @@ rspq_overlay_check:
 
     # Map overlay index through the ID map. This allows to resolve ID for
     # overlays that spans multiple IDs.
-    lbu ovl_index, RSPQ_OVERLAY_IDMAP(ovl_id)
+    lbu ovl_index, %lo(RSPQ_OVERLAY_IDMAP)(ovl_id)
 
     # Load the command base (index of the first command of the overlay).
     lhu t0, %lo(_ovl_data_start) + RSPQ_OH_CMDBASE
