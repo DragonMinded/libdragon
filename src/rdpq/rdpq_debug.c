@@ -123,6 +123,7 @@ static struct {
     struct { 
         bool pipe;                         ///< True if the pipe is busy (SYNC_PIPE required)
         bool tile[8];                      ///< True if each tile is a busy (SYNC_TILE required)
+        bool tile_load_only[8];            ///< True if a tile is busy only in the load pipeline
         uint8_t tmem[64];                  ///< Bitarray: busy state for each 8-byte word of TMEM (SYNC_LOAD required)
     } busy;                              ///< Busy entities (for SYNC commands)
     struct {
@@ -1302,6 +1303,7 @@ static void validate_busy_tile(int tidx) {
     VALIDATE_WARN(!rdp.busy.tile[tidx],
         "tile %d might be busy, SYNC_TILE is missing", tidx);
     rdp.busy.tile[tidx] = false;
+    rdp.busy.tile_load_only[tidx] = false;
 }
 
 /** @brief Mark TMEM as busy in range [addr..addr+size] */
@@ -1352,6 +1354,7 @@ static bool check_loading_crash(int hpixels) {
 static void validate_use_tile_internal(int tidx, int cycles, int slotid, float *texcoords, int ncoords) {
     struct tile_s *tile = &rdp.tile[tidx];
     rdp.busy.tile[tidx] = true;
+    rdp.busy.tile_load_only[tidx] = false;
     bool use_outside = false;
     float out_s, out_t;
 
@@ -1577,7 +1580,8 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         struct tile_s *t = &rdp.tile[tidx];
         validate_busy_tile(tidx);
         if (load) {
-            rdp.busy.tile[tidx] = true;  // mask as in use
+            rdp.busy.tile[tidx] = true;
+            rdp.busy.tile_load_only[tidx] = true;
             VALIDATE_CRASH_TEX(rdp.tex.size != 0, "LOAD_TILE does not support 4-bit textures");
         }
         t->has_extents = true;
@@ -1596,11 +1600,13 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         int hpixels = BITS(buf[0], 12, 23)+1;
         VALIDATE_ERR_TEX(hpixels <= 2048, "cannot load more than 2048 texels at once");
         VALIDATE_CRASH_TEX(!check_loading_crash(hpixels), "loading pixels from a misaligned texture image");
-        rdp.busy.tile[tidx] = true;  // mask as in use
+        rdp.busy.tile[tidx] = true;
+        rdp.busy.tile_load_only[tidx] = true;
     }   break;
     case 0x30: { // LOAD_TLUT
         int tidx = BITS(buf[0], 24, 26);
-        rdp.busy.tile[tidx] = true;  // mask as in use
+        rdp.busy.tile[tidx] = true;
+        rdp.busy.tile_load_only[tidx] = true;
         struct tile_s *t = &rdp.tile[tidx];
         int low = BITS(buf[0], 44, 55), high = BITS(buf[0], 12, 23);
         if (rdp.tex.size == 0)
@@ -1699,9 +1705,17 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         break;
     case 0x28: // SYNC_TILE
         memset(&rdp.busy.tile, 0, sizeof(rdp.busy.tile));
+        memset(&rdp.busy.tile_load_only, 0, sizeof(rdp.busy.tile_load_only));
         break;
     case 0x26: // SYNC_LOAD
         memset(&rdp.busy.tmem, 0, sizeof(rdp.busy.tmem));
+        /* A load sync also releases descriptors consumed only by the load
+           pipeline. Tiles sampled by rendering still require SYNC_TILE. */
+        for (int i=0; i<8; i++) {
+            if (rdp.busy.tile_load_only[i])
+                rdp.busy.tile[i] = false;
+            rdp.busy.tile_load_only[i] = false;
+        }
         break;
     case 0x2E: // SET_PRIM_DEPTH
         rdp.sent_zprim = true;

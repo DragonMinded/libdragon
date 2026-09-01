@@ -35,7 +35,7 @@
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
         RSPQ_DefineCommand RDPQCmd_SetPrimColorComponent,   8   # 0xD3 Set Primimive Color Component (minlod or primlod or rgba)
         RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4 Modify SOM
-        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xD5
+        RSPQ_DefineCommand RDPQCmd_SetTextureImageColor,    4   # 0xD5 Set current color image as texture
         RSPQ_DefineCommand RDPQCmd_SetFillColor32,          8   # 0xD6
         RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xD7
         RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
@@ -95,6 +95,9 @@ _PADDING:               .long  0
 
 RDPQ_RDRAM_STATE_ADDR:      .word  0
 RDPQ_RDRAM_SYNCPOINT_ADDR:  .word  0
+# Most recently resolved SET_COLOR_IMAGE command. This is private to the RDPQ
+# overlay: placing it in common RSPQ state consumes DMEM in every overlay.
+RDPQ_COLOR_IMAGE:           .quad  0
 
 RDPQ_ADDRESS_TABLE:     .ds.l  RDPQ_ADDRESS_TABLE_SIZE
 
@@ -376,13 +379,33 @@ RDPQCmd_SetColorImage:
     jal RDPQ_FixupAddress
     sb t0, %lo(RDPQ_TARGET_BITDEPTH)
     lui t1, 0xF000
+    or a0, t1
+    # Keep the fully resolved RDP command, including its 0xFF opcode. Other
+    # overlays and the texture-image alias below consume this exact packet.
+    sw a0, %lo(RDPQ_COLOR_IMAGE) + 0
     # Append this command to staging area
     jal RDPQ_Write8
-    or a0, t1
+    sw a1, %lo(RDPQ_COLOR_IMAGE) + 4
 
     # Append SetFillColor next, then submit everything
     lw a1, %lo(RDPQ_FILL_COLOR)
     jal_and_j RDPQ_WriteSetFillColor, RDPQ_Finalize
+    .endfunc
+
+    #############################################################
+    # RDPQCmd_SetTextureImageColor
+    #
+    # Reuses the most recently resolved color-image description as the
+    # texture image. This keeps recorded feedback blocks bound to the color
+    # image active at playback time rather than the one active at recording.
+    #############################################################
+    .func RDPQCmd_SetTextureImageColor
+RDPQCmd_SetTextureImageColor:
+    lw a0, %lo(RDPQ_COLOR_IMAGE) + 0
+    lw a1, %lo(RDPQ_COLOR_IMAGE) + 4
+    lui t0, 0x0200              # SET_COLOR_IMAGE (0xFF) -> SET_TEXTURE_IMAGE (0xFD)
+    xor a0, t0
+    jal_and_j RDPQ_Write8, RDPQ_Finalize
     .endfunc
 
     #############################################################

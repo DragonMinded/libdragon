@@ -23,6 +23,7 @@ EXAMPLES += mixertest
 EXAMPLES += ovldemo
 EXAMPLES += overlays
 EXAMPLES += pixelshader
+EXAMPLES += rdpqblendfx
 EXAMPLES += rdpqdemo
 EXAMPLES += rspqdemo
 EXAMPLES += rtctest
