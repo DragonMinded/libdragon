@@ -34,6 +34,7 @@ RUN --mount=target=/var/lib/apt/lists,type=cache,sharing=locked \
         texinfo \
         wget \
         zlib1g-dev \
+        patch \
     && apt autoremove -yq
 
 # Copy the build scripts into the container
