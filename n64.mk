@@ -76,8 +76,13 @@ N64_DSO = $(N64_BINDIR)/n64dso
 N64_DSOEXTERN = $(N64_BINDIR)/n64dso-extern
 N64_DSOMSYM = $(N64_BINDIR)/n64dso-msym
 
-N64_VIDEO_CODEC_H264_DSO := $(N64_LIBDIR)/dso/video_codec_h264.dso
-N64_VIDEO_CODEC_H264_DSO_SYM := $(N64_LIBDIR)/dso/video_codec_h264.dso.sym
+define n64_video_codec_h264_dso_template =
+$(1) $(1).sym: $$(N64_LIBDIR)/dso/video_codec_h264.dso $$(N64_LIBDIR)/dso/video_codec_h264.dso.sym
+	@mkdir -p "$$(dir $(1))"
+	@echo "    [CP DSO] $(1)"
+	cp $$(N64_LIBDIR)/dso/video_codec_h264.dso $(1)
+	cp $$(N64_LIBDIR)/dso/video_codec_h264.dso.sym $(1).sym
+endef
 
 N64_C_AND_CXX_FLAGS =  -march=vr4300 -mtune=vr4300 -mabi=o64 -I$(N64_INCLUDEDIR)/newlib_overrides -I$(N64_INCLUDEDIR) -include ktls.h
 N64_C_AND_CXX_FLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c

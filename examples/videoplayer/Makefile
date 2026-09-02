@@ -67,11 +67,7 @@ filesystem/caminandes.wav64: filesystem/caminandes.h264
 filesystem/caminandes.seek: filesystem/caminandes.h264
 
 ifeq ($(VIDEO_CODEC_IN_DSO),1)
-filesystem/video_codec_h264.dso filesystem/video_codec_h264.dso.sym: $(N64_VIDEO_CODEC_H264_DSO) $(N64_VIDEO_CODEC_H264_DSO_SYM)
-	@mkdir -p "$(dir $@)"
-	@echo "    [CP DSO] $@"
-	cp $(N64_VIDEO_CODEC_H264_DSO) filesystem/video_codec_h264.dso
-	cp $(N64_VIDEO_CODEC_H264_DSO_SYM) filesystem/video_codec_h264.dso.sym
+$(eval $(call n64_video_codec_h264_dso_template,filesystem/video_codec_h264.dso))
 
 MAIN_ELF_EXTERNS := $(BUILD_DIR)/videoplayer.externs
 

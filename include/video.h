@@ -153,8 +153,11 @@ void video_register_codec(video_codec_t *codec);
  * Build system wise, you are responsible for making the video codec DSO
  * available at the @p dso_path path.
  * Typically, this path would be a rom:/ path and you have to put the dso
- * (and its sym file) into the dfs. Use n64.mk's N64_VIDEO_CODEC_*_DSO and
- * N64_VIDEO_CODEC_*_DSO_SYM to copy the dso and sym file into your dfs.
+ * files into the dfs. Use n64.mk's n64_video_codec_h264_dso_template
+ * to copy the dso files into your dfs, for example add in your Makefile:
+ * @code{makefile}
+ *      $(eval $(call n64_video_codec_h264_dso_template,filesystem/video_codec_h264.dso))
+ * @endcode
  *
  * @param dso_path      Path to the DSO containing the video codec to register
  * @return              Handle to unregister the codec with #video_unregister_codec_dso
