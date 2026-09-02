@@ -1,27 +1,20 @@
-############################################################
-# rsp_gl_state.inc
-#
-# Authors: Giovanni Bajo <giovannibajo@gmail.com>
-#          Dennis Heinze <dennisjp.heinze@gmail.com>
-############################################################
 GL_STATE:
-    # This is the GL state that is also used by the pipeline.
     GL_MATRICES:
         GL_MATRIX_MODELVIEW:    .ds.b   MATRIX_SIZE
         GL_MATRIX_PROJECTION:   .ds.b   MATRIX_SIZE
         GL_MATRIX_TEXTURE:      .ds.b   MATRIX_SIZE
         GL_MATRIX_PALETTE:      .ds.b   MATRIX_SIZE
-        GL_MATRIX_MVP:          .ds.b   MATRIX_SIZE
-    GL_LIGHTS:              .ds.b   LIGHT_STRUCT_SIZE
+    GL_LIGHTS:              .ds.b   GLP_LIGHT_SIZE * LIGHT_COUNT
     GL_TEX_GEN:             .ds.b   TEX_GEN_STRUCT_SIZE
     GL_VIEWPORT_SCALE:      .half   0,0,0,0
     GL_VIEWPORT_OFFSET:     .half   0,0,0,0
+    GL_PIPELINES:           .ds.d   PIPELINE_COUNT
     GL_STATE_LIGHT_AMBIENT: .half   0,0,0,0
     GL_MAT_AMBIENT:         .half   0,0,0,0
     GL_MAT_DIFFUSE:         .half   0,0,0,0
     GL_MAT_SPECULAR:        .half   0,0,0,0
     GL_MAT_EMISSIVE:        .half   0,0,0,0
-    GL_MAT_COLOR_TARGET:    .half   0,0,0
+    GL_MAT_COLOR_TARGET:    .half   0
     GL_MAT_SHININESS:       .half   0
     GL_CURRENT_ATTRIBUTES:
         GL_CUR_COLOR:       .half   0,0,0,0
@@ -33,8 +26,6 @@ GL_STATE:
         GL_PROJECTION_PTR:      .word   0
         GL_TEXTURE_PTR:         .word   0
         GL_PALETTE_PTR:         .word   0
-        GL_MVP_PTR:             .word   0
-    GL_LOADED_MTX_INDEX:    .word   0,0
     GL_STATE_FLAGS:         .word   0
     GL_STATE_FOG_PARAMS:    .half   0,0,0,0
     GL_STATE_TEX_SIZE:      .half   0,0
@@ -49,7 +40,27 @@ GL_STATE:
     GL_STATE_MATRIX_MODE:   .half   0
     GL_TRI_CMD:             .half   0
     GL_TRI_CULL:            .byte   0,0
-    .align 3
-GL_STATE_END:
 
-#define GL_STATE_SIZE       (GL_STATE_END - GL_STATE)
+    .align 3
+    GL_BOUND_TEXTURES:
+        GL_BOUND_TEXTURE_1D:    .ds.b   TEXTURE_OBJECT_SIZE
+        GL_BOUND_TEXTURE_2D:    .ds.b   TEXTURE_OBJECT_SIZE
+    GL_STATE_SCISSOR_RECT:  .half   0, 0, 0, 0
+    GL_STATE_BLEND_CYCLE:   .word   0
+    GL_STATE_FOG_COLOR:     .word   0
+    GL_STATE_FLAGS2:        .word   0
+    GL_STATE_TEXTURE_IDS:   .word   0, 0
+    GL_STATE_UPLOADED_TEX:  .word   0
+    GL_STATE_FILL_COLOR:    .word   0
+    GL_STATE_FILL_DEPTH:    .word   0
+    GL_STATE_PALETTE_INDEX: .word   0
+    GL_STATE_DITHER_MODE:   .word   0
+    GL_STATE_FB_SIZE:       .half   0, 0
+    GL_STATE_DEPTH_FUNC:    .half   0
+    GL_STATE_ALPHA_FUNC:    .half   0
+    GL_STATE_BLEND_SRC:     .half   0
+    GL_STATE_BLEND_DST:     .half   0
+    GL_STATE_TEX_ENV_MODE:  .half   0
+    GL_STATE_ALPHA_REF:     .byte   0
+    GL_STATE_PALETTE_DIRTY: .ds.b   PALETTE_DIRTY_FLAGS_SIZE
+GL_STATE_END:

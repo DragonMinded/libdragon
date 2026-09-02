@@ -6,7 +6,7 @@
 #include "gl_internal.h"
 #include "rspq.h"
 
-#define EMPTY_LIST ((rspq_block_t*)1)
+#define EMPTY_LIST ((rspq_block_t*)VirtualCachedAddr(1))
 
 extern gl_state_t *state;
 
@@ -17,7 +17,7 @@ inline bool is_non_empty_list(rspq_block_t *block)
     return block != NULL && block != EMPTY_LIST;
 }
 
-void block_free_safe(rspq_block_t *block)
+void list_free(rspq_block_t *block)
 {
     // Silently ignore NULL and EMPTY_LIST
     if (!is_non_empty_list(block)) return;
@@ -26,19 +26,19 @@ void block_free_safe(rspq_block_t *block)
 
 void gl_list_init()
 {
-    // TODO: Get rid of the hash map. This will be difficult due to the semantics of glGenLists (it's guaranteed to generate consecutive IDs)
-    obj_map_new(&state->list_objects);
+    hashtable_init(&state->lists, 8, NULL);
     state->next_list_name = 1;
+}
+
+static void list_free_visitor(uint32_t key, void *value, int refcount)
+{
+    list_free((rspq_block_t*)value);
 }
 
 void gl_list_close()
 {
-    obj_map_iter_t list_iter = obj_map_iterator(&state->list_objects);
-    while (obj_map_iterator_next(&list_iter)) {
-        block_free_safe((rspq_block_t*)list_iter.value);
-    }
-
-    obj_map_free(&state->list_objects);
+    hashtable_visit(&state->lists, list_free_visitor);
+    hashtable_free(&state->lists);
 }
 
 void glNewList(GLuint n, GLenum mode)
@@ -82,8 +82,8 @@ void glEndList(void)
 
     rspq_block_t *block = rspq_block_end();
 
-    block = obj_map_set(&state->list_objects, state->current_list, block);
-    block_free_safe(block);
+    list_free(hashtable_remove(&state->lists, state->current_list));
+    hashtable_insert(&state->lists, state->current_list, block);
 
     state->current_list = 0;
 }
@@ -94,7 +94,7 @@ void glCallList(GLuint n)
     // During display list recording, we cannot anticipate whether it will be called within a glBegin/glEnd pair or not.
     assertf(!state->begin_end_active, "glCallList between glBegin/glEnd is not supported!");
 
-    rspq_block_t *block = obj_map_get(&state->list_objects, n);
+    rspq_block_t *block = hashtable_lookup(&state->lists, n);
     // Silently ignore NULL and EMPTY_LIST
     if (is_non_empty_list(block)) {
         rspq_block_run(block);
@@ -222,7 +222,7 @@ GLuint glGenLists(GLsizei s)
     // Set newly used indices to empty lists (which marks them as used without actually creating a block)
     for (size_t i = 0; i < s; i++)
     {
-        obj_map_set(&state->list_objects, state->next_list_name++, EMPTY_LIST);
+        hashtable_insert(&state->lists, state->next_list_name++, EMPTY_LIST);
     }
     
     return result;
@@ -233,7 +233,7 @@ GLboolean glIsList(GLuint list)
     if (!gl_ensure_no_begin_end()) return 0;
     
     // We do not check for EMPTY_LIST here because that also denotes a used list index
-    return obj_map_get(&state->list_objects, list) != NULL;
+    return hashtable_lookup(&state->lists, list) != NULL;
 }
 
 void glDeleteLists(GLuint list, GLsizei range)
@@ -242,7 +242,6 @@ void glDeleteLists(GLuint list, GLsizei range)
     
     for (GLuint i = 0; i < range; i++)
     {
-        rspq_block_t *block = obj_map_remove(&state->list_objects, list + i);
-        block_free_safe(block);
+        list_free(hashtable_remove(&state->lists, list + i));
     }
 }

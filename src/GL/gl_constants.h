@@ -5,6 +5,11 @@
 #ifndef __GL_CONSTANTS
 #define __GL_CONSTANTS
 
+#include "../../include/mgfx_constants.h"
+
+#define PIPELINE_FEATURE_COUNT          2
+#define PIPELINE_COUNT                  (1<<PIPELINE_FEATURE_COUNT)
+
 #define MODELVIEW_STACK_SIZE  32
 #define PROJECTION_STACK_SIZE 2
 #define TEXTURE_STACK_SIZE    2
@@ -12,6 +17,8 @@
 
 #define VERTEX_UNIT_COUNT     1
 #define MATRIX_PALETTE_SIZE   32
+
+#define MATRICES_SIZE         160
 
 #define VERTEX_CACHE_SIZE     32
 
@@ -30,18 +37,12 @@
 #define TEX_GEN_INTEGER_OFFSET  0
 #define TEX_GEN_FRACTION_OFFSET 64
 #define TEX_GEN_MODE_OFFSET     128
+#define TEX_GEN_MODE_T_OFFSET   130
 #define TEX_GEN_CONST_SIZE      (4*2)
 
-#define LIGHT_COUNT           8
-#define LIGHT_ATTR_SIZE       8
-#define LIGHT_ATTR_ARRAY_SIZE (LIGHT_COUNT*LIGHT_ATTR_SIZE)
-#define LIGHT_STRUCT_SIZE     (LIGHT_ATTR_ARRAY_SIZE*5)
+#define TEX_SIZE_SHIFT       6
 
-#define LIGHT_POSITION_OFFSET           (LIGHT_ATTR_ARRAY_SIZE*0)
-#define LIGHT_AMBIENT_OFFSET            (LIGHT_ATTR_ARRAY_SIZE*1)
-#define LIGHT_DIFFUSE_OFFSET            (LIGHT_ATTR_ARRAY_SIZE*2)
-#define LIGHT_ATTENUATION_INT_OFFSET    (LIGHT_ATTR_ARRAY_SIZE*3)
-#define LIGHT_ATTENUATION_FRAC_OFFSET   (LIGHT_ATTR_ARRAY_SIZE*4)
+#define LIGHT_COUNT           8
 
 #define MAX_TEXTURE_SIZE      64
 #define MAX_TEXTURE_LEVELS    7
@@ -68,11 +69,9 @@
 
 #define MAX_PIXEL_MAP_SIZE    32
 
-#define ATTRIB_TYPE_COUNT     9
+#define ATTRIB_TYPE_COUNT     10
 
-#define VTX_SHIFT 5
-#define TEX_SHIFT 8
-
+// TODO: reorganize these flags (note implicit usages in rsp_gl2.rspl)
 #define FLAG_DITHER             (1 << 0)
 #define FLAG_BLEND              (1 << 1)
 #define FLAG_ALPHA_TEST         (1 << 2)
@@ -81,14 +80,10 @@
 #define FLAG_TEXTURE_1D         (1 << 5)
 #define FLAG_TEXTURE_2D         (1 << 6)
 #define FLAG_CULL_FACE          (1 << 7)
-#define FLAG_TEX_GEN_LINEAR     (1 << 8)
-#define FLAG_TEX_GEN_SPHERICAL  (1 << 9)
 #define FLAG_LIGHTING           (1 << 10)
 #define FLAG_COLOR_MATERIAL     (1 << 11)
 #define FLAG_NORMALIZE          (1 << 12)
-#define FLAG_NEED_EYE_SPACE     (1 << 13)
 #define FLAG_MATRIX_PALETTE     (1 << 14)
-#define FLAG_TEX_MATRIX         (1 << 15)
 #define FLAG_DEPTH_TEST         (1 << 16)
 #define FLAG_TEXTURE_ACTIVE     (1 << 17)
 #define FLAG_DEPTH_MASK         (1 << 18)
@@ -112,6 +107,9 @@
 #define FLAG2_MULTISAMPLE        (1 << 3)
 #define FLAG2_TEX_FLIP_T         (1 << 4)
 
+#define CLIENT_FLAG_BEGIN_END   (1 << 0)
+#define CLIENT_FLAG_COLOR_ARRAY (1 << 1)
+
 #define TEX_FLAG_COMPLETE       (1 << 0)
 #define TEX_FLAG_UPLOAD_DIRTY   (1 << 1)
 #define TEX_FLAG_FORCE_COMPLETE (1 << 2)
@@ -128,8 +126,6 @@
 
 #define GUARD_BAND_FACTOR 2
 
-#define ASSERT_INVALID_VTX_ID   0x2001
-
 #define MULTISAMPLE_FLAG_SHIFT      2
 #define ZMODE_BLEND_FLAG_SHIFT      10
 
@@ -140,7 +136,7 @@
 #define TEXTURE_ACTIVE_SHIFT        17
 #define TEX_ACTIVE_COMBINER_SHIFT   (TEXTURE_ACTIVE_SHIFT - 2)
 
-#define TEX_COORD_SHIFT             6
+#define TEX_COORD_SHIFT             3
 #define HALF_TEXEL                  0x0010
 
 #define TEX_BILINEAR_SHIFT          13
@@ -161,32 +157,35 @@
 
 #define NEED_EYE_SPACE_SHIFT    13
 
-#define VTX_LOADER_MAX_COMMANDS 11
-#define VTX_LOADER_MAX_SIZE     (VTX_LOADER_MAX_COMMANDS * 4)
-
 #define RDPQ_TEXTURING_MASK ((SOM_SAMPLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK | SOM_TLUT_MASK)>>32)
 
 #define PALETTE_MATRIX_INDEX    3
 
 #define PALETTE_DIRTY_FLAGS_SIZE    ((MATRIX_PALETTE_SIZE+7)>>3)
 
-#define PRIM_VTX_CS_POSi           0     // X, Y, Z, W (all 32-bit)
-#define PRIM_VTX_CS_POSf           8     // X, Y, Z, W (all 32-bit)
-#define PRIM_VTX_X                 16    // Object space position (16-bit)
-#define PRIM_VTX_Y                 18    // Object space position (16-bit)
-#define PRIM_VTX_Z                 20    // Object space position (16-bit)
-#define PRIM_VTX_W                 22    // Object space position (16-bit)
-#define PRIM_VTX_R                 24
-#define PRIM_VTX_G                 26
-#define PRIM_VTX_B                 28
-#define PRIM_VTX_A                 30
-#define PRIM_VTX_TEX_S             32
-#define PRIM_VTX_TEX_T             34
-#define PRIM_VTX_TEX_R             36
-#define PRIM_VTX_TEX_Q             38
-#define PRIM_VTX_NORMAL            40    // Normal X,Y,Z (8 bit)
-#define PRIM_VTX_MTX_INDEX         43
-#define PRIM_VTX_TRCODE            44    // trivial-reject clipping flags (against -w/+w)
-#define PRIM_VTX_SIZE              45
+#define GLP_LIGHT_POSITION     0
+#define GLP_LIGHT_POSITIONW    6
+#define GLP_LIGHT_DIFFUSE      8
+#define GLP_LIGHT_AMBIENT      14
+#define GLP_LIGHT_ATT_INT      20
+#define GLP_LIGHT_ATT_FRAC     26
+#define GLP_LIGHT_SIZE         32
+
+#define GLP_ATTRIBUTE_POSITION         0
+#define GLP_ATTRIBUTE_NORMAL           1
+#define GLP_ATTRIBUTE_COLOR            2
+#define GLP_ATTRIBUTE_TEXCOORD         3
+
+#define GLP_BINDING_MATRICES           0
+#define GLP_BINDING_TEXTURING          1
+#define GLP_BINDING_LIGHTING           2
+#define GLP_BINDING_FOG                3
+
+#define GLP_VTX_POS_SHIFT      5
+#define GLP_VTX_TEX_SHIFT      8
+
+#define GLP_MATERIAL_FLAG_DIFFUSE   0x1
+#define GLP_MATERIAL_FLAG_AMBIENT   0x2
+#define GLP_MATERIAL_FLAG_EMISSIVE  0x4
 
 #endif
