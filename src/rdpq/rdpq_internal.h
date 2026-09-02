@@ -63,18 +63,58 @@ typedef struct {
 extern rdpq_tracking_t rdpq_tracking;
 
 /**
+ * @brief CPU-side mirror of the RDP render state.
+ *
+ * This struct shadows the subset of DMEM-resident rdpq state that determines
+ * what RDP commands the RSP would emit when resolving the render mode. The
+ * mirror is the authoritative source of truth on CPU for "what state the
+ * RDP will be in once all currently-queued rspq commands have executed".
+ *
+ * Every CPU-side rdpq call that programs SOM, CC, blender, scissor, fill
+ * color or color image bitdepth updates this mirror before writing the rspq
+ * command. The mirror is also kept current across block playback: at
+ * #rspq_block_end the mirror is captured into rdpq_block_t::mirror_post,
+ * and #__rdpq_block_run_with_rdp re-applies it when the block runs.
+ *
+ * This is the foundation for the "frozen blocks" feature (see
+ * FROZEN_BLOCKS_PLAN.md): a snapshot of the mirror at block-begin time will
+ * later be compared against the live mirror to detect staleness.
+ */
+typedef struct {
+    uint64_t som;               ///< Mirror of RDPQ_OTHER_MODES (incl. SOMX_* flags)
+    uint64_t cc;                ///< Mirror of RDPQ_COMBINER (user value, may carry 2PASS marker)
+    uint64_t cc_mipmask;        ///< Mirror of RDPQ_COMBINER_MIPMAPMASK
+    uint64_t scissor;           ///< Mirror of RDPQ_SCISSOR_RECT (raw SET_SCISSOR)
+    uint32_t blender_steps[2];  ///< Mirror of RDPQ_MODE_BLENDER_STEPS (fog step, blender step)
+    uint32_t fill_color;        ///< Mirror of RDPQ_FILL_COLOR (32-bit packed)
+    uint32_t prim_color_ex;     ///< Mirror of RDPQ_PRIM_COLOR_EX (minlod/primlod + selector bits, no top byte)
+    uint32_t prim_color_rgba;   ///< Mirror of RDPQ_PRIM_COLOR_RGBA (packed RGBA8888)
+    uint16_t autotmem_addr;     ///< Mirror of RDPQ_AUTOTMEM_ADDR (current autotmem allocation, units of 8 bytes)
+    uint16_t autotmem_addr_prev;///< Mirror of RDPQ_AUTOTMEM_ADDR_PREV (snapshot before last increment, for REUSE)
+    uint8_t autotmem_enabled : 4; ///< Mirror of RDPQ_AUTOTMEM_ENABLED (reentrant counter, 0-15)
+    uint8_t target_bitdepth  : 2; ///< Mirror of RDPQ_TARGET_BITDEPTH (low 2 bits of fmt, 0-3)
+    uint8_t unknown          : 1; ///< Sentinel: live RDP state is unknown / has drifted from this mirror
+    uint8_t autotmem_limit_lo : 1; ///< Mirror of RDPQ_AUTOTMEM_LIMIT: 0=4096/8, 1=2048/8 (lowered for 32bpp/YUV/CI)
+} rdpq_state_mirror_t;
+
+extern rdpq_state_mirror_t rdpq_state_mirror;
+
+/**
  * @brief A buffer that piggybacks onto rspq_block_t to store RDP commands
- * 
+ *
  * In rspq blocks, raw RDP commands are not stored as passthroughs for performance.
  * Instead, they are stored in a parallel buffer in RDRAM and the RSP block contains
  * commands to send (portions of) this buffer directly to RDP via DMA. This saves
  * memory bandwidth compared to doing passthrough for every command.
- * 
+ *
  * Since the buffer can grow during creation, it is stored as a linked list of buffers.
  */
 typedef struct rdpq_block_s {
     rdpq_block_t *next;                           ///< Link to next buffer (or NULL if this is the last one for this block)
     rdpq_tracking_t tracking;                     ///< Tracking state at the end of a block (this is populated only on the first link)
+    rdpq_state_mirror_t mirror_post;              ///< CPU mirror of RDP state at end of block (populated only on the first link)
+    rdpq_state_mirror_t mirror_pre;               ///< CPU mirror snapshot at block-begin (only meaningful when @c frozen is set)
+    bool frozen;                                  ///< True if recorded under #RDPQ_CFG_FROZEN_BLOCKS (eligible for staleness checks)
     uint32_t cmds[] __attribute__((aligned(8)));  ///< RDP commands
 } rdpq_block_t;
 
@@ -108,7 +148,49 @@ typedef struct rdpq_block_state_s {
      * @brief Tracking state before starting building the block.
      */
     rdpq_tracking_t previous_tracking;
+    /**
+     * @brief CPU mirror state before block recording started.
+     *
+     * The mirror keeps advancing during recording (so it reflects the post-state
+     * of the block being recorded). At #__rdpq_block_end this saved value is
+     * restored to the live mirror, so that the act of recording a block does
+     * not leak in-block state changes to the surrounding scope.
+     */
+    rdpq_state_mirror_t previous_mirror;
+    /**
+     * @brief True if the current recording session is a frozen block.
+     *
+     * Set by #__rdpq_block_begin / #__rdpq_block_recycle when
+     * #RDPQ_CFG_FROZEN_BLOCKS is enabled. Causes the snapshot at begin to be
+     * persisted onto the block (rdpq_block_t::mirror_pre) and unlocks
+     * staleness checks at playback time.
+     */
+    bool frozen;
 } rdpq_block_state_t;
+
+extern rdpq_block_state_t rdpq_block_state;
+
+/**
+ * @brief Frozen blocks: global bitmask of RDP state groups stale in DMEM.
+ *
+ * Set (to all RDPQ_WRITE_READS_* groups) whenever a frozen-block RDP command
+ * is written to the static buffer (mode change, scissor, fill, texture,
+ * etc.), marking that DMEM no longer reflects the RDP render state. A
+ * RDPQ_WRITE_READS_* command flushes the groups it requests (via
+ * #__rdpq_frozen_sync_dmem) and clears those bits, so repeated reads of the
+ * same group (e.g. per-triangle) are cheap.
+ */
+extern uint16_t __rdpq_frozen_dmem_pending;
+
+/**
+ * @brief Frozen blocks: sets if resolved render mode is deferred, awaiting the next draw.
+ *
+ * Inside a frozen block, mode changes (combiner/blender/SOM) do not emit immediately. 
+ * They advance the CPU mirror and set this flag, 
+ * the resolved SET_OTHER_MODES + SET_COMBINE pair is emitted by #__rdpq_frozen_flush_pending_mode.
+ */
+extern bool __rdpq_frozen_mode_pending;
+void __rdpq_frozen_flush_pending_mode(void);
 
 void __rdpq_block_begin();
 void __rdpq_block_recycle(rdpq_block_t *head);
@@ -120,6 +202,8 @@ void __rdpq_block_run_maybe_rdp(void);
 void __rdpq_block_next_buffer(void);
 void __rdpq_block_update(volatile uint32_t *wptr);
 void __rdpq_block_reserve(int num_rdp_commands);
+void __rdpq_frozen_publish_post_state(unsigned int groups);
+void __rdpq_frozen_sync_dmem(unsigned int groups);
 
 /** Close rdpq_attach subsystem */
 void __rdpq_attach_close(void);
@@ -144,6 +228,24 @@ inline void __rdpq_tracking_state_reset(rdpq_tracking_t *state) {
 inline void __rdpq_autosync_use(uint32_t res)
 {
     rdpq_tracking.autosync |= res;
+    // Frozen-block mode coalescing: a pipe-using command (draw) is about to be written, 
+    // so flush any deferred resolved mode into the static RDP buffer first.
+    if (__builtin_expect((res & AUTOSYNC_PIPE) && __rdpq_frozen_mode_pending, 0)) {
+        __rdpq_frozen_flush_pending_mode();
+    }
+}
+
+/**
+ * @brief Notify the rdpq engine that a rspq block is about to run, before its CALL command is enqueued.
+ *        This intern *may* flush out pending DMEM states form a frozen blocks
+ */
+inline void __rdpq_block_run_prepare(rdpq_block_t *block)
+{
+    if (__builtin_expect(
+      __rdpq_frozen_dmem_pending && !block->frozen && !rdpq_block_state.frozen, 0)
+    ) {
+        __rdpq_frozen_sync_dmem(RDPQ_WRITE_READS_RDP_STATE);
+    }
 }
 void __rdpq_autosync_change(uint32_t res);
 

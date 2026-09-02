@@ -1402,6 +1402,12 @@ rspq_block_t* rspq_block_end(void)
 {
     assertf(rspq_block, "a block was not being created");
 
+    // Frozen blocks: do NOT eagerly publish the post-state to DMEM here.
+    // The DMEM staleness left by the block is republished lazily at run time, 
+    // by the first rdpq command after the block that reads RDP state.
+    // Any pending state accumulated while recording is either already baked or re-established at block run.
+    __rdpq_frozen_dmem_pending = 0;
+
     // Terminate the block with a RET command, encoding
     // the nesting level which is used as stack slot by RSP.
     rspq_append1(rspq_cur_pointer, RSPQ_CMD_RET, rspq_block->nesting_level<<2);
@@ -1409,12 +1415,15 @@ rspq_block_t* rspq_block_end(void)
     // Switch back to the normal display list
     rspq_switch_context(&lowpri);
 
-    // Save pointer to rdpq block (if any)
-    rspq_block->rdp_block = __rdpq_block_end();
-
-    // Return the created block
+    // __rdpq_block_end may allocate RDP buffers. Temporarily clear rspq_block
+    // so that rspq_next_buffer takes the main-queue path on overflow.
     rspq_block_t *b = rspq_block;
     rspq_block = NULL;
+
+    // Save pointer to rdpq block (if any)
+    b->rdp_block = __rdpq_block_end();
+
+    // Return the created block
     return b;
 }
 
@@ -1488,6 +1497,10 @@ void rspq_block_run(rspq_block_t *block)
     }
 
     assertf(block->nesting_level < block->min_ph_level, "Block nesting level overlaps with used placeholders");
+
+    // flush any pending DMEM state out (e.g. a frozen block ran before we now submit a normal block)
+    if (block->rdp_block)
+      __rdpq_block_run_prepare(block->rdp_block);
 
     // Write the CALL op. The second argument is the nesting level
     // which is used as stack slot in the RSP to save the current

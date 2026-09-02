@@ -887,6 +887,42 @@ void rspq_block_begin_reuse(rspq_block_t *reuse_block);
 rspq_block_t* rspq_block_end(void);
 
 /**
+ * @brief Begin recording of a frozen block.
+ *
+ * The block captures the live RDP state at this point as its baseline, 
+ * at playback time the baseline is compared against the live state, 
+ * and a mismatch causes #rspq_block_run_frozen to return false without executing.
+ *
+ * The caller is expected to handle staleness by re-recording.
+ *
+ * @param reuse_block  Existing block allocation to reuse (or NULL for a new one)
+ *
+ * @see #rspq_block_begin_reuse
+ * @see #rspq_block_end_frozen
+ * @see #rspq_block_run_frozen
+ */
+void rspq_block_begin_frozen(rspq_block_t *reuse_block);
+
+/**
+ * @brief Finish recording of a frozen block.
+ *
+ * Pairs with #rspq_block_begin_frozen. Returns the recorded block, which
+ * carries the captured RDP state baseline for the staleness check.
+ */
+rspq_block_t *rspq_block_end_frozen(void);
+
+/**
+ * @brief Run a frozen block, checking that its recorded RDP state baseline
+ *        still matches the live state.
+ *        For easier use, this function allows passing in NULL as the block, which will return false
+ *
+ * @return  true on success (block was executed), 
+ *          or false if the block was not executed because its recorded assumptions no longer hold. 
+ *          Use #rdpq_block_stale_reasons to inspect which specific state bits drifted.
+ */
+bool rspq_block_run_frozen(rspq_block_t *block);
+
+/**
  * @brief Sets the target for a placeholder in a block
  * @preview
  * 

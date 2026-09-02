@@ -234,6 +234,21 @@ enum {
 #define RDPQ_CFG_AUTOSCISSOR    (1 << 3)     ///< Configuration flag: enable automatic generation of SET_SCISSOR commands on render target change
 #define RDPQ_CFG_DEFAULT        (0xFFFF)     ///< Configuration flag: default configuration
 
+/**
+ * @brief Configuration flag: enable "frozen blocks" recording.
+ *
+ * When set at the time a block is recorded via #rspq_block_begin_frozen, the
+ * block snapshots the current RDP render state. 
+ * At playback time (#rspq_block_run_frozen), the snapshot is compared against the live RDP state.
+ * If any state that would have changed the recorded commands has drifted, 
+ * the block is reported stale and not executed the caller is expected to re-record it.
+ *
+ * This flag is intentionally excluded from #RDPQ_CFG_DEFAULT: it is an opt-in
+ * recording-time toggle and is meaningful only between
+ * #rspq_block_begin_frozen and #rspq_block_end_frozen.
+ */
+#define RDPQ_CFG_FROZEN_BLOCKS  (1 << 16)
+
 ///@cond
 // Used in inline functions as part of the autosync engine. Not part of public API.
 #define AUTOSYNC_TILE(n)  (1    << (0+(n)))     // Autosync state: Bit used for tile N
@@ -1539,6 +1554,57 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
 LIBDRAGON_PREVIEW_API
 uint64_t rdpq_get_combiner_raw(void);
 
+/** @name Frozen-block staleness reasons
+ *
+ * Bits returned by #rdpq_block_stale_reasons indicating which piece of the
+ * recorded RDP render state has drifted from the live state since the block
+ * was recorded.
+ *
+ * @{
+ */
+#define RDPQ_BLOCK_STALE_SOM        (1 << 0)  ///< Frozen block stale: SOM (any bit) changed
+#define RDPQ_BLOCK_STALE_CC         (1 << 1)  ///< Frozen block stale: combiner formula changed
+#define RDPQ_BLOCK_STALE_CC_MIPMASK (1 << 2)  ///< Frozen block stale: combiner mipmap mask changed
+#define RDPQ_BLOCK_STALE_BLENDER    (1 << 3)  ///< Frozen block stale: blender step (fog or blender) changed
+#define RDPQ_BLOCK_STALE_SCISSOR    (1 << 4)  ///< Frozen block stale: scissor rectangle changed
+#define RDPQ_BLOCK_STALE_FILL       (1 << 5)  ///< Frozen block stale: fill color or target bitdepth changed
+#define RDPQ_BLOCK_STALE_FOG        (1 << 6)  ///< Frozen block stale: fog enable (SOMX_FOG) changed (subset of SOM)
+#define RDPQ_BLOCK_STALE_AA         (1 << 7)  ///< Frozen block stale: AA enable changed (subset of SOM)
+#define RDPQ_BLOCK_STALE_CYCLE_TYPE (1 << 8)  ///< Frozen block stale: cycle type (1cyc/2cyc/fill/copy) changed (subset of SOM)
+#define RDPQ_BLOCK_STALE_MIPMAP     (1 << 9)  ///< Frozen block stale: mipmap interpolation state changed (subset of SOM)
+#define RDPQ_BLOCK_STALE_UNKNOWN    (1 << 31) ///< Frozen block stale: live RDP state is unknown to CPU (re-anchor required)
+/** @} */
+
+///@cond
+typedef struct rspq_block_s rspq_block_t;
+///@endcond
+
+/**
+ * @brief Check whether a frozen block's recorded RDP state still matches the live state.
+ *
+ * Returns 0 if the block is fresh and can be safely executed, or a bitmask of
+ * #RDPQ_BLOCK_STALE_* values indicating which pieces of state have changed
+ * since the block was recorded with #rspq_block_begin_frozen.
+ *
+ * For non-frozen blocks, returns 0 (no recorded snapshot to compare against).
+ *
+ * @param block  The block to check
+ * @return       0 if fresh, or a bitmask of RDPQ_BLOCK_STALE_* reasons
+ *
+ * @see #rspq_block_begin_frozen
+ * @see #rspq_block_run_frozen
+ */
+int rdpq_block_stale_reasons(rspq_block_t *block);
+
+/**
+ * @brief Return a short human-readable name for a single #RDPQ_BLOCK_STALE_* reason bit, 
+ *        useful for debug logging.
+ *
+ * @param reason_bit  A single RDPQ_BLOCK_STALE_* bit (not a bitmask)
+ * @return            Static string naming the reason, or "?" if unknown
+ */
+const char *rdpq_block_stale_reason_str(int reason_bit);
+
 /**
  * @brief Add a fence to synchronize RSP with RDP commands.
  * 
@@ -1615,50 +1681,104 @@ void rdpq_exec(void *buffer, int size);
 LIBDRAGON_PREVIEW_API
 void rdpq_call_deferred(void (*func)(void *), void *arg);
 
+/** @brief Mask for the RDP command count in the #rdpq_write @p flags argument. */
+#define RDPQ_WRITE_COUNT_MASK       0xFF
+
+/** @brief #rdpq_write flag: the number of expected generated RDP commands from this RSP command 
+ *         If this is not known, use RDPQ_WRITE_COUNT_UNKNOWN
+*/
+#define RDPQ_WRITE_COUNT(amount) (amount)
+
 /**
- * @brief Enqueue a RSP command that also generates RDP commands.
- * 
+ * @brief #rdpq_write flag: the number of generated RDP commands is unbounded
+ *        (or simply too high to bound). Replaces the legacy "-1" count value.
+ */
+#define RDPQ_WRITE_COUNT_UNKNOWN    (1<<8)
+/**
+ * @name #rdpq_write flags: declare which RDP render state the RSP command reads from DMEM.
+ *
+ * Declare these for RSP commands whose execution depends on the current RDP render state stored in DMEM. 
+ * Inside a frozen block, mode-setting rdpq calls write resolved RDP commands directly to
+ * the static buffer and bypass the RSP-side resolver, leaving DMEM stale. 
+ * These flags make #rdpq_write flush the relevant DMEM state before the command, so it observes the correct render state.
+ *
+ * Only the requested state groups are synced, and only on the first reading command after it changed.
+ * Outside frozen blocks these are no-ops.
+ *
+ * @{
+ */
+/** @brief Reads RDPQ_OTHER_MODES (SOM). */
+#define RDPQ_WRITE_READS_OTHER_MODES  (1<<9)
+/** @brief Reads RDPQ_COMBINER (+ mipmap mask). */
+#define RDPQ_WRITE_READS_COMBINER     (1<<10)
+/** @brief Reads the blender steps (RDPQ_MODE_BLENDER_STEPS). */
+#define RDPQ_WRITE_READS_BLENDER      (1<<11)
+/** @brief Reads RDPQ_SCISSOR_RECT. */
+#define RDPQ_WRITE_READS_SCISSOR      (1<<12)
+/** @brief Reads color registers (RDPQ_FILL_COLOR). */
+#define RDPQ_WRITE_READS_COLORS       (1<<13)
+/** @brief Reads all RDP render state (combination of all RDPQ_WRITE_READS_* groups). */
+#define RDPQ_WRITE_READS_RDP_STATE    (RDPQ_WRITE_READS_OTHER_MODES | RDPQ_WRITE_READS_COMBINER | \
+                                       RDPQ_WRITE_READS_BLENDER | RDPQ_WRITE_READS_SCISSOR | \
+                                       RDPQ_WRITE_READS_COLORS)
+/** @} */
+
+/**
+ * @brief Enqueue a RSP command that also generates or reads RDP state.
+ *
  * This function is similar to #rspq_write: it enqueues a RSP command in the
  * RSP command queue for later execution by RSP. The main difference is that
- * this macro also declares that the RSP command is going to generate RDP
- * commands as part of its execution.
- * 
+ * this macro also declares RDP-related semantics of the RSP command through
+ * the @p flags argument.
+ *
  * RSP commands in overlays can generate RDP commands by including rsp_rdqp.inc
  * and calling RDPQ_Send (or RDPQ_Write8 / RDPQ_Write16 / RDPQ_Finalize). If
- * they do, they must enqueued using #rdpq_write instead of #rspq_write.
- * 
+ * they do, they must be enqueued using #rdpq_write instead of #rspq_write.
+ *
  * It is important to know that the RSP command is going to generate RDP commands
  * because the space for them needs to be allocated in the static buffer in
  * blocks. When wrongly using #rspq_write instead of #rdpq_write, the command
  * will work correctly outside of blocks but might fail in surprising ways
  * when called within blocks.
- * 
- * In some cases, it is not possible to know beforehand how many RDP commands 
- * will be generated. In these case, @p num_rdp_commands should be the maximum
- * possible value in words. If the number is quite high and potentially
- * unbounded, pass the special value "-1".
- * 
- * @param num_rdp_commands    Maximum number of RDP 8-byte commands that will be
- *                            generated by the RSP command. Use -1 if the number
- *                            is unbounded and potentially high. 
- * @param ovl_id              ID of the overlay for the command (see #rspq_write)
- * @param cmd_id              ID of the command (see #rspq_write)
- * 
+ *
+ * The @p flags argument encodes:
+ *  - In the low 8 bits (#RDPQ_WRITE_COUNT_MASK): the maximum number of RDP
+ *    8-byte commands generated by the RSP command.
+ *  - #RDPQ_WRITE_COUNT_UNKNOWN: the count is unbounded / too high to bound.
+ *  - #RDPQ_WRITE_READS_RDP_STATE: the RSP command reads RDP render state from
+ *    DMEM (triggers a state flush inside frozen blocks).
+ *
+ * For backward compatibility, passing a plain count works (e.g. `2`), and the
+ * legacy value `-1` is still accepted as a synonym for #RDPQ_WRITE_COUNT_UNKNOWN.
+ *
+ * @param flags     Bitmask of RDP-related semantics (see above). A bare integer
+ *                  is interpreted as the RDP command count.
+ * @param ovl_id    ID of the overlay for the command (see #rspq_write)
+ * @param cmd_id    ID of the command (see #rspq_write)
+ *
  * @see #rspq_write
- * 
+ *
  * @note Some RDP commands are made of multiple 64 bit words. For the purpose
- *       of #rdpq_write, please treat @p num_rdp_commands as it was the
- *       "number of 64-bit words". So for instance if the RSP command generates
- *       a single RDP TEXTURE_RECTANGLE command, pass 2 as @p num_rdp_commands.
- * 
+ *       of #rdpq_write, please treat the count as the "number of 64-bit words".
+ *       So for instance if the RSP command generates a single RDP
+ *       TEXTURE_RECTANGLE command, pass 2 as the count.
+ *
  * @hideinitializer
  */
-#define rdpq_write(num_rdp_commands, ovl_id, cmd_id, ...) ({ \
-    int __num_rdp_commands = (num_rdp_commands); \
+#define rdpq_write(flags, ovl_id, cmd_id, ...) ({ \
+    int __wflags = (flags); \
+    /* Backward-compat: "-1" used to mean "unbounded count" (and nothing else). \
+     * Normalize it before testing any other flag bits. */ \
+    if (__wflags == -1) __wflags = RDPQ_WRITE_COUNT_UNKNOWN | RDPQ_WRITE_READS_RDP_STATE; \
+    int __num_rdp_commands = (__wflags & RDPQ_WRITE_COUNT_UNKNOWN) \
+        ? -1 : (__wflags & RDPQ_WRITE_COUNT_MASK); \
     if (!__builtin_constant_p(__num_rdp_commands) || __num_rdp_commands != 0) { \
         if (__builtin_expect(rspq_block != NULL, 0)) { \
             __rdpq_block_reserve(__num_rdp_commands); \
         } \
+    } \
+    if (__wflags & RDPQ_WRITE_READS_RDP_STATE) { \
+        __rdpq_frozen_sync_dmem(__wflags & RDPQ_WRITE_READS_RDP_STATE); \
     } \
     rspq_write(ovl_id, cmd_id, ##__VA_ARGS__); \
 })
@@ -1703,7 +1823,8 @@ void rdpq_call_deferred(void (*func)(void *), void *arg);
 // Declarations used by rdpq_write and rdpq_write_begin, not part of the public API.
 typedef struct rspq_block_s rspq_block_t;
 extern rspq_block_t *rspq_block;
-extern void __rdpq_block_reserve(int); \
+extern void __rdpq_block_reserve(int);
+extern void __rdpq_frozen_sync_dmem(unsigned int groups);
 /// @endcond
 
 
