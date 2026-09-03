@@ -351,6 +351,126 @@ static void apply_display_vi_config(resolution_t res, bitdepth_t bit, gamma_t ga
     vi_bug_workaround = (res.width == 320 && bit == DEPTH_16_BPP && filters == FILTERS_DISABLED);
 }
 
+#define RDRAM_BANK_SHIFT  20
+
+static void allocate_surfaces_in_different_memory_banks( tex_format_t format )
+{
+    bool three_buffers = __num_buffers == 3;
+    assertf(three_buffers || __num_buffers == 2, "Invalid num buffers: %d", __num_buffers);
+
+    uint32_t width = __width;
+    uint32_t height = __height;
+    uint32_t last_available_bank = __boot_memsize >> RDRAM_BANK_SHIFT;
+
+    surface_t first_surface;
+    uint32_t first_bank = 0;
+
+    surface_t second_surface;
+    uint32_t second_bank = 0;
+
+    surface_t third_surface;
+    uint32_t third_bank = 0;
+
+    surface_t last_surface;
+    uint32_t last_bank = 0;
+
+    #define MAX_INVALID_SURFACES 128
+
+    surface_t invalid_surfaces[MAX_INVALID_SURFACES];
+    uint32_t num_invalid_surfaces = 0;
+
+    while (true)
+    {
+        surface_t surface = surface_alloc(format, width, height);
+
+        if (surface.buffer) {
+            phys_addr_t address = PhysicalAddr(surface.buffer);
+            uint32_t bank = (address >> RDRAM_BANK_SHIFT) + 1;
+
+            if (bank == last_available_bank) {
+                /* Last bank is usually used by the Z-Buffer, let's avoid it if we can */
+                if (! last_bank) {
+                    last_surface = surface;
+                    last_bank = bank;
+                }
+                else {
+                    invalid_surfaces[num_invalid_surfaces] = surface;
+                    ++num_invalid_surfaces;
+
+                    if (num_invalid_surfaces == MAX_INVALID_SURFACES) {
+                        break;
+                    }
+                }
+            }
+            else if (! first_bank) {
+                first_surface = surface;
+                first_bank = bank;
+            }
+            else if (! second_bank && bank != first_bank) {
+                second_surface = surface;
+                second_bank = bank;
+
+                if (! three_buffers) {
+                    break;
+                }
+            }
+            else if (three_buffers && bank != first_bank && bank != second_bank) {
+                third_surface = surface;
+                third_bank = bank;
+                break;
+            }
+            else {
+                invalid_surfaces[num_invalid_surfaces] = surface;
+                ++num_invalid_surfaces;
+
+                if (num_invalid_surfaces == MAX_INVALID_SURFACES) {
+                    break;
+                }
+            }
+        }
+        else {
+            break;
+        }
+    }
+
+    for (int i = 0; i < __num_buffers; i++)
+    {
+        if (first_bank) {
+            surfaces[i] = first_surface;
+            first_bank = 0;
+        }
+        else if (second_bank) {
+            surfaces[i] = second_surface;
+            second_bank = 0;
+        }
+        else if (third_bank) {
+            surfaces[i] = third_surface;
+            third_bank = 0;
+        }
+        else if (last_bank) {
+            surfaces[i] = last_surface;
+            last_bank = 0;
+        }
+        else {
+            assertf(num_invalid_surfaces, "Out of memory");
+
+            --num_invalid_surfaces;
+            surfaces[i] = invalid_surfaces[num_invalid_surfaces];
+        }
+    }
+
+    if (last_bank) {
+        surface_free(&last_surface);
+    }
+
+    for (uint32_t i = 0; i < num_invalid_surfaces; i++)
+    {
+        surface_free(&invalid_surfaces[i]);
+    }
+
+    #undef MAX_INVALID_SURFACES
+}
+
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters )
 {
     assertf(__num_buffers == 0, "display_init() called while the display is already initialized.\nPlease close the current display with display_close() first.");
@@ -401,15 +521,24 @@ void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma
 
     /* Initialize buffers and set parameters */
     tex_format_t format = bit == DEPTH_16_BPP ? FMT_RGBA16 : FMT_RGBA32;
+    uint32_t surface_length = __width * __height * __bitdepth;
+    uint32_t bank_size = 1 << RDRAM_BANK_SHIFT;
+
+    if ((__num_buffers == 2 || __num_buffers == 3) && surface_length <= bank_size) {
+        allocate_surfaces_in_different_memory_banks( format );
+    }
+    else {
+        for (int i = 0; i < __num_buffers; i++)
+        {
+            surfaces[i] = surface_alloc(format, __width, __height);
+            assertf(surfaces[i].buffer, "Out of memory");
+        }
+    }
+
     for (int i = 0; i < __num_buffers; i++)
     {
-        /* Set parameters necessary for drawing */
-        /* Grab a location to render to */
-        surfaces[i] = surface_alloc(format, __width, __height);
-        assertf(surfaces[i].buffer, "Out of memory");
-
         /* Baseline is blank */
-        sys_hw_memset(surfaces[i].buffer, 0, __width * __height * __bitdepth);
+        sys_hw_memset(surfaces[i].buffer, 0, surface_length);
     }
 
     /* Set the first buffer as the displaying buffer */
