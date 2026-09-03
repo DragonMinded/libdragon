@@ -76,6 +76,14 @@ N64_DSO = $(N64_BINDIR)/n64dso
 N64_DSOEXTERN = $(N64_BINDIR)/n64dso-extern
 N64_DSOMSYM = $(N64_BINDIR)/n64dso-msym
 
+define n64_video_codec_h264_dso_template =
+$(1) $(1).sym: $$(N64_LIBDIR)/dso/video_codec_h264.dso $$(N64_LIBDIR)/dso/video_codec_h264.dso.sym
+	@mkdir -p "$$(dir $(1))"
+	@echo "    [CP DSO] $(1)"
+	cp $$(N64_LIBDIR)/dso/video_codec_h264.dso $(1)
+	cp $$(N64_LIBDIR)/dso/video_codec_h264.dso.sym $(1).sym
+endef
+
 N64_C_AND_CXX_FLAGS =  -march=vr4300 -mtune=vr4300 -mabi=o64 -I$(N64_INCLUDEDIR)/newlib_overrides -I$(N64_INCLUDEDIR) -include ktls.h
 N64_C_AND_CXX_FLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
 N64_C_AND_CXX_FLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map="$(CURDIR)"=$(N64_BACKTRACE_FILE_PREFIX)
@@ -88,7 +96,8 @@ N64_CXXFLAGS = $(N64_C_AND_CXX_FLAGS) -std=gnu++17
 N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -mabi=o64 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
-N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
+N64_DSOLDSCRIPT ?= $(N64_LIBDIR)/dso.ld
+N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_DSOLDSCRIPT)
 ifneq ($(filter 1 2,$(LIBDRAGON_PREVIEW)),)
 N64_C_AND_CXX_FLAGS += -DLIBDRAGON_PREVIEW=$(LIBDRAGON_PREVIEW)
 N64_ASFLAGS += -DLIBDRAGON_PREVIEW=$(LIBDRAGON_PREVIEW)
@@ -255,7 +264,7 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 %.dso: ASFLAGS+=$(N64_ASFLAGS)
 %.dso: RSPASFLAGS+=$(N64_RSPASFLAGS)
 
-%.dso: $(N64_LIBDIR)/dso.ld
+%.dso: $(N64_DSOLDSCRIPT)
 	$(eval DSO_ELF=$(basename $(BUILD_DIR)/dso_elf/$@).elf)
 	@mkdir -p $(dir $@)
 	@mkdir -p $(dir $(DSO_ELF))
