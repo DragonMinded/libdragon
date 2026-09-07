@@ -1270,6 +1270,7 @@ int wav_convert(const char *infn, const char *outfn) {
 	wav.skipPoints.erase(std::unique(wav.skipPoints.begin(), wav.skipPoints.end()), wav.skipPoints.end());
 
 	FILE *out = fopen(outfn, "wb");
+	placeholder_clear();
 	if (!out) {
 		fprintf(stderr, "ERROR: %s: cannot create file\n", outfn);
 		free(wav.samples);

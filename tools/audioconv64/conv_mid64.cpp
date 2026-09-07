@@ -396,6 +396,7 @@ int mid_convert(const char *infn, const char *outfn)
 
 	FILE *out = fopen(outfn, "wb");
 	if (!out) fatal("ERROR: cannot create: %s", outfn);
+	placeholder_clear();
 	// Large window: MID64 is always fully preloaded via asset_load().
 	int cmp_size = asset_compress_mem(plain.data(), (int)plain.size(), out,
 		flag_mid_compress, 256 * 1024, NULL);

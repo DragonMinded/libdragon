@@ -954,6 +954,7 @@ int xm_convert(const char *infn, const char *outfn) {
 
 	FILE *out = fopen(outfn, "wb");
 	if (!out) fatal("cannot create: %s", outfn);
+	placeholder_clear();
 	xm_context_save(ctx, out, outfn);
 	int romsize = ftell(out);
 	fclose(out);
