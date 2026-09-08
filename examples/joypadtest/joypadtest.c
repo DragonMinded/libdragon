@@ -109,10 +109,10 @@ int main(void)
             style = joypad_get_style(port);
             accessory_type = joypad_get_accessory_type(port);
             inputs = joypad_get_inputs(port);
+            rumble_supported = joypad_get_rumble_supported(port);
 
-            if (accessory_type == JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK)
+            if (rumble_supported)
             {
-                rumble_supported = joypad_get_rumble_supported(port);
                 rumble_active = joypad_get_rumble_active(port);
                 if (inputs.btn.a && !rumble_active)
                 {
@@ -153,7 +153,7 @@ int main(void)
             printf("Port %d ", port + 1);
             printf("Style: %s ", format_joypad_style(style));
             printf("Pak: %s ", format_joypad_accessory_type(accessory_type));
-            if (accessory_type == JOYPAD_ACCESSORY_TYPE_RUMBLE_PAK)
+            if (rumble_supported)
             {
                 printf("Rumble: %s", format_joypad_rumble(rumble_supported, rumble_active));
             } 
