@@ -285,6 +285,12 @@ static wav64_t* internal_open(wav64_t *wav, int file_handle, const char *file_na
 			wav->st->format = WAV64_FORMAT_RAW;
 			algos[wav->st->format].init(wav, head.state_size);
 		}
+
+		if (wav->st->current_fd >= 0 && (wav->st->flags & WAV64_FLAG_OWNED_FD)) {
+			close(wav->st->current_fd);
+			wav->st->current_fd = -1;
+			wav->st->flags &= ~WAV64_FLAG_OWNED_FD;
+		}
 	}
 
 	return wav;
