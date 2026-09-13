@@ -478,9 +478,12 @@ new file mode 100644
 index 00000000000..92fab2d41cd
 --- /dev/null
 +++ b/gcc/config/mips/n64.h
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,13 @@
 +#undef DRIVER_SELF_SPECS
 +#define DRIVER_SELF_SPECS \
++	/* Enable the mulmul fix for the VR4300 */ \
++	"%{march=vr4300:%{!mno-fix4300:%{!mfix4300:-mfix4300}}}", \
++														\
 +	/* Make -mabi=eabi imply 32-bit longs */			\
 +	"%{mabi=eabi:%{!mlong*:-mlong32}}"                              \
 +									\
