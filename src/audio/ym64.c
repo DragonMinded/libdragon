@@ -68,12 +68,6 @@ static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bo
 	int nframes = lastframe - player->curframe + 1;
 	int samples_per_frame = player->wave.append_units;
 
-	// Get the pointer to the sample buffer.
-	int16_t *samples = samplebuffer_append(sbuf, nframes*samples_per_frame);
-
-	int16_t *out = samples;
-	const int num_channels = AY8910_OUTPUT_STEREO ? 2 : 1;
-
 	for (int i=0;i<nframes;i++) {
 		// Read 14 ay8910 registers (+ maybe 2 digidrums regs, unsupported)
 		uint8_t regs[16];
@@ -95,8 +89,8 @@ static void ym_wave_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bo
 
 		// Generate the required number of samples, and store them into the
 		// sample buffer.
+		int16_t *out = samplebuffer_append(sbuf, samples_per_frame);
 		ay8910_gen(&player->ay, out, samples_per_frame);
-		out += (int)samples_per_frame * num_channels;
 		player->curframe++;
 	}
 }
