@@ -24,6 +24,27 @@ extern "C" {
  */
 extern video_codec_t mpeg1_codec;
 
+/**
+ * @brief Register MPEG1 and initialize its RSP overlay.
+ * Call before starting the audio mixer. Safe to call more than once.
+ */
+void mpeg1_init(void);
+
+/**
+ * @brief Decode the next MPEG1 frame, flushing the delayed reference at EOF.
+ * @param video MPEG1 video handle.
+ */
+bool mpeg1_next_frame_flush(video_t *video);
+
+/**
+ * @brief Decode the reference frame after #video_seek.
+ * Skips up to two leading orphan B pictures (three decode attempts).
+ * @param video MPEG1 video handle.
+ * @param frame Frame index returned by #video_seek.
+ * @return true if a reference frame is available, false otherwise.
+ */
+bool mpeg1_seek_next(video_t *video, int frame);
+
 #ifdef __cplusplus
 }
 #endif
