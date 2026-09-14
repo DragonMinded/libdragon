@@ -254,3 +254,43 @@ video_codec_t mpeg1_codec = {
 	.get_frame = mpeg1_get_frame,
 	.rewind = mpeg1_rewind,
 };
+
+static void seekfast(video_t *video, int frame, uint32_t offset) {
+	mpeg1_t *mpeg = (mpeg1_t *)video;
+	rspq_wait();
+	mpeg1_rewind(video);
+	plm_buffer_seek(mpeg->buf, offset);
+	plm_video_set_time(mpeg->v, frame / (double)video->info.framerate);
+}
+
+// Flush the delayed reference even if the last picture is B.
+bool mpeg1_next_frame_flush(video_t *video) {
+	if (video_next_frame(video)) return true;
+	mpeg1_t *mpeg = (mpeg1_t *)video;
+	if (!plm_buffer_has_ended(mpeg->buf) || !mpeg->v->has_reference_frame) return false;
+	mpeg->v->has_reference_frame = false;
+	plm_video_emit_output(mpeg->v, &mpeg->v->frame_backward);
+	return video_next_frame(video);
+}
+
+// Skip at most two open-GOP B pictures with a missing preceding reference.
+bool mpeg1_seek_next(video_t *video, int frame) {
+	if (video->codec->seekfast != seekfast) return video_next_frame(video);
+	mpeg1_t *mpeg = (mpeg1_t *)video;
+	for (int n = 0; n < 3; n++) {
+		bool reference = mpeg->v->has_reference_frame;
+		if (!mpeg1_next_frame_flush(video)) return false;
+		if (mpeg->v->picture_type == PLM_VIDEO_PICTURE_TYPE_B &&
+			!(reference && !mpeg->v->has_reference_frame)) continue;
+		mpeg->f->time = frame / (double)video->info.framerate;
+		plm_video_set_time(mpeg->v, (frame + 1) / (double)video->info.framerate);
+		return true;
+	}
+	return false;
+}
+
+void mpeg1_init(void) {
+	rsp_mpeg1_init();
+	if (!mpeg1_codec.seekfast) mpeg1_codec.seekfast = seekfast;
+	video_register_codec(&mpeg1_codec);
+}
