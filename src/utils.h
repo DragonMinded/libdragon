@@ -7,14 +7,24 @@
 #define __LIBDRAGON_UTILS_H
 
 #include <string.h>  // memcpy
+#include <stdint.h>
 
 /** @brief Swap two values */
 #define SWAP(a, b) ({ typeof(a) t = a; a = b; b = t; })
 
+// MAX/MIN/ABS are guarded to avoid conflicts with other headers
+#ifndef MAX
 /** @brief Return the maximum of two values */
 #define MAX(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
+#endif
+#ifndef MIN
 /** @brief Return the minimum of two values */
 #define MIN(a,b)  ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
+#endif
+#ifndef ABS
+/**	@brief Absolute number */
+#define ABS(x) ({ typeof(x) _x = x; (_x < 0 ? -_x : _x); })
+#endif
 /** @brief Clamp a value between min and max */
 #define CLAMP(x, min, max) (MIN(MAX((x), (min)), (max)))
 
@@ -36,14 +46,12 @@
 	((_n) + (_d) - 1) / (_d); \
 })
 
-/**	@brief Absolute number */
-#define ABS(x) ({ \
-	typeof(x) _x = x; \
-	(_x < 0 ? -_x : _x); \
-})
-
 /** @brief Type-safe bitcast from float to integer */
-#define F2I(f)   ({ uint32_t __i; memcpy(&__i, &(f), 4); __i; })
+#define F2I(f)   ({ \
+	_Static_assert(__builtin_types_compatible_p(typeof(f), float) || \
+				   __builtin_types_compatible_p(typeof(f), const float), \
+				   "F2I requires a float argument"); \
+	uint32_t __i; memcpy(&__i, &(f), 4); __i; })
 
 /** @brief Type-safe bitcast from integer to float */
 #define I2F(i)   ({ float __f; memcpy(&__f, &(i), 4); __f; })
@@ -53,7 +61,36 @@
 /** @brief Hint for the compiler that the condition is unlikely to happen */
 #define UNLIKELY(cond)  __builtin_expect(!!(cond), 0)
 
-/** @brief UTF-8 decoding */
+/** 
+ * @brief Decode the next UTF-8 codepoint from a string
+ * 
+ * @param str 	Pointer to the UTF-8 string pointer. The pointer will be
+ * 		      	advanced to the next character.
+ * @return      The decoded Unicode codepoint
+ */
 uint32_t __utf8_decode(const char **str);
+
+/**
+ * @brief Read a variable-length unsigned integer in LEB128 format
+ * 
+ * @param ptr  	Pointer to the buffer pointer. The pointer will be 
+ *              advanced past the read integer.
+ */
+uint64_t __read_varint_u64(const uint8_t **ptr);
+
+/**
+ * @brief Read a variable-length signed integer in LEB128 format
+ * 
+ * @param ptr  	Pointer to the buffer pointer. The pointer will be
+ * 		   		advanced past the read integer.
+ */
+int64_t __read_varint_s64(const uint8_t **ptr);
+
+/** @brief Like __read_varint_u64 but does not advance the pointer */
+uint64_t __peek_varint_u64(const uint8_t *ptr);
+
+/** @brief Like __read_varint_s64 but does not advance the pointer */
+int64_t __peek_varint_s64(const uint8_t *ptr);
+
 
 #endif
