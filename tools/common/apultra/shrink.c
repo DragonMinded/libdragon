@@ -1058,7 +1058,7 @@ static int apultra_reduce_commands(apultra_compressor *pCompressor, const unsign
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-static int apultra_write_block(apultra_compressor *pCompressor, const apultra_final_match *pBestMatch, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize, int *nCurBitsOffset, int *nCurBitShift, int *nFollowsLiteral, int *nCurRepMatchOffset, const int nBlockFlags) {
+static int apultra_write_block(apultra_compressor *pCompressor, const apultra_final_match *pBestMatch, const unsigned char *pInWindow, const int nStartOffset, const int nEndOffset, unsigned char *pOutData, const int nMaxOutDataSize, int *nCurBitsOffset, int *nCurBitShift, int *nFollowsLiteral, int *nCurRepMatchOffset, const int nBlockFlags, const int nPriorDelta) {
    int i;
    int nRepMatchOffset = *nCurRepMatchOffset;
    int nCurFollowsLiteral = *nFollowsLiteral;
@@ -1203,7 +1203,7 @@ static int apultra_write_block(apultra_compressor *pCompressor, const apultra_fi
          nCurFollowsLiteral = 1;
       }
 
-      const int nCurSafeDist = (i - nStartOffset) - nOutOffset;
+      const int nCurSafeDist = nPriorDelta + (i - nStartOffset) - nOutOffset;
       if (nCurSafeDist >= 0 && pCompressor->stats.safe_dist < nCurSafeDist)
          pCompressor->stats.safe_dist = nCurSafeDist;
    }
@@ -1219,7 +1219,7 @@ static int apultra_write_block(apultra_compressor *pCompressor, const apultra_fi
       pCompressor->stats.num_eod++;
       pCompressor->stats.commands_divisor++;
 
-      const int nCurSafeDist = (i - nStartOffset) - nOutOffset;
+      const int nCurSafeDist = nPriorDelta + (i - nStartOffset) - nOutOffset;
       if (nCurSafeDist >= 0 && pCompressor->stats.safe_dist < nCurSafeDist)
          pCompressor->stats.safe_dist = nCurSafeDist;
    }
@@ -1247,7 +1247,7 @@ static int apultra_write_block(apultra_compressor *pCompressor, const apultra_fi
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-static int apultra_optimize_and_write_block(apultra_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize, int *nCurBitsOffset, int *nCurBitShift, int *nCurFollowsLiteral, int *nCurRepMatchOffset, const int nBlockFlags) {
+static int apultra_optimize_and_write_block(apultra_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize, int *nCurBitsOffset, int *nCurBitShift, int *nCurFollowsLiteral, int *nCurRepMatchOffset, const int nBlockFlags, const int nPriorDelta) {
    const int nEndOffset = nPreviousBlockSize + nInDataSize;
    const int nArrivalsPerPosition = pCompressor->max_arrivals;
    int *rle_len = (int*)pCompressor->intervals /* reuse */;
@@ -1441,7 +1441,7 @@ static int apultra_optimize_and_write_block(apultra_compressor *pCompressor, con
 
    /* Write compressed block */
 
-   return apultra_write_block(pCompressor, pCompressor->best_match - nPreviousBlockSize, pInWindow, nPreviousBlockSize, nEndOffset, pOutData, nMaxOutDataSize, nCurBitsOffset, nCurBitShift, nCurFollowsLiteral, nCurRepMatchOffset, nBlockFlags);
+   return apultra_write_block(pCompressor, pCompressor->best_match - nPreviousBlockSize, pInWindow, nPreviousBlockSize, nEndOffset, pOutData, nMaxOutDataSize, nCurBitsOffset, nCurBitShift, nCurFollowsLiteral, nCurRepMatchOffset, nBlockFlags, nPriorDelta);
 }
 
 /* Forward declaration */
@@ -1615,7 +1615,7 @@ static void apultra_compressor_destroy(apultra_compressor *pCompressor) {
  *
  * @return size of compressed data in output buffer, or -1 if the data is uncompressible
  */
-static int apultra_compressor_shrink_block(apultra_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize, int *nCurBitsOffset, int *nCurBitShift, int *nCurFollowsLiteral, int *nCurRepMatchOffset, const int nBlockFlags) {
+static int apultra_compressor_shrink_block(apultra_compressor *pCompressor, const unsigned char *pInWindow, const int nPreviousBlockSize, const int nInDataSize, unsigned char *pOutData, const int nMaxOutDataSize, int *nCurBitsOffset, int *nCurBitShift, int *nCurFollowsLiteral, int *nCurRepMatchOffset, const int nBlockFlags, const int nPriorDelta) {
    int nCompressedSize;
 
    if (apultra_build_suffix_array(pCompressor, pInWindow, nPreviousBlockSize + nInDataSize))
@@ -1626,7 +1626,7 @@ static int apultra_compressor_shrink_block(apultra_compressor *pCompressor, cons
       }
       apultra_find_all_matches(pCompressor, NMATCHES_PER_INDEX, nPreviousBlockSize, nPreviousBlockSize + nInDataSize, nBlockFlags);
 
-      nCompressedSize = apultra_optimize_and_write_block(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize, nCurBitsOffset, nCurBitShift, nCurFollowsLiteral, nCurRepMatchOffset, nBlockFlags);
+      nCompressedSize = apultra_optimize_and_write_block(pCompressor, pInWindow, nPreviousBlockSize, nInDataSize, pOutData, nMaxOutDataSize, nCurBitsOffset, nCurBitShift, nCurFollowsLiteral, nCurRepMatchOffset, nBlockFlags, nPriorDelta);
    }
 
    return nCompressedSize;
@@ -1716,8 +1716,14 @@ size_t apultra_compress(const unsigned char *pInputData, unsigned char *pOutBuff
 
          if ((nOriginalSize + nInDataSize) >= nInputSize)
             nBlockFlags |= 2;
+         /* Prior cumulative (decoder-output − decoder-input) at the start
+          * of this block. Used by safe_dist accounting so it sees the
+          * GLOBAL output-vs-input lead, not just the per-block local delta.
+          * Dictionary bytes are not emitted by the decoder, so they're
+          * excluded from the input side. */
+         const int nPriorDelta = (nOriginalSize - (int)nDictionarySize) - nCompressedSize;
          nOutDataSize = apultra_compressor_shrink_block(&compressor, pInputData + nOriginalSize - nPreviousBlockSize, nPreviousBlockSize, nInDataSize, pOutBuffer + nCompressedSize, nOutDataEnd,
-            &nCurBitsOffset, &nCurBitShift, &nCurFollowsLiteral, &nCurRepMatchOffset, nBlockFlags);
+            &nCurBitsOffset, &nCurBitShift, &nCurFollowsLiteral, &nCurRepMatchOffset, nBlockFlags, nPriorDelta);
          nBlockFlags &= (~1);
 
          if (nOutDataSize >= 0) {

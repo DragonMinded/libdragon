@@ -5,7 +5,7 @@
 #include "shrinkler/DataFile.h"
 
 extern "C" 
-uint8_t *shrinkler_compress(const uint8_t *input, int dec_size, int level, int *cmp_size, int* inplace_margin)
+uint8_t *shrinkler_compress(const uint8_t *input, int dec_size, int level, int winsize, int *cmp_size, int* inplace_margin)
 {
     int references = 100000;
 	PackParams params;
@@ -15,6 +15,7 @@ uint8_t *shrinkler_compress(const uint8_t *input, int dec_size, int level, int *
 	params.skip_length = level*1000;
 	params.match_patience = level*100;
 	params.max_same_length = level*10;
+	params.max_offset = winsize; // 0 means unlimited
 
 	DataFile *orig = new DataFile;
 	orig->data.resize(dec_size);
