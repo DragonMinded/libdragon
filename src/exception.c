@@ -11,12 +11,16 @@
 #include "n64sys.h"
 #include "debug.h"
 #include "regsinternal.h"
+#include "kernel/kernel_internal.h"
+#include "kernel/ktls_internal.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
 
+/** Invalid TLS Minimum Address */
+#define TLS_INVALID_MIN (uint32_t)(KERNEL_TP_INVALID-TP_OFFSET)
 /**
  * @brief Syscall exception handler entry
  */
@@ -100,6 +104,9 @@ void __exception_dump_header(FILE *out, exception_t* ex) {
 			fprintf(out, "Syscall code: %05lX\n", (*(uint32_t*)ex->regs->epc >> 6) & 0xfffff);
 			break;
 
+		case EXCEPTION_CODE_EMUX:
+			fprintf(out, "On hardware, the console would now be frozen.\n");
+			/* fall through */
 		case EXCEPTION_CODE_D_BUS_ERROR: {
 			uint32_t opcode = *(uint32_t*)epc;
 			uint64_t base = ex->regs->gpr[((opcode >> 21) & 0x1F)];
@@ -292,7 +299,7 @@ static const char* __get_exception_name(exception_t *ex)
 		"Coprocessor Unusable",						// 11
 		"Arithmetic Overflow",						// 12
 		"Trap",										// 13
-		"Reserved",									// 13
+		"Reserved",									// 14
 		"Floating-Point",							// 15
 		"Reserved",									// 16
 		"Reserved",									// 17
@@ -302,7 +309,7 @@ static const char* __get_exception_name(exception_t *ex)
 		"Reserved",									// 21
 		"Reserved",									// 22
 		"Watch",									// 23
-		"Reserved",									// 24
+		"Emux", 									// 24
 		"Reserved",									// 25
 		"Reserved",									// 26
 		"Reserved",									// 27
@@ -400,13 +407,21 @@ static const char* __get_exception_name(exception_t *ex)
 			// so leave some margin to the actual faulting address.
 			return "NULL pointer dereference (read)";
 		} else {
-			return "Read from invalid memory address";
+			if (badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+				return "Read from TLS in interrupt handler";
+			} else {
+				return "Read from invalid memory address";
+			}
 		}
 	case EXCEPTION_CODE_TLB_STORE_MISS:
 		if (badvaddr < 128) {
 			return "NULL pointer dereference (write)";
 		} else {
-			return "Write to invalid memory address";
+			if (badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+				return "Write to TLS in interrupt handler";
+			} else {
+				return "Write to invalid memory address";
+			}
 		}
 	case EXCEPTION_CODE_TLB_MODIFICATION:
 		return "Write to read-only memory";
@@ -421,11 +436,22 @@ static const char* __get_exception_name(exception_t *ex)
 		} else {
 			if (is_unmapped_kx64(badvaddr))
 				return "Read from invalid 64-bit address";
-			else
-				return "Misaligned read from memory";
+			else {
+				if ((badvaddr & 0xFFFF0000) == 0xFEFE0000)
+					return "Uninitialized pointer dereference";
+				if (badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+					return "Read from TLS in interrupt handler";
+				} else {
+					return "Misaligned read from memory";
+				}
+			}
 		}
 	case EXCEPTION_CODE_STORE_ADDRESS_ERROR:
-		return "Misaligned write to memory";
+		if (badvaddr >= TLS_INVALID_MIN && badvaddr < (TLS_INVALID_MIN+TLS_SIZE)) {
+			return "Write to TLS in interrupt handler";
+		} else {
+			return "Misaligned write to memory";
+		}
 	case EXCEPTION_CODE_SYS_CALL:
 		return "Unhandled syscall";
 	case EXCEPTION_CODE_TRAP: {
@@ -434,6 +460,16 @@ static const char* __get_exception_name(exception_t *ex)
 		if (code == 7)
 			return "Integer divide by zero";
 	}	return exceptionMap[ex->code];
+	case EXCEPTION_CODE_EMUX: {
+		uint32_t kind = C0_CACHEERR() & 0xFF;
+		C0_WRITE_CACHEERR(0);
+		switch (kind) {
+		case 0:  return "Cached access to non-RDRAM area";
+		case 1:  return "64-bit read from non-RDRAM area";
+		case 2:  return "Access to RCP unmapped area";
+		default: return "Unknown emux";
+		}
+	}
 	default:
 		return exceptionMap[ex->code];
 	}
@@ -500,12 +536,14 @@ void register_syscall_handler( syscall_handler_t handler, uint32_t first_code, u
  * @brief Respond to a syscall exception.
  * 
  * Calls the handlers registered by #register_syscall_handler.
+ * 
+ * As a special case, if the specified syscall code is 1, the kernel scheduling
+ * function will be called. That function potentially returns a new stack pointer
+ * to be used if switching threads.
  */
-void __onSyscallException( reg_block_t* regs )
+reg_block_t* __onSyscallException( reg_block_t* regs )
 {
 	exception_t e;
-
-	if(!__exception_handler) { return; }
 
 	__fetch_regs(&e, EXCEPTION_TYPE_SYSCALL, regs);
 
@@ -513,6 +551,9 @@ void __onSyscallException( reg_block_t* regs )
 	uint32_t epc = e.regs->epc;
 	uint32_t opcode = *(uint32_t*)epc;
 	uint32_t code = (opcode >> 6) & 0xfffff;
+
+	if (code == 0)
+		return __kthread_syscall_schedule(regs);
 
 	bool called = false;
 	for (int i=0; i<MAX_SYSCALL_HANDLERS; i++)
@@ -528,11 +569,12 @@ void __onSyscallException( reg_block_t* regs )
 
 	if (!called)  {
 		__onCriticalException(regs);
-		return;
+		return regs;
 	}
 
 	// Skip syscall opcode to continue execution
 	e.regs->epc += 4;
+	return regs;
 }
 
 extern inline bool exception_is_running(void);

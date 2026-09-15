@@ -66,9 +66,10 @@
         @param The DATATYPE that is being sent
         @param A buffer with the data to send
         @param The size of the data being sent
+        @return 1 on success, 0 on fail, -1 on timeout
     ==============================*/
     
-    extern void usb_write(int datatype, const void* data, int size);
+    extern char usb_write(int datatype, const void* data, int size);
     
     
     /*==============================

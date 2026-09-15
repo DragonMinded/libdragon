@@ -9,15 +9,22 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <unistd.h>
 #include "dlfcn.h"
 #include "debug.h"
 #include "asset.h"
+#include "asset_internal.h"
+#include "scratch.h"
 #include "dragonfs.h"
 #include "dma.h"
 #include "n64sys.h"
+#include "joypad.h"
+#include "backtrace_internal.h"
+#include "exception_internal.h"
 #include "rompak_internal.h"
 #include "utils.h"
 #include "dlfcn_internal.h"
+#include "kernel/ktls_internal.h"
 
 /**
  * @defgroup dl Dynamic linker subsystem
@@ -45,6 +52,38 @@
  * @{
  */
 
+ // Embedded GDB script to auto-load DSO symbols
+/// @cond
+asm(
+".pushsection \".debug_gdb_scripts\", \"MS\",@progbits,1\n"
+".byte 4\n"
+".ascii \"gdb.inlined-script-dso-autoload\\n\"\n"
+".ascii \"import gdb\\n\"\n"
+".ascii \"class BreakpointDsoLoad(gdb.Breakpoint):\\n\"\n"
+".ascii \"  def stop(self):\\n\"\n"
+".ascii \"    frame = gdb.selected_frame()\\n\"\n"
+".ascii \"    src_elf = gdb.execute('printf \\\"%s\\\", module->src_elf', False, True)\\n\"\n"
+".ascii \"    prog_base = int(gdb.execute('printf \\\"%x\\\", module->prog_base', False, True), 16)\\n\"\n"
+".ascii \"    print(\\\"Loading overlay: \\\", src_elf, \\\"(text:\\\", hex(prog_base), \\\")\\\")\\n\"\n"
+".ascii \"    gdb.execute(\\\"add-symbol-file -readnow \\\" + src_elf + \\\" \\\" + hex(prog_base), False, True)\\n\"\n"
+".ascii \"    return False\\n\"\n"
+".ascii \"class BreakpointDsoFree(gdb.Breakpoint):\\n\"\n"
+".ascii \"  def stop(self):\\n\"\n"
+".ascii \"    frame = gdb.selected_frame()\\n\"\n"
+".ascii \"    src_elf = gdb.execute('printf \\\"%s\\\", module->src_elf', False, True)\\n\"\n"
+".ascii \"    prog_base = int(gdb.execute('printf \\\"%x\\\", module->prog_base', False, True), 16)\\n\"\n"
+".ascii \"    print(\\\"Unloading overlay: \\\", src_elf, \\\"(text:\\\", hex(prog_base), \\\")\\\")\\n\"\n"
+".ascii \"    gdb.execute(\\\"remove-symbol-file -a \\\" + hex(prog_base), False, True)\\n\"\n"
+".ascii \"    return False\\n\"\n"
+".ascii \"bp_load = BreakpointDsoLoad(\\\"__dl_insert_module\\\")\\n\"\n"
+".ascii \"bp_load.silent = True\\n\"\n"
+".ascii \"bl_free = BreakpointDsoFree(\\\"__dl_remove_module\\\")\\n\"\n"
+".ascii \"bl_free.silent = True\\n\"\n"
+".byte 0\n"
+".popsection\n"
+);
+/// @endcond
+
 /** @brief Macro to round up pointer */
 #define PTR_ROUND_UP(ptr, d) ((void *)ROUND_UP((uintptr_t)(ptr), (d)))
 /** @brief Macro to add base to pointer */
@@ -60,8 +99,6 @@ extern void __cxa_finalize(void *dso);
 /** @brief Demangler function */
 demangle_func __dl_demangle_func;
 
-/** @brief Module resolver */
-module_lookup_func __dl_lookup_module;
 /** @brief Module list head */
 dl_module_t *__dl_list_head;
 /** @brief Module list tail */
@@ -138,7 +175,7 @@ static void load_mainexe_sym_table()
 {
     mainexe_sym_info_t __attribute__((aligned(8))) mainexe_sym_info;
     //Search for main executable symbol table
-    uint32_t rom_addr = rompak_search_ext(".msym");
+    uint32_t rom_addr = rompak_search_ext(".msym", NULL);
     assertf(rom_addr != 0, "Main executable symbol table not found");
     //Read header for main executable symbol table
     data_cache_hit_writeback_invalidate(&mainexe_sym_info, sizeof(mainexe_sym_info));
@@ -151,6 +188,7 @@ static void load_mainexe_sym_table()
     }
     //Read main executable symbol table
     mainexe_sym_table = malloc(mainexe_sym_info.size);
+    assertf(mainexe_sym_table, "Out of memory");
     data_cache_hit_writeback_invalidate(mainexe_sym_table, mainexe_sym_info.size);
     dma_read_raw_async(mainexe_sym_table, rom_addr+sizeof(mainexe_sym_info), mainexe_sym_info.size);
     dma_wait();
@@ -283,6 +321,9 @@ static void flush_module(dso_module_t *module)
 
 static void relocate_module(dso_module_t *module)
 {
+    //Base for GP-Relative symbols
+    extern uint8_t _gp;
+    
     //Process relocations
     for(uint32_t i=0; i<module->num_relocs; i++) {
         dso_reloc_t *reloc = &module->relocs[i];
@@ -344,6 +385,54 @@ static void relocate_module(dso_module_t *module)
             }
             break;
             
+            case R_MIPS_GPREL16:
+            {
+                uint16_t lo = *target & 0xFFFF; //Read lo from instruction
+                uint32_t gpaddr = (uint32_t)(&_gp);
+                lo += sym_addr-gpaddr; //Calulate new lo
+                *target = (*target & 0xFFFF0000)|lo; //Write lo to instruction
+            }
+            break;
+            
+            case R_MIPS_TLS_TPREL_HI16:
+            {
+                uint16_t hi = *target & 0xFFFF; //Read hi from instruction
+                uint32_t addr = hi << 16; //Setup address from hi
+                bool lo_found = false;
+                //Search for next R_MIPS_TLS_TPREL_LO16 relocation
+                for(uint32_t j=i+1; j<module->num_relocs; j++) {
+                    dso_reloc_t *new_reloc = &module->relocs[j];
+                    type = new_reloc->info >> 24;
+                    if(type == R_MIPS_TLS_TPREL_LO16) {
+                        //Pair for R_MIPS_TLS_TPREL_LO16 relocation found
+                        u_uint32_t *lo_target = PTR_DECODE(module->prog_base, new_reloc->offset);
+                        int16_t lo = *lo_target & 0xFFFF; //Read lo from target of paired relocation
+                        //Update address
+                        addr += lo;
+                        addr += sym_addr-TP_OFFSET;
+                        //Calculate hi
+                        hi = addr >> 16;
+                        if(addr & 0x8000) {
+                            //Do hi carry
+                            hi++;
+                        }
+                        lo_found = true;
+                        break;
+                    }
+                }
+                assertf(lo_found, "Unpaired R_MIPS_TLS_TPREL_HI16 relocation");
+                *target = (*target & 0xFFFF0000)|hi; //Write hi to instruction
+            }
+            break;
+            
+            case R_MIPS_TLS_TPREL_LO16:
+            {
+                uint16_t lo = *target & 0xFFFF; //Read lo from instruction
+                lo += sym_addr-TP_OFFSET; //Calulate new lo
+                *target = (*target & 0xFFFF0000)|lo; //Write lo to instruction
+            }
+            break;
+            
             default:
                 assertf(0, "Unknown relocation type %d", type);
                 break;
@@ -351,18 +440,27 @@ static void relocate_module(dso_module_t *module)
     }
 }
 
-static void link_module(dso_module_t *module, const char *filename)
+static void link_module(dso_module_t *module, const char *filename, void *temp_base)
 {
+    uint32_t first_export_sym = module->num_import_syms+1;
     //Relocate module pointers
     module->syms = PTR_DECODE(module, module->syms);
-    module->relocs = PTR_DECODE(module, module->relocs);
+    module->relocs = PTR_DECODE(temp_base, module->relocs);
     module->prog_base = PTR_DECODE(module, module->prog_base);
     module->src_elf = PTR_DECODE(module, module->src_elf);
     module->filename = PTR_DECODE(module, module->filename);
-    fixup_sym_names(module->syms, (uint8_t *)module, module->num_syms);
+    for(uint32_t i=0; i<module->num_syms; i++) {
+        if(i >= 1 && i < first_export_sym) {
+            module->syms[i].name = PTR_DECODE(temp_base, module->syms[i].name);
+        } else {
+            module->syms[i].name = PTR_DECODE(module, module->syms[i].name);
+        }
+    }
     resolve_syms(module, filename);
     relocate_module(module);
     flush_module(module);
+    module->relocs = NULL;
+    module->num_relocs = 0;
 }
 
 static void start_module(dl_module_t *handle)
@@ -418,9 +516,25 @@ void *dlopen(const char *filename, int mode)
         //Increment use count
         handle->ref_count++;
     } else {
-        handle = asset_load(filename, NULL);
-        assertf(handle->magic == DSO_MAGIC, "Invalid DSO file");
-        link_module(handle, filename);
+        dso_file_header_t hdr;
+        int fd = must_open(filename);
+        int nread = read(fd, &hdr, sizeof(hdr));
+        assertf(nread == sizeof(hdr), "cannot read DSO file: %s", filename);
+        assertf(hdr.magic == DSO_FILE_MAGIC, "Invalid DSO file: %s", filename);
+        lseek(fd, hdr.resident_off, SEEK_SET);
+        int rsz = hdr.resident_size;
+        handle = asset_loadfd(fd, &rsz);
+        lseek(fd, hdr.loadtmp_off, SEEK_SET);
+        int tsz = hdr.loadtmp_size, tbuf_size = 0;
+        asset_loadfd_into(fd, &tsz, NULL, &tbuf_size);
+        lseek(fd, hdr.loadtmp_off, SEEK_SET);
+        tsz = hdr.loadtmp_size;
+        void *temp = scratch_memalign(ASSET_ALIGNMENT, tbuf_size);
+        assertf(temp, "Out of memory");
+        asset_loadfd_into(fd, &tsz, temp, &tbuf_size);
+        close(fd);
+        link_module(handle, filename, temp);
+        scratch_free(temp);
         handle->mode = mode;
 		if(strncmp(filename, "rom:/", 5) == 0) {
 			sprintf(handle->filename, "%s.sym", filename+5);
@@ -440,7 +554,7 @@ void *dlopen(const char *filename, int mode)
         strcpy(handle->filename, filename);
         //Add module handle to list
         handle->ref_count = 1;
-		__dl_lookup_module = lookup_module;
+		__bt_lookup_module = lookup_module;
         __dl_insert_module(handle);
         //Start running module
         start_module(handle);
@@ -540,7 +654,7 @@ static void end_module(dl_module_t *module)
     //Deregister exception frames for this module
     dso_sym_t *eh_frame_begin = search_module_exports(module, "__EH_FRAME_BEGIN__");
     if(eh_frame_begin) {
-        __register_frame_info((void *)eh_frame_begin->value, module->ehframe_obj);
+        __deregister_frame_info((void *)eh_frame_begin->value);
     }
 }
 
@@ -637,6 +751,38 @@ char *dlerror(void)
     //Return error and clear error status
     error_present = false;
     return error_string;
+}
+
+/** @brief Inspector page showing loaded modules */
+static void inspector_page_modules(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
+{
+    static int module_offset = 0;
+
+    dl_module_t *curr_module = __dl_list_head;
+    size_t module_idx = 0;
+    if(key_pressed->d_up && module_offset > 0) {
+        module_offset--;
+    }
+    if(key_pressed->d_down && module_offset+18 < __dl_num_loaded_modules) {
+        module_offset++;
+    }
+    printf("Loaded DSOs (modules)\n\n");
+    while(curr_module) {
+        if(module_idx >= module_offset && module_idx < module_offset+18) {
+            void *module_min = curr_module->prog_base;
+            void *module_max = ((uint8_t *)module_min)+curr_module->prog_size;
+            printf("\aG%s \aT(%p-%p)\n", curr_module->filename, module_min, module_max);
+        }
+        curr_module = curr_module->next;
+        module_idx++;
+    }
+}
+
+/** @brief Register the inspector page for loaded modules */
+__attribute__((constructor))
+void __dl_register_inspector(void)
+{
+    __inspector_add_page(inspector_page_modules);
 }
 
 /** @} */

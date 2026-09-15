@@ -2,18 +2,25 @@
  * @file inspector.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
  */
+#ifndef NDEBUG
 #include "graphics.h"
+#include "vi_internal.h"
+#include "display.h"
 #include "debug.h"
-#include "controller.h"
+#include "surface.h"
+#include "joypad.h"
+#include "rompak_internal.h"
+#include "joybus/joypad_internal.h"
 #include "exception_internal.h"
 #include "system.h"
 #include "utils.h"
 #include "backtrace.h"
 #include "backtrace_internal.h"
-#include "dlfcn_internal.h"
+#include "kernel/kernel_internal.h"
 #include "cop0.h"
 #include "n64sys.h"
-#include "display.h"
+#include "mi.h"
+#include "emux.h"
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -27,10 +34,13 @@ enum Mode {
 };
 
 enum {
+    XTITLE = 64,
+    YTITLE = 2,
     XSTART = 48,
     XEND = 640-48,
     YSTART = 16,
     YEND = 240-8-8,
+    YBODY_END = 240-8-8-8,
 };
 
 /** @brief Pack a 16-bit color into a 32-bit word. */
@@ -53,13 +63,19 @@ enum {
 /// @endcond
 
 static int cursor_x, cursor_y, cursor_columns, cursor_wordwrap;
+/** Extra indent (pixels) for wrapped lines; set by \aZ<n>, reset on \n */
+static int cursor_wrap_indent;
+static enum Mode inspector_mode;
 static surface_t *disp;
 static int fpr_show_mode = 1;
 static int disasm_bt_idx = 0;
 static int disasm_max_frames = 0;
 static int disasm_offset = 0;
-static int module_offset = 0;
-static bool first_backtrace = true;
+static int thread_offset = 0;
+static int num_threads = 0;
+static int backtrace_count = 0;
+static int page_scroll_y = 0, page_scroll_max = 0;
+static bool page_scroll_on;
 
 const char *__mips_gpr[34] = {
 	"zr", "at", "v0", "v1", "a0", "a1", "a2", "a3",
@@ -206,14 +222,48 @@ static bool disasm_valid_pc(uint32_t pc) {
     return pc >= 0x80000000 && pc < 0x80800000 && (pc & 3) == 0;
 }
 
+/* Good breakpoints for wrapping C++-style symbols and signatures. */
+static bool is_wrap_break_char(char c)
+{
+    switch (c) {
+    case ' ': case ',': case '/':
+    case '<': case '>': case ':': case '&':
+    case '*': case '[': case ']':
+        return true;
+    default:
+        return false;
+    }
+}
+
+/* Measure next printable token width in pixels, skipping escape controls. */
+static int next_token_width_px(const char *buf, unsigned int len, int start)
+{
+    int px = 0;
+    for (int j = start; j < (int)len; j++) {
+        char c = buf[j];
+        if (c == '\n' || c == '\t' || is_wrap_break_char(c))
+            break;
+        if (c == '\a') {
+            if (++j >= (int)len) break;
+            if (buf[j] == 'Z' && ++j >= (int)len) break;
+            continue;
+        }
+        if (c == '\b')
+            continue;
+        px += 8;
+    }
+    return px;
+}
+
 static int inspector_stdout(char *buf, unsigned int len) {
     for (int i=0; i<len; i++) {
-        if (cursor_x >= 640) break;
-
         switch (buf[i]) {
         case '\a': {
             uint32_t color = COLOR_TEXT;
-            switch (buf[++i]) {
+            bool apply_color = true;
+            if (++i >= (int)len) break;
+            int esc = buf[i];
+            switch (esc) {
             case 'T': color = COLOR_TEXT; break;
             case 'E': color = COLOR_EMPHASIS; break;
             case 'O': color = COLOR_ORANGE; break;
@@ -221,8 +271,20 @@ static int inspector_stdout(char *buf, unsigned int len) {
             case 'M': color = COLOR_MAGENTA; break;
             case 'G': color = COLOR_GREEN; break;
             case 'W': color = COLOR_WHITE; break;
+            case 'Z':
+                apply_color = false;
+                if (++i < (int)len) {
+                    int d = buf[i];
+                    cursor_wrap_indent = (d >= '0' && d <= '9') ? (d - '0') * 8 : 0;
+                } else {
+                    cursor_wrap_indent = 0;
+                }
+                break;
+            default:
+                break;
             }
-            graphics_set_color(color, COLOR_BACKGROUND);
+            if (apply_color)
+                graphics_set_color(color, COLOR_BACKGROUND);
         }   break;
         case '\b':
             cursor_wordwrap = true;
@@ -230,34 +292,45 @@ static int inspector_stdout(char *buf, unsigned int len) {
         case '\t':
             cursor_x = ROUND_UP(cursor_x+1, cursor_columns);
             if (cursor_wordwrap && cursor_x >= XEND) {
-                cursor_x = XSTART;
+                cursor_x = XSTART + cursor_wrap_indent;
                 cursor_y += 8;
+                if (page_scroll_on && cursor_y > page_scroll_max) page_scroll_max = cursor_y;
             }
             break;
         case '\n':
+            cursor_wrap_indent = 0;
             cursor_x = XSTART;
-            cursor_y += 8;
+            if (cursor_y == YTITLE) {
+                cursor_y = YSTART;
+            } else {
+                cursor_y += 8;
+            }
+            if (page_scroll_on && cursor_y > page_scroll_max) page_scroll_max = cursor_y;
             cursor_wordwrap = false;
             graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
             break;
         default:
+            if (cursor_wordwrap && cursor_x >= XEND) {
+                cursor_x = XSTART + cursor_wrap_indent;
+                cursor_y += 8;
+                if (page_scroll_on && cursor_y > page_scroll_max) page_scroll_max = cursor_y;
+            }
             if (cursor_x < XEND) {
-                graphics_draw_character(disp, cursor_x, cursor_y, buf[i]);
-                cursor_x += 8;
-                if (cursor_wordwrap && buf[i] == ' ') {
-                    // Check if we can fit the next word
-                    int j = i+1;
-                    while (j < len && buf[j] != ' ' && buf[j] != '\n')
-                        j++;
-                    // If it doesn't fit, wrap
-                    if (cursor_x + (j-i)*8 >= XEND) {
-                        cursor_x = XSTART;
-                        cursor_y += 8;
-                    }
+                if (page_scroll_on && cursor_y >= YSTART) {
+                    int y = cursor_y - page_scroll_y;
+                    if (y >= YSTART && y <= YBODY_END)
+                        graphics_draw_character(disp, cursor_x, y, buf[i]);
+                } else {
+                    graphics_draw_character(disp, cursor_x, cursor_y, buf[i]);
                 }
-                if (cursor_wordwrap && cursor_x >= XEND) {
-                    cursor_x = XSTART;
-                    cursor_y += 8;
+                cursor_x += 8;
+                if (cursor_wordwrap && is_wrap_break_char(buf[i])) {
+                    int next_word_px = next_token_width_px(buf, len, i + 1);
+                    if (next_word_px > 0 && cursor_x + next_word_px > XEND) {
+                        cursor_x = XSTART + cursor_wrap_indent;
+                        cursor_y += 8;
+                        if (page_scroll_on && cursor_y > page_scroll_max) page_scroll_max = cursor_y;
+                    }
                 }
             }
             break;
@@ -266,19 +339,49 @@ static int inspector_stdout(char *buf, unsigned int len) {
     return len;
 }
 
-static void title(const char *title) {
-    graphics_draw_box(disp, 0, 0, 640, 12, COLOR_TEXT);
-    graphics_set_color(COLOR_BACKGROUND, COLOR_TEXT);
-    graphics_draw_text(disp, 64, 2, title);
-    graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
+static void inspector_print_backtrace(void *bt, int n, int bt_skip, bool also_debugf)
+{
+    printf("\aWBacktrace:\n");
+    if (also_debugf) debugf("Backtrace:\n");
+    bool skip = true;
+    void cb(void *arg, backtrace_frame_t *frame) {
+        if (also_debugf) { debugf("    "); backtrace_frame_print(frame, stderr); debugf("\n"); }
+        if (skip) {
+            if (strstr(frame->func, "<EXCEPTION HANDLER>"))
+                skip = false;
+            return;
+        }
+        if (bt_skip > 0) {
+            bt_skip--;
+            return;
+        }
+        const char *source_file = frame->source_file;
+        bool have_source = source_file && source_file[0] && strcmp(source_file, "???") != 0;
+        char file_part[96];
+        if (have_source)
+            snprintf(file_part, sizeof(file_part), "(%s:%d)", source_file, frame->source_line);
+        else
+            snprintf(file_part, sizeof(file_part), "[0x%08lx]", (unsigned long)frame->addr);
+
+        // Print function with arbitrary word-wrapped multiline layout.
+        printf("%*s\aZ%d\b\aG%s\aT", 4, "", 5, frame->func);
+        printf(" %s\n", file_part);
+    }
+    backtrace_symbols_cb(bt, n, 0, cb, NULL);
+    if (skip) {
+        // we didn't find the exception handler for some reason (eg: missing symbols)
+        // so just print the whole thing
+        skip = false;
+        backtrace_symbols_cb(bt, n, 0, cb, NULL);
+    }
 }
 
-static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode mode, bool with_backtrace) {
+static void inspector_page_exception(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
     int bt_skip = 0;
 
-    switch (mode) {
+    switch (inspector_mode) {
     case MODE_EXCEPTION:
-        title("CPU Exception");
+        printf("CPU Exception\n");
         printf("\aO");
         __exception_dump_header(stdout, ex);
         printf("\n");
@@ -292,10 +395,14 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         } else {
             printf("    <Invalid PC: %08lx>\n\n", epc);
         }
+
+        if (__kernel) {
+            printf("\aWThread:\n    %s\n\n", kthread_current()->name);
+        }
         break;
 
     case MODE_ASSERTION: {
-        title("CPU Assertion");
+        printf("CPU Assertion\n");
         const char *failedexpr = (const char*)(uint32_t)ex->regs->gpr[4];
         const char *msg = (const char*)(uint32_t)ex->regs->gpr[5];
         va_list args = (va_list)(uint32_t)ex->regs->gpr[6];
@@ -308,11 +415,14 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
         } else {
             printf("\b\aOASSERTION FAILED: %s\n\n", failedexpr);
         }
+        if (__kernel) {
+            printf("\aWThread:\n    %s\n\n", kthread_current()->name);
+        }
         bt_skip = 2;
         break;
     }
     case MODE_CPP_EXCEPTION: {
-        title("Uncaught C++ Exception");
+        printf("Uncaught C++ Exception\n");
         const char *exctype = (const char*)(uint32_t)ex->regs->gpr[4];
         const char *what = (const char*)(uint32_t)ex->regs->gpr[5];
         printf("\b\aOC++ Exception: %s\n\n", what);
@@ -320,49 +430,24 @@ static void inspector_page_exception(surface_t *disp, exception_t* ex, enum Mode
             printf("\aWException type:\n");
             printf("    "); printf("\b%s", exctype); printf("\n\n");
         }
+        if (__kernel) {
+            printf("\aWThread:\n    %s\n\n", kthread_current()->name);
+        }
         bt_skip = 5;
         break;
     }
     }
 
-    if (!with_backtrace)
+    if (backtrace_count++ == 0)
         return;
 
     void *bt[32];
     int n = backtrace(bt, 32);
-
-    printf("\aWBacktrace:\n");
-    if (first_backtrace) debugf("Backtrace:\n");
-    char func[128];
-    bool skip = true;
-    void cb(void *arg, backtrace_frame_t *frame) {
-        if (first_backtrace) { debugf("    "); backtrace_frame_print(frame, stderr); debugf("\n"); }
-        if (skip) {
-            if (strstr(frame->func, "<EXCEPTION HANDLER>"))
-                skip = false;
-            return;
-        }
-        if (bt_skip > 0) {
-            bt_skip--;
-            return;
-        }
-        printf("    ");
-        snprintf(func, sizeof(func), "\aG%s\aT", frame->func);
-        frame->func = func;
-        backtrace_frame_print_compact(frame, stdout, 60);
-    }
-    backtrace_symbols_cb(bt, n, 0, cb, NULL);
-    if (skip) {
-        // we didn't find the exception handler for some reason (eg: missing symbols)
-        // so just print the whole thing
-        skip = false;
-        backtrace_symbols_cb(bt, n, 0, cb, NULL);
-    }
-    first_backtrace = false;
+    inspector_print_backtrace(bt, n, bt_skip, backtrace_count == 2);
 }
 
-static void inspector_page_gpr(surface_t *disp, exception_t* ex) {
-    title("CPU Registers");
+static void inspector_page_gpr(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
+    printf("CPU Registers\n");
     cursor_columns = 92;
 
     int c = 0;
@@ -375,13 +460,13 @@ static void inspector_page_gpr(surface_t *disp, exception_t* ex) {
     __exception_dump_gpr(ex, cb, NULL);
 }
 
-static void inspector_page_fpr(surface_t *disp, exception_t* ex, struct controller_data *key_pressed) {
-    if (key_pressed->c[0].A)
+static void inspector_page_fpr(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
+    if (key_pressed->a)
         fpr_show_mode = (fpr_show_mode + 1) % 3;
 
-    title(fpr_show_mode == 0 ? "CPU Floating Point Registers (Hex)" :
-          fpr_show_mode == 1 ? "CPU Floating Point Registers (Single)" :
-                               "CPU Floating Point Registers (Double)");
+    printf(fpr_show_mode == 0 ? "CPU Floating Point Registers (Hex)\n" :
+           fpr_show_mode == 1 ? "CPU Floating Point Registers (Single)\n" :
+                                "CPU Floating Point Registers (Double)");
 
     int c = 0;
     void cb(void *arg, const char *name, char *hexvalue, char *singlevalue, char *doublevalue) {
@@ -392,23 +477,23 @@ static void inspector_page_fpr(surface_t *disp, exception_t* ex, struct controll
     __exception_dump_fpr(ex, cb, NULL);
 }
 
-static void inspector_page_disasm(surface_t *disp, exception_t* ex, struct controller_data *key_pressed) {
-    if (key_pressed->c[0].up && disasm_bt_idx > 0) {        
+static void inspector_page_disasm(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed) {
+    if (key_pressed->d_up && disasm_bt_idx > 0) {        
         disasm_bt_idx--;
         disasm_offset = 0;
     }
-    if (key_pressed->c[0].down && disasm_bt_idx < disasm_max_frames-1) {
+    if (key_pressed->d_down && disasm_bt_idx < disasm_max_frames-1) {
         disasm_bt_idx++;
         disasm_offset = 0;
     }
-    if (key_pressed->c[0].C_up) {
+    if (key_pressed->c_up) {
         disasm_offset -= 4*6;
     }
-    if (key_pressed->c[0].C_down) {
+    if (key_pressed->c_down) {
         disasm_offset += 4*6;
     }
 
-    title("Disassembly");
+    printf("Disassembly\n");
 
 	void *bt[32];
 	int n = backtrace(bt, 32);
@@ -466,122 +551,276 @@ static void inspector_page_disasm(surface_t *disp, exception_t* ex, struct contr
     }
 }
 
-static void inspector_page_modules(surface_t *disp, exception_t* ex, struct controller_data *key_pressed)
+static void inspector_page_threads(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
 {
-    dl_module_t *curr_module = __dl_list_head;
-    size_t module_idx = 0;
-    if(key_pressed->c[0].up && module_offset > 0) {
-        module_offset--;
+    const int THREAD_LEN = 12;
+    const int THREADS_PER_LINE = 5;
+    kthread_t *th_sel = NULL;
+
+    if (key_pressed->d_left && thread_offset > 0) { thread_offset--; }
+    if (key_pressed->d_right && thread_offset < num_threads-1) { thread_offset++; }
+    if (key_pressed->d_up && thread_offset >= THREADS_PER_LINE) { thread_offset -= THREADS_PER_LINE; }
+    if (key_pressed->d_down && thread_offset+THREADS_PER_LINE < num_threads) { thread_offset += THREADS_PER_LINE; }
+
+    printf("Threads\n");
+    if (!__kernel) {
+        printf("\aWkernel not initialized\n");
+        return;
     }
-    if(key_pressed->c[0].down && module_offset+18 < __dl_num_loaded_modules) {
-        module_offset++;
-    }
-    title("Loaded modules");
-    while(curr_module) {
-        if(module_idx >= module_offset && module_idx < module_offset+18) {
-            void *module_min = curr_module->prog_base;
-            void *module_max = ((uint8_t *)module_min)+curr_module->prog_size;
-            printf("%s (%p-%p)\n", curr_module->filename, module_min, module_max);
+
+    int i = 0;
+    for (kthread_t *th = __kernel_all_threads; th; th = th->all_next) {
+        char buf[THREAD_LEN+4];
+
+        if (i == thread_offset) {
+            sprintf(buf, "[%.*s]", THREAD_LEN, th->name);
+            printf("\aW%-*s\aT", THREAD_LEN+2, buf);
+            th_sel = th;
+        } else {
+            sprintf(buf, " %.*s ", THREAD_LEN, th->name);
+            printf("%-*s", THREAD_LEN+2, buf);
         }
-        curr_module = curr_module->next;
-        module_idx++;
+        
+        if ((i+1)%THREADS_PER_LINE == 0) printf("\n");
+        i++;
     }
+    if (i % THREADS_PER_LINE != 0) printf("\n");
+    printf("\n");
+
+    char type[64] = {0};
+    
+    if (th_sel->flags & TH_FLAG_INSPECTOR1) 
+        strcat(type, "suspended ");
+    if (th_sel->flags & TH_FLAG_DETACHED) {
+        strcat(type, "detached ");
+        if (th_sel->flags & TH_FLAG_ZOMBIE)
+            strcat(type, "zombie ");
+    } else if (th_sel->joiner) {
+        strcat(type, "joined(");
+        strcat(type, th_sel->joiner->name);
+        strcat(type, ") ");
+    } else {
+        strcat(type, "joinable ");
+        if (th_sel->flags & TH_FLAG_WAITFORJOIN) 
+            strcat(type, "joinable finished ");
+    }
+
+    printf("    \aWPriority: \aT%-30d\aWStack size: \aT%d KiB\n", th_sel->pri, th_sel->stack_size / 1024);
+    printf("    \aWType: \aT%-34.34s\aWStack: \aT%p\n", type, th_sel->stack);
+    printf("    \aWPC: \aT%p\n", th_sel == kthread_current() ? (void*)ex->regs->epc : (void*)th_sel->stack_state->epc);
+    printf("\n");
+
+    void *bt[32]; int n;
+    n = kthread_backtrace(th_sel, bt, 32);
+    inspector_print_backtrace(bt, n, 0, false);
 }
+
+static void version_callback(void *ctx, char *key, char *value)
+{
+    printf("    \aG%s: \aT%s\n", key, value);
+}
+
+static bool version_walk(void *ctx, const char *name, pi_addr_t address, size_t size)
+{
+    if (strstr(name, ".version")) {
+        printf("\aW%s:\n", name);
+        rompak_version_parse(address, size, version_callback, ctx);
+        printf("\n");
+    }
+    return true;
+}
+
+static void inspector_page_version(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed)
+{
+    printf("Versions\n");
+    rompak_walk(version_walk, NULL);
+}
+
+/** @brief The inspector pages */
+inspector_page_t inspector_pages[16] = {
+    inspector_page_exception,
+    inspector_page_gpr,
+    inspector_page_fpr,
+    inspector_page_disasm,
+    inspector_page_version,
+    inspector_page_threads,
+};
 
 __attribute__((noreturn))
 static void inspector(exception_t* ex, enum Mode mode) {
     static bool in_inspector = false;
     if (in_inspector) abort();
     in_inspector = true;
+    inspector_mode = mode;
 
+    if (__kernel) {
+        // Reverse the order of the thread list, so that we show the oldest threads
+        // first in the list
+        kthread_t *prev = NULL;
+        kthread_t *th = __kernel_all_threads;
+        while (th) {
+            kthread_t *next = th->all_next;
+            th->all_next = prev;
+            prev = th;
+            th = next;
+        }
+        __kernel_all_threads = prev;
+
+        // Suspend all threads but idle. This avoids the inpsector to be interrupted
+        // by other threads, and also allows to consistently inspect the state of the threads
+        kthread_t *current = kthread_current();
+        for (kthread_t *th = __kernel_all_threads; th; th = th->all_next) {
+            if (th != current && strcmp(th->name, "idle") != 0) {
+                // Copy the current suspended flag into the inspector flag,
+                // so that we can later dump the state of the thread correctly
+                if (th->flags & TH_FLAG_SUSPENDED)
+                    th->flags |= TH_FLAG_INSPECTOR1;
+                else
+                    th->flags &= ~TH_FLAG_INSPECTOR1;
+                kthread_suspend(th);
+            }
+            ++num_threads;
+        }
+
+        // Mask interrupts that we don't need during the inspector, so that
+        // their callbacks aren't called, which might cause crashes now.
+        // When the kernel is running, interrupts can always be activated in
+        // case of thread switch (eg: when using kirq), so to completely
+        // disable them we need to mask them.
+        *MI_MASK = MI_WMASK_CLR_DP | MI_WMASK_CLR_AI | MI_WMASK_CLR_VI;
+    }
+
+    // Call vi_write_end_forced in case we crashed within vi_begin() block,
+    // otherwise all VI register changes would not be applied.
+    vi_write_end_forced();
+
+    // Close display if it was open. This is useful mainly to free the framebuffers
+    // and hopefully be able to allocate the inspector's framebuffers even in
+    // low memory conditions.
 	display_close();
-	display_init(RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE);
 
-	enum Page {
-		PAGE_EXCEPTION,
-		PAGE_GPR,
-		PAGE_FPR,
-		PAGE_CODE,
-        PAGE_MODULES
-	};
-	enum { PAGE_COUNT = PAGE_MODULES+1 };
+    // Reset the VI to default state, so that we don't inherit any weird
+    // configuration from the crashed program.
+    vi_init();
+    vi_reset();
+	
+    // Try to allocate two framebuffers. We might be out of memory though,
+    // so be happy with a single framebuffer if that fails.
+    int fbidx = 0;
+    surface_t fb[2] = {0};
+    fb[0] = surface_alloc(FMT_RGBA16, 640, 240);
+    if (fb[0].buffer != NULL) {
+        fb[1] = surface_alloc(FMT_RGBA16, 640, 240);
+    } else {
+        // If we couldn't allocate any framebuffer, try to use the memory at
+        // the end of RAM. There's no guarantee this won't corrupt the inspector,
+        // but at least we try something.
+        int mem_size = get_memory_size();
+        void *end_mem = (void*)(0x80000000 + mem_size);
+        fb[0] = surface_make_linear(end_mem - 64*1024 - 640*240*2, FMT_RGBA16, 640, 240);
+    }
 
 	hook_stdio_calls(&(stdio_t){ NULL, inspector_stdout, NULL });
 
-    static bool backtrace = false;
-    struct controller_data key_old = {0};
-    struct controller_data key_pressed = {0};
-	enum Page page = PAGE_EXCEPTION;
-	while (1) {
-        if (key_pressed.c[0].Z || key_pressed.c[0].R) {
-            //Do page wrapping logic from left
-            if(page == PAGE_COUNT-1) {
-                page = 0;
-            } else {
-                page++;
-            }
-        }
-        if (key_pressed.c[0].L) {
-            //Do page wrapping logic from right
-            if(page == 0) {
-                page = PAGE_COUNT-1;
-            } else {
-                page--;
-            }
-        }
-        disp = display_get();
+    bool first_frame = true;
+    sys_version_t version = {0};
+    joypad_buttons_t key_old = {0};
+    joypad_buttons_t key_pressed = {0};
+    int prevPad = -1;
+	int page = 0;
+    int prev_page = -1;
+    int page_count = sizeof(inspector_pages) / sizeof(inspector_pages[0]);
+    while (inspector_pages[page_count-1] == NULL) {
+        page_count--;
+    }
 
-        cursor_x = XSTART;
-        cursor_y = YSTART;
+	while (1) {
+        if (key_pressed.z || key_pressed.r) {
+            // Do page wrapping logic from left
+            page++;
+            if (page >= page_count) page = 0;
+        }
+        if (key_pressed.l) {
+            // Do page wrapping logic from right
+            page--;
+            if (page < 0) page = page_count - 1;
+        }
+        if (page != prev_page) {
+            page_scroll_y = 0;
+            prev_page = page;
+        } else if (page == 0) {
+            if (key_pressed.d_up && page_scroll_y >= 8) page_scroll_y -= 8;
+            if (key_pressed.d_down) page_scroll_y += 8;
+        }
+        page_scroll_max = 0;
+        page_scroll_on = (page == 0);
+		disp = &fb[fbidx];
+
+        // Clear the screen, initialize printf cursor position
+        cursor_x = XTITLE;
+        cursor_y = YTITLE;
         cursor_columns = 8*8;
         graphics_set_color(COLOR_TEXT, COLOR_BACKGROUND);
         graphics_fill_screen(disp, COLOR_BACKGROUND);
-
-		switch (page) {
-		case PAGE_EXCEPTION:
-            inspector_page_exception(disp, ex, mode, backtrace);
-			break;
-        case PAGE_GPR:
-            inspector_page_gpr(disp, ex);
-            break;
-        case PAGE_FPR:
-            inspector_page_fpr(disp, ex, &key_pressed);
-            break;
-        case PAGE_CODE:
-            inspector_page_disasm(disp, ex, &key_pressed);
-            break;
-        case PAGE_MODULES:
-            inspector_page_modules(disp, ex, &key_pressed);
-            break;
-		}
-
+        graphics_draw_box(disp, 0, 0, 640, 12, COLOR_TEXT);
+        graphics_set_color(COLOR_BACKGROUND, COLOR_TEXT);
+    
+        // Draw the current page
+        inspector_pages[page](disp, ex, &key_pressed);
         fflush(stdout);
+        if (page == 0) {
+            int max = page_scroll_max - YBODY_END;
+            if (page_scroll_y < 0) page_scroll_y = 0;
+            else if (max > 0 && page_scroll_y > max) page_scroll_y = max;
+        }
+        page_scroll_on = false;
 
+        // Draw the footer
         cursor_x = XSTART;
         cursor_y = YEND + 2;
         cursor_columns = 64;
         graphics_draw_box(disp, 0, YEND, 640, 240-YEND, COLOR_TEXT);
         graphics_set_color(COLOR_BACKGROUND, COLOR_TEXT);
-		printf("\t\t\tLibDragon Inspector | Page %d/%d", page+1, PAGE_COUNT);
+        int indent = 10 - (strlen(version.branch) + (version.dirty ? 1 : 0) + strlen(version.commit_date))/2;
+        for (int i = 0; i < indent; i++) putc(' ', stdout);
+		printf("LibDragon Inspector | %s%s (%s, %.7s) | Page %d/%d", 
+            version.branch, version.dirty ? "*" : "", version.commit_date, version.hash,
+            page+1, page_count);
         fflush(stdout);
 
-        extern void display_show_force(display_context_t disp);
-		display_show_force(disp);
+        // Show the screen
+		vi_show(disp);
+        vi_wait_vblank();
+        if (fb[1].buffer != NULL) {
+            fbidx ^= 1;
+        }
+
+        // If we drew the first frame, we skipped the backtrace to make sure at least
+        // basic crash information is shown in case the backtrace crashes.
+        // So redraw immediately to attemp displaying the backtrace now.
+        if (first_frame) {
+            first_frame = false;
+            // parse version information once
+            sys_get_version(&version);
+            continue;
+        }
 
         // Loop until a keypress
         while (1) {
-            // Read controller using controller_read, that works also when the
-            // interrupts are disabled and when controller_init has not been called.
-            struct controller_data key_new;
-            controller_read(&key_new);
-            if (key_new.c->data != key_old.c->data) {
-                key_pressed.c->data = key_new.c->data & ~key_old.c->data;
-                key_old = key_new;
-	            break;
-            };
-            // If we draw the first frame, turn on backtrace and redraw immediately
-            if (!backtrace) {
-                backtrace = true;
+            // Read controller using #joypad_read_n64_inputs, which works also when
+            // the interrupts are disabled and when #joypad_init has not been called.
+            int keyPress = false;
+            for (int i = 0; i < 4; i++) {
+                joypad_buttons_t key_new = joypad_read_n64_inputs(i).btn;
+                if ((key_new.raw || prevPad == i) && key_new.raw != key_old.raw) {
+                    key_pressed = (joypad_buttons_t){ .raw = key_new.raw & ~key_old.raw };
+                    key_old = key_new;
+                    prevPad = i;
+                    keyPress = true;
+                    break;
+                };
+            }
+            if (keyPress) {
                 break;
             }
             // Avoid constantly banging the PIF with controller reads, that
@@ -591,6 +830,16 @@ static void inspector(exception_t* ex, enum Mode mode) {
     }
 
 	abort();
+}
+
+void __inspector_add_page(inspector_page_t page) {
+    for (int i = 0; i < sizeof(inspector_pages) / sizeof(inspector_pages[0]); i++) {
+        if (inspector_pages[i] == NULL) {
+            inspector_pages[i] = page;
+            return;
+        }
+    }
+    assertf(0, "Too many inspector pages");
 }
 
 __attribute__((noreturn))
@@ -630,4 +879,11 @@ void __inspector_init(void) {
         if (code == 2) inspector(ex, MODE_CPP_EXCEPTION);
     }
     register_syscall_handler(handler, 0x00001, 0x00002);
+
+	if (emux_detect(1) & EMUX_FEAT1_EXCEPTION)
+	{
+		// Activate exceptions on console freeze
+		emux_exception_set_mask(EMUX_EXCEPTION_ERR_MASK);
+	}
 }
+#endif
