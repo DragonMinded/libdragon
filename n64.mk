@@ -1,21 +1,29 @@
 BUILD_DIR ?= .
 SOURCE_DIR ?= .
 
+# Preview API policy (must be set before including this file):
+#   0 — using a preview API is a compile-time error (default)
+#   1 — preview APIs are usable but produce a compiler warning
+#   2 — preview APIs are fully unlocked (no diagnostics)
+LIBDRAGON_PREVIEW ?= 2
+
 # Override this if your project uses a different directory for your DFS filesystem root
 N64_MKDFS_ROOT ?= filesystem
 
-N64_ROM_TITLE = "Made with libdragon" # Override this with the name of your game or project
-N64_ROM_CATEGORY = # Set an N64 Media Category code in the ROM header (N, D, C, E, Z)
-N64_ROM_SAVETYPE = # Supported savetypes: none eeprom4k eeprom16 sram256k sram768k sram1m flashram
-N64_ROM_RTC = # Set to true to enable the Joybus Real-Time Clock
-N64_ROM_REGIONFREE = # Set to true to allow booting on any console region
-N64_ROM_REGION = # Set to a region code (emulators will boot on a specific console region)
+N64_ROM_TITLE ?= "Made with libdragon" # Override this with the name of your game or project
+N64_ROM_CATEGORY ?= N # Set an N64 Media Category code in the ROM header (N, D, C, E, Z)
+N64_ROM_SAVETYPE ?= none # Supported savetypes: none eeprom4k eeprom16k sram256k sram768k sram1m flashram
+N64_ROM_EXPANSIONPAK ?= unspecified # Supported expansion pak types: unspecified unused recommended required
+N64_ROM_RTC ?= # Set to enable the Joybus Real-Time Clock
+N64_ROM_REGIONFREE ?= 1 # Set to allow booting on any console region
+N64_ROM_REGION ?= # Set to a region code (emulators will boot on a specific console region)
 N64_ROM_ELFCOMPRESS ?= 1 # Set compression level of ELF file in ROM
 N64_ROM_DSOCOMPRESS ?= 1 # Set compression level of DSOs file in ROM
-N64_ROM_CONTROLLER1 = # Sets the type of Controller 1 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
-N64_ROM_CONTROLLER2 = # Sets the type of Controller 2 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
-N64_ROM_CONTROLLER3 = # Sets the type of Controller 3 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
-N64_ROM_CONTROLLER4 = # Sets the type of Controller 4 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER1 ?= # Sets the type of Controller 1 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER2 ?= # Sets the type of Controller 2 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER3 ?= # Sets the type of Controller 3 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_CONTROLLER4 ?= # Sets the type of Controller 4 in the Advanced Homebrew Header. This could influence emulator behaviour such as Ares'
+N64_ROM_METADATA ?= # Path to a metadata INI file to embed in the ROM. If set, invokes n64metadata.
 
 # Override this to use a different file prefix for the debug symbols. This is
 # useful when building multiple projects in the same directory and you can set
@@ -23,7 +31,7 @@ N64_ROM_CONTROLLER4 = # Sets the type of Controller 4 in the Advanced Homebrew H
 # .PHONY: tiny3d
 # tiny3d:
 # 	$(MAKE) -C $(T3D_INST) N64_BACKTRACE_FILE_PREFIX=tiny3d
-N64_BACKTRACE_FILE_PREFIX=
+N64_BACKTRACE_FILE_PREFIX ?=
 
 # Override this to use a toolchain installed separately from libdragon
 N64_GCCPREFIX ?= $(N64_INST)
@@ -60,13 +68,16 @@ N64_TOOL = $(N64_BINDIR)/n64tool
 N64_SYM = $(N64_BINDIR)/n64sym
 N64_ELFCOMPRESS = $(N64_BINDIR)/n64elfcompress
 N64_AUDIOCONV = $(N64_BINDIR)/audioconv64
+N64_VIDEOCONV = $(N64_BINDIR)/videoconv64
 N64_MKSPRITE = $(N64_BINDIR)/mksprite
 N64_MKFONT = $(N64_BINDIR)/mkfont
+N64_MKMODEL = $(N64_BINDIR)/mkmodel
+N64_METADATA = $(N64_BINDIR)/n64metadata
 N64_DSO = $(N64_BINDIR)/n64dso
 N64_DSOEXTERN = $(N64_BINDIR)/n64dso-extern
 N64_DSOMSYM = $(N64_BINDIR)/n64dso-msym
 
-N64_C_AND_CXX_FLAGS =  -march=vr4300 -mtune=vr4300 -mabi=o64 -I$(N64_INCLUDEDIR)
+N64_C_AND_CXX_FLAGS =  -march=vr4300 -mtune=vr4300 -mabi=o64 -I$(N64_INCLUDEDIR)/newlib_overrides -I$(N64_INCLUDEDIR) -include ktls.h
 N64_C_AND_CXX_FLAGS += -falign-functions=32   # NOTE: if you change this, also change backtrace() in backtrace.c
 N64_C_AND_CXX_FLAGS += -ffunction-sections -fdata-sections -g -ffile-prefix-map="$(CURDIR)"=$(N64_BACKTRACE_FILE_PREFIX)
 N64_C_AND_CXX_FLAGS += -ffast-math -ftrapping-math -fno-associative-math
@@ -79,18 +90,35 @@ N64_ASFLAGS = -mtune=vr4300 -march=vr4300 -mabi=o64 -Wa,--fatal-warnings -I$(N64
 N64_RSPASFLAGS = -march=mips1 -mabi=32 -Wa,--fatal-warnings -I$(N64_INCLUDEDIR)
 N64_LDFLAGS = -g -L$(N64_LIBDIR) -ldragon -lm -ldragonsys -Tn64.ld --gc-sections --wrap __do_global_ctors
 N64_DSOLDFLAGS = --emit-relocs --unresolved-symbols=ignore-all --nmagic -T$(N64_LIBDIR)/dso.ld
+ifneq ($(filter 1 2,$(LIBDRAGON_PREVIEW)),)
+N64_C_AND_CXX_FLAGS += -DLIBDRAGON_PREVIEW=$(LIBDRAGON_PREVIEW)
+N64_ASFLAGS += -DLIBDRAGON_PREVIEW=$(LIBDRAGON_PREVIEW)
+N64_RSPASFLAGS += -DLIBDRAGON_PREVIEW=$(LIBDRAGON_PREVIEW)
+endif
 
-N64_TOOLFLAGS = --title $(N64_ROM_TITLE)
+N64_TOOLFLAGS = --toc
+N64_TOOLFLAGS += --title $(N64_ROM_TITLE)
 N64_TOOLFLAGS += $(if $(N64_ROM_HEADER),--header $(N64_ROM_HEADER))
 N64_TOOLFLAGS += $(if $(N64_ROM_CATEGORY),--category $(N64_ROM_CATEGORY))
 N64_TOOLFLAGS += $(if $(N64_ROM_REGION),--region $(N64_ROM_REGION))
 N64_ED64ROMCONFIGFLAGS =  $(if $(N64_ROM_SAVETYPE),--savetype $(N64_ROM_SAVETYPE))
+N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_EXPANSIONPAK),--expansionpak $(N64_ROM_EXPANSIONPAK))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_RTC),--rtc) 
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_REGIONFREE),--regionfree)
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER1),--controller1 $(N64_ROM_CONTROLLER1))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER2),--controller2 $(N64_ROM_CONTROLLER2))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER3),--controller3 $(N64_ROM_CONTROLLER3))
 N64_ED64ROMCONFIGFLAGS += $(if $(N64_ROM_CONTROLLER4),--controller4 $(N64_ROM_CONTROLLER4))
+N64_METADATAFLAGS = $(if $(V),-v) 
+
+# If metadata is used, disable padding to avoid double padding (n64tool + n64metadata).
+# n64metadata will handle the final 16 KiB padding.
+ifneq ($(N64_ROM_METADATA),)
+N64_TOOLFLAGS += --padding 0
+endif
+
+# Add *.version files to the rompak
+N64_TOOLFILES = $(wildcard $(N64_INCLUDEDIR)/*.version)
 
 ifeq ($(D),1)
 CFLAGS+=-g3
@@ -118,25 +146,25 @@ RSPASFLAGS+=-MMD
 %.z64: LDFLAGS+=$(N64_LDFLAGS)
 %.z64: $(BUILD_DIR)/%.elf
 	@echo "    [Z64] $@"
-	$(N64_SYM) $< $<.sym
+	$(N64_SYM) --all $< $<.sym
 	cp $< $<.stripped
 	$(N64_STRIP) -s $<.stripped
 	$(N64_ELFCOMPRESS) -o $(dir $<) -c $(N64_ROM_ELFCOMPRESS) $<.stripped
 	@rm -f $@
-	DFS_FILE="$(filter %.dfs, $^)"; \
-	if [ -z "$$DFS_FILE" ]; then \
-		$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8; \
-	else \
-		MSYM_FILE="$(filter %.msym, $^)"; \
-		if [ -z "$$MSYM_FILE" ]; then \
-			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 16 "$$DFS_FILE"; \
-		else \
-			$(N64_TOOL) $(N64_TOOLFLAGS) --toc --output $@ --align 256 $<.stripped --align 8 $<.sym --align 8 "$$MSYM_FILE" --align 16 "$$DFS_FILE"; \
-		fi \
-	fi
+	$(N64_TOOL) $(N64_TOOLFLAGS) --output $(BUILD_DIR)/$@.tmp \
+		--align 256 $<.stripped \
+		$<.sym \
+		$(filter %.dfs, $^) \
+		$(filter %.msym, $^) \
+		$(N64_TOOLFILES)
 	if [ ! -z "$(strip $(N64_ED64ROMCONFIGFLAGS))" ]; then \
-		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $@; \
+		$(N64_ED64ROMCONFIG) $(N64_ED64ROMCONFIGFLAGS) $(BUILD_DIR)/$@.tmp; \
 	fi
+	if [ ! -z "$(N64_ROM_METADATA)" ]; then \
+		echo "    [METADATA] $@"; \
+		$(N64_METADATA) $(N64_METADATAFLAGS) $(BUILD_DIR)/$@.tmp $(N64_ROM_METADATA); \
+	fi
+	@mv $(BUILD_DIR)/$@.tmp $@
 
 %.v64: %.z64
 	@echo "    [V64] $@"
@@ -158,27 +186,36 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.S
 		SYMPREFIX="$(subst .,_,$(subst /,_,$(basename $@)))"; \
 		TEXTSECTION="$(basename $@).text"; \
 		DATASECTION="$(basename $@).data"; \
+		METASECTION="$(basename $@).meta"; \
 		BINARY="$(basename $@).elf"; \
 		echo "    [RSP] $<"; \
-		$(N64_CC) $(RSPASFLAGS) -L$(N64_LIBDIR) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections  -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map -o $@ $<; \
+		$(N64_CC) $(RSPASFLAGS) -L$(N64_LIBDIR) -nostartfiles -Wl,-Trsp.ld -Wl,--gc-sections  -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map,--cref -o $@ $<; \
 		mv "$@" $$BINARY; \
 		$(N64_OBJCOPY) -O binary -j .text $$BINARY $$TEXTSECTION.bin; \
 		$(N64_OBJCOPY) -O binary -j .data $$BINARY $$DATASECTION.bin; \
+		$(N64_OBJCOPY) -O binary -j .meta $$BINARY $$METASECTION.bin --set-section-flags .meta=alloc,load; \
+		[ -s $$METASECTION.bin ] || printf '\0' > $$METASECTION.bin; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_start=$${FILENAME}_text_start \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_end=$${FILENAME}_text_end \
 				--redefine-sym _binary_$${SYMPREFIX}_text_bin_size=$${FILENAME}_text_size \
-				--set-section-alignment .data=8 \
+				--set-section-alignment .data=16 \
 				--rename-section .text=.data $$TEXTSECTION.bin $$TEXTSECTION.o; \
 		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
 				--redefine-sym _binary_$${SYMPREFIX}_data_bin_start=$${FILENAME}_data_start \
 				--redefine-sym _binary_$${SYMPREFIX}_data_bin_end=$${FILENAME}_data_end \
 				--redefine-sym _binary_$${SYMPREFIX}_data_bin_size=$${FILENAME}_data_size \
-				--set-section-alignment .data=8 \
+				--set-section-alignment .data=16 \
 				--rename-section .text=.data $$DATASECTION.bin $$DATASECTION.o; \
+		$(N64_OBJCOPY) -I binary -O elf32-bigmips -B mips4300 \
+				--redefine-sym _binary_$${SYMPREFIX}_meta_bin_start=$${FILENAME}_meta_start \
+				--redefine-sym _binary_$${SYMPREFIX}_meta_bin_end=$${FILENAME}_meta_end \
+				--redefine-sym _binary_$${SYMPREFIX}_meta_bin_size=$${FILENAME}_meta_size \
+				--set-section-alignment .data=16 \
+				--rename-section .text=.data $$METASECTION.bin $$METASECTION.o; \
 		$(N64_SIZE) -G $$BINARY; \
-		$(N64_LD) -relocatable $$TEXTSECTION.o $$DATASECTION.o -o $@; \
-		rm $$TEXTSECTION.bin $$DATASECTION.bin $$TEXTSECTION.o $$DATASECTION.o; \
+		$(N64_LD) -relocatable $$TEXTSECTION.o $$DATASECTION.o $$METASECTION.o -o $@; \
+		rm $$TEXTSECTION.bin $$DATASECTION.bin $$METASECTION.bin $$TEXTSECTION.o $$DATASECTION.o $$METASECTION.o; \
 	else \
 		echo "    [AS] $<"; \
 		$(CC) -c $(ASFLAGS) -o $@ $<; \
@@ -201,11 +238,11 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 # between ld when it comes to global ctors dtors. Also see __do_global_ctors
 	EXTERNS_FILE="$(filter %.externs, $^)"; \
 	if [ -z "$$EXTERNS_FILE" ]; then \
-		$(CXX) -o $@ $(filter %.o, $^) $(filter-out $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a, $(filter %.a, $^)) \
-			-lc -mabi=o64 $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map; \
+		$(CXX) $(N64_C_AND_CXX_FLAGS) -o $@ $(filter %.o, $^) $(filter-out $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a, $(filter %.a, $^)) \
+			-lc -mabi=o64 $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map,--cref; \
 	else \
-		$(CXX) -o $@ $(filter %.o, $^) $(filter-out $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a, $(filter %.a, $^)) \
-			-lc -mabi=o64 $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-T"$$EXTERNS_FILE" -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map; \
+		$(CXX) $(N64_C_AND_CXX_FLAGS) -o $@ $(filter %.o, $^) $(filter-out $(N64_LIBDIR)/libdragon.a $(N64_LIBDIR)/libdragonsys.a, $(filter %.a, $^)) \
+			-lc -mabi=o64 $(patsubst %,-Wl$(COMMA)%,$(LDFLAGS)) -Wl,-T"$$EXTERNS_FILE" -Wl,-Map=$(BUILD_DIR)/$(notdir $(basename $@)).map,--cref; \
 	fi
 	$(N64_SIZE) -G $@
 
@@ -215,8 +252,8 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 %.dso: CXX=$(N64_CXX)
 %.dso: AS=$(N64_AS)
 %.dso: LD=$(N64_LD)
-%.dso: CFLAGS+=$(N64_CFLAGS) -mno-gpopt -DN64_DSO $(DSO_CFLAGS)
-%.dso: CXXFLAGS+=$(N64_CXXFLAGS) -mno-gpopt -DN64_DSO $(DSO_CXXFLAGS)
+%.dso: CFLAGS+=$(N64_CFLAGS) -G 0 -DN64_DSO $(DSO_CFLAGS)
+%.dso: CXXFLAGS+=$(N64_CXXFLAGS) -G 0 -DN64_DSO $(DSO_CXXFLAGS)
 %.dso: ASFLAGS+=$(N64_ASFLAGS)
 %.dso: RSPASFLAGS+=$(N64_RSPASFLAGS)
 
@@ -228,16 +265,27 @@ $(BUILD_DIR)/%.o: $(SOURCE_DIR)/%.cpp
 	$(N64_LD) $(N64_DSOLDFLAGS) -Map=$(basename $(DSO_ELF)).map -o $(DSO_ELF) $(filter %.o, $^)
 	$(N64_SIZE) -G $(DSO_ELF)
 	$(N64_DSO) -o $(dir $@) -c $(N64_ROM_DSOCOMPRESS) $(DSO_ELF)
-	$(N64_SYM) $(DSO_ELF) $@.sym
+	$(N64_SYM) --all $(DSO_ELF) $@.sym
 	
 %.externs:
 	@echo "    [DSOEXTERN] $@"
 	$(N64_DSOEXTERN) -o $@ $^ 
 	
-%.msym: %.elf
+%.msym:
 	@echo "    [MSYM] $@"
-	$(N64_DSOMSYM) $< $@
-    
+	EXTERNS_FILE="$(filter %.externs, $^)"; \
+	INPUT_FILE="$(filter %.elf, $^)"; \
+	if [ -z "$$EXTERNS_FILE" ]; then \
+		$(N64_DSOMSYM) "$$INPUT_FILE" $@; \
+	else \
+		$(N64_DSOMSYM) -e "$$EXTERNS_FILE" "$$INPUT_FILE" $@; \
+	fi
+	
+# If a recipe fails, delete the target it was building. Otherwise a partially
+# written file would be left behind, and the next build would consider it
+# up-to-date and never retry the failed step.
+.DELETE_ON_ERROR:
+
 ifneq ($(V),1)
 .SILENT:
 endif

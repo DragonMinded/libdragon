@@ -63,5 +63,10 @@ SECTIONS
         } 
     } > ram_data AT > rom_dmem
 
+    .meta : {
+        KEEP(*(.meta))
+        *(.meta.*)
+    }
+
     /DISCARD/ : { *(.MIPS.abiflags) }
 }
