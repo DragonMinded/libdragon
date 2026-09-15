@@ -37,9 +37,11 @@
 #ifndef __LIBDRAGON_AUDIO_XM64_H
 #define __LIBDRAGON_AUDIO_XM64_H
 
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,10 +62,9 @@ typedef struct waveform_s waveform_t;
  */
 typedef struct xm64player_s {
 	xm_context_t *ctx;        ///< libxm context
-	waveform_t *waves;        ///< array of all waveforms (one per XM "sample")
-	int nwaves;               ///< number of waves (XM "samples")
-	FILE *fh;                 ///< open handle of XM64 file
+	int fd;                   ///< open handle of XM64 file
 	int first_ch;             ///< first channel used in the mixer
+	int stream_ramsz;         ///< RAM the mixer sample buffers take (set by #xm64player_play)
 	bool playing;             ///< playing flag
 	bool stop_requested;      ///< user requested stop playing
 	bool looping;             ///< true if the XM is configured to loop
@@ -78,9 +79,12 @@ typedef struct xm64player_s {
  * This function requires the mixer to have been already initialized
  * (via mixer_init).
  * 
+ * XM64 files can carry their own embedded samples, or can use an external
+ * sample library. In the latter case, make sure to call #xm64_set_extsampledir
+ * to set the directory where the external samples are stored.
+ * 
  * @param player Pointer to the xm64player_t player structure to use
- * @param fn     Filename of the XM64 (with filesystem prefix). Currently,
- *               only files on DFS ("rom:/") are supported.
+ * @param fn     Filename of the XM64 (with filesystem prefix).
  */
 void xm64player_open(xm64player_t *player, const char *fn);
 
@@ -184,6 +188,19 @@ void xm64player_set_effect_callback(xm64player_t *player, void (*cb)(void*, uint
  * @brief Close and deallocate the XM64 player.
  */
 void xm64player_close(xm64player_t *player);
+
+/**
+ * @brief Configure the directory where external samples are stored.
+ * @preview
+ * 
+ * This function is used to set the directory where the external samples
+ * are stored. It is only used for XM64 files that use external samples.
+ * 
+ * @param dir 		Directory where the external samples are stored. This
+ * 					can be on any filesystem, even different from XM64's one.
+ */
+LIBDRAGON_PREVIEW_API
+void xm64_set_extsampledir(const char *dir);
 
 #ifdef __cplusplus
 }

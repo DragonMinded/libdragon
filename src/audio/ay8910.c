@@ -6,6 +6,7 @@
 #include "ay8910.h"
 #include <assert.h>
 #include <memory.h>
+#include "../rand_internal.h"
 
 /** @brief Enable AY8910 tracing */
 #define AY8910_TRACE   0
@@ -146,20 +147,6 @@ int ay8910_gen(AY8910 *ay, int16_t *out, int nsamples) {
 }
 
 #else
-
-static uint32_t fastrand() {
-	/* Algorithm "xor" from p. 4 of Marsaglia, "Xorshift RNGs" */
-	static int state = 1;
-	uint32_t x = state;
-	x ^= x << 13;
-	x ^= x >> 17;
-	x ^= x << 5;
-	return state = x;
-}
-
-static float fastrandf() {
-	return fastrand() * 2.3283064365386963e-10f;
-}
 
 // Optimized implementation, much faster.
 // This implementation is more complex compared to the reference once. It
@@ -350,7 +337,7 @@ int ay8910_gen(AY8910 *ay, int16_t *out, int nsamples) {
 				#endif
 
 				if (sample_accum_n) {
-					float fr = fastrandf();
+					float fr = __randf32();
 					int sa = AY8910_DECIMATE-sample_accum_n;
 					if (sa > next) {
 						#if AY8910_OUTPUT_STEREO
@@ -378,7 +365,7 @@ int ay8910_gen(AY8910 *ay, int16_t *out, int nsamples) {
 				int nn = next / AY8910_DECIMATE;
 				if (fastnoise) {
 					for (int i=0; i<nn; i++) {
-						float fr = fastrandf();
+						float fr = __randf32();
 						#if AY8910_OUTPUT_STEREO
 						OUT(samplel - fnl*fr, sampler - fnr*fr);
 						#else
@@ -397,7 +384,7 @@ int ay8910_gen(AY8910 *ay, int16_t *out, int nsamples) {
 
 				next -= nn*AY8910_DECIMATE;
 				sample_accum_n = next;
-				float fr = fastrandf();
+				float fr = __randf32();
 				#if AY8910_OUTPUT_STEREO
 				sample_accum_l = (samplel - fnl*fr) * next;
 				sample_accum_r = (sampler - fnr*fr) * next;

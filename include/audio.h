@@ -1,6 +1,7 @@
 /**
  * @file audio.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @author thekovic <https://github.com/thekovic>
  * @brief Audio Subsystem
  * @ingroup audio
@@ -8,8 +9,10 @@
 #ifndef __LIBDRAGON_AUDIO_H
 #define __LIBDRAGON_AUDIO_H
 
+
 #include <stdbool.h>
 #include <stddef.h>
+#include "preview.h"
 
 /**
  * @defgroup audio Audio Subsystem
@@ -31,12 +34,11 @@
  * audio subsystem based on settings left by the bootloader.
  *
  * Code attempting to output audio on the N64 should initialize the
- * audio subsystem at the desired frequency and with the desired number
- * of buffers using #audio_init.  More audio buffers allows for smaller
- * chances of audio glitches but means that there will be more latency
- * in sound output.  When new data is available to be output, code should
- * check to see if there is room in the output buffers using
- * #audio_can_write.  Code can probe the current frequency and buffer
+ * audio subsystem at the desired frequency and with the desired audio
+ * headroom using #audio_init.  More headroom reduces the chance of audio
+ * glitches but increases output latency.  When new data is available to be
+ * output, code should check to see if there is room in the output buffers
+ * using #audio_can_write.  Code can probe the current frequency and buffer
  * size using #audio_get_frequency and #audio_get_buffer_length respectively.
  * When there is additional room, code can add new data to the output
  * buffers using #audio_write.  Be careful as this is a blocking operation,
@@ -62,21 +64,48 @@ extern "C" {
  */
 typedef void(*audio_fill_buffer_callback)(short *buffer, size_t numsamples);
 
+/** @brief Convert a headroom in milliseconds to a #audio_init latency argument */
+#define AUDIO_INIT_LATENCY_MS(ms)   ((ms) * 25 / 1000.0f)
+
+/** @brief Default #audio_init latency argument (~160 ms) */
+#define AUDIO_DEFAULT_LATENCY       AUDIO_INIT_LATENCY_MS(160)
+
 /**
  * @brief Initialize the audio subsystem
  *
  * This function will set up the AI to play at a given frequency and
- * allocate a number of back buffers to write data to.
+ * allocate enough internal buffers to hold the requested amount of audio
+ * headroom. The latency argument uses a weird scale for backward compatibility.
+ * Please use #AUDIO_INIT_LATENCY_MS to specify a latency in milliseconds.
  *
  * @note Before re-initializing the audio subsystem to a new playback
  *       frequency, remember to call #audio_close.
  *
  * @param[in] frequency
  *            The frequency in Hz to play back samples at
- * @param[in] numbuffers
- *            The number of buffers to allocate internally
+ * @param[in] latency
+ *            Desired audio headroom. Use #AUDIO_INIT_LATENCY_MS to specify a
+ *            latency in milliseconds. Use #AUDIO_DEFAULT_LATENCY for a good
+ *            default.
  */
-void audio_init(const int frequency, int numbuffers);
+void audio_init(const int frequency, float latency);
+
+/**
+ * @brief Require AI buffer lengths to be a multiple of @p nsamples
+ * @preview
+ *
+ * After this call, #audio_get_buffer_length returns a multiple of @p nsamples,
+ * chosen closest to the default size for the current frequency. The audio
+ * headroom configured in #audio_init is preserved.
+ *
+ * Must be called while no buffers are queued for playback (typically right
+ * after #audio_init). #mixer_init calls this automatically.
+ *
+ * @param[in] nsamples
+ *            Granularity in stereo samples; must be a positive multiple of 16
+ */
+LIBDRAGON_PREVIEW_API
+void audio_set_buffer_granularity(int nsamples);
 
 /**
  * @brief Install a audio callback to fill the audio buffer when required.
@@ -106,7 +135,7 @@ void audio_pause(bool pause);
  * write data to.  If all buffers are full, wait until the AI has played back
  * the next buffer in its queue and try writing again.
  */
-volatile int audio_can_write();
+int audio_can_write();
 
 /**
  * @brief Write a chunk of silence
@@ -144,6 +173,31 @@ int audio_get_frequency();
  * @return The number of stereo samples in an allocated buffer
  */
 int audio_get_buffer_length();
+
+/**
+ * @brief Return the number of internal audio buffers
+ * @preview
+ *
+ * @return Number of buffers configured by #audio_init, or zero if the
+ *         audio subsystem is not initialized
+ */
+LIBDRAGON_PREVIEW_API
+int audio_get_num_buffers(void);
+
+/**
+ * @brief Return the number of audio buffers currently containing data
+ * @preview
+ *
+ * The count includes buffers already submitted to AI and buffers waiting
+ * to be submitted. The value is a snapshot and may change asynchronously
+ * as the AI consumes buffers; any actual write must still be guarded by
+ * #audio_can_write.
+ *
+ * @return Number of currently full buffers, or zero if the audio subsystem
+ *         is not initialized
+ */
+LIBDRAGON_PREVIEW_API
+int audio_get_queued_buffers(void);
 
 
 /**
@@ -202,7 +256,7 @@ void audio_write_end(void);
  * @param buffer        Buffer containing stereo samples to be played
  * @param nsamples      Number of stereo samples in the buffer
  * @param blocking      If true, wait until all samples have been pushed
- * @return int          Number of samples pushed into output
+ * @return              Number of samples pushed into output
  */
 int audio_push(const short *buffer, int nsamples, bool blocking);
 
