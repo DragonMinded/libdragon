@@ -25,6 +25,7 @@
 #include "rdpq_constants.h"
 #include "utils.h"
 #include "debug.h"
+#include "fgeom2d.h"
 
 /** @brief Set to 1 to activate tracing of all parameters of all triangles. */
 #define TRIANGLE_TRACE   0
@@ -343,7 +344,7 @@ static inline void __rdpq_write_tex_coeffs(rspq_write_t *w, rdpq_tri_edge_data_t
     rspq_write_arg(w, (DwDy_fixed&0xffff0000));
     rspq_write_arg(w, (DsDe_fixed<<16) | (DtDe_fixed&0xffff));
     rspq_write_arg(w, (DwDe_fixed<<16));
-    rspq_write_arg(w, (DsDy_fixed<<16) | (DtDy_fixed&&0xffff));
+    rspq_write_arg(w, (DsDy_fixed<<16) | (DtDy_fixed&0xffff));
     rspq_write_arg(w, (DwDy_fixed<<16));
 
     tracef("invw1-mul: %f (%08lx)\n", invw1, (int32_t)(invw1*65536));
@@ -408,6 +409,17 @@ static inline void __rdpq_write_zbuf_coeffs(rspq_write_t *w, rdpq_tri_edge_data_
     tracef("dzde: %f (%08llx)\n", DzDe, (uint64_t)(DzDe * 65536.0f));
 }
 
+/** @brief Compute the RDPQ_CMD_TRI command ID and its cost in RDP 64-bit words. */
+static uint32_t __rdpq_triangle_cmd(const rdpq_trifmt_t *fmt, uint32_t *cmd_id)
+{
+    *cmd_id = RDPQ_CMD_TRI;
+    uint32_t rdp_words = 4;
+    if (fmt->shade_offset >= 0) { *cmd_id |= 0x4; rdp_words += 8; }
+    if (fmt->tex_offset >= 0)   { *cmd_id |= 0x2; rdp_words += 8; }
+    if (fmt->z_offset >= 0)     { *cmd_id |= 0x1; rdp_words += 2; }
+    return rdp_words;
+}
+
 /** @brief RDP triangle primitive assembled on the CPU */
 void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3)
 {
@@ -421,23 +433,11 @@ void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v
     }
     __rdpq_autosync_use(res);
 
-    uint32_t cmd_id = RDPQ_CMD_TRI;
+    uint32_t cmd_id;
+    uint32_t rdp_words = __rdpq_triangle_cmd(fmt, &cmd_id);
+    uint32_t size = rdp_words * 2; // rdpq_write_begin's size is in 32-bit words, not 64-bit RDP words
 
-    uint32_t size = 8;
-    if (fmt->shade_offset >= 0) {
-        size += 16;
-        cmd_id |= 0x4;
-    }
-    if (fmt->tex_offset >= 0) {
-        size += 16;
-        cmd_id |= 0x2;
-    }
-    if (fmt->z_offset >= 0) {
-        size += 4;
-        cmd_id |= 0x1;
-    }
-
-    rspq_write_t w = rspq_write_begin(RDPQ_OVL_ID, cmd_id, size);
+    rspq_write_t w = rdpq_write_begin(rdp_words, RDPQ_OVL_ID, cmd_id, size);
 
     if( v1[fmt->pos_offset + 1] > v2[fmt->pos_offset + 1] ) { SWAP(v1, v2); }
     if( v2[fmt->pos_offset + 1] > v3[fmt->pos_offset + 1] ) { SWAP(v2, v3); }
@@ -464,7 +464,7 @@ void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v
 }
 
 /** @brief RDP triangle primitive assembled on the RSP */
-void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3)
+void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3, fm_mat3_t *mtx)
 {
     uint32_t res = AUTOSYNC_PIPE;
     if (fmt->tex_offset >= 0) {
@@ -476,20 +476,26 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
     }
     __rdpq_autosync_use(res);
 
-    uint32_t cmd_id = RDPQ_CMD_TRI;
-    if (fmt->shade_offset >= 0) cmd_id |= 0x4;
-    if (fmt->tex_offset >= 0)   cmd_id |= 0x2;
-    if (fmt->z_offset >= 0)     cmd_id |= 0x1;
+    uint32_t cmd_id;
+    uint32_t rdp_words = __rdpq_triangle_cmd(fmt, &cmd_id);
 
     const int TRI_DATA_LEN = ROUND_UP((2+1+1+3)*4, 16);
 
     const float *vtx[3] = {v1, v2, v3};
     for (int i=0;i<3;i++) {
         const float *v = vtx[i];
-
+        //Transform vertex
+        fm_vec2_t pos = {{v[fmt->pos_offset+0], v[fmt->pos_offset+1]}};
+        fm_vec3_t temp;
+        if(mtx != NULL) {
+            fm_mat3_mul_vec2(&temp, mtx, &pos);
+        } else {
+            temp.x = pos.x;
+            temp.y = pos.y;
+        }
         // X,Y: s13.2
-        int16_t x = floorf(v[fmt->pos_offset+0] * 4.0f);
-        int16_t y = floorf(v[fmt->pos_offset+1] * 4.0f);
+        int16_t x = floorf(temp.x * 4.0f);
+        int16_t y = floorf(temp.y * 4.0f);
         
         int16_t z = 0;
         if (fmt->z_offset >= 0) {
@@ -499,10 +505,10 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
         int32_t rgba = 0;
         if (fmt->shade_offset >= 0) {
             const float *v_shade = fmt->shade_flat ? v1 : v;
-            uint32_t r = v_shade[fmt->shade_offset+0] * 255.0;
-            uint32_t g = v_shade[fmt->shade_offset+1] * 255.0;
-            uint32_t b = v_shade[fmt->shade_offset+2] * 255.0;
-            uint32_t a = v_shade[fmt->shade_offset+3] * 255.0;
+            uint32_t r = v_shade[fmt->shade_offset+0] * 255.0f;
+            uint32_t g = v_shade[fmt->shade_offset+1] * 255.0f;
+            uint32_t b = v_shade[fmt->shade_offset+2] * 255.0f;
+            uint32_t a = v_shade[fmt->shade_offset+3] * 255.0f;
             rgba = (r << 24) | (g << 16) | (b << 8) | a;
         }
 
@@ -525,7 +531,7 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
             inv_w);
     }
 
-    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE, 
+    rdpq_write(rdp_words, RDPQ_OVL_ID, RDPQ_CMD_TRIANGLE,
         0xC000 | (cmd_id << 8) | 
         (fmt->tex_mipmaps ? (fmt->tex_mipmaps-1) << 3 : 0) | 
         (fmt->tex_tile & 7));
@@ -536,6 +542,6 @@ void rdpq_triangle(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, c
 #if RDPQ_TRIANGLE_REFERENCE
     rdpq_triangle_cpu(fmt, v1, v2, v3);
 #else
-    rdpq_triangle_rsp(fmt, v1, v2, v3);
+    rdpq_triangle_rsp(fmt, v1, v2, v3, NULL);
 #endif
 }

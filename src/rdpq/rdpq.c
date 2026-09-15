@@ -363,6 +363,7 @@
 #include "rdpq_internal.h"
 #include "rdpq_constants.h"
 #include "rdpq_debug_internal.h"
+#include "rdpq_xform_internal.h"
 #include "rspq.h"
 #include "rspq/rspq_internal.h"
 #include "rspq_constants.h"
@@ -409,6 +410,9 @@ rdpq_block_state_t rdpq_block_state;
 /** @brief Tracking state of RDP */
 rdpq_tracking_t rdpq_tracking;
 
+/** @brief Syncpoint ID at the moment of last SYNC_FULL. Used to implement #rdpq_call_deferred. */
+volatile int __rdpq_syncpoint_at_syncfull;
+
 /** 
  * @brief RDP interrupt handler 
  *
@@ -423,6 +427,9 @@ static void __rdpq_interrupt(void) {
 
     // Fetch the current RDP buffer for tracing
     if (rdpq_trace_fetch) rdpq_trace_fetch(false);
+
+    // Store the current syncpoint ID. This is used to implement #rdpq_call_deferred.
+    __rdpq_syncpoint_at_syncfull = rdpq_state->rspq_syncpoint_id;
 
     // The state has been updated to contain a copy of the last SYNC_FULL command
     // that was sent to RDP. The command might contain a callback to invoke.
@@ -451,7 +458,8 @@ void rdpq_init()
         return;
 
     rspq_init();
-
+    __rdpq_xform_init();
+    
     // Get a pointer to the RDRAM copy of the rdpq ucode state.
     rdpq_state = UncachedAddr(rspq_overlay_get_state(&rsp_rdpq));
 
@@ -492,7 +500,9 @@ void rdpq_close()
         return;
     
     rspq_overlay_unregister(RDPQ_OVL_ID);
-
+    __rdpq_attach_close();
+    __rdpq_xform_close();
+    
     set_DP_interrupt( 0 );
     unregister_DP_handler(__rdpq_interrupt);
 
@@ -523,7 +533,7 @@ void rdpq_fence(void)
     // then we send the internal rspq command that make the RSP spin-wait
     // until the RDP is idle. The RDP becomes idle only after SYNC_FULL is done.
     rdpq_sync_full(NULL, NULL);
-    rspq_int_write(RSPQ_CMD_RDP_WAIT_IDLE);
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_WAIT_IDLE);
 }
 
 void rdpq_exec(void *buffer, int size)
@@ -534,7 +544,7 @@ void rdpq_exec(void *buffer, int size)
     // TODO: to implement support in blocks, we need a way to notify the block state machine that
     // after this command, a new RSPQ_CMD_RDP_SET_BUFFER is required to be sent, to resume playing
     // the static buffer.
-    assertf(!rspq_in_block(), "cannot call rdpq_exec() inside a block");
+    assertf(!rspq_block_is_recording(), "cannot call rdpq_exec() inside a block");
 
     void *end = buffer + size;
     rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER, PhysicalAddr(end), PhysicalAddr(buffer), PhysicalAddr(end));
@@ -569,11 +579,18 @@ static void rdpq_assert_handler(rsp_snapshot_t *state, uint16_t assert_code)
         printf("incorrect usage of auto-TMEM: unpaired begin/end\n");
         break;
 
+    case RDPQ_ASSERT_ZCLEAR_INVALID_BUFFER:
+        printf("Z-clear command issued with a too small temporary buffer\n");
+        break;
+
     default:
         printf("Unknown assert\n");
         break;
     }
 }
+
+/** @brief Resets a tracking state into an unknown state */
+extern inline void __rdpq_tracking_state_reset(rdpq_tracking_t *state);
 
 /** @brief Autosync engine: mark certain resources as in use */
 extern inline void __rdpq_autosync_use(uint32_t res);
@@ -632,7 +649,44 @@ void __rdpq_block_begin()
     rdpq_block_state.previous_tracking = rdpq_tracking;
 
     // Set for unknown state (like if we just run another unknown block: we lost track of the RDP state)
-    __rdpq_block_run(NULL);    
+    __rdpq_block_run_no_rdp();
+}
+
+/**
+ * @brief Reuse an existing RDP block chain for a new rspq block recording session.
+ *
+ * Like #__rdpq_block_begin followed immediately by the state left after the first
+ * #__rdpq_block_next_buffer on the first node: RSP #RSPQ_CMD_RDP_SET_BUFFER is emitted
+ * and write pointers point at @p head.
+ *
+ * The first link is always sized #RDPQ_BLOCK_MIN_SIZE (see #__rdpq_block_next_buffer).
+ */
+void __rdpq_block_recycle(rdpq_block_t *head)
+{
+    struct rdpq_block_state_s *st = &rdpq_block_state;
+    assertf(head, "__rdpq_block_recycle: NULL head");
+
+    memset(st, 0, sizeof(*st));
+    st->previous_tracking = rdpq_tracking;
+    __rdpq_block_run_no_rdp();
+
+    st->first_node = head;
+    st->last_node = head;
+    int c = RDPQ_BLOCK_MIN_SIZE;
+    st->wptr = head->cmds;
+    st->wend = head->cmds + c;
+    st->bufsize = (c < RDPQ_BLOCK_MAX_SIZE) ? (c * 2) : c;
+
+    extern volatile uint32_t *rspq_cur_pointer;
+    st->last_rdp_append_buffer = rspq_cur_pointer;
+
+    assertf((PhysicalAddr(st->wptr) & 0x7) == 0,
+        "start not aligned to 8 bytes: %lx", PhysicalAddr(st->wptr));
+    assertf((PhysicalAddr(st->wend) & 0x7) == 0,
+        "end not aligned to 8 bytes: %lx", PhysicalAddr(st->wend));
+
+    rspq_int_write(RSPQ_CMD_RDP_SET_BUFFER,
+        PhysicalAddr(st->wptr), PhysicalAddr(st->wptr), PhysicalAddr(st->wend));
 }
 
 /** 
@@ -663,17 +717,26 @@ void __rdpq_block_next_buffer(void)
             assert(RDPQ_BLOCK_MIN_SIZE >= RDPQ_MAX_COMMAND_SIZE);
         }
 
-        // Allocate RDP static buffer.
-        int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
-        rdpq_block_t *b = malloc_uncached(memsz);
+        /* Reuse a pre-linked node when recycling: #next was allocated by this same
+         * function with the current #bufsize (doubling sequence invariant). */
+        rdpq_block_t *b;
+        if (st->last_node && st->last_node->next) {
+            b = st->last_node->next;
+            st->last_node = b;
+        } else {
+            // Allocate RDP static buffer.
+            int memsz = sizeof(rdpq_block_t) + st->bufsize*sizeof(uint32_t);
+            b = malloc_uncached(memsz);
+            assertf(b, "Out of memory");
 
-        // Chain the block to the current one (if any)
-        b->next = NULL;
-        if (st->last_node) {
-            st->last_node->next = b;
+            // Chain the block to the current one (if any)
+            b->next = NULL;
+            if (st->last_node) {
+                st->last_node->next = b;
+            }
+            st->last_node = b;
+            if (!st->first_node) st->first_node = b;
         }
-        st->last_node = b;
-        if (!st->first_node) st->first_node = b;
 
         // Set write pointer and sentinel for the new buffer
         st->wptr = b->cmds;
@@ -707,12 +770,12 @@ void __rdpq_block_next_buffer(void)
  * This is called by #rspq_block_end. It finalizes block creation
  * and return a pointer to the first node of the block, which will
  * be put within the #rspq_block_t structure, so to be able to 
- * reference it in #__rdpq_block_run and #__rdpq_block_free.
+ * reference it in #__rdpq_block_run_with_rdp and #__rdpq_block_free.
  * 
- * @return rdpq_block_t*  The created block (first node)
+ * @return The created block (first node)
  * 
  * @see #rspq_block_end
- * @see #__rdpq_block_run
+ * @see #__rdpq_block_run_with_rdp
  * @see #__rdpq_block_free
  */
 rdpq_block_t* __rdpq_block_end()
@@ -739,52 +802,68 @@ rdpq_block_t* __rdpq_block_end()
     return ret;
 }
 
-/** @brief Notify that a rspq block was run (called by #rspq_block_run). */
-void __rdpq_block_run(rdpq_block_t *block)
+/**
+ * @brief  Notify that a rspq block was run. The block did contain RDP commands.
+ * 
+ * @param  block containing the state 
+ */
+void __rdpq_block_run_with_rdp(rdpq_block_t *block)
 {
-    if (block) {
-        // We have run a block that contains rdpq commands.
-        // During creation, we tracked some state for the block 
-        // and saved it into the block structure; set it as current,
-        // because from now on we can assume the block would and the
-        // state of the engine must match the state at the end of the block.
-        rdpq_tracking_t prev = rdpq_tracking;
-        rdpq_tracking = block->tracking;
+  // We have run a block that contains rdpq commands.
+  // During creation, we tracked some state for the block 
+  // and saved it into the block structure; set it as current,
+  // because from now on we can assume the block would and the
+  // state of the engine must match the state at the end of the block.
+  rdpq_tracking_t prev = rdpq_tracking;
+  rdpq_tracking = block->tracking;
 
-        // If the data coming out of the block is "unknown", we can
-        // restore the previous value, because it means that the block didn't
-        // change it.
-        if (rdpq_tracking.cycle_type_known == 0)
-            rdpq_tracking.cycle_type_known = prev.cycle_type_known;
-        if (rdpq_tracking.cycle_type_frozen == 0)
-            rdpq_tracking.cycle_type_frozen = prev.cycle_type_frozen;
+  // If the data coming out of the block is "unknown", we can
+  // restore the previous value, because it means that the block didn't
+  // change it.
+  if (rdpq_tracking.cycle_type_known == 0)
+      rdpq_tracking.cycle_type_known = prev.cycle_type_known;
+  if (rdpq_tracking.cycle_type_frozen == 0)
+      rdpq_tracking.cycle_type_frozen = prev.cycle_type_frozen;
 
-        // The called block has switched static buffer. Adjust our state to set
-        // our buffer as pending; if a new RDP command is issued, we will switch
-        // back to it.
-        struct rdpq_block_state_s *st = &rdpq_block_state;
-        st->pending_wptr = st->wptr;
-        st->pending_wend = st->wend;
-        st->wptr = NULL;
-        st->wend = NULL;
-    } else {
-        // Initialize tracking state for unknown state
-        rdpq_tracking = (rdpq_tracking_t){
-            // current autosync status is unknown because blocks can be
-            // played in any context. So assume the worst: all resources
-            // are being used. This will cause all SYNCs to be generated,
-            // which is the safest option.
-            .autosync = ~0,
-            // we don't know whether mode changes will be frozen or not
-            // when the block will play. Assume the worst (and thus
-            // do not optimize out mode changes).
-            .mode_freeze = false,
-            // we don't know the cycle type after we run the block
-            .cycle_type_known = 0,
-            .cycle_type_frozen = 0,
-        };
-    }
+  // The called block has switched static buffer. Adjust our state to set
+  // our buffer as pending; if a new RDP command is issued, we will switch
+  // back to it.
+  struct rdpq_block_state_s *st = &rdpq_block_state;
+  st->pending_wptr = st->wptr;
+  st->pending_wend = st->wend;
+  st->wptr = NULL;
+  st->wend = NULL;
 }
+
+/**
+ * @brief Notify that a rspq block was run. The block did NOT contain RDP commands.
+ */
+void __rdpq_block_run_no_rdp(void)
+{
+  __rdpq_tracking_state_reset(&rdpq_tracking);
+}
+
+/**
+ * @brief Notify that a rspq block was run. 
+ * 
+ * The block might or might not contain RDP commands. 
+ * This is the case for a block placeholder.
+ */
+void __rdpq_block_run_maybe_rdp(void)
+{
+  rdpq_tracking_t prev = rdpq_tracking;
+  __rdpq_block_run_no_rdp();
+
+  // The called block has switched static buffer. Adjust our state to set
+  // our buffer as pending; if a new RDP command is issued, we will switch
+  // back to it.
+  struct rdpq_block_state_s *st = &rdpq_block_state;
+  st->pending_wptr = st->wptr;
+  st->pending_wend = st->wend;
+  st->wptr = NULL;
+  st->wend = NULL;
+}
+
 
 /** 
  * @brief Free a block 
@@ -1093,6 +1172,12 @@ uint64_t rdpq_get_other_modes_raw(void)
     return state->rdp_mode.other_modes;
 }
 
+uint64_t rdpq_get_combiner_raw(void)
+{
+    rsp_queue_t *state = __rspq_get_state();
+    return state->rdp_mode.combiner;
+}
+
 void rdpq_set_tile_autotmem(int16_t tmem_bytes)
 {
     if (tmem_bytes >= 0) {
@@ -1131,6 +1216,12 @@ void rdpq_sync_load(void)
 {
     __rdpq_write8(RDPQ_CMD_SYNC_LOAD, 0, 0);
     rdpq_tracking.autosync &= ~AUTOSYNC_TMEMS;
+}
+
+void rdpq_call_deferred(void (*func)(void *), void *arg)
+{
+    __rspq_call_deferred(func, arg, true);
+    rspq_flush();
 }
 
 /** @} */
@@ -1174,3 +1265,5 @@ extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
 extern inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint16_t width, uint16_t height);
 extern inline void rdpq_set_lookup_address(uint8_t index, void* rdram_addr);
 extern inline void rdpq_set_tile(rdpq_tile_t tile, tex_format_t format, int32_t tmem_addr, uint16_t tmem_pitch, const rdpq_tileparms_t *parms);
+extern inline void rdpq_call_deferred(void (*func)(void *), void *arg);
+extern inline void rdpq_set_yuv_parms(uint16_t k0, uint16_t k1, uint16_t k2, uint16_t k3, uint16_t k4, uint16_t k5);

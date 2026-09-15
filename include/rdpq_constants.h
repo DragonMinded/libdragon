@@ -30,6 +30,9 @@
 /** @brief Asserted if the TMEM is full during an auto-TMEM operation */
 #define RDPQ_ASSERT_AUTOTMEM_UNPAIRED  0xC008
 
+/** @brief RDPQCmd_ClearZBuffer temporary buffer is too small */
+#define RDPQ_ASSERT_ZCLEAR_INVALID_BUFFER  0xC009
+
 /** @brief Maximum RDPQ command size */
 #define RDPQ_MAX_COMMAND_SIZE 44
 #define RDPQ_BLOCK_MIN_SIZE   64    ///< RDPQ block minimum size (in 32-bit words)

@@ -10,6 +10,7 @@
 
 #include "pputils.h"
 #include "rspq.h"
+#include "fgeom2d.h"
 #include "../rspq/rspq_internal.h"
 
 /** @brief True if the rdpq module was inited */
@@ -110,12 +111,35 @@ typedef struct rdpq_block_state_s {
 } rdpq_block_state_t;
 
 void __rdpq_block_begin();
+void __rdpq_block_recycle(rdpq_block_t *head);
 rdpq_block_t* __rdpq_block_end();
 void __rdpq_block_free(rdpq_block_t *block);
-void __rdpq_block_run(rdpq_block_t *block);
+void __rdpq_block_run_with_rdp(rdpq_block_t *block);
+void __rdpq_block_run_no_rdp(void);
+void __rdpq_block_run_maybe_rdp(void);
 void __rdpq_block_next_buffer(void);
 void __rdpq_block_update(volatile uint32_t *wptr);
 void __rdpq_block_reserve(int num_rdp_commands);
+
+/** Close rdpq_attach subsystem */
+void __rdpq_attach_close(void);
+
+inline void __rdpq_tracking_state_reset(rdpq_tracking_t *state) {
+  *state = (rdpq_tracking_t){
+      // current autosync status is unknown because blocks can be
+      // played in any context. So assume the worst: all resources
+      // are being used. This will cause all SYNCs to be generated,
+      // which is the safest option.
+      .autosync = ~0,
+      // we don't know whether mode changes will be frozen or not
+      // when the block will play. Assume the worst (and thus
+      // do not optimize out mode changes).
+      .mode_freeze = false,
+      // we don't know the cycle type after we run the block
+      .cycle_type_known = 0,
+      .cycle_type_frozen = 0,
+  };
+}
 
 inline void __rdpq_autosync_use(uint32_t res)
 {
@@ -127,7 +151,9 @@ void __rdpq_write8(uint32_t cmd_id, uint32_t arg0, uint32_t arg1);
 void __rdpq_write16(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3);
 
 void rdpq_triangle_cpu(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
-void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3);
+void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v2, const float *v3, fm_mat3_t *mtx);
+
+extern volatile int __rdpq_syncpoint_at_syncfull;
 
 
 ///@cond
@@ -161,7 +187,7 @@ void rdpq_triangle_rsp(const rdpq_trifmt_t *fmt, const float *v1, const float *v
  * @hideinitializer
  */
 #define rdpq_passthrough_write(rdp_cmd) ({ \
-    if (__builtin_expect(rspq_in_block(), 0)) { \
+    if (__builtin_expect(rspq_block_is_recording(), 0)) { \
         extern rdpq_block_state_t rdpq_block_state; \
         int nwords = 0; __rdpcmd_count_words(rdp_cmd); \
         while (__builtin_expect(rdpq_block_state.wptr + nwords > rdpq_block_state.wend, 0)) \

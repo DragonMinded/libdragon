@@ -20,6 +20,49 @@
 static const surface_t* attach_stack[ATTACH_STACK_SIZE][2] = { { NULL, NULL } };
 static int attach_stack_ptr = 0;
 
+// Compute the RSP DMA size (in the RSP hardware register format)
+// for a given number of bytes.
+static uint32_t calc_rspdma_size(int nbytes)
+{
+    int len, count;
+    for (len = 0x1000; len >= 8; len -= 8) {
+        if (nbytes % len == 0) {
+            count = nbytes / len;
+            if (count <= 0x100)
+                return ((count-1) << 12) | (len - 1);
+        }
+    }
+    return 0;
+}
+ 
+static bool __rdpq_clear_z_with_rsp(const surface_t *surf_z, uint16_t zvalue)
+{
+    static uint8_t temp_buffer[1280] __attribute__((aligned(16)));
+    static int last_buffer_size = 0;
+    static uint32_t last_rspsize = 0;
+
+    int nbytes = surf_z->height * surf_z->stride;
+
+    // Check if we need to recalculate the RSP DMA size for a buffer of this size.
+    // Since the calculation is marginally expensive, we cache it across frames.
+    if (nbytes != last_buffer_size) {
+        last_buffer_size = nbytes;
+        last_rspsize = calc_rspdma_size(nbytes);
+    }
+
+    // If RSP size is 0, it means that we cannot represent the current size with
+    // a single RSP DMA command. In this case, we fall back to the normal RDP clear
+    if (last_rspsize == 0)
+        return false;
+
+    // We need a RDP fence here because the RDP might be drawing to the Z buffer
+    // at this point. So first force the RSP to wait for the RDP to finish.
+    rdpq_fence();
+    rspq_write(RDPQ_OVL_ID, RDPQ_CMD_CLEAR_ZBUFFER, 
+        PhysicalAddr(surf_z->buffer), last_rspsize, PhysicalAddr(temp_buffer), zvalue);
+    return true;
+}
+
 bool rdpq_is_attached(void)
 {
     return attach_stack_ptr > 0;
@@ -41,19 +84,21 @@ static void attach(const surface_t *surf_color, const surface_t *surf_z, bool cl
             "Color and Z buffers must have the same size");
         
         if (clear_z) {
-            rdpq_set_color_image(surf_z);
-            rdpq_set_mode_fill(color_from_packed16(0xFFFC));
-            rdpq_fill_rectangle(0, 0, surf_z->width, surf_z->height);
+            if (!__rdpq_clear_z_with_rsp(surf_z, ZBUF_MAX)) {
+                rdpq_set_color_image(surf_z);
+                rdpq_set_mode_fill(color_from_packed16(ZBUF_MAX));
+                rdpq_fill_rectangle(0, 0, surf_z->width, surf_z->height);
+            }
         }
     }
+
     rdpq_set_z_image(surf_z);
+    rdpq_set_color_image(surf_color);
 
     if (clear_clr) {
-        rdpq_set_color_image(surf_color);
         rdpq_set_mode_fill(color_from_packed32(0x000000FF));
         rdpq_fill_rectangle(0, 0, surf_color->width, surf_color->height);
     }
-    rdpq_set_color_image(surf_color);
 
     if (clear_clr || clear_z)
         rdpq_mode_pop();
@@ -107,6 +152,11 @@ void __rdpq_clear_z(const uint16_t *z)
     const surface_t *surf_z = attach_stack[attach_stack_ptr-1][1];
     assertf(surf_z, "No Z buffer is currently attached");
 
+    // Try first to clear the Z buffer using the RSP. It should always be
+    // possible unless the surface has some very unexpected size.
+    if (z && __rdpq_clear_z_with_rsp(surf_z, *z))
+        return;
+
     // Disable autoscissor, so that when we attach to the Z buffer, we 
     // keep the previous scissor rect. This is probably expected by the user
     // for symmetry with rdpq_clear that does respect the scissor rect.
@@ -133,6 +183,21 @@ void rdpq_detach_show(void)
 {
     assertf(rdpq_is_attached(), "No render target is currently attached");
     rdpq_detach_cb((void (*)(void*))display_show, (void*)attach_stack[attach_stack_ptr-1][0]);
+}
+
+void __rdpq_attach_close(void)
+{
+    assertf(attach_stack_ptr == 0, "rdpq_close called but attach stack is not empty");
+    attach_stack_ptr = 0;
+}
+
+const surface_t* rdpq_get_attached(void)
+{
+    if (rdpq_is_attached()) {
+        return attach_stack[attach_stack_ptr-1][0];
+    } else {
+        return NULL;
+    }
 }
 
 /* Extern inline instantiations. */

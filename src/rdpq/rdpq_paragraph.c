@@ -10,12 +10,9 @@
 #include "rdpq_rect.h"
 #include "debug.h"
 #include "fmath.h"
+#include "../utils.h"
 #include <stdlib.h>
 #include <assert.h>
-
-/// @cond
-#define UNLIKELY(x) __builtin_expect(!!(x), 0)
-/// @endcond
 
 static void __rdpq_paragraph_builder_newline(int ch_newline);
 
@@ -32,43 +29,15 @@ static struct {
     int max_chars;
     bool skip_current_line;
     bool must_sort;
+    const char *last_consumed_ptr; //tracks the position of the last displayable char
+    const char *last_space_consumed_ptr; //tracks the position of the last displayable space
+    const char *ellipsis_scan_start;
 } builder;
-
-uint32_t __utf8_decode(const char **str)
-{
-    const uint8_t *s = (const uint8_t*)*str;
-    uint32_t c = *s++;
-    if (c < 0x80) {
-        *str = (const char*)s;
-        return c;
-    }
-    if (c < 0xC0) {
-        *str = (const char*)s;
-        return 0xFFFD;
-    }
-    if (c < 0xE0) {
-        c = ((c & 0x1F) << 6) | (*s++ & 0x3F);
-        *str = (const char*)s;
-        return c;
-    }
-    if (c < 0xF0) {
-        c = ((c & 0x0F) << 12); c |= ((*s++ & 0x3F) << 6); c |= (*s++ & 0x3F);
-        *str = (const char*)s;
-        return c;
-    }
-    if (c < 0xF8) {
-        c = ((c & 0x07) << 18); c |= ((*s++ & 0x3F) << 12); c |= ((*s++ & 0x3F) << 6); c |= (*s++ & 0x3F);
-        *str = (const char*)s;
-        return c;
-    }
-    *str = (const char*)s;
-    return 0xFFFD;
-}
 
 static bool rdpq_paragraph_builder_full(void)
 {
     return (builder.parms->height && builder.y - builder.font->descent >= builder.parms->height) 
-            || (builder.max_chars == 0);
+            || (builder.max_chars <= 0);
 }
 
 void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial_font_id, rdpq_paragraph_t *layout)
@@ -88,7 +57,8 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     int flags = 0;
     int layout_cap = 32;
     if (!layout) {
-        layout = malloc(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * layout_cap);
+        layout = malloc(sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * (layout_cap + 1));
+        assertf(layout, "Out of memory");
         flags = RDPQ_PARAGRAPH_FLAG_MALLOC;
     } else {
         flags = layout->flags & RDPQ_PARAGRAPH_FLAG_MALLOC;
@@ -112,6 +82,7 @@ void rdpq_paragraph_builder_begin(const rdpq_textparms_t *parms, uint8_t initial
     builder.ch_last_space = -1;
     builder.max_chars = builder.parms->max_chars ? builder.parms->max_chars : INT32_MAX;
     builder.skip_current_line = rdpq_paragraph_builder_full();
+    builder.last_consumed_ptr = NULL;
 }
 
 void rdpq_paragraph_builder_font(uint8_t font_id)
@@ -137,7 +108,8 @@ static void paragraph_extend(void)
 {
     assertf(builder.layout->flags & RDPQ_PARAGRAPH_FLAG_MALLOC, "paragraph of text is too long and cannot be dynamically extended");
     int new_cap = builder.layout->capacity * 2;
-    builder.layout = realloc(builder.layout, sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * new_cap);
+    builder.layout = realloc(builder.layout, sizeof(rdpq_paragraph_t) + sizeof(rdpq_paragraph_char_t) * (new_cap + 1));
+    assertf(builder.layout, "Out of memory");
     builder.layout->capacity = new_cap;
 }
 
@@ -193,6 +165,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     float ycur = builder.y;
     int16_t next_index = -1;
     bool is_tab = false;
+    builder.ellipsis_scan_start = NULL;
 
     /// @cond
     #define UTF8_DECODE_NEXT() ({ \
@@ -204,8 +177,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
     /// @endcond
 
     while (utf8_text < end || next_index >= 0) {
-        if (UNLIKELY(builder.max_chars <= 0))
-            return;
+        const char *char_start = utf8_text;
         int16_t index = next_index; next_index = -1;
         if (index < 0) index = UTF8_DECODE_NEXT();
         if (UNLIKELY(index < 0)) continue;
@@ -213,11 +185,16 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
         float xadvance; int8_t xoff2; bool has_kerning; uint8_t atlas_id;
         __rdpq_font_glyph_metrics(fnt, index, &xadvance, NULL, &xoff2, &has_kerning, &atlas_id);
         xadvance += builder.parms->char_spacing;
-        builder.max_chars -= 1;
 
         // Check if this is a space character
         if (UNLIKELY(xoff2 == 0)) {
+            // If we finished the alloted number of chars, we're done. Check this only
+            // on spaces so that we don't mess wordwrapping.
+            if (UNLIKELY(builder.max_chars <= 0))
+                return;
+
             builder.ch_last_space = builder.layout->nchars;
+            builder.last_space_consumed_ptr = builder.last_consumed_ptr;
 
             if (UNLIKELY(is_tab)) {
                 if (parms->tabstops) {
@@ -243,6 +220,7 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             // pixel of relative distance between letters can be very visible).
             xcur = roundf(xcur);
 
+            builder.last_consumed_ptr = char_start;
             continue;
         }
 
@@ -258,6 +236,9 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             .x = xcur+.5f,
             .y = ycur+.5f,
         };
+        const char *prev_consumed_ptr = builder.last_consumed_ptr;
+        builder.last_consumed_ptr = utf8_text;
+        builder.max_chars -= 1;
 
         // Advance the cursor
         xcur += xadvance * builder.xscale;
@@ -277,18 +258,25 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
             // Check if we are allowed to wrap
             switch (parms->wrap) {
                 case WRAP_CHAR:
-                    if (!paragraph_wrap(builder.layout->nchars-1, &xcur, &ycur))
+                    if (!paragraph_wrap(builder.layout->nchars-1, &xcur, &ycur)){
+                        //char didn't fit. move the pointer to the last consumed char
+                        builder.last_consumed_ptr = prev_consumed_ptr;
                         return;
+                    }
                     break;
                 case WRAP_WORD:
                     // Find the last space in the line
                     if (builder.ch_last_space >= 0) {
-                        if (!paragraph_wrap(builder.ch_last_space, &xcur, &ycur))
+                        if (!paragraph_wrap(builder.ch_last_space, &xcur, &ycur)){
+                            //word didn't fit. move the pointer to the last consumed space
+                            builder.last_consumed_ptr = builder.last_space_consumed_ptr;
                             return;
+                        }
                         builder.ch_last_space = -1;
                         break;
                     }
                     builder.layout->nchars -= 1;
+                    builder.last_consumed_ptr = prev_consumed_ptr;
                     // fallthrough!
                 case WRAP_ELLIPSES: {
                     const rdpq_font_t *wfnt = fnt;
@@ -340,9 +328,10 @@ void rdpq_paragraph_builder_span(const char *utf8_text, int nbytes)
                             .style_id = wrap_style_id,
                             .glyph = wfnt->ellipsis_glyph,
                             .x = (ellipsis_x + wfnt->ellipsis_advance * i * builder.xscale) + .5f,
-                            .y = wrapch[-1].y + .5f,
+                            .y = wrapch[0].y + .5f,
                         };
                     }
+                    builder.ellipsis_scan_start = utf8_text;
                 }   // fallthrough!
                 case WRAP_NONE:
                     // The text doesn't fit on this line anymore.
@@ -455,6 +444,11 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
     if (!__rdpq_paragraph_builder_update_bbox_width(builder.ch_line_start, builder.layout->nchars))
         builder.layout->nlines -= 1;
 
+    // Clamp the number of chars to the maximum allowed (for typewriter effects). Now the text
+    // has been fully laid out, so we can safely clamp it.
+    if (builder.parms->max_chars && builder.layout->nchars > builder.parms->max_chars)
+        builder.layout->nchars = builder.parms->max_chars;
+
     // Finish filling the metrics
     builder.layout->advance_x = builder.x;
     builder.layout->advance_y = builder.y;
@@ -488,7 +482,8 @@ rdpq_paragraph_t* rdpq_paragraph_builder_end(void)
         }
     }
 
-    // Make sure there is always a terminator.
+    // Make sure there is always a terminator. Notice that the array is allocated with
+    // one extra slot (capactiy + 1) so that we can always add a terminator.
     assertf(builder.layout->nchars <= builder.layout->capacity,
         "paragraph too long (%d/%d chars)", builder.layout->nchars, builder.layout->capacity);
     builder.layout->chars[builder.layout->nchars].sort_key = 0;
@@ -563,7 +558,19 @@ rdpq_paragraph_t* __rdpq_paragraph_build(const rdpq_textparms_t *parms, uint8_t 
 
     if (buf != span)
         rdpq_paragraph_builder_span(span, buf - span);
-    *nbytes = buf - utf8_text;
+
+    if(builder.ellipsis_scan_start) {
+        const char *scan = builder.ellipsis_scan_start;
+        while(scan < end && scan[0] != '\n')
+            ++scan;
+        *nbytes = (scan < end ? scan + 1 : scan) - utf8_text;
+    }
+    else if(builder.last_consumed_ptr)
+        *nbytes = (builder.last_consumed_ptr + (builder.parms->wrap == WRAP_WORD && builder.last_consumed_ptr < end))
+             - utf8_text;
+    else
+        *nbytes = 0;
+
     return rdpq_paragraph_builder_end();
 }
 

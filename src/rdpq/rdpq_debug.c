@@ -98,7 +98,8 @@ typedef struct {
     struct { bool persp, detail, sharpen, lod; } tex;
     struct { bool enable; uint8_t type; } tlut;
     uint8_t sample_type;
-    uint8_t tf_mode;
+    uint8_t tf_mode0;
+    uint8_t tf_mode1;
     bool chromakey;
     struct { uint8_t rgb, alpha; } dither;
     struct blender_s { uint8_t p, a, q, b; } blender[2];
@@ -405,6 +406,7 @@ void rdpq_debug_stop(void)
     rspq_write(RDPQ_OVL_ID, RDPQ_CMD_SET_DEBUG_MODE, 0);
 }
 
+/** @brief Install a hook to be called for each RDP command */
 void rdpq_debug_install_hook(void (*hook)(void*, uint64_t*, int), void* ctx)
 {
     for (int i=0;i<MAX_HOOKS;i++)
@@ -439,7 +441,8 @@ static inline setothermodes_t decode_som(uint64_t som) {
         .tex = { .persp = BIT(som, 51), .detail = BIT(som, 50), .sharpen = BIT(som, 49), .lod = BIT(som, 48) },
         .tlut = { .enable = BIT(som, 47), .type = BIT(som, 46) },
         .sample_type = BITS(som, 44, 45),
-        .tf_mode = BITS(som, 41, 43),
+        .tf_mode0 = BIT(som, 43),
+        .tf_mode1 = BITS(som, 41, 42),
         .chromakey = BIT(som, 40),
         .dither = { .rgb = BITS(som, 38, 39), .alpha = BITS(som, 36, 37) },
         .blender = {
@@ -573,10 +576,10 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         setothermodes_t som = decode_som(buf[0]);
 
         fprintf(out, "%s", cyc[som.cycle_type]);
-        if((som.cycle_type < 2) && (som.tex.persp || som.tex.detail || som.tex.sharpen || som.tex.lod || som.sample_type != 0 || som.tf_mode != 6)) {
+        if((som.cycle_type < 2) && (som.tex.persp || som.tex.detail || som.tex.sharpen || som.tex.lod || som.sample_type != 0 || som.tf_mode0 != 1 || som.tf_mode1 != 2)) {
             fprintf(out, " tex=["); FLAG_RESET();
             FLAG(som.tex.persp, "persp"); FLAG(som.tex.detail, "detail"); FLAG(som.tex.sharpen, "sharpen"); FLAG(som.tex.lod, "lod"); 
-            FLAG(!(som.tf_mode & 4), "yuv0"); FLAG(!(som.tf_mode & 2), yuv1[som.tf_mode&1]); 
+            FLAG(som.tf_mode0 != 1, "yuv0"); FLAG(som.tf_mode1 != 2, yuv1[som.tf_mode1&1]); 
             FLAG(som.sample_type != 0, texinterp[som.sample_type]);
             fprintf(out, "]");
         }
@@ -620,21 +623,29 @@ static void __rdpq_debug_disasm(uint64_t *addr, uint64_t *buf, FILE *out)
         fprintf(out, "\n");
     }; return;
     case 0x3C: { fprintf(out, "SET_COMBINE_MODE ");
-        static const char* rgb_suba[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "noise", "0","0","0","0","0","0","0","0"};
-        static const char* rgb_subb[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keycenter", "k4", "0","0","0","0","0","0","0","0"};
-        static const char* rgb_mul[32] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keyscale", "comb.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
-        static const char* rgb_add[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
-        static const char* alpha_addsub[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
-        static const char* alpha_mul[8] = {"lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0"};
+        static const char* cyc0_rgb_suba[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "noise", "0","0","0","0","0","0","0","0"};
+        static const char* cyc0_rgb_subb[16] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keycenter", "k4", "0","0","0","0","0","0","0","0"};
+        static const char* cyc0_rgb_mul[32] = {"comb", "tex0", "tex1", "prim", "shade", "env", "keyscale", "comb.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
+        static const char* cyc0_rgb_add[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
+        static const char* cyc0_alpha_addsub[8] = {"comb", "tex0", "tex1", "prim", "shade", "env", "1", "0"};
+        static const char* cyc0_alpha_mul[8] = {"lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0"};
+
+        static const char* cyc1_rgb_suba[16] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "1", "noise", "0","0","0","0","0","0","0","0"};
+        static const char* cyc1_rgb_subb[16] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "keycenter", "k4", "0","0","0","0","0","0","0","0"};
+        static const char* cyc1_rgb_mul[32] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "keyscale", "comb.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0","0","0","0","0","0","0","0", "0","0","0","0","0","0","0","0"};
+        static const char* cyc1_rgb_add[8] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "1", "0"};
+        static const char* cyc1_alpha_addsub[8] = {"comb", "tex1", "tex0_bug", "prim", "shade", "env", "1", "0"};
+        static const char* cyc1_alpha_mul[8] = {"lod_frac", "tex1", "tex0_bug", "prim", "shade", "env", "prim_lod_frac", "0"};
+
         colorcombiner_t cc = decode_cc(buf[0]);
         fprintf(out, "cyc0=[(%s-%s)*%s+%s, (%s-%s)*%s+%s], ",
-            rgb_suba[cc.cyc[0].rgb.suba], rgb_subb[cc.cyc[0].rgb.subb], rgb_mul[cc.cyc[0].rgb.mul], rgb_add[cc.cyc[0].rgb.add],
-            alpha_addsub[cc.cyc[0].alpha.suba], alpha_addsub[cc.cyc[0].alpha.subb], alpha_mul[cc.cyc[0].alpha.mul], alpha_addsub[cc.cyc[0].alpha.add]);
+            cyc0_rgb_suba[cc.cyc[0].rgb.suba], cyc0_rgb_subb[cc.cyc[0].rgb.subb], cyc0_rgb_mul[cc.cyc[0].rgb.mul], cyc0_rgb_add[cc.cyc[0].rgb.add],
+            cyc0_alpha_addsub[cc.cyc[0].alpha.suba], cyc0_alpha_addsub[cc.cyc[0].alpha.subb], cyc0_alpha_mul[cc.cyc[0].alpha.mul], cyc0_alpha_addsub[cc.cyc[0].alpha.add]);
         const struct cc_cycle_s passthrough = {0};
         if (!__builtin_memcmp(&cc.cyc[1], &passthrough, sizeof(struct cc_cycle_s))) fprintf(out, "cyc1=[<passthrough>]\n");
         else fprintf(out, "cyc1=[(%s-%s)*%s+%s, (%s-%s)*%s+%s]\n",
-            rgb_suba[cc.cyc[1].rgb.suba], rgb_subb[cc.cyc[1].rgb.subb], rgb_mul[cc.cyc[1].rgb.mul], rgb_add[cc.cyc[1].rgb.add],
-            alpha_addsub[cc.cyc[1].alpha.suba], alpha_addsub[cc.cyc[1].alpha.subb],   alpha_mul[cc.cyc[1].alpha.mul], alpha_addsub[cc.cyc[1].alpha.add]);
+            cyc1_rgb_suba[cc.cyc[1].rgb.suba], cyc1_rgb_subb[cc.cyc[1].rgb.subb], cyc1_rgb_mul[cc.cyc[1].rgb.mul], cyc1_rgb_add[cc.cyc[1].rgb.add],
+            cyc1_alpha_addsub[cc.cyc[1].alpha.suba], cyc1_alpha_addsub[cc.cyc[1].alpha.subb],   cyc1_alpha_mul[cc.cyc[1].alpha.mul], cyc1_alpha_addsub[cc.cyc[1].alpha.add]);
     } return;
     case 0x35: { fprintf(out, "SET_TILE         ");
         uint8_t f = BITS(buf[0], 53, 55);
@@ -1044,8 +1055,6 @@ static int cc_2cyc_use_tex0(void) {
 /** @brief Non-zoer if the current CC uses the TEX1 slot aka the second texture, in 2cycle mode */
 static int cc_2cyc_use_tex1(void) {
     struct cc_cycle_s *cc = rdp.cc.cyc;
-    if ((rdp.som.tf_mode & 3) == 1) // TEX1 is the color-conversion of TEX0, so TEX1 is not used
-        return false;
     int ret = 0;
     // Cycle0: reference to TEX1/TEX1_ALPHA slot
     if (cc[0].rgb.suba == 2 || cc[0].rgb.subb == 2 || cc[0].rgb.mul == 2 || cc[0].rgb.mul == 9 || cc[0].rgb.add == 2)
@@ -1151,25 +1160,25 @@ static void lazy_validate_rendermode(void) {
     if (rdp.som.cycle_type == 0) { // 1cyc
         VALIDATE_ERR_CC(ccs[1].rgb.suba != 0 && ccs[1].rgb.subb != 0 && ccs[1].rgb.mul != 0 && ccs[1].rgb.add != 0 &&
                         ccs[1].alpha.suba != 0 && ccs[1].alpha.subb != 0 && ccs[1].alpha.add != 0,
-            "in 1cycle mode, the color combiner cannot access the COMBINED slot");
+            "in 1cycle mode, the color combiner cannot access the COMBINED slot (RH#003)");
         VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                         ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-            "in 1cycle mode, the color combiner cannot access the TEX1 slot");
+            "in 1cycle mode, the color combiner cannot access the TEX1 slot (RH#001)");
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 7,
-            "in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot");
+            "in 1cycle mode, the color combiner cannot access the COMBINED_ALPHA slot (RH#003)");
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
-            "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot");
+            "in 1cycle mode, the color combiner cannot access the TEX1_ALPHA slot (RH#001)");
     } else { // 2 cyc
         VALIDATE_ERR_CC(ccs[0].rgb.suba != 0 && ccs[0].rgb.subb != 0 && ccs[0].rgb.mul != 0 && ccs[0].rgb.add != 0 &&
                         ccs[0].alpha.suba != 0 && ccs[0].alpha.subb != 0 && ccs[0].alpha.add != 0,
-            "in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle");
+            "in 2cycle mode, the color combiner cannot access the COMBINED slot in the first cycle (RH#003)");
         VALIDATE_ERR_CC(ccs[1].rgb.suba != 2 && ccs[1].rgb.subb != 2 && ccs[1].rgb.mul != 2 && ccs[1].rgb.add != 2 &&
                         ccs[1].alpha.suba != 2 && ccs[1].alpha.subb != 2 && ccs[1].alpha.mul != 2 && ccs[1].alpha.add != 2,
-            "in 2cycle mode, the color combiner cannot access the TEX1 slot in the second cycle (but TEX0 contains the second texture)");
+            "in 2cycle mode, TEX0 in the second cycle accesses the next pixel in the scanline (and random values on the last scanline pixel) (RH#002)");
         VALIDATE_ERR_CC(ccs[0].rgb.mul != 7,
-            "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle");
+            "in 2cycle mode, the color combiner cannot access the COMBINED_ALPHA slot in the first cycle (RH#003)");
         VALIDATE_ERR_CC(ccs[1].rgb.mul != 9,
-            "in 2cycle mode, the color combiner cannot access the TEX1_ALPHA slot in the second cycle (but TEX0_ALPHA contains the second texture)");
+            "in 2cycle mode, TEX0_ALPHA in the second cycle accesses the next pixel in the scanline (and random values on the last scanline pixel)");
         if (rdp.som.alphacmp.enable && !rdp.som.alphacmp.noise) {
             bool cc1_passthrough = (ccs[1].alpha.mul == 7 && ccs[1].alpha.add == 0);                // (any-any)*0+combined
             cc1_passthrough |= (ccs[1].alpha.suba == ccs[1].alpha.subb && ccs[1].alpha.add == 0);   // (same-same)*any+combine
@@ -1230,7 +1239,7 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
             VALIDATE_ERR_CC(!cc_use_tex1,
                 "cannot draw a non-textured primitive with a color combiner using the TEX1 slot");
             VALIDATE_ERR_CC(!cc_use_tex0alpha && !cc_use_tex1alpha,
-                "cannot draw a non-shaded primitive with a color combiner using the TEX%d_ALPHA slot", cc_use_tex0alpha ? 0 : 1);
+                "cannot draw a non-textured primitive with a color combiner using the TEX%d_ALPHA slot", cc_use_tex0alpha ? 0 : 1);
         }
 
         if (use_colors) {
@@ -1238,9 +1247,9 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
                 "shaded primitive drawn but neither the color combiner nor the blender use the SHADE/SHADE_ALPHA slots");
         } else {
             VALIDATE_ERR_CC(!cc_use_shade,
-                "cannot draw a non-shaded primitive with a color combiner using the SHADE slot");
+                "cannot draw a non-shaded primitive with a color combiner using the SHADE slot (RH#004)");
             VALIDATE_ERR_CC(!cc_use_shadealpha,
-                "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot");
+                "cannot draw a non-shaded primitive with a color combiner using the SHADE_ALPHA slot (RH#004)");
             VALIDATE_ERR_SOM(!bl_use_shadealpha, 
                 "cannot draw a non-shaded primitive with a blender using the SHADE_ALPHA slot");
         }
@@ -1255,6 +1264,32 @@ static void validate_draw_cmd(bool use_colors, bool use_tex, bool use_z, bool us
         }
 
     }   break;
+    }
+
+    // In 2-cycle mode, check for rgb.mul being set to COMBINED and receiving a 1 (or greater) input.
+    // Note "1" corresponds to a 256 value in the combiner unit (and not 255).
+    // Warn if that may be the case, as rgb.mul starts overflowing from 256 onwards.
+    if (rdp.som.cycle_type == 1) { // 2cyc
+        struct cc_cycle_s *ccA = &rdp.cc.cyc[0];
+        if (rdp.cc.cyc[1].rgb.mul == 0) { // combined
+            if (ccA->rgb.mul >= 16 && ccA->rgb.mul <= 31) { // zero
+                if (ccA->rgb.add == 6) { // one
+                    VALIDATE_WARN_CC(0, "combined rgb passed to mul input and evaluating to 1, overflow will occur");
+                }
+            } else {
+                // Detect a lerp (where subb == add)
+                if ((ccA->rgb.subb == 1 && ccA->rgb.add == 1) // tex0
+                    || (ccA->rgb.subb == 2 && ccA->rgb.add == 2) // tex1
+                    || (ccA->rgb.subb == 3 && ccA->rgb.add == 3) // prim
+                    || (ccA->rgb.subb == 4 && ccA->rgb.add == 4) // shade
+                    || (ccA->rgb.subb == 5 && ccA->rgb.add == 5) // env
+                    || (ccA->rgb.subb >= 8 && ccA->rgb.add == 7)) { // zero
+                    // Lerps would only be problematic if subb == add == ONE, but subb cannot take the ONE input so lerps are always fine.
+                } else {
+                    VALIDATE_WARN_CC(0, "combined rgb passed to mul input and exotic combiner detected, be mindful of overflow");
+                }
+            }
+        }
     }
 }
 
@@ -1310,10 +1345,11 @@ static bool check_loading_crash(int hpixels) {
  * 
  * @param tidx      tile ID
  * @param cycles    Bitfield of cycles in which the tile is accessed
+ * @param slotid    0 if the tile is accessed via (the real) TEX0, 1 if it is accessed via (the real) TEX1
  * @param texcoords Array of texture coordinates (S,T) used by the drawing command.
  * @param ncoords   Number of vertices in the array (the actual array element count will be double this number)
  */
-static void validate_use_tile_internal(int tidx, int cycles, float *texcoords, int ncoords) {
+static void validate_use_tile_internal(int tidx, int cycles, int slotid, float *texcoords, int ncoords) {
     struct tile_s *tile = &rdp.tile[tidx];
     rdp.busy.tile[tidx] = true;
     bool use_outside = false;
@@ -1336,21 +1372,32 @@ static void validate_use_tile_internal(int tidx, int cycles, float *texcoords, i
             // YUV render mode mistakes in 1-cyc/2-cyc, that is when YUV conversion can be done.
             // In copy mode, YUV textures are copied as-is
             if (tile->fmt == 1) {
-                if (cycles & 1) VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>0)),
-                        "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, 0);
-                if (cycles & 2) VALIDATE_ERR_SOM(!(rdp.som.tf_mode & (4>>1)),
-                        "tile %d is YUV but texture filter in cycle %d does not activate YUV color conversion", tidx, 1);
+                // Bilinear filtering a YUV tile requires TF0_RGB & TF1_YUVTEX0 : basically
+                // you use the first stage to filter the YUV texture, and the second stage to convert it to RGB.
+                static const char* texinterp[] = { "point", "point", "bilinear", "median" };
                 if (rdp.som.sample_type > 1) {
-                    static const char* texinterp[] = { "point", "point", "bilinear", "median" };
-                    VALIDATE_ERR_SOM(rdp.som.tf_mode == 6 && rdp.som.cycle_type == 1,
-                        "tile %d is YUV and %s filtering is active: TF1_YUVTEX0 mode must be configured in SOM", tidx, texinterp[rdp.som.sample_type]);
-                    VALIDATE_ERR_SOM(rdp.som.cycle_type == 1,
-                        "tile %d is YUV and %s filtering is active: 2-cycle mode must be configured", tidx, texinterp[rdp.som.sample_type]);
+                    VALIDATE_ERR_SOM(rdp.som.tf_mode0 == 1 && rdp.som.tf_mode1 == 1,
+                        "tile %d is YUV and %s filtering is active: TF0_RGB & TF1_YUVTEX0 must be configured in SOM", tidx, texinterp[rdp.som.sample_type]);
+                    VALIDATE_ERR_SOM(rdp.som.cycle_type == 1, "YUV bilinear filering requires 2-cycle mode");
+                }
+
+                // If the tile is using YUV, correct usage requires it to go through the special TF stage
+                // for color conversion. Depending on the slot, check how it is being accessed
+                if (slotid == 0) {
+                    if (rdp.som.sample_type > 1 && rdp.som.tf_mode0 == 1 && rdp.som.tf_mode1 == 1) {
+                        VALIDATE_ERR_SOM(0, "tile %d is YUV, bilinear filering is activated and configured via TF0_RGB & TF1_YUVTEX0, but the tile is accessed via TEX0 instead of TEX1", tidx);
+                    } else {
+                        VALIDATE_ERR_SOM(rdp.som.tf_mode0 == 0,
+                            "tile %d is YUV, is accessed via TEX%d but SOM does not activate TF0_YUV", tidx, slotid);    
+                    }
+                } else {
+                    VALIDATE_ERR_SOM(rdp.som.tf_mode1 == 1 || rdp.som.tf_mode1 == 2,
+                        "tile %d is YUV, is accessed via TEX%d but SOM does not activate TF1_YUV", tidx, slotid);
                 }
             } else {
-                if (cycles & 1) VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>0)),
+                if (cycles & 1) VALIDATE_ERR_SOM(rdp.som.tf_mode0 == 1,
                     "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, 0, 0);
-                if (cycles & 2) VALIDATE_ERR_SOM((rdp.som.tf_mode & (4>>1)),
+                if (cycles & 2) VALIDATE_ERR_SOM(rdp.som.tf_mode1 == 2,
                     "tile %d is RGB-based, but cycle %d is configured for YUV color conversion; try setting SOM_TF%d_RGB", tidx, 1, 1);
             }
             // Validate clamp/mirror/wrap modes
@@ -1408,7 +1455,7 @@ static void validate_use_tile(int tidx, float *texcoords, int ncoords) {
     if (rdp.som.cycle_type == 3) return; // FILL mode does not use tiles
     if (rdp.som.cycle_type == 2) {
         // In COPY mode, the tile is used only in the first cycle
-        validate_use_tile_internal(tidx, (1<<0), texcoords, ncoords);
+        validate_use_tile_internal(tidx, (1<<0), 0, texcoords, ncoords);
         return;
     }
 
@@ -1419,11 +1466,16 @@ static void validate_use_tile(int tidx, float *texcoords, int ncoords) {
     if (rdp.som.cycle_type == 1) {
         int cyc_tex0 = cc_2cyc_use_tex0();
         int cyc_tex1 = cc_2cyc_use_tex1();
-        if (cyc_tex0) validate_use_tile_internal(tidx0, cyc_tex0, texcoords, ncoords);
-        if (cyc_tex1) validate_use_tile_internal(tidx1, cyc_tex1, texcoords, ncoords);
+        if (rdp.som.tf_mode1 == 1) {
+            // TEX1 is the color-conversion of TEX0, so usages of TEX1 actually refer
+            // to the same tile as TEX0
+            tidx1 = tidx0;
+        }
+        if (cyc_tex0) validate_use_tile_internal(tidx0, cyc_tex0, 0, texcoords, ncoords);
+        if (cyc_tex1) validate_use_tile_internal(tidx1, cyc_tex1, 1, texcoords, ncoords);
     } else {
         int cyc_tex0 = cc_1cyc_use_tex0();
-        if (cyc_tex0) validate_use_tile_internal(tidx0, cyc_tex0, texcoords, ncoords);
+        if (cyc_tex0) validate_use_tile_internal(tidx0, cyc_tex0, 0,texcoords, ncoords);
     }
 }
 
@@ -1456,7 +1508,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
                 tex_fmt_name[rdp.col.fmt], size, size); break;
         }
         uint32_t addr = BITS(buf[0], 0, 24);
-        if (RDPQ_VALIDATE_DETACH_ADDR && addr == RDPQ_VALIDATE_DETACH_ADDR) {
+        if ((RDPQ_VALIDATE_DETACH_ADDR & addr) == RDPQ_VALIDATE_DETACH_ADDR) {
             // special case for libdragon: if the address is 0x800000, then it means
             // that the developer requested to detach the framebuffer. Treat it as
             // if SET_COLOR_IMAGE was never sent.
@@ -1475,7 +1527,7 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         validate_busy_pipe();
         VALIDATE_ERR(BITS(buf[0], 0, 5) == 0, "Z image must be aligned to 64 bytes");
         uint32_t addr = BITS(buf[0], 0, 24);
-        if (RDPQ_VALIDATE_DETACH_ADDR && addr == RDPQ_VALIDATE_DETACH_ADDR) {
+        if ((RDPQ_VALIDATE_DETACH_ADDR & addr) == RDPQ_VALIDATE_DETACH_ADDR) {
             // special case for libdragon: if the address is 0x800000, then it means
             // that the developer requested to detach the Z buffer. Treat it as
             // if SET_Z_IMAGE was never sent.
@@ -1558,8 +1610,8 @@ void rdpq_validate(uint64_t *buf, uint32_t flags, int *r_errs, int *r_warns)
         VALIDATE_ERR(t->tmem_addr >= 0x800, "palettes must be loaded in upper half of TMEM (address >= 0x800)");
         VALIDATE_WARN(!(low&3) && !(high&3), "lowest 2 bits of palette start/stop must be 0");
         VALIDATE_ERR(low>>2 < 256, "palette start index must be < 256");
-        VALIDATE_ERR(high>>2 < 256, "palette stop index must be < 256");
         VALIDATE_CRASH(low>>2 <= high>>2, "palette stop index is lower than palette start index");
+        VALIDATE_ERR((high>>2)+1-(low>>2) <= 256, "palette length must be < 256");
     }   break;
     case 0x2F: // SET_OTHER_MODES
         validate_busy_pipe();

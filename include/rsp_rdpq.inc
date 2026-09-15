@@ -3,6 +3,7 @@
 #  RDPQ library
 #
 # Authors: Dennis Heinze <dennisjp.heinze@gmail.com>
+#          Giovanni Bajo <giovannibajo@gmail.com>
 ##############################################################################
 #
 # This library allows rspq overlays to emit RDP commands.
@@ -99,13 +100,16 @@ RDPQ_Send:
     # so using that bit in the RSPQ_RdpWait wait mask will make sure we wait for the RDP
     # to be idle.
     lbu t3, %lo(RDPQ_SYNCFULL_ONGOING)
-    jal RSPQ_RdpWait
     ori t3, DP_STATUS_END_VALID
+rdpq_send_wait:
+    mfc0 t0, COP0_DP_STATUS
+    and t0, t3
+    bnez t0, rdpq_send_wait
 
     # Switch to the next dynamic buffer.
     # Since there are two of them, also switch between
     # them so next time we will pick the other one.
-    lw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
+     lw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
     lw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 0
     sw rdram_cur, %lo(RDPQ_DYNAMIC_BUFFERS) + 0
     sw t1, %lo(RDPQ_DYNAMIC_BUFFERS) + 4
@@ -220,7 +224,8 @@ AA_BLEND_DEFAULT_FORMULA:
     .word RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG))                      # Standard AA
     .word RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, MEMORY_CVG)) & ~SOM_READ_ENABLE   # Reduced AA
 
-#define RDPQ_COMB_MIPMAP2       RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
+#define RDPQ_COMB_LOD_INTERP    RDPQ_COMBINER2((TEX1, TEX0, LOD_FRAC, TEX0), (TEX1, TEX0, LOD_FRAC, TEX0), (0,0,0,0), (0,0,0,0))
+#define RDPQ_COMB_LOD_SHQ       RDPQ_COMBINER2((TEX0, TEX1, K5,       0   ), (0,    0,    0,        TEX1), (0,0,0,0), (0,0,0,0))
 #define RDPQ_COMB_SHADE_FOG     RDPQ_COMBINER1((0,0,0,SHADE),      (0,0,0,1))
 #define RDPQ_COMB_TEX_SHADE_FOG RDPQ_COMBINER1((TEX0,0,SHADE,0),   (0,0,0,TEX0))
 
@@ -230,7 +235,9 @@ COMBINER_SHADE_FOG:     .quad RDPQ_COMB_SHADE_FOG
 COMBINER_TEX_SHADE:     .quad RDPQ_COMBINER_TEX_SHADE
 COMBINER_TEX_SHADE_FOG: .quad RDPQ_COMB_TEX_SHADE_FOG
 
-COMBINER_MIPMAP2:       .quad (RDPQ_COMB_MIPMAP2 & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
+COMBINER_MIPMAPS:       
+                        .quad (RDPQ_COMB_LOD_INTERP & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
+                        .quad (RDPQ_COMB_LOD_SHQ    & RDPQ_COMB0_MASK) | RDPQ_COMBINER_2PASS
 
     .section .bss.rdpq_mode_api
 
@@ -244,20 +251,21 @@ RDPQ_MODE_COMBINER_2CYC:     .quad  0
     .func RDPQ_SetBlendingMode
 RDPQ_SetBlendingMode:
     # Set the blending mode formula in the second step. Then:
-    #  * If the formula is empty, clear also the first step if it was
-    #    part of a previous two-step blending (SOMX_BLEND_2PASS).
-    #  * If the formula is not empty and it is two-steps (SOMX_BLEND_2PASS),
-    #    put it also in the first step.
-    #  We cover both conditision in one single codeflow by putting into t0
-    #  the value to check against SOMX_BLEND_2PASS.
+    #  * If the new formula is 2-pass (SOMX_BLEND_2PASS), mirror it into
+    #    the first step as well.
+    #  * If the new formula is 1-pass (or empty), keep the first step as-is
+    #    unless it was previously part of an older 2-pass configuration.
+    #  * If we detect this stale 2-pass state in step0, clear it so that
+    #    switching from BLENDER2 -> BLENDER does not leave SOMX_BLEND_2PASS
+    #    active in the render mode.
     lw t0, %lo(RDPQ_MODE_BLENDER_STEPS) + 0
-    beqz a1, setblending_check
     sw a1, %lo(RDPQ_MODE_BLENDER_STEPS) + 4
-    move t0, a1
-setblending_check:
-    andi t0, SOMX_BLEND_2PASS
-    beqz t0, RDPQ_UpdateRenderMode
-    nop
+
+    andi t1, a1, SOMX_BLEND_2PASS
+    bnez t1, RDPQ_SetFogMode
+     andi t1, t0, SOMX_BLEND_2PASS
+    beqz t1, RDPQ_UpdateRenderMode
+     li a1, 0
     # fallthrough!
     .endfunc
 
@@ -353,7 +361,8 @@ RDPQ_UpdateRenderMode:
 
 calc_comb_1cyc:    
     # Check if fogging is active
-    andi t0, som_hi, SOMX_FOG >> 32
+    li t1, SOMX_FOG >> 32
+    and t0, som_hi, t1
     beqz t0, check_mipmap_interp
 
     # Create a copy of comb_hi without the cmd ID in the top MSB.
@@ -385,10 +394,11 @@ fog_change:
     lw comb_lo, 4(s0)
 
 check_mipmap_interp:
-    and t0, som_hi, SOMX_LOD_INTERPOLATE >> 32
-    beqz t0, store_comb_1cyc
+    andi t2, som_hi, SOMX_LOD_INTERP_MASK >> 32
+    beqz t2, store_comb_1cyc
+    sll t2, 3 - (SOMX_LOD_INTERP_SHIFT - 32)       # Prepare offset for the current mipmap interpolation mode
 
-    # Interpolated mipmapping is active. We want to add RDPQ_COMB_MIPMAP as step0
+    # Interpolated mipmapping is active. We want to add a special combiner step as step0
     # and use only step 1 of the incoming formula. Unfortunately, this
     # also means that all TEX0 slots must be converted into COMBINED slots.
     # We do this by using the mask already loaded in a2/a3
@@ -399,8 +409,8 @@ check_mipmap_interp:
     # Since this combiner now requires two-cycle mode, we can simply store in the
     # 2-cycle mode slot. No need to touch the 1-cycle mode slot as it will not
     # be used anyway.
-    lw t0, %lo(COMBINER_MIPMAP2) + 0
-    lw t1, %lo(COMBINER_MIPMAP2) + 4
+    lw t0, %lo(COMBINER_MIPMAPS) - 8(t2)
+    lw t1, %lo(COMBINER_MIPMAPS) - 4(t2)
     or comb_hi, t0
     j store_comb_2cyc
     or comb_lo, t1
@@ -529,6 +539,22 @@ blender_1pass:
 
     ######################################
     #
+    # YUV BILINEAR FILTERING
+    #
+    ######################################
+
+    # Isolate the TF and sample bits
+    andi t0, som_hi, (SOM_TF_MASK | SOM_SAMPLE_MASK) >> 32
+    # Check if TF0=TF1=YUV and SAMPLE=BILINEAR
+    li t1, (SOM_SAMPLE_BILINEAR | SOM_TF0_YUV | SOM_TF1_YUV) >> 32
+    bne t0, t1, 1f
+     # If so, set TF1_YUVTEX0 and TF0_RGB
+     li t0, (SOM_TF1_YUVTEX0 | SOM_TF0_RGB) >> 32
+    or som_hi, t0
+1:
+
+    ######################################
+    #
     # 1 CYCLE / 2 CYCLE MODE SELECTION
     #
     ######################################
@@ -539,6 +565,8 @@ blender_1pass:
     # 2cycle mode:
     #   * Blender: bit 15 is set if 2cyc mode is required (SOMX_BLEND_2PASS)
     #   * Combiner: bit 63 is set if 2cyc mode is required (RDPQ_COMBINER_2PASS)
+    # NOTE: YUV bilinear filtering requires 2cycle mode, but that's not a special
+    # case here, as non-buggy uses of it must use TEX1.
     #
     # First, we align both bits in bit 31 and we OR them together.
     sll t2, blend_2cyc, 16
@@ -554,6 +582,10 @@ set_1cyc:
     move blend_final, blend_1cyc
     li cycle_type, ((SOM_CYCLE_MASK ^ SOM_CYCLE_1) >> 32)  | 0x10000000
 set_cycle_type:
+    # Before clearing the MSB in som_hi extract the SOMX ALPHACOMPARE flag into
+    # t3 (bit 31) that might be useful later.
+    sll t3, som_hi, 31 - (SOMX_ALPHACOMPARE_SHIFT-32)
+
     # Set cycle type bits in other modes high word. Also put the correct
     # command (0xEF) in the top byte: we achieve this by first setting the
     # top byte to 0xFF, and then xoring with 0x10 (which is included in
@@ -605,13 +637,32 @@ set_cycle_type:
     # Additionally we need to disable the actual alpha compare feature since it would
     # compare the threshold with the alpha multiplied by coverage in this case, which would
     # lead to visible seams at polygon edges.
-    li t0, SOM_ALPHACOMPARE_THRESHOLD | SOM_BLALPHA_CVG
-    and t1, som_lo, t0
-    bne t0, t1, rdpq_update_finish
-    nop
+    sll t0, som_lo, 31 - (SOM_BLALPHA_SHIFT+1)          # SOM_BLALPHA_CVG goes to bit 31
+    and t0, t3                                          # SOMX_ALPHACOMPARE is already in bit 31
+    bgez t0, 1f
+     nop
     or som_lo, SOM_BLALPHA_CVG_TIMES_CC
     and som_lo, ~SOM_ALPHACOMPARE_MASK
+1:
     
+    ######################################
+    #
+    # ZMODE OPAQUE/TRANSPARENT SWITCHING
+    #
+    ######################################
+
+    # Check whether SOM_ZMODE is either interpen or decal (both have 1<<10 set).
+    # If so, there's nothing to do.
+    # Otherwise, if it's standard mode, set bit 2<<10 to switch between
+    # opaque and transparent, depending on SOM_BLENDING.
+    andi t0, som_lo, 1<<10 
+    bnez t0, 1f
+     andi t1, som_lo, SOM_BLENDING
+    bnez t1, 1f
+     ori som_lo, 2<<10
+    xori som_lo, 2<<10
+1:
+
     ######################################
     #
     # SAVE SETTINGS & APPLY TO RDP
@@ -704,6 +755,7 @@ RDPQ_WriteSetScissor:
 RDPQ_WriteSetFillColor:
     sw a1, %lo(RDPQ_FILL_COLOR)
     lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
+    andi t0, 3
     beq t0, 3, RDPQ_Write8
     lui a0, 0xF700   # SET_FILL_COLOR
     srl t0, a1, 24 + (8-5) - 11
@@ -830,12 +882,19 @@ RDPQ_Triangle:
     #define VTX_ATTR_X      0
     #define VTX_ATTR_Y      2
     #define VTX_ATTR_Z      4
+    #define VTX_ATTR_CLIPCODE 6         // Clipping codes
+    #define VTX_ATTR_TRCODE   7         // Negated trivial-reject codes
     #define VTX_ATTR_RGBA   8
     #define VTX_ATTR_S      12
     #define VTX_ATTR_T      14
     #define VTX_ATTR_W      16
     #define VTX_ATTR_INVWi  20
     #define VTX_ATTR_INVWf  22
+
+#if 0
+    mfc0 fp, COP0_DP_CLOCK
+    xtracestart
+#endif
 
     j half_swap
     li t0, 1
@@ -882,6 +941,11 @@ swap_end:
     ssv vxy32.e5, 4,s3    # y2
     ssv vxy32.e4, 2,s3    # y3
 
+    # Add num mipmap levels to tricmd
+    lbu t1, %lo(RDPQ_OTHER_MODES) + 0
+    andi t1, 0x38     # Isolate bits 2-5 (aka 59-61 of SOM)
+    or tricmd, t1
+
     # Now calculate:
     #  vxy32    = X3 X2 X3 --    Y3 Y2 Y3 --
     #    -
@@ -925,11 +989,6 @@ swap_end:
     beq t0, cull, JrRa
     sll t0, 7
     or tricmd, t0
-
-    # Add num mipmap levels
-    lbu t1, %lo(RDPQ_OTHER_MODES) + 0
-    andi t1, 0x38     # Isolate bits 2-5 (aka 59-61 of SOM)
-    or tricmd, t1
 
     # Calculate reciprocal of normal
     vrcph vnz_i.e0, vnz_i.e4
@@ -999,6 +1058,10 @@ swap_end:
     # v__       =    0 0  0  0     0    0    0    NZi
     # slope     =   -- -- -- --   1/HY 1/MY 1/LY  1/NZ
     
+    #undef vtmp_f
+    #undef vtmp_i
+    #undef vk2
+
     vmov vnz_f.e0, vslope_f.e7
     vmov vnz_i.e0, vslope_i.e7
 
@@ -1285,8 +1348,19 @@ no_texture:
     ssv    vde_f.e7, 0x0A,s3
     ssv    vdy_i.e7, 0x0C,s3
     ssv    vdy_f.e7, 0x0E,s3
-    jr ra
     addi s3, 0x10
+
+#if 0
+    xtracestop
+
+    mfc0 t0, COP0_DP_CLOCK
+    sub t0, t0, fp
+    xlog_string "RDPQ_Triangle:  "
+    xlogregs_gpr t0
+#endif
+
+    jr ra
+    nop
 
     #undef tricm
     #undef vtx1 

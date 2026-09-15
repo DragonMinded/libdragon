@@ -31,7 +31,8 @@ static void sprite_upload_palette(sprite_t *sprite, int palidx, bool set_mode)
         // this today, but it could in the future (eg: sharing a palette across
         // multiple sprites).
         uint16_t *pal = sprite_get_palette(sprite);
-        if (pal) rdpq_tex_upload_tlut(pal, palidx*16, fmt == FMT_CI4 ? 16 : 256);
+        int num_colors = sprite_get_palette_used_colors(sprite);
+        if (pal) rdpq_tex_upload_tlut(pal, palidx*16, num_colors);
     }
 }
 
@@ -52,6 +53,7 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
     sprite_detail_t detail; rdpq_texparms_t detailtexparms = {0};
     surface_t detailsurf = sprite_get_detail_pixels(sprite, &detail, &detailtexparms);
     bool use_detail = detailsurf.buffer != NULL;
+    bool is_shq = sprite_is_shq(sprite);
 
     rdpq_tex_multi_begin();
 
@@ -113,7 +115,11 @@ int __rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms
 
     if (__builtin_expect(set_mode, 1)) {
         // Enable/disable mipmapping
-        if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
+        if(is_shq) {
+            rdpq_mode_mipmap(MIPMAP_INTERPOLATE_SHQ, num_mipmaps);
+            rdpq_set_yuv_parms(0, 0, 0, 0, 0, 0xFF);
+        } 
+        else if(use_detail)          rdpq_mode_mipmap(MIPMAP_INTERPOLATE_DETAIL, num_mipmaps+1);
         else if (num_mipmaps)   rdpq_mode_mipmap(MIPMAP_INTERPOLATE, num_mipmaps);
         else                    rdpq_mode_mipmap(MIPMAP_NONE, 0);
     }
@@ -131,6 +137,8 @@ int rdpq_sprite_upload(rdpq_tile_t tile, sprite_t *sprite, const rdpq_texparms_t
 
 void rdpq_sprite_blit(sprite_t *sprite, float x0, float y0, const rdpq_blitparms_t *parms)
 {
+    assertf(!sprite_is_shq(sprite), "SHQ sprites only work with rdpq_sprite_upload, not rdpq_sprite_blit");
+
     // Upload the palette and configure the render mode
     sprite_upload_palette(sprite, 0, true);
 

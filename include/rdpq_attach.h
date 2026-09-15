@@ -1,6 +1,6 @@
 /**
  * @file rdpq_attach.h
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue: surface attachment API
  * @ingroup rdpq
  * 
@@ -18,6 +18,7 @@
 #ifndef LIBDRAGON_RDPQ_ATTACH_H
 #define LIBDRAGON_RDPQ_ATTACH_H
 
+#include "preview.h"
 #include "rspq.h"
 
 #ifdef __cplusplus
@@ -60,7 +61,7 @@ void rdpq_attach(const surface_t *surf_color, const surface_t *surf_z);
  *
  * This function is similar to #rdpq_attach, but it also clears the surface
  * to full black (color 0) immediately after attaching. If a z-buffer is
- * specified, it is also cleared (to 0xFFFC).
+ * specified, it is also cleared (to #ZBUF_MAX).
  * 
  * This function is just a shortcut for calling #rdpq_attach, #rdpq_clear and
  * #rdpq_clear_z.
@@ -195,6 +196,18 @@ inline void rdpq_detach_wait(void)
  * @see #rdpq_detach
  */
 void rdpq_detach_cb(void (*cb)(void*), void *arg);
+
+/**
+ * @brief Get the surface that is currently attached to the RDP
+ * @preview
+ * 
+ * @return A pointer to the surface that is currently attached to the RDP,
+ *         or NULL if none is attached.
+ * 
+ * @see #rdpq_attach
+ */
+LIBDRAGON_PREVIEW_API
+const surface_t* rdpq_get_attached(void);
 
 #ifdef __cplusplus
 }
