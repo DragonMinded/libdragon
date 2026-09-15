@@ -5,7 +5,7 @@ include $(N64_INST)/include/n64.mk
 
 N64_MKMATERIAL = $(N64_INST)/bin/mkmaterial
 
-all: testrom.z64 testrom_emu.z64 testrom_h264.z64 testrom_wav64.z64 testrom_samplebuffer.z64
+all: testrom.z64 testrom_emu.z64 testrom_h264.z64 testrom_wav64.z64 testrom_samplebuffer.z64 testrom_ulc.z64
 
 MAIN_ELF_EXTERNS := $(BUILD_DIR)/testrom.externs
 DSO_MODULES = dl_test_syms.dso dl_test_relocs.dso dl_test_imports.dso dl_test_ctors.dso
@@ -68,6 +68,9 @@ testrom_wav64.z64: N64_ROM_TITLE="Libdragon WAV64 Test"
 $(BUILD_DIR)/testrom_samplebuffer.elf: $(BUILD_DIR)/test_samplebuffer.o
 testrom_samplebuffer.z64: N64_ROM_TITLE="Samplebuffer Test"
 
+$(BUILD_DIR)/testrom_ulc.elf: $(BUILD_DIR)/test_ulc.o
+testrom_ulc.z64: N64_ROM_TITLE="ULC Saturation Test"
+
 $(BUILD_DIR)/testrom_emu.o: $(SOURCE_DIR)/testrom.c
 	@mkdir -p $(dir $@)
 	@echo "    [CC] $<"
@@ -85,7 +88,7 @@ filesystem/dl_test_imports.dso: $(BUILD_DIR)/dl_test_imports.o
 filesystem/dl_test_ctors.dso: $(BUILD_DIR)/dl_test_ctors.o
 
 clean:
-	rm -rf $(BUILD_DIR) testrom.z64 testrom_emu.z64 testrom_h264.z64 testrom_wav64.z64 testrom_samplebuffer.z64
+	rm -rf $(BUILD_DIR) testrom.z64 testrom_emu.z64 testrom_h264.z64 testrom_wav64.z64 testrom_samplebuffer.z64 testrom_ulc.z64
 	$(MAKE) -C h264decoder_host clean
 
 h264decoder_host:

@@ -846,7 +846,7 @@ load_window_8:
 # Exactly size samples are staged in OUTPUT. LAP receives the remaining old
 # state followed by the unused decoded samples, both stored backwards.
 # Inputs: s7 = size, s1 = mono output shift (0 or 1).
-# Clobbers: k0, t9, t8, t7, t6, t5, fp, t4.
+# Clobbers: k0, t9, t8, t7, t6, t5, fp, t4, v28, v29.
 
 #define available       $26
 #define lap_dst         $25
@@ -858,6 +858,10 @@ load_window_8:
 #define sample          $12
 
 reshuffle_lap:
+  # VMUDH multiplies signed samples by 1 (stereo) or 2 (mono) and
+  # saturates the result. A scalar shift followed by SH would wrap peaks.
+  addiu   sample, $17, 1
+  mtc2    sample, $v29.e0
   addiu   available, $0, 1024              # k0: available
   subu    available, available, $23
   or      shared_count, $23, $0            # t5: shared = size
@@ -878,8 +882,9 @@ reshuffle_lap:
   lh      sample, -2(lap_src)
   addiu   samples_left, samples_left, -1
   addiu   lap_src, lap_src, -2
-  sllv    sample, sample, $17
-  sh      sample, 0(output_dst)
+  mtc2    sample, $v28.e0
+  vmudh   $v28, $v28, $v29.e0
+  ssv     $v28, 0, 0, output_dst
   bnez    samples_left, .reshuffle_output_lap
   addiu   output_dst, output_dst, 2
 
@@ -891,8 +896,9 @@ reshuffle_lap:
   lh      sample, 0(decoded_src)
   addiu   decoded_src, decoded_src, 2
   addiu   samples_left, samples_left, -1
-  sllv    sample, sample, $17
-  sh      sample, 0(output_dst)
+  mtc2    sample, $v28.e0
+  vmudh   $v28, $v28, $v29.e0
+  ssv     $v28, 0, 0, output_dst
   bnez    samples_left, .reshuffle_output_decoded
   addiu   output_dst, output_dst, 2
 
@@ -973,9 +979,9 @@ lap_prefix:
   mtc2    load_b, $v28.e7
   lqv     $v27, 0, 0, transform_ptr
   bne     $16, one, .lap_prefix_store
-  nop
-  vaddc   $v28, $v28, $v28.v
-  vaddc   $v27, $v27, $v27.v
+  ctc2    $0, COP2_CTRL_VCO       # VADD consumes carry; output scaling must not.
+  vadd    $v28, $v28, $v28.v      # Saturating Q1.14 -> signed PCM conversion.
+  vadd    $v27, $v27, $v27.v
 
 .lap_prefix_store:
   sqv     $v28, 0, 0, output_ptr
@@ -1054,8 +1060,9 @@ lap_windowed:
   vadd    $v20, $v20, $v20.v
   bne     $16, one, .lap_windowed_store
   vadd    $v19, $v19, $v19.v
-  vaddc   $v20, $v20, $v20.v
-  vaddc   $v19, $v19, $v19.v
+  # The preceding VADDs clear VCO. Saturate mono output, never wrap it.
+  vadd    $v20, $v20, $v20.v
+  vadd    $v19, $v19, $v19.v
 
 .lap_windowed_store:
 
