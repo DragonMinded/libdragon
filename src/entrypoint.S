@@ -9,6 +9,7 @@
 ############################################################
 
 #include "regs.S"
+#include "emux.inc"
 
 	.set noreorder
 
@@ -32,7 +33,12 @@ _start:
 	/* Copy bootcode flags, stored in DMEM */
 	lui v0, 0xA400
 	lw t0, 0x0000(v0)
+	lw t1, 0x0004(v0)
+	lhu t2, 0x000C(v0)
 	sw t0, %gprel(__boot_memsize)(gp)
+	sw t1, %gprel(__entropy_state+0)(gp)
+	sw t1, %gprel(__entropy_state+4)(gp)
+	sw t2, %gprel(__boot_address_page)(gp)
 
 	/* Copy other bootcode flags */
 	lbu t0, 0x0009(v0)
@@ -53,5 +59,6 @@ _start:
 	li a1, 0
 
 _abort:
-	j _abort
+	xioctl_exit				/* request the emulator to exit */
+1:	j 1b
 	nop

@@ -8,26 +8,34 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <assert.h>
 #include <malloc.h>
+#include <unistd.h>
 #include "n64sys.h"
 #include "regsinternal.h"
 #include "interrupt.h"
-#include "vi.h"
 #include "rsp.h"
 #include "rdp.h"
 #include "utils.h"
+#include "rompak_internal.h"
+#include "accounting_internal.h"
+#include "interrupt_internal.h"
 
 int __boot_memsize;        ///< Memory size as detected by IPL3
 int __boot_tvtype;         ///< TV type as detected by IPL3
 int __boot_resettype;      ///< Reset type as detected by IPL3 
 int __boot_consoletype;    ///< Console type as detected by IPL3
+int __boot_address_page;   ///< Address in the ROM of the ELF
 
 /** @brief Records whether the user called a function to check for the presence of expanded memory */
 bool __expanded_memory_asserted = false;
 
 /** @brief Last value of the 64-bit counter */
 static uint64_t ticks64_base;
+
+/** @brief Set if it's a broken emulator not support hw_memset */
+static bool hw_memset_broken = false;
 
 /// @cond
 
@@ -46,6 +54,7 @@ static uint64_t ticks64_base;
 #define INDEX_CREATE_DIRTY              (3)
 #define HIT_INVALIDATE                  (4)
 #define HIT_WRITEBACK_INVALIDATE        (5)
+#define HIT_FILL                        (5)
 #define HIT_WRITEBACK                   (6)
 
 /// @endcond
@@ -115,6 +124,11 @@ void inst_cache_hit_invalidate(volatile void * addr, unsigned long length)
     cache_op(build_opcode(HIT_INVALIDATE, CACHE_INST_FLAG), CACHE_INST_LINESIZE);
 }
 
+void inst_cache_hit_fill(volatile void * addr, unsigned long length)
+{
+    cache_op(build_opcode(HIT_FILL, CACHE_INST_FLAG), CACHE_INST_LINESIZE);
+}
+
 void inst_cache_index_invalidate(volatile void * addr, unsigned long length)
 {
     cache_op(build_opcode(INDEX_INVALIDATE, CACHE_INST_FLAG), CACHE_INST_LINESIZE);
@@ -157,6 +171,30 @@ void free_uncached(void *buf)
     free(CachedAddr(buf));
 }
 
+void* realloc_uncached(void *buf, size_t size)
+{
+    size_t old_size = malloc_usable_size(CachedAddr(buf));
+    old_size = ROUND_DOWN(old_size, 16);
+    size = ROUND_UP(size, 16);
+
+    if (old_size == size)
+        return buf;
+
+    if (old_size > size) {
+        void *new_buf = realloc(CachedAddr(buf), size);
+        assertf(new_buf == CachedAddr(buf), "shrinking a buffer should not move it");
+        return UncachedAddr(new_buf);
+    }
+
+    // Growing the buffer: allocate a new one and copy the contents.
+    void *new_buf = malloc_uncached(size);
+    if (!new_buf)
+        return NULL;
+    memcpy(new_buf, buf, old_size);
+    free_uncached(buf);
+    return new_buf;
+}
+    
 int get_memory_size(void)
 {
     // If the application checked the size of the memory, we can assume that
@@ -187,14 +225,19 @@ reset_type_t sys_reset_type(void)
     return __boot_resettype;
 }
 
+pi_addr_t sys_elf_address(void)
+{
+    return 0x10000000 | (__boot_address_page << 8);
+}
+
 uint64_t get_ticks(void)
 {
-    disable_interrupts();
+    uint32_t sr = __disable_interrupts();
     uint32_t now = TICKS_READ();
     uint32_t prev = (uint32_t)ticks64_base;
     ticks64_base += (uint32_t)(now - prev);
     uint64_t ret = ticks64_base;
-    enable_interrupts();
+    __enable_interrupts(sr);
     return ret;
 }
 
@@ -206,6 +249,11 @@ uint64_t get_ticks_us(void)
 uint64_t get_ticks_ms(void)
 {
     return TICKS_TO_MS(get_ticks());
+}
+
+uint64_t get_user_ticks(void)
+{
+    return get_ticks() - get_system_ticks();
 }
 
 void wait_ticks( unsigned long wait )
@@ -246,18 +294,47 @@ void die(void)
 
 void sys_get_heap_stats(heap_stats_t *stats)
 {
-    extern int __heap_total_size;
+    extern int __heap_total_size, __heap_top_allocated_size;
     struct mallinfo m = mallinfo();
 
     stats->total = __heap_total_size;
-    stats->used = m.uordblks;
+    stats->used = m.uordblks + __heap_top_allocated_size;
+    stats->free = stats->total - stats->used;
+    stats->fragmented = m.fordblks > m.keepcost ? m.fordblks - m.keepcost : 0;
+    stats->fragmentation = m.fordblks ? (float)stats->fragmented / (float)m.fordblks : 0.0f;
+}
+
+static void version_callback(void *ctx, char *key, char *value)
+{
+    sys_version_t* version = (sys_version_t *)ctx;
+    if (strcmp(key, "branch") == 0) {
+        strlcpy(version->branch, value, sizeof(version->branch));
+    } else if (strcmp(key, "hash") == 0) {
+        strlcpy(version->hash, value, sizeof(version->hash));
+    } else if (strcmp(key, "commit-date") == 0) {
+        strlcpy(version->commit_date, value, sizeof(version->commit_date));
+    } else if (strcmp(key, "dirty") == 0) {
+        version->dirty = strcmp(value, "true") == 0;
+    }
+}
+
+bool sys_get_version(sys_version_t *version)
+{
+    size_t size;
+    pi_addr_t version_addr = rompak_search_ext("libdragon.version", &size);
+    if (!version_addr) {
+        return false;
+    }
+
+    rompak_version_parse(version_addr, size, version_callback, version);
+    return true;
 }
 
 /**
  * @brief Initialize COP1 with default settings that prevent undesirable exceptions.
  *
  */
-__attribute__((constructor)) void __init_cop1(void)
+__attribute__((constructor(110))) void __init_cop1(void)
 {
     /* Read initialized value from cop1 control register */
     uint32_t fcr31 = C1_FCR31();
@@ -298,3 +375,176 @@ __attribute__((constructor)) void __init_cop1(void)
     /* Write back updated cop1 control register */
     C1_WRITE_FCR31(fcr31);
 }
+
+///@cond
+// Assembly implementations of memset functions (see mi_memset.S)
+extern void* __mi_memset(void *ptr, uint8_t value, size_t len);
+extern void* __mi_memset16(void *ptr, uint16_t value, size_t len);
+extern void* __mi_memset32(void *ptr, uint32_t value, size_t len);
+extern void* __mi_memset64(void *ptr, uint64_t value, size_t len);
+///@endcond
+
+void* sys_hw_memset(void *ptr, uint8_t value, size_t len)
+{
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset(ptr, value, len);
+}
+
+void* sys_hw_memset16(void *ptr, uint16_t value, size_t len)
+{
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset16(ptr, value, len);
+}
+
+void* sys_hw_memset32(void *ptr, uint32_t value, size_t len)
+{
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset32(ptr, value, len);
+}
+
+void* sys_hw_memset64(void *ptr, uint64_t value, size_t len)
+{
+    assertf(!hw_memset_broken, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support MI repeat mode");
+    return __mi_memset64(ptr, value, len);
+}
+
+/** @brief Constructor that verifies if MI repeat mode is correctly emulated */
+__attribute__((constructor))
+void __n64sys_hwmemset_emucheck(void)
+{
+    uint32_t test[4] = {0};
+    __mi_memset32(&test, 0x12345678, sizeof(test));
+    if (test[0] != 0x12345678 || test[1] != 0x12345678 || test[2] != 0x12345678 || test[3] != 0x12345678)
+        hw_memset_broken = true;
+}
+
+
+/************* BSS CHECK **************/
+// This code is useful only while debugging IPL3 changes. It is not run by default
+// and requires manually changing entrypoint.S to be activated. It is left in the
+// preview branch for reference, but it's not meant to be merged into stable.
+
+/// @cond
+static uint32_t io_read32(uint32_t vaddrx)
+{
+    vaddrx |= 0xA0000000;
+    volatile uint32_t *vaddr = (uint32_t *)vaddrx;
+    return *vaddr;
+}
+
+static uint8_t io_read8(uint32_t vaddrx)
+{
+    uint32_t value = io_read32(vaddrx & ~3);
+    return value >> ((~vaddrx & 3)*8);
+}
+
+static const unsigned char font[] = {
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x7e, 0xa1, 0x99, 0x85, 0x7e, 0x84, 0x82, 0xff, 0x80, 0x80, 0xc1, 0xa1,
+    0x91, 0x89, 0x86, 0x89, 0x89, 0x89, 0x89, 0x76, 0x18, 0x14, 0x12, 0xff,
+    0x10, 0x8f, 0x89, 0x89, 0x89, 0x71, 0x7e, 0x89, 0x89, 0x89, 0x72, 0x01,
+    0x81, 0x61, 0x19, 0x07, 0x62, 0x95, 0x89, 0x95, 0x62, 0x4e, 0x91, 0x91,
+    0x91, 0x7e, 0xfe, 0x11, 0x11, 0x11, 0xfe, 0xff, 0x89, 0x89, 0x89, 0x76,
+    0x7e, 0x81, 0x81, 0x81, 0x81, 0xff, 0x81, 0x81, 0x81, 0x7e, 0xff, 0x89,
+    0x89, 0x89, 0x89, 0xff, 0x09, 0x09, 0x09, 0x09, 0x7e, 0x81, 0x91, 0x51,
+    0xf1, 0xff, 0x08, 0x08, 0x08, 0xff, 0x00, 0x81, 0xff, 0x81, 0x00, 0x40,
+    0x80, 0x80, 0x80, 0x7f, 0xff, 0x08, 0x14, 0x22, 0xc1, 0xff, 0x80, 0x80,
+    0x80, 0x80, 0xff, 0x02, 0x04, 0x02, 0xff, 0xff, 0x06, 0x18, 0x60, 0xff,
+    0x7e, 0x81, 0x81, 0x81, 0x7e, 0xff, 0x11, 0x11, 0x11, 0x0e, 0x7e, 0x81,
+    0xa1, 0xc1, 0xfe, 0xff, 0x11, 0x11, 0x11, 0xee, 0x86, 0x89, 0x89, 0x89,
+    0x71, 0x01, 0x01, 0xff, 0x01, 0x01, 0x7f, 0x80, 0x80, 0x80, 0x7f, 0x1f,
+    0x60, 0x80, 0x60, 0x1f, 0xff, 0x40, 0x20, 0x40, 0xff, 0xc7, 0x28, 0x10,
+    0x28, 0xc7, 0x07, 0x08, 0xf0, 0x08, 0x07, 0xc1, 0xa1, 0x99, 0x85, 0x83,
+};
+
+
+#define _(x)    ((x) >= '0' && (x) <= '9' ? (x) - '0' + 2 : \
+                 (x) >= 'A' && (x) <= 'Z' ? (x) - 'A' + 12 : \
+                 (x) == ' ' ? 1 : 0)
+
+// "BSS CHECK ERROR"
+static const char MSG_BSS_CHECK_ERROR[] = {
+    _('B'), _('S'), _('S'), _(' '), _('C'), _('H'), _('E'), _('C'), _('K'), _(' '), _('E'), _('R'), _('R'), _('O'), _('R'), 0
+};
+
+__attribute__((noreturn))
+static void fatal(const char *str)
+{
+#if 1
+#define FATAL_TEXT  1
+#if FATAL_TEXT
+#endif
+    static const uint32_t vi_regs_p[3][7] =  {
+    {   /* PAL */   0x0404233a, 0x00000271, 0x00150c69,
+        0x0c6f0c6e, 0x00800300, 0x005f0239, 0x0009026b },
+    {   /* NTSC */  0x03e52239, 0x0000020d, 0x00000c15,
+        0x0c150c15, 0x006c02ec, 0x002501ff, 0x000e0204 },
+    {   /* MPAL */  0x04651e39, 0x0000020d, 0x00040c11,
+        0x0c190c1a, 0x006c02ec, 0x002501ff, 0x000e0204 },
+    };
+
+    #undef RGBA32
+    #define RGBA(r,g,b,a)   (((r)<<11) | ((g)<<6) | ((b)<<1) | (a))
+    #define RGBA32(rgba32)  RGBA((((rgba32)>>19) & 0x1F), (((rgba32)>>11) & 0x1F), ((rgba32>>3) & 0x1F), (((rgba32)>>31) & 1))
+
+    uint16_t *fb_base = (uint16_t*)0xA0100000;
+    volatile uint32_t* regs = (uint32_t*)0xA4400000;
+    regs[1] = (uint32_t)fb_base;
+    for (int i=0; i<320*240; i++) 
+        fb_base[i] = RGBA32(0xDF8A7B);
+
+    regs[2] = 320;
+    regs[12] = 0x200;
+    regs[13] = 0x400;
+
+#if FATAL_TEXT
+    const int RES_WIDTH = 320;
+    const int X = 40;
+    const int Y = 40;
+    const uint16_t COLOR = RGBA32(0xF3F9D2);
+
+    fb_base += Y*RES_WIDTH + X;
+    uint16_t *fb = fb_base;
+    while (1) {
+        char ch = io_read8((uint32_t)str); str++;
+        if (!ch) break;
+        const uint8_t *glyph = font + (ch-1)*5;
+        for (int x=0; x<5; x++) {
+            uint8_t g = io_read8((uint32_t)glyph);
+            for (int y=0; y<8; y++) {
+                if (g & (1 << y))
+                    fb[RES_WIDTH*y] = COLOR;
+            }
+            fb++;
+            glyph++;
+        }
+
+        fb += 2; // spacing
+    }
+
+#endif
+    int tv_type = io_read8(0xA4000009);
+    bool ique = io_read8(0xA400000B);
+    #pragma GCC unroll 0
+    for (int reg=0; reg<7; reg++)
+        regs[reg+5] = vi_regs_p[tv_type][reg];
+    regs[0] = ique ? 0x1202 : 0x3202;
+#endif
+    abort();
+}
+
+void __bss_check(void)
+{
+    extern char __bss_start[];
+    void *bss_start = (void*)__bss_start;
+    void *bss_end = (void*)__bss_end;
+    for (uint32_t *p = bss_start; p < (uint32_t*)bss_end; p++)
+        if (*p != 0)
+            fatal(MSG_BSS_CHECK_ERROR);
+}
+/// @endcond
+
+/* Inline instantiations */
+extern inline bool sys_bbplayer(void);
+extern inline tv_type_t get_tv_type(void);
+extern inline uint64_t get_system_ticks(void);
