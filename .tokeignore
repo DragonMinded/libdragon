@@ -1,0 +1,48 @@
+# Used by scripts/tokei-git.sh to ignore vendored files/folders
+# Vendored third-party libraries and tools
+
+# FatFS - File system library
+src/fatfs/
+
+# LibCart - Cartridge library (vendored)
+src/libcart/
+
+# Opus audio codec
+src/audio/opus/
+
+# LibXM - XM music format library
+src/audio/libxm/
+
+# libsamplerate - Audio resampling library
+tools/audioconv64/libsamplerate/
+tools/audioconv64/vadpcm/
+tools/audioconv64/dr_wav.h
+tools/audioconv64/dr_mp3.h
+
+# Compression libraries
+tools/common/shrinkler/
+tools/common/lz4/
+tools/common/incbin/
+tools/common/apultra/
+tools/common/json.hpp
+tools/common/mips_elf.h
+
+# STB libraries
+tools/common/stb_ds.h
+tools/common/lodepng.c
+tools/common/lodepng.h
+tools/common/mips_elf.h
+tools/common/subprocess.h
+
+# MKFont - vendored libraries
+tools/mkfont/freetype/
+tools/mkfont/pthash/
+tools/mkfont/plutosvg/
+tools/mkfont/rect_pack/
+
+# Exoquant - Image quantization library
+tools/mksprite/exoquant.*
+
+# PL_MPEG - MPEG decoder
+src/video/pl_mpeg/
+src/video/h264_decoder/
