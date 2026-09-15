@@ -8,8 +8,21 @@ C_CXX_FLAGS += -O2 -pthread -Wall -Werror
 C_CXX_FLAGS += -I../include -MMD
 C_CXX_FLAGS += -fdiagnostics-color=always
 C_CXX_FLAGS += -Wno-unused-result -Wno-error=unknown-pragmas -Wno-sign-compare
+C_CXX_FLAGS += -D__LIBDRAGON_INTERNAL_BUILD
 
 LDFLAGS += -pthread
+
+# With mingw (even if crosscompiling), we need to link with ntdll
+# and produce .exe files. Also disable -Werror: MinGW updates at
+# random intervals and often emits extra warnings that break the build.
+ifeq ($(findstring mingw,$(TARGET)),mingw)
+C_CXX_FLAGS += -Wno-error
+LDLIBS += -lntdll
+EXE = .exe
+else
+LDLIBS = 
+EXE = 
+endif
 
 CFLAGS   += -std=gnu11 $(C_CXX_FLAGS) 
 CXXFLAGS += -std=gnu++17 $(C_CXX_FLAGS) 
@@ -33,14 +46,24 @@ ifeq ($(OS),Windows_NT)
 	endif
 
 # Define a macro with an estimate of the MSYS2 environment's age so that we can check it for compatibility reasons.
-	MSYS2_AGE := $(shell date -d "$$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
-	ifeq ($(MSYS2_AGE),)
-		$(error "Failed to determine MSYS2 age. Please make sure that pacman, date, and sed are in PATH and that msys2-runtime is installed.")
-	else
-		CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
-		CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
-	endif
+    MSYS2_AGE := $(shell date -d "$$(pacman -Qi msys2-runtime | sed -n 's/^Install Date *: *//p')" +%Y%m%d)
+    
+    ifeq ($(MSYS2_AGE),)
+        $(error Failed to determine MSYS2 age. Please make sure that pacman, date, and sed are in PATH and that msys2-runtime is installed.)
+    else
+        $(info MSYS2 age determined as: $(MSYS2_AGE))
+        CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
+        CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=$(MSYS2_AGE)
+    endif
+else
+# When cross-building, set a default value for MSYS2_RUNTIME_PACMAN_AGE
+	CFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=0
+	CXXFLAGS += -DMSYS2_RUNTIME_PACMAN_AGE=0
 endif
+
+# Decomment to rebuild tools with ASAN
+#C_CXX_FLAGS += -O0 -g -fsanitize=address
+#LDFLAGS += -g -fsanitize=address
 
 all:
 
@@ -61,6 +84,12 @@ common/shrinkler_compress.o: 	   CFLAGS += -Wno-all -Wno-error
 mkfont/freetype/FreeTypeAmalgam.o: CFLAGS += -Wno-all -Wno-error
 mkfont/plutosvg/plutosvg-amalgam.o:CFLAGS += -Imkfont/plutosvg -Wno-unused-function -Wno-error
 mkfont/mkfont.o:              	   CXXFLAGS += -Imkfont/plutosvg -Imkfont/freetype
+mksprite/x264_amalgam.o:           CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand -fno-strict-aliasing
+mksprite/x264_amalgam.o:           CFLAGS += -Imksprite/x264
+mksprite/x264_amalgam2.o:          CFLAGS += -Wno-all -Wno-error -Wno-constant-logical-operand -fno-strict-aliasing
+mksprite/x264_amalgam2.o:          CFLAGS += -Imksprite/x264
+audioconv64/libvadpcm.o:           CFLAGS += -Iaudioconv64/vadpcm -ffp-contract=off -fno-fast-math
+audioconv64/libulc.o:              CFLAGS += -Wno-unused-but-set-variable -Wno-error
 
 
 common-clean:
@@ -83,24 +112,35 @@ $(DECOMP_STUBS):
 -include $(wildcard common/*.d)
 
 mkasset_OBJS = mkasset/mkasset.o common/assetcomp.a
-mksprite_OBJS = mksprite/mksprite.o common/assetcomp.a
-audioconv64_OBJS = audioconv64/audioconv64.o
-mkdfs_OBJS = mkdfs/mkdfs.o
+mksprite_OBJS = mksprite/mksprite.o mksprite/mksprite_h264i.o mksprite/mksprite_bc1q.o mksprite/x264_amalgam.o mksprite/x264_amalgam2.o common/assetcomp.a
 mkfont_OBJS = mkfont/mkfont.o mkfont/freetype/FreeTypeAmalgam.o mkfont/plutosvg/plutosvg-amalgam.o common/assetcomp.a
+mkmodel_OBJS = mkmodel/mkmodel.o common/assetcomp.a
+mkmaterial_OBJS = mkmaterial/mkmaterial.o mkmaterial/mkmaterial_parse.o mkmaterial/mkmaterial_export.o common/assetcomp.a 
+combexpr_OBJS = mkmaterial/combexpr_cli.o mkmaterial/combexpr_disasm.o
 n64dso_OBJS = n64dso/n64dso.o common/assetcomp.a
 n64dso-extern_OBJS = n64dso/n64dso-extern.o
 n64dso-msym_OBJS = n64dso/n64dso-msym.o
+audioconv64_OBJS = audioconv64/audioconv64.o audioconv64/conv_wav64.o audioconv64/conv_xm64.o audioconv64/conv_ym64.o audioconv64/conv_sf64.o audioconv64/conv_mid64.o audioconv64/libvadpcm.o audioconv64/libopus.o audioconv64/libsamplerate.o audioconv64/liblzh5.o audioconv64/libxm.o audioconv64/libulc.o common/binout.o common/assetcomp.a
+videoconv64_OBJS = videoconv64/videoconv64.o videoconv64/vconv_analyze.o videoconv64/vconv_encode.o videoconv64/vconv_encode_mpeg1.o videoconv64/vconv_encode_h264.o videoconv64/vconv_audio.o videoconv64/vconv_subtitles.o videoconv64/vconv_utils.o videoconv64/vconv_seek.o common/binout.o common/assetcomp.a
+rdpvalidate_OBJS = rdpvalidate/rdpvalidate.o
+mkdfs_OBJS = mkdfs/mkdfs.o
 dumpdfs_OBJS = dumpdfs/dumpdfs.o
+cpaktool_OBJS = cpaktool/cpaktool.o cpaktool/cpakcmds.o cpaktool/cpaklib.o cpaktool/cpakwrapper.o
 n64tool_OBJS = n64tool.o
-n64sym_OBJS = n64sym.o
+n64sym_OBJS = n64sym/n64sym.o n64sym/n64sym_cppshorten.o n64sym/n64sym_huffman.o common/assetcomp.a
+n64symdump_OBJS = n64sym/n64symdump.o n64sym/n64sym_huffman.o n64sym/n64sym_shrinkler_host.o
+n64metadata_OBJS = n64metadata.o
 ed64romconfig_OBJS = ed64romconfig.o
 n64elfcompress_OBJS = n64elfcompress/n64elfcompress.o common/assetcomp.a
 n64elfcompress/n64elfcompress.o: n64elfcompress/n64elfcompress.c $(DECOMP_STUBS)
+TOOLS = n64tool n64metadata n64sym n64symdump n64elfcompress ed64romconfig audioconv64 videoconv64 mkdfs dumpdfs mkasset mksprite mkfont mkmodel mkmaterial n64dso n64dso-msym n64dso-extern rdpvalidate combexpr cpaktool
 
-TOOLS = n64tool n64sym n64elfcompress ed64romconfig audioconv64 mkdfs dumpdfs mkasset mksprite mkfont n64dso n64dso-msym n64dso-extern
-
-# Define a variable that has value ".exe" on Windows and "" on other platforms
-EXE = $(if $(findstring Windows,$(OS)),.exe,)
+ifeq ($(OS),Windows_NT)
+MANIFEST = $(if $(findstring Windows,$(OS)),manifest.o,)
+manifest.o: manifest.rc tool.manifest
+	@echo "    [RC] $@"
+	windres manifest.rc -O coff -o $@
+endif
 
 define TOOL_template
 .PHONY: $(1)-install $(1)-clean
@@ -110,9 +150,13 @@ ifneq ($$($(1)_DIR),./)
 .PHONY: $(1)
 $(1): $$($(1)_BIN)
 endif
-$$($(1)_BIN): $$($(1)_OBJS)
+ifneq ($(EXE),)
+.PHONY: $(1)
+$(1): $$($(1)_BIN)
+endif
+$$($(1)_BIN): $$($(1)_OBJS) ${MANIFEST}
 	@echo "    [TOOL] $(1)"
-	$(CXX) $(LDFLAGS) -o $$@ $$^
+	$(CXX) $(LDFLAGS) -o $$@ $$^ $(LDLIBS)
 $(1)-install: $(1)
 	mkdir -p $(INSTALLDIR)/bin
 	install -m 0755 $$($(1)_BIN) $(INSTALLDIR)/bin
@@ -125,7 +169,7 @@ $(foreach tool,$(TOOLS),$(eval $(call TOOL_template,$(tool))))
 all: $(TOOLS)
 install: $(foreach tool,$(TOOLS),$(tool)-install)
 clean: $(foreach tool,$(TOOLS),$(tool)-clean) common-clean
-	rm -f ${n64tool_OBJS} ${n64sym_OBJS} ${ed64romconfig_OBJS} 
+	rm -f ${n64tool_OBJS} ${n64metadata_OBJS} ${n64sym_OBJS} ${n64symdump_OBJS} ${ed64romconfig_OBJS} 
 .PHONY: all install clean
 
 ifneq ($(V),1)

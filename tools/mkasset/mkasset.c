@@ -17,6 +17,8 @@
 #include "../common/binout.c"
 #include "../common/assetcomp.h"
 
+#include "../common/utils.h"
+#include "asset.h"
 #include "../../src/asset_internal.h"
 
 bool flag_verbose = false;
@@ -33,7 +35,7 @@ void print_args(char * name)
     fprintf(stderr, "   -v/--verbose            Verbose output\n");
     fprintf(stderr, "   -o/--output <dir>       Specify output directory (default: .)\n");
     fprintf(stderr, "   -c/--compress <algo>    Compression level 0-%d (default: %d)\n", MAX_COMPRESSION, DEFAULT_COMPRESSION);
-    fprintf(stderr, "   -w/--winsize <window>   Maximum size of the matching window in KiB. (default: %d)\n", DEFAULT_WINSIZE_STREAMING/1024);
+    fprintf(stderr, "   -w/--window <window>    Maximum size of the matching window in KiB. (default: %d)\n", DEFAULT_WINSIZE_STREAMING/1024);
     fprintf(stderr, "\nSupported window sizes: 2, 4, 8, 16, 32, 64, 128, 256\n");
     fprintf(stderr, "The window size affects the memory used by asset_fopen() only.\n");
     fprintf(stderr, "If you only use asset_load(), use the biggest window (256 KiB) to improve ratio.\n");
@@ -42,9 +44,14 @@ void print_args(char * name)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     char *infn = NULL, *outdir = ".", *outfn = NULL;
     int compression = DEFAULT_COMPRESSION;
     int winsize = DEFAULT_WINSIZE_STREAMING;
+
+    // Initialize all compression levels
+    asset_init_compression(2);
+    asset_init_compression(3);
 
     if (argc < 2) {
         print_args(argv[0]);
@@ -108,9 +115,28 @@ int main(int argc, char *argv[])
         asprintf(&outfn, "%s/%s", outdir, basename);
 
         if (flag_verbose)
-            printf("Compressing: %s => %s [algo=%d]\n", infn, outfn, compression);
+            fprintf(stderr, "Compressing: %s => %s [algo=%d]\n", infn, outfn, compression);
 
-        asset_compress(infn, outfn, compression, winsize);
+        if (!file_exists(infn)) {
+            fprintf(stderr, "error: input file not found: %s\n", infn);
+            return 1;
+        }
+
+        // Use asset_load to load the file; if it was already compressed,
+        // it will be decompressed in memory.
+        int sz;
+        void *data = asset_load(infn, &sz);
+
+        FILE *out = fopen(outfn, "wb");
+        if (!out) {
+            fprintf(stderr, "error opening output file: %s\n", outfn);
+            return 1;
+        }
+        int cmp_size = asset_compress_mem(data, sz, out, compression, winsize, NULL);
+        fclose(out);
+
+        if (flag_verbose)
+            fprintf(stderr, "%d bytes => %d bytes (ratio %.1f%%)\n", sz, cmp_size, 100.0 * (float)cmp_size / (float)sz);
 
         free(outfn);
     }

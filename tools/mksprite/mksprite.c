@@ -20,6 +20,7 @@
 #include "../common/binout.c"
 #include "../common/binout.h"
 #include "../common/polyfill.h"
+#include "../common/utils.h"
 #include "exoquant.h"
 
 #define LODEPNG_NO_COMPILE_ANCILLARY_CHUNKS    // No need to parse PNG extra fields
@@ -34,26 +35,21 @@
 // Compression library
 #include "../common/assetcomp.h"
 
-// Bring in tex_format_t definition
-#include "surface.h"
-#include "sprite.h"
+// Bring in tex_format_t definition and shared structs
+#include "../../include/surface.h"
+#include "../../include/sprite.h"
+#include "mksprite.h"
 
 #define FMT_ZBUF   (64 + 0)
 #define FMT_IHQ    (64 + 1)
-
-#define SWAP(a, b) ({ typeof(a) t = a; a = b; b = t; })
-#define ROUND_UP(n, d) ({ \
-	typeof(n) _n = n; typeof(d) _d = d; \
-	(((_n) + (_d) - 1) / (_d) * (_d)); \
-})
-#define MIN(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a < _b ? _a : _b; })
-#define MAX(a, b) ({ typeof(a) _a = a; typeof(b) _b = b; _a > _b ? _a : _b; })
+#define FMT_SHQ    (64 + 2)
 
 const char* tex_format_name(tex_format_t fmt) {
     switch ((int)fmt) {
     case FMT_NONE: return "AUTO";
     case FMT_RGBA32: return "RGBA32";
     case FMT_RGBA16: return "RGBA16";
+    case FMT_YUV16: return "YUV16";
     case FMT_CI8: return "CI8";
     case FMT_CI4: return "CI4";
     case FMT_I8: return "I8";
@@ -63,6 +59,7 @@ const char* tex_format_name(tex_format_t fmt) {
     case FMT_IA4: return "IA4";
     case FMT_ZBUF: return "ZBUF";
     case FMT_IHQ: return "IHQ";
+    case FMT_SHQ: return "SHQ";
     default: assert(0); return ""; // should not happen
     }
 }
@@ -70,6 +67,7 @@ const char* tex_format_name(tex_format_t fmt) {
 tex_format_t tex_format_from_name(const char *name) {
     if (!strcasecmp(name, "RGBA32")) return FMT_RGBA32;
     if (!strcasecmp(name, "RGBA16")) return FMT_RGBA16;
+    if (!strcasecmp(name, "YUV16"))  return FMT_YUV16;
     if (!strcasecmp(name, "IA16"))   return FMT_IA16;
     if (!strcasecmp(name, "CI8"))    return FMT_CI8;
     if (!strcasecmp(name, "I8"))     return FMT_I8;
@@ -79,6 +77,7 @@ tex_format_t tex_format_from_name(const char *name) {
     if (!strcasecmp(name, "IA4"))    return FMT_IA4;
     if (!strcasecmp(name, "ZBUF"))   return FMT_ZBUF;
     if (!strcasecmp(name, "IHQ"))    return FMT_IHQ;
+    if (!strcasecmp(name, "SHQ"))    return FMT_SHQ;
     return FMT_NONE;
 }
 
@@ -106,43 +105,12 @@ const char *dither_algo_name(int algo) {
     }
 }
 
-typedef struct {
-    struct {
-        float translate;
-        int scale;
-        float repeats;
-        int mirror;
-    } s, t;
-    bool defined;
-} texparms_t;
-
-
-typedef struct {
-    tex_format_t outfmt;
-    int hslices;
-    int vslices;
-    int tilew;
-    int tileh;
-    int mipmap_algo;
-    int dither_algo;
-    texparms_t texparms;
-    struct{
-        const char   *infn;       // Input file for detail texture
-        texparms_t   texparms;
-        tex_format_t outfmt;
-        float        blend_factor;
-        bool         use_main_tex;
-        bool         enabled;
-    } detail;
-
-} parms_t;
-
-
-bool flag_verbose = false;
+int flag_verbose = 0;
+bool flag_lossy = false;
 bool flag_debug = false;
 
 void print_supported_formats(void) {
-    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, IA16, CI8, I8, IA8, CI4, I4, IA4, ZBUF, IHQ\n");
+    fprintf(stderr, "Supported formats: AUTO, RGBA32, RGBA16, YUV16, IA16, CI8, I8, IA8, CI4, I4, IA4, ZBUF, IHQ\n");
 }
 
 void print_supported_mipmap(void) {
@@ -150,31 +118,36 @@ void print_supported_mipmap(void) {
 }
 
 void print_supported_dithers(void) {
-    fprintf(stderr, "Supported dithering algorithms: NONE (disable), RANDOM, ORDERED. \nNote that dithering is only applied while quantizing an image.\n");
+    fprintf(stderr, "Supported dithering algorithms: NONE (disable), RANDOM, ORDERED. \n");
 }
 
 void print_args( char * name )
 {
     fprintf(stderr, "Usage: %s [flags] <input files...>\n", name);
     fprintf(stderr, "\n");
-    fprintf(stderr, "Command-line flags:\n");
-    fprintf(stderr, "   -v/--verbose          Verbose output\n");
-    fprintf(stderr, "   -o/--output <dir>     Specify output directory (default: .)\n");
-    fprintf(stderr, "   -f/--format <fmt>     Specify output format (default: AUTO)\n");
-    fprintf(stderr, "   -D/--dither <dither>  Dithering algorithm (default: NONE)\n");
-    fprintf(stderr, "   -c/--compress <level> Compress output files (default: %d)\n", DEFAULT_COMPRESSION);
-    fprintf(stderr, "   -d/--debug            Dump computed images (eg: mipmaps) as PNG files in output directory\n");
-    fprintf(stderr, "\nSampling flags:\n");
-    fprintf(stderr, "   --texparms <x,s,r,m>          Sampling parameters:\n");
-    fprintf(stderr, "                                 x=translation, s=scale, r=repetitions, m=mirror\n");
-    fprintf(stderr, "   --texparms <x,x,s,s,r,r,m,m>  Sampling parameters (different for S/T)\n");
-    fprintf(stderr, "\nMipmapping flags:\n");
-    fprintf(stderr, "   -m/--mipmap <algo>                    Calculate mipmap levels using the specified algorithm (default: NONE)\n");
-    fprintf(stderr, "   --detail [<image>[,<fmt>]][,<factor>] Activate detail texture:\n");
-    fprintf(stderr, "                                         <image> is the file to use as detail (default: reuse input image)\n");
-    fprintf(stderr, "                                         <fmt> is the output format (default: AUTO)\n");
-    fprintf(stderr, "                                         <factor> is the blend factor in range 0..1 (default: 0.5)\n");
-    fprintf(stderr, "   --detail-texparms <x,x,s,s,r,r,m,m>   Sampling parameters for the detail texture\n");
+    fprintf(stderr, "General flags:\n");
+    fprintf(stderr, "   -v/--verbose                            Verbose output (can be specified multiple times)\n");
+    fprintf(stderr, "   -o/--output <dir>                       Specify output directory (default: .)\n");
+    fprintf(stderr, "   -f/--format <fmt>                       Specify output RDP surface format (default: AUTO)\n");
+    fprintf(stderr, "   -g/--gamma                              Convert colors to linear scale (use with runtime\n");
+    fprintf(stderr, "                                            VI gamma correction enabled)\n");
+    fprintf(stderr, "   -d/--debug                              Dump computed images as PNGs (eg: mipmaps)\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Lossless sprite (default mode):\n");
+    fprintf(stderr, "   -c/--compress <level>                   Compress output files (default: level %d)\n", DEFAULT_COMPRESSION);
+    fprintf(stderr, "   -D/--dither <dither>                    Dithering algorithm (default: NONE)\n");
+    fprintf(stderr, "   -m/--mipmap <algo>                      Calculate mipmap levels using the specified algorithm (default: NONE)\n");
+    fprintf(stderr, "   --texparms <x,s,r,m>                    Runtime sampling parameters:\n");
+    fprintf(stderr, "                                            x=translation, s=scale, r=repetitions, m=mirror\n");
+    fprintf(stderr, "   --texparms <x,x,s,s,r,r,m,m>            Runtime sampling parameters (different for S/T)\n");
+    fprintf(stderr, "   --detail [<image>[,<fmt>]][,<factor>]   Use detail texture:\n");
+    fprintf(stderr, "                                            <image> is the file to use as detail (default: reuse input image)\n");
+    fprintf(stderr, "                                            <fmt> is the output format (default: AUTO)\n");
+    fprintf(stderr, "                                            <factor> is the blend factor in range 0..1 (default: 0.5)\n");
+    fprintf(stderr, "   --detail-texparms <x,x,s,s,r,r,m,m>     Runtime sampling parameters for the detail texture\n");
+    fprintf(stderr, "\nLossy sprite:\n");
+    fprintf(stderr, "   -L/--lossy <0..100>                     Activate lossy mode with the specified quality (default: 100 - lossless)\n");
+    fprintf(stderr, "   -c/--compress <level>                   Select lossy compression algorithm (default: 3 - H264)\n");
     fprintf(stderr, "\n");
     print_supported_formats();
     print_supported_mipmap();
@@ -189,29 +162,61 @@ uint16_t conv_rgb5551(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8) {
 /*dither matrix*/
 unsigned int dith[4][4] = {{0, 6, 1, 7}, {4, 2, 5, 3}, {3, 5, 2, 4}, {7, 1, 6, 0}};
 
-int check_color(int val){
-    if(val > 255) val = 255;
-    if(val < 0) val = 0;
-    return val;
+static int dither_value(unsigned int x, unsigned int y, int dither) {
+    switch(dither){
+        case DITHER_ALGO_ORDERED: return dith[x & 0x3][y & 0x3];
+        case DITHER_ALGO_RANDOM:  return rand() & 0x7;
+        case DITHER_ALGO_NONE:    return 0;
+        default:
+            fprintf(stderr, "ERROR: unimplemented dithering mode %s\n", dither_algo_name(dither));
+            assert(0);
+    }
 }
 
-uint16_t conv_rgb5551_dither(uint8_t r8, uint8_t g8, uint8_t b8, uint8_t a8, unsigned int x, unsigned int y, int dither ) {
-    int value = 0;
-    switch(dither){
-        case DITHER_ALGO_ORDERED: value = dith[x & 0x3][y & 0x3]; break;
-        case DITHER_ALGO_RANDOM:  value = rand() & 0x7; break;
-        case DITHER_ALGO_NONE: return conv_rgb5551(r8, g8, b8, a8); break;
-        default: fprintf(stderr, "ERROR: conv RGBA5551 unimplemented dithering mode %s\n", dither_algo_name(dither)); assert(0);
-    }
+static void apply_rgb_dither(uint8_t *r8, uint8_t *g8, uint8_t *b8, unsigned int x, unsigned int y, int dither) {
+    if (dither == DITHER_ALGO_NONE)
+        return;
+    int value = dither_value(x, y, dither);
 
-    int r = r8 + value - 4;
-    int g = g8 + value - 4;
-    int b = b8 + value - 4;
-    r = check_color(r);
-    g = check_color(g);
-    b = check_color(b);
+    int r = *r8 + value - 4;
+    int g = *g8 + value - 4;
+    int b = *b8 + value - 4;
+    *r8 = CLAMP(r, 0, 255);
+    *g8 = CLAMP(g, 0, 255);
+    *b8 = CLAMP(b, 0, 255);
+}
 
-    return conv_rgb5551(r,g,b,a8);
+static void apply_i_dither(uint8_t *i8, unsigned int x, unsigned int y, int dither) {
+    if (dither == DITHER_ALGO_NONE)
+        return;
+    int value = dither_value(x, y, dither);
+    int i = *i8 + value - 4;
+    *i8 = CLAMP(i, 0, 255);
+}
+
+static inline void rgb_to_yuv_bt601full(uint8_t r, uint8_t g, uint8_t b, uint8_t *y, uint8_t *u, uint8_t *v) {
+    int yv = (77 * r + 150 * g + 29 * b + 128) >> 8;
+    int uv = ((-43 * r - 85 * g + 128 * b + 128) >> 8) + 128;
+    int vv = ((128 * r - 107 * g - 21 * b + 128) >> 8) + 128;
+    *y = CLAMP(yv, 0, 255);
+    *u = CLAMP(uv, 0, 255);
+    *v = CLAMP(vv, 0, 255);
+}
+
+// Inverse of rgb_to_yuv_bt601full (full-range BT.601). Used only to reconstruct
+// an RGB approximation for the -d debug PNG dump of a YUV16 sprite, so that the
+// dumped image reflects the YUV conversion and 4:2:2 chroma subsampling losses.
+// Coefficients are 16.16 fixed point: 1.402, 0.344136, 0.714136, 1.772.
+static inline void yuv_to_rgb_bt601full(uint8_t y, uint8_t u, uint8_t v, uint8_t *r, uint8_t *g, uint8_t *b) {
+    int yy = y;
+    int uu = (int)u - 128;
+    int vv = (int)v - 128;
+    int rr = yy + ((91881 * vv) >> 16);
+    int gg = yy - ((22554 * uu + 46802 * vv) >> 16);
+    int bb = yy + ((116130 * uu) >> 16);
+    *r = CLAMP(rr, 0, 255);
+    *g = CLAMP(gg, 0, 255);
+    *b = CLAMP(bb, 0, 255);
 }
 
 // Convert a 18-bit fixed point 0.15.3 into floating point 14-bit.
@@ -224,6 +229,20 @@ uint16_t conv_float14(uint32_t fx) {
     if (!(fx & 0x01000)) return (5<<11) | ((fx >> 1) & 0x7FF);
     if (!(fx & 0x00800)) return (6<<11) | ((fx >> 0) & 0x7FF);
     if (true)            return (7<<11) | ((fx >> 0) & 0x7FF);
+}
+
+// Inverse of conv_float14: decode a 14-bit floating point depth value back into
+// the 18-bit fixed point 0.15.3 linear representation. The 14-bit value is split
+// into a 3-bit exponent (bits 11-13) selecting the mantissa shift and the leading
+// bits stripped by conv_float14, plus an 11-bit mantissa (bits 0-10).
+// As the encoding truncates the low mantissa bits, the round-trip reproduces the
+// precision loss (low bits decode back as zero).
+uint32_t conv_float14_decode(uint16_t f14) {
+    static const uint32_t base[8]  = {0, 0x20000, 0x30000, 0x38000, 0x3C000, 0x3E000, 0x3F000, 0x3F800};
+    static const int      shift[8] = {6, 5, 4, 3, 2, 1, 0, 0};
+    int e = (f14 >> 11) & 0x7;
+    uint32_t m = f14 & 0x7FF;
+    return base[e] + (m << shift[e]);
 }
 
 int calc_tmem_usage(tex_format_t fmt, int width, int height)
@@ -244,19 +263,6 @@ const char *colortype_to_string(LodePNGColorType ct) {
     default: assert(0); return "";
     }
 }
-
-typedef struct {
-    uint8_t *image;         // Pointer to image data (pixels)
-    int width, height;      // Image dimensions
-    tex_format_t fmt;       // Texture format
-    LodePNGColorType ct;    // PNG color type
-} image_t;
-
-typedef struct {
-    int num_colors;         // Number of colors in palette
-    int used_colors;        // Number of colors actually used in palette
-    uint8_t colors[256][4]; // Color palette (if num_colors != 0)
-} palette_t;
 
 #define MAX_IMAGES 8
 
@@ -390,7 +396,7 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
     // Setup the info_raw structure with the desired pixel conversion,
     // depending on the output format.
     switch ((int)fmt) {
-    case FMT_RGBA32: case FMT_RGBA16: case FMT_IHQ:
+    case FMT_RGBA32: case FMT_RGBA16: case FMT_YUV16: case FMT_IHQ: case FMT_SHQ:
         // PNG does not support RGBA555 (aka RGBA16), so just convert
         // to 32-bit version we will downscale later.
         state.info_raw.colortype = LCT_RGBA;
@@ -576,7 +582,12 @@ bool load_png_image(const char *infn, tex_format_t fmt, image_t *imgout, palette
         fmt = FMT_CI8;
     if (autofmt && state.info_raw.colortype == LCT_RGBA && palout->used_colors <= 16)
         fmt = FMT_CI4;
-    
+
+    if (autofmt && flag_lossy) {
+        // Lossy format is always RGBA16
+        fmt = FMT_RGBA16;
+    }
+
     // Autodetection complete, log it.
     if (flag_verbose && autofmt)
         fprintf(stderr, "auto selected format: %s\n", tex_format_name(fmt));
@@ -832,16 +843,15 @@ bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, i
         // Extract the generate palette
         exq_get_palette(exq, spr->palette.colors[0], num_colors);
         spr->palette.num_colors = num_colors;
-        spr->palette.used_colors = num_colors;
     } else {
         // Force the input palette
         exq_set_palette(exq, colors, num_colors);
         memcpy(spr->palette.colors[0], colors, num_colors * 4);
         spr->palette.num_colors = num_colors;
-        spr->palette.used_colors = num_colors;
     }
 
     // Remap the images to the new palette
+    int max_index = -1;
     for (int i=0; i<MAX_IMAGES; i++) {
         image_t *img = &spr->images[i];
         if (spr->images[i].image == NULL)
@@ -864,7 +874,15 @@ bool spritemaker_quantize(spritemaker_t *spr, uint8_t *colors, int num_colors, i
         free(img->image);
         img->image = ci_image;
         img->ct = LCT_PALETTE;
+
+        for (int p=0; p<img->width * img->height; p++) {
+            if (ci_image[p] > max_index)
+                max_index = ci_image[p];
+        }
     }
+
+    assert(max_index >= 0);
+    spr->palette.used_colors = max_index + 1;
 
     exq_free(exq);
     return true;
@@ -912,6 +930,54 @@ static uint8_t ihq_calc_best_i4(float ifactor, uint8_t r0, uint8_t g0, uint8_t b
 
     *err = best_err;
     return best_i;
+}
+
+uint8_t gamma_correct_value(uint8_t input) {
+    return (uint8_t)(((int)input * (int)input) >> 8);
+}
+
+bool spritemaker_gamma_correct(spritemaker_t *spr) {
+    for (int m=0; m<MAX_IMAGES; m++) {
+        image_t *image = &spr->images[m];
+        if (image->image == NULL)
+            continue;
+
+        if (image->fmt == FMT_CI4 || image->fmt == FMT_CI8) {
+            // gamma correct the pallete
+            continue;
+        } else if (image->fmt == FMT_RGBA32 || image->fmt == FMT_RGBA16 || image->fmt == FMT_YUV16) {
+            uint8_t *img = image->image;
+            for (int i=0;i<image->width*image->height;i++) {
+                img[0] = gamma_correct_value(img[0]);
+                img[1] = gamma_correct_value(img[1]);
+                img[2] = gamma_correct_value(img[2]);
+                img += 4;
+            }
+        } else if (image->fmt == FMT_I4 || image->fmt == FMT_I8) {
+            uint8_t *img = image->image;
+            for (int i=0;i<image->width*image->height;i++) {
+                *img = gamma_correct_value(*img);
+                img++;
+            }
+        } else if (image->fmt == FMT_IA16 || image->fmt == FMT_IA8 || image->fmt == FMT_IA4) {
+            uint8_t *img = image->image;
+            for (int i=0;i<image->width*image->height;i++) {
+                *img = gamma_correct_value(*img);
+                img += 2;
+            }
+        } else {
+            fprintf(stderr, "Gamma correction not implemented for format %s\n", tex_format_name(image->fmt));
+            return false;
+        }
+    }
+
+    for (int i=0; i<spr->palette.num_colors; i++) {
+        spr->palette.colors[i][0] = gamma_correct_value(spr->palette.colors[i][0]);
+        spr->palette.colors[i][1] = gamma_correct_value(spr->palette.colors[i][1]);
+        spr->palette.colors[i][2] = gamma_correct_value(spr->palette.colors[i][2]);
+    }
+
+    return true;
 }
 
 bool spritemaker_convert_ihq(spritemaker_t *spr) {
@@ -1094,6 +1160,305 @@ bool spritemaker_convert_ihq(spritemaker_t *spr) {
     return true;
 }
 
+typedef struct {
+    int r,g,b;
+} shq_rgb;
+
+typedef struct {
+    float l,a,b;
+} shq_lab;
+
+typedef struct {
+    shq_rgb pix[4];
+    shq_lab lab[4];
+
+    int i[4];
+    shq_rgb avg;
+} shq_box;
+
+static float gamma_correction(float value) {
+    if (value > 0.04045f) {
+        return powf((value + 0.055f) / 1.055f, 2.4f);
+    } else {
+        return value / 12.92f;
+    }
+}
+
+static float xyz_to_lab_helper(float value) {
+    if (value > 0.008856f) {
+        return powf(value, 1.0f / 3.0f);
+    } else {
+        return (7.787f * value) + (16.0f / 116.0f);
+    }
+}
+
+static shq_lab rgb_to_lab(shq_rgb in) {
+    float r = in.r / 255.0f;
+    float g = in.g / 255.0f;
+    float b = in.b / 255.0f;
+
+    r = gamma_correction(r);
+    g = gamma_correction(g);
+    b = gamma_correction(b);
+
+    float x = r * 0.4124564f + g * 0.3575761f + b * 0.1804375f;
+    float y = r * 0.2126729f + g * 0.7151522f + b * 0.0721750f;
+    float z = r * 0.0193339f + g * 0.1191920f + b * 0.9503041f;
+
+    x *= 100.0f;
+    y *= 100.0f;
+    z *= 100.0f;
+
+    x = x / 95.047f;
+    y = y / 100.000f;
+    z = z / 108.883f;
+
+    float fx = xyz_to_lab_helper(x);
+    float fy = xyz_to_lab_helper(y);
+    float fz = xyz_to_lab_helper(z);
+
+    return (shq_lab){
+        (116.0f * fy) - 16.0f,
+        500.0f * (fx - fy),
+        200.0f * (fy - fz),
+    };
+}
+
+static float shq_error(shq_box *box)
+{
+    float error = 0.0f;
+    int r8 = (box->avg.r << 3) + (box->avg.r >> 2);
+    int g8 = (box->avg.g << 3) + (box->avg.g >> 2);
+    int b8 = (box->avg.b << 3) + (box->avg.b >> 2);
+
+    for (int i=0; i<4; i++) {
+        assert(box->i[i] >= 0 && box->i[i] <= 15);
+        int i8 = box->i[i] * 0x11;
+        shq_lab lab = rgb_to_lab((shq_rgb){ MAX(i8-r8,0), MAX(i8-g8,0), MAX(i8-b8,0) });
+
+        error +=
+            (lab.l - box->lab[i].l) * (lab.l - box->lab[i].l) +
+            (lab.a - box->lab[i].a) * (lab.a - box->lab[i].a) +
+            (lab.b - box->lab[i].b) * (lab.b - box->lab[i].b);        
+    }
+    return error;
+}
+
+static float shq_optimize(shq_box *box)
+{
+    // Convert input pixels into CIELAB space
+    for (int i=0; i<4; i++)
+        box->lab[i] = rgb_to_lab(box->pix[i]);
+
+    float error = shq_error(box);
+    while (1) {
+        // Calculate gradient of the error function on each variable
+        int *parms[7] = {
+            &box->i[0], &box->i[1], &box->i[2], &box->i[3],
+            &box->avg.r, &box->avg.g, &box->avg.b,
+        };
+
+        // Try increment and decrement each parameter, and find the best move
+        float best_err = error;
+        int best_idx = -1;
+        int best_val = 0;
+        for (int i=0; i<7; i++) {
+            int old_val = *parms[i];
+            for (int j=-3; j<=3; j++) {
+                if (j == 0) continue;
+                *parms[i] = old_val + j;
+                if (*parms[i] >= 0 && *parms[i] <= (i<4 ? 15 : 31)) {
+                    float new_err = shq_error(box);
+                    if (new_err < best_err) {
+                        best_err = new_err;
+                        best_idx = i;
+                        best_val = *parms[i];
+                    }
+                }
+            }
+            *parms[i] = old_val;
+        }
+
+        // If we found a better value, apply it
+        if (best_idx != -1) {
+            *parms[best_idx] = best_val;
+            error = best_err;
+        } else {
+            break;
+        }
+    }
+
+    return error;
+}
+
+bool spritemaker_convert_shq(spritemaker_t *spr)
+{
+    int width = spr->images[0].width;
+    int height = spr->images[0].height;
+
+    if (width % 2 != 0 || height % 2 != 0) {
+        fprintf(stderr, "ERROR: SHQ mode requires width and height to be a multiple of 2\n");
+        return false;
+    }
+
+    // Go though each 2x2 pixel box
+    uint8_t *img = spr->images[0].image;
+    uint8_t *shq_i = malloc(width * height);
+    uint8_t *shq_rgb = malloc((width/2) * (height/2) * 4);
+    float error = 0.0f;
+
+    for (int y=0; y<height; y+=2) {
+        for (int x=0; x<width; x+=2) {
+            shq_box box = {0};
+
+            // Fetch first 4 pixels
+            box.pix[0].r = img[(y*width + x)*4 + 0];
+            box.pix[0].g = img[(y*width + x)*4 + 1];
+            box.pix[0].b = img[(y*width + x)*4 + 2];
+
+            box.pix[1].r = img[(y*width + x+1)*4 + 0];
+            box.pix[1].g = img[(y*width + x+1)*4 + 1];
+            box.pix[1].b = img[(y*width + x+1)*4 + 2];
+
+            box.pix[2].r = img[((y+1)*width + x)*4 + 0];
+            box.pix[2].g = img[((y+1)*width + x)*4 + 1];
+            box.pix[2].b = img[((y+1)*width + x)*4 + 2];
+
+            box.pix[3].r = img[((y+1)*width + x+1)*4 + 0];
+            box.pix[3].g = img[((y+1)*width + x+1)*4 + 1];
+            box.pix[3].b = img[((y+1)*width + x+1)*4 + 2];
+
+            // Start with the I values as the maximum of the RGB values, and convert
+            // them to 4 bits, making sure we are sitll above the original value.
+            for (int i=0; i<4; i++) {
+                int i8 = MAX(box.pix[i].r, MAX(box.pix[i].g, box.pix[i].b));
+                int i4 = i8 >> 4;
+                if (i4 * 0x11 < i8) i4++;
+                box.i[i] = i4;
+            }
+
+            // Start with RGB values as the average of the subtractive blending
+            // Notice that *0x11 is just the proper conversion from 4 bit to 8 bit.
+            box.avg.r = (MAX(box.i[0]*0x11 - box.pix[0].r,0) + MAX(box.i[1]*0x11 - box.pix[1].r,0) + MAX(box.i[2]*0x11 - box.pix[2].r,0) + MAX(box.i[3]*0x11 - box.pix[3].r,0)) / 4;
+            box.avg.g = (MAX(box.i[0]*0x11 - box.pix[0].g,0) + MAX(box.i[1]*0x11 - box.pix[1].g,0) + MAX(box.i[2]*0x11 - box.pix[2].g,0) + MAX(box.i[3]*0x11 - box.pix[3].g,0)) / 4;
+            box.avg.b = (MAX(box.i[0]*0x11 - box.pix[0].b,0) + MAX(box.i[1]*0x11 - box.pix[1].b,0) + MAX(box.i[2]*0x11 - box.pix[2].b,0) + MAX(box.i[3]*0x11 - box.pix[3].b,0)) / 4;
+            box.avg.r >>= 3;
+            box.avg.g >>= 3;
+            box.avg.b >>= 3;
+
+            // Run optimization step
+            error += shq_optimize(&box);
+
+            assert(box.i[0] >= 0 && box.i[0] <= 15);
+            assert(box.i[1] >= 0 && box.i[1] <= 15);
+            assert(box.i[2] >= 0 && box.i[2] <= 15);
+            assert(box.i[3] >= 0 && box.i[3] <= 15);
+            assert(box.avg.r >= 0 && box.avg.r <= 31);
+            assert(box.avg.g >= 0 && box.avg.g <= 31);
+            assert(box.avg.b >= 0 && box.avg.b <= 31);
+
+            // Store the optimized I value, upscaled to 8 bit
+            shq_i[(y+0)*width + x+0] = box.i[0] | (box.i[0] << 4);
+            shq_i[(y+0)*width + x+1] = box.i[1] | (box.i[1] << 4);
+            shq_i[(y+1)*width + x+0] = box.i[2] | (box.i[2] << 4);
+            shq_i[(y+1)*width + x+1] = box.i[3] | (box.i[3] << 4);
+
+            // Store the average color, again upscaled to 8 bit
+            shq_rgb[(y/2*width/2 + x/2)*4 + 0] = (box.avg.r << 3) | (box.avg.r >> 2);
+            shq_rgb[(y/2*width/2 + x/2)*4 + 1] = (box.avg.g << 3) | (box.avg.g >> 2);
+            shq_rgb[(y/2*width/2 + x/2)*4 + 2] = (box.avg.b << 3) | (box.avg.b >> 2);
+            shq_rgb[(y/2*width/2 + x/2)*4 + 3] = 0xFF;
+        }
+    }
+
+    if (flag_verbose)
+        fprintf(stderr, "computed SHQ planes (rmsd=%.4f)\n", sqrtf(error / (width * height * 3)));
+
+    // Store the SHQ image
+    free(spr->images[0].image);
+    spr->images[0].fmt = FMT_I4;
+    spr->images[0].image = shq_i;
+    spr->images[0].width = width;
+    spr->images[0].height = height;
+    spr->images[0].ct = LCT_GREY;
+
+    // Store the RGBA image as first mipmap
+    spr->images[1].fmt = FMT_RGBA16;
+    spr->images[1].image = shq_rgb;
+    spr->images[1].width = width / 2;
+    spr->images[1].height = height / 2;
+    spr->images[1].ct = LCT_RGBA;
+#if 0
+    // Construct resulting image
+    uint8_t *output = malloc(width * height * 4);
+    for (int y=0; y<height; y++) {
+        for (int x=0; x<width; x++) {
+            int i = shq_i[y*width + x];
+            uint8_t *rgb = &shq_rgb[(y/2*width/2 + x/2)*4];
+            output[(y*width + x)*4 + 0] = MAX(i - rgb[0], 0);
+            output[(y*width + x)*4 + 1] = MAX(i - rgb[1], 0);
+            output[(y*width + x)*4 + 2] = MAX(i - rgb[2], 0);
+            output[(y*width + x)*4 + 3] = 0xFF;
+        }
+    }
+    spr->images[2].fmt = FMT_RGBA16;
+    spr->images[2].image = output;
+    spr->images[2].width = width;
+    spr->images[2].height = height;
+    spr->images[2].ct = LCT_RGBA;
+#endif
+    return true;
+}
+
+bool spritemaker_apply_dither(spritemaker_t *spr) {
+    for (int m=0; m<MAX_IMAGES; m++) {
+        image_t *image = &spr->images[m];
+        if (image->image == NULL)
+            continue;
+        uint8_t *img = image->image;
+
+        switch (image->ct) {
+        case LCT_RGBA: {
+            for (int y=0; y<image->height; y++) {
+                for (int x=0; x<image->width; x++) {
+                    apply_rgb_dither(&img[0], &img[1], &img[2], x, y, spr->ditheralgo);
+                    img += 4;
+                }
+            }
+            break;
+        }
+
+        case LCT_GREY: {
+            for (int y=0; y<image->height; y++) {
+                for (int x=0; x<image->width; x++) {
+                    apply_i_dither(img, x, y, spr->ditheralgo);
+                    img += 1;
+                }
+            }
+            break;
+        }
+
+        case LCT_GREY_ALPHA: {
+            for (int y=0; y<image->height; y++) {
+                for (int x=0; x<image->width; x++) {
+                    apply_i_dither(img, x, y, spr->ditheralgo);
+                    img += 2;
+                }
+            }
+            break;
+        }
+
+        case LCT_PALETTE:
+            assert(0); // should not get here -- dithering should be applied during quantization
+        default:
+            fprintf(stderr, "ERROR: dithering not supported for color type %s\n", colortype_to_string(image->ct));
+            return false;
+        }
+    }
+    return true;
+}
+
+
 bool spritemaker_write(spritemaker_t *spr) {
     FILE *out = spr->out;
 
@@ -1129,8 +1494,34 @@ bool spritemaker_write(spritemaker_t *spr) {
             // Convert to 16-bit RGB5551 format.
             uint8_t *img = image->image;
             for (int i=0;i<image->width*image->height;i++) {
-                w16(out, conv_rgb5551_dither(img[0], img[1], img[2], img[3], i % image->width, i / image->height, spr->ditheralgo));
+                w16(out, conv_rgb5551(img[0], img[1], img[2], img[3]));
                 img += 4;
+            }
+            break;
+        }
+
+        case FMT_YUV16: {
+            assert(image->ct == LCT_RGBA);
+            if (image->width % 2) {
+                fprintf(stderr, "ERROR: YUV16 requires even width (got %d)\n", image->width);
+                return false;
+            }
+            uint8_t *img = image->image;
+            for (int y=0; y<image->height; y++) {
+                uint8_t *row = img + y * image->width * 4;
+                for (int x=0; x<image->width; x+=2) {
+                    uint8_t y0, u0, v0;
+                    uint8_t y1, u1, v1;
+                    rgb_to_yuv_bt601full(row[x*4 + 0], row[x*4 + 1], row[x*4 + 2], &y0, &u0, &v0);
+                    rgb_to_yuv_bt601full(row[x*4 + 4], row[x*4 + 5], row[x*4 + 6], &y1, &u1, &v1);
+
+                    uint8_t u = (uint8_t)(((int)u0 + (int)u1 + 1) / 2);
+                    uint8_t v = (uint8_t)(((int)v0 + (int)v1 + 1) / 2);
+                    w8(out, u);
+                    w8(out, y0);
+                    w8(out, v);
+                    w8(out, y1);
+                }
             }
             break;
         }
@@ -1220,8 +1611,8 @@ bool spritemaker_write(spritemaker_t *spr) {
         // Write extended sprite header after first image
         // See sprite_ext_t (sprite_internal.h)
         if (m == 0) { 
-            w16(out, 124);  // sizeof(sprite_ext_t)
-            w16(out, 4);    // version
+            w16(out, 128);  // sizeof(sprite_ext_t)
+            w16(out, 6);    // version
             w_palpos = w32_placeholder(out); // placeholder for position of palette
             int numlods = 0;
             for (int i=1; i<8; i++) {
@@ -1237,7 +1628,16 @@ bool spritemaker_write(spritemaker_t *spr) {
             if (spr->detail.enabled) flags |= 0x10;
             if (spritemaker_fit_tmem(spr, NULL)) flags |= 0x20;
             w16(out, flags);
-            w16(out, 0); // padding
+            uint8_t pal_used_colors = 0;
+            if (spr->images[0].fmt == FMT_CI4 || spr->images[0].fmt == FMT_CI8) {
+                int max_colors = (spr->images[0].fmt == FMT_CI4) ? 16 : 256;
+                assert(spr->palette.used_colors > 0);
+                assert(spr->palette.used_colors <= max_colors);
+                // Truncate to uint8. Notice that we use 0 to mean 256 here.
+                pal_used_colors = (uint8_t)spr->palette.used_colors;
+            }
+            w8(out, pal_used_colors);
+            w8(out, 0); // padding
             wf32(out, spr->texparms.s.translate);
             wf32(out, spr->texparms.s.repeats);
             w16(out, spr->texparms.s.scale);
@@ -1266,6 +1666,8 @@ bool spritemaker_write(spritemaker_t *spr) {
             w8(out, 0); // padding
             w8(out, 0); // padding
 
+            w32(out, 0); // data_ptr (unused)
+
             walign(out, 8);
         }
     }
@@ -1290,6 +1692,148 @@ bool spritemaker_write(spritemaker_t *spr) {
     return true;
 }
 
+// Convert a palette color to the values it will actually have on the device,
+// by passing it through the RGB5551 round-trip (5-bit channels + 1-bit alpha).
+// This is used so that the -d debug PNG of a CI4/CI8 sprite shows the real
+// on-device colors instead of the full 8-bit input palette.
+static void debug_palette_color(const palette_t *pal, int idx, uint8_t *r, uint8_t *g, uint8_t *b, uint8_t *a) {
+    const uint8_t *c = pal->colors[idx];
+    uint16_t p = conv_rgb5551(c[0], c[1], c[2], c[3]);
+    uint8_t r5 = (p >> 11) & 0x1f, g5 = (p >> 6) & 0x1f, b5 = (p >> 1) & 0x1f, a1 = p & 1;
+    *r = (r5 << 3) | (r5 >> 2);
+    *g = (g5 << 3) | (g5 >> 2);
+    *b = (b5 << 3) | (b5 >> 2);
+    *a = a1 ? 0xFF : 0;
+}
+
+// Produce a PNG-ready pixel buffer that reflects the real precision of the
+// target texture format, mirroring the quantization performed in
+// spritemaker_write(). The working buffers held in image_t are always 8-bit per
+// channel (or palette indices), so without this step a `mksprite -d` dump would
+// not show the bit-depth reduction, 1-bit alpha, chroma subsampling, etc.
+// Returns a newly-allocated buffer (caller frees) and sets *out_bitdepth (8,
+// except 16 for ZBUF). Palette indices are returned untouched: the on-device
+// palette colors are applied separately via debug_palette_color().
+static uint8_t *debug_quantize_image(const image_t *img, const palette_t *pal, int *out_bitdepth) {
+    (void)pal;
+    int w = img->width, h = img->height;
+    int n = w * h;
+    *out_bitdepth = 8;
+
+    switch ((int)img->fmt) {
+    case FMT_RGBA16: {
+        uint8_t *out = malloc(n * 4);
+        const uint8_t *src = img->image; uint8_t *dst = out;
+        for (int i=0; i<n; i++) {
+            uint16_t p = conv_rgb5551(src[0], src[1], src[2], src[3]);
+            uint8_t r5 = (p >> 11) & 0x1f, g5 = (p >> 6) & 0x1f, b5 = (p >> 1) & 0x1f, a1 = p & 1;
+            dst[0] = (r5 << 3) | (r5 >> 2);
+            dst[1] = (g5 << 3) | (g5 >> 2);
+            dst[2] = (b5 << 3) | (b5 >> 2);
+            dst[3] = a1 ? 0xFF : 0;
+            src += 4; dst += 4;
+        }
+        return out;
+    }
+
+    case FMT_YUV16: {
+        // Replicate the BT.601 conversion + 4:2:2 chroma subsampling done in
+        // spritemaker_write(), then convert back to RGB for visualization.
+        uint8_t *out = malloc(n * 4);
+        for (int y=0; y<h; y++) {
+            const uint8_t *row = img->image + y * w * 4;
+            uint8_t *drow = out + y * w * 4;
+            for (int x=0; x<w; x+=2) {
+                int x1 = (x+1 < w) ? x+1 : x;
+                uint8_t y0, u0, v0, y1, u1, v1;
+                rgb_to_yuv_bt601full(row[x*4 + 0], row[x*4 + 1], row[x*4 + 2], &y0, &u0, &v0);
+                rgb_to_yuv_bt601full(row[x1*4 + 0], row[x1*4 + 1], row[x1*4 + 2], &y1, &u1, &v1);
+                uint8_t u = (uint8_t)(((int)u0 + (int)u1 + 1) / 2);
+                uint8_t v = (uint8_t)(((int)v0 + (int)v1 + 1) / 2);
+                uint8_t r, g, b;
+                yuv_to_rgb_bt601full(y0, u, v, &r, &g, &b);
+                drow[x*4 + 0] = r; drow[x*4 + 1] = g; drow[x*4 + 2] = b; drow[x*4 + 3] = 0xFF;
+                if (x+1 < w) {
+                    yuv_to_rgb_bt601full(y1, u, v, &r, &g, &b);
+                    drow[(x+1)*4 + 0] = r; drow[(x+1)*4 + 1] = g; drow[(x+1)*4 + 2] = b; drow[(x+1)*4 + 3] = 0xFF;
+                }
+            }
+        }
+        return out;
+    }
+
+    case FMT_I4: {
+        // 4-bit intensity: keep the top nibble and replicate it (as the runtime does).
+        uint8_t *out = malloc(n);
+        for (int i=0; i<n; i++) {
+            uint8_t v = img->image[i] >> 4;
+            out[i] = (v << 4) | v;
+        }
+        return out;
+    }
+
+    case FMT_IA8: {
+        // 4-bit intensity + 4-bit alpha.
+        uint8_t *out = malloc(n * 2);
+        for (int i=0; i<n; i++) {
+            uint8_t iv = img->image[i*2 + 0] >> 4;
+            uint8_t av = img->image[i*2 + 1] >> 4;
+            out[i*2 + 0] = (iv << 4) | iv;
+            out[i*2 + 1] = (av << 4) | av;
+        }
+        return out;
+    }
+
+    case FMT_IA4: {
+        // 3-bit intensity + 1-bit alpha.
+        uint8_t *out = malloc(n * 2);
+        for (int i=0; i<n; i++) {
+            uint8_t i3 = img->image[i*2 + 0] >> 5;
+            uint8_t av = img->image[i*2 + 1];
+            out[i*2 + 0] = (i3 << 5) | (i3 << 2) | (i3 >> 1);
+            out[i*2 + 1] = av >= 128 ? 0xFF : 0;
+        }
+        return out;
+    }
+
+    case FMT_ZBUF: {
+        // The working buffer is 16-bit greyscale (2 bytes/pixel, big-endian),
+        // so the PNG must be encoded at 16-bit depth. Reflect the float14
+        // round-trip done in spritemaker_write() so that the dump shows the
+        // precision loss of the depth encoding (coarser at low depth values,
+        // finer near the far plane).
+        *out_bitdepth = 16;
+        uint8_t *out = malloc(n * 2);
+        const uint8_t *src = img->image; uint8_t *dst = out;
+        for (int i=0; i<n; i++) {
+            uint32_t z = ((uint32_t)src[0] << 8) | src[1];
+            uint32_t z2 = conv_float14_decode(conv_float14(z << 2)) >> 2;
+            if (z2 > 0xFFFF) z2 = 0xFFFF;
+            dst[0] = z2 >> 8;
+            dst[1] = z2 & 0xFF;
+            src += 2; dst += 2;
+        }
+        return out;
+    }
+
+    case FMT_RGBA32: case FMT_I8: case FMT_IA16:
+    case FMT_CI8: case FMT_CI4:
+    default: {
+        // No precision loss versus the 8-bit working buffer (RGBA32, I8, IA16),
+        // or palette indices that are reproduced exactly (CI8/CI4).
+        int bpp;
+        switch (img->ct) {
+        case LCT_RGBA:       bpp = 4; break;
+        case LCT_GREY_ALPHA: bpp = 2; break;
+        default:             bpp = 1; break; // LCT_GREY, LCT_PALETTE
+        }
+        uint8_t *out = malloc(n * bpp);
+        memcpy(out, img->image, n * bpp);
+        return out;
+    }
+    }
+}
+
 void spritemaker_write_pngs(spritemaker_t *spr, const char *outfn) {
     for (int i=0; i<MAX_IMAGES; i++) {
         if (spr->images[i].image == NULL)
@@ -1303,25 +1847,34 @@ void spritemaker_write_pngs(spritemaker_t *spr, const char *outfn) {
         if (flag_verbose)
             fprintf(stderr, "writing debug file: %s\n", debugfn);
 
+        // Build a pixel buffer that reflects the on-device precision of the
+        // target format, so the debug PNG faithfully reproduces the converted
+        // and filtered sprite.
+        int bitdepth = 8;
+        uint8_t *pixels = debug_quantize_image(img, &spr->palette, &bitdepth);
+
         // Write the PNG file respecting the colortype. Notice that we can't use
         // the simple lodepng_encode_file as it doesn't support a palette, so we need
         // to use the lower level API.
         LodePNGState state;
         lodepng_state_init(&state);
         state.encoder.auto_convert = false; // avoid automatic remapping of palette colors
-        state.info_raw = lodepng_color_mode_make(img->ct, 8);
-        state.info_png.color = lodepng_color_mode_make(img->ct, 8);
+        state.info_raw = lodepng_color_mode_make(img->ct, bitdepth);
+        state.info_png.color = lodepng_color_mode_make(img->ct, bitdepth);
         if (img->ct == LCT_PALETTE) {
-            for (int i=0; i<spr->palette.num_colors; i++) {
-                lodepng_palette_add(&state.info_raw,       spr->palette.colors[i][0], spr->palette.colors[i][1], spr->palette.colors[i][2], spr->palette.colors[i][3]);
-                lodepng_palette_add(&state.info_png.color, spr->palette.colors[i][0], spr->palette.colors[i][1], spr->palette.colors[i][2], spr->palette.colors[i][3]);
+            for (int c=0; c<spr->palette.num_colors; c++) {
+                uint8_t r, g, b, a;
+                debug_palette_color(&spr->palette, c, &r, &g, &b, &a);
+                lodepng_palette_add(&state.info_raw,       r, g, b, a);
+                lodepng_palette_add(&state.info_png.color, r, g, b, a);
             }
         }
         uint8_t *out = NULL; size_t outsize;
-        unsigned error = lodepng_encode(&out, &outsize, img->image, img->width, img->height, &state);
+        unsigned error = lodepng_encode(&out, &outsize, pixels, img->width, img->height, &state);
         if (!error) error = lodepng_save_file(out, outsize, debugfn);
         lodepng_state_cleanup(&state);
         if (out) lodepng_free(out);
+        free(pixels);
         if (error) {
             fprintf(stderr, "ERROR: writing debug file %s: %s\n", debugfn, lodepng_error_text(error));
         }
@@ -1377,11 +1930,25 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     if (!spritemaker_load_png(&spr, pm->outfmt))
         goto error;
 
+    if (pm->gamma_correct) {
+        if (!spritemaker_gamma_correct(&spr))
+            goto error;
+    }
+
     if (spr.images[0].fmt == FMT_IHQ) {
         if (!spritemaker_convert_ihq(&spr))
             goto error;
         // Compute mipmaps for IHQ
         mipmap_algo = MIPMAP_ALGO_BOX;
+    } else if (spr.images[0].fmt == FMT_SHQ) {
+        spr.out_flags |= 0x40;
+        if (!spritemaker_convert_shq(&spr))
+            goto error;
+        // Mipmaps not supported for SHQ
+        if (mipmap_algo != MIPMAP_ALGO_NONE) {
+            fprintf(stderr, "WARNiNG: mipmap generation is not supported for SHQ mode\n");
+            mipmap_algo = MIPMAP_ALGO_NONE;
+        }
     } else if (spr.detail.enabled && !spr.detail.use_main_tex) {
         // Load the detail PNG, passing the desired output format (or FMT_NONE if autodetect).
         if (!spritemaker_load_detail_png(&spr, pm->detail.outfmt))
@@ -1431,8 +1998,9 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
             break;
         case LCT_PALETTE:
             // When the source image is already palettized, we quantize only if
-            // the requested number of colors is less than the actually used colors.
-            if (expected_colors < spr.palette.used_colors) {
+            // the requested number of colors is less than the actually used colors,
+            // or if dithering is enabled.
+            if (expected_colors < spr.palette.used_colors || pm->dither_algo != DITHER_ALGO_NONE) {
                 if (!spritemaker_expand_rgba(&spr) || 
                     !spritemaker_quantize(&spr, NULL, expected_colors, pm->dither_algo))
                     goto error;
@@ -1441,6 +2009,14 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
         default:
             assert(0); // should not get here
         }
+    }
+
+    // Apply dithering to the sprite. Don't apply on palettes because it was
+    // already done in the preivous step (iether during quantization, or also
+    // re-quantizing an already paletted image).
+    if (spr.ditheralgo != DITHER_ALGO_NONE && spr.images[0].ct != LCT_PALETTE) {
+        if (!spritemaker_apply_dither(&spr))
+            goto error;
     }
 
     // Dump TMEM usage
@@ -1459,11 +2035,11 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     if (pm->tileh) spr.vslices = spr.images[0].height / pm->tileh;
     if (!spr.hslices) {
         spr.hslices = spr.images[0].width / 16;
-        if (!spr.hslices) spr.hslices = 1;
+        if (!spr.hslices || spr.hslices >= 256) spr.hslices = 1;
     }
     if (!spr.vslices) {
         spr.vslices = spr.images[0].height / 16;
-        if (!spr.vslices) spr.vslices = 1;
+        if (!spr.vslices || spr.vslices >= 256) spr.vslices = 1;
     }
 
     // Write the sprite
@@ -1477,34 +2053,41 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
     spritemaker_free(&spr);
 
     // Read back the temporary file contents into RAM
-    int sz = ftell(out);
-    rewind(out);
-    uint8_t *data = malloc(sz);
-    fread(data, 1, sz, out);
+    int sz;
+    uint8_t *data = slurp_fp(out, &sz);
     fclose(out);
+    assert(data);
 
-    // Compress the data and store it into output file
-    // This is a nop if compression is disabled, but at least
-    // we don't have two different code paths.
-    if (out_is_stdout) {
-        out = stdout;
-    } else {
-        out = fopen(outfn, "wb");
-        if (!out) {
-            fprintf(stderr, "ERROR: can't open output file %s\n", outfn);
-            free(data);
-            return 1;
-        }
+    // Compress the data and store it into the output file (shared with the
+    // lossy codec backends). This is a nop if compression is disabled, but at
+    // least we don't have two different code paths.
+    int rv = sprite_write_compressed(outfn, data, sz, compression);
+    free(data);
+    return rv;
+
+error:
+    spritemaker_free(&spr);
+    fclose(out);
+    return 1;
+}
+
+// Compress `data` (sz bytes) with the asset layer and write it to `outfn`.
+// Shared back half of the conversion pipeline: see mksprite.h.
+int sprite_write_compressed(const char *outfn, void *data, int sz, int compression) {
+    bool out_is_stdout = (strstr(outfn, "(stdout)") != NULL);
+    FILE *out = out_is_stdout ? stdout : fopen(outfn, "wb");
+    if (!out) {
+        fprintf(stderr, "ERROR: can't open output file %s\n", outfn);
+        return 1;
     }
 
     if (compression == -1) compression = DEFAULT_COMPRESSION;
     int cmp_size = asset_compress_mem(data, sz, out, compression, 256*1024, NULL);
-    free(data);
 
     if (flag_verbose) {
         if (compression > 0) {
             fprintf(stderr, "compressed: %s (%d -> %d, ratio %.1f%%)\n", outfn,
-                (int)sz, cmp_size, 100.0 * (float)cmp_size / (float)(sz == 0 ? 1 : sz));
+                sz, cmp_size, 100.0 * (float)cmp_size / (float)(sz == 0 ? 1 : sz));
         } else {
             fprintf(stderr, "written: %s (%d bytes)\n", outfn, sz);
         }
@@ -1512,11 +2095,6 @@ int convert(const char *infn, const char *outfn, const parms_t *pm, int compress
 
     fclose(out);
     return 0;
-
-error:
-    spritemaker_free(&spr);
-    fclose(out);
-    return 1;
 }
 
 bool cli_parse_texparms(const char *opt, texparms_t *parms)
@@ -1559,10 +2137,52 @@ bool cli_parse_texparms(const char *opt, texparms_t *parms)
 }
 
 
+// Route a lossy-mode invocation to the right codec backend based on the
+// --compress level. The compress level is repurposed as a lossy-codec tier
+// selector when --lossy is active (it keeps its asset-layer meaning when
+// --lossy is not set, since lossy backends bypass the standard convert()
+// path entirely and write their own container).
+//
+//   --compress omitted (-1) -> Level 3 / H264I (back-compat; will become an
+//                              error in a future release once existing build
+//                              scripts are migrated)
+//   --compress 0            -> error: lossy requires a codec selection
+//   --compress 1            -> Level 1 / BC1Q (BC1/DXT1)
+//   --compress 2            -> reserved (future BC3 / BC7)
+//   --compress 3            -> Level 3 / H264I (H.264 intra)
+static int dispatch_lossy(const char *infn, const char *outfn,
+                          const parms_t *pm, int compression) {
+    if (compression == -1) {
+        fprintf(stderr, "mksprite: WARNING: --lossy without --compress defaults to "
+                        "--compress 3 (Level 3 / H264I); this will become an error in a "
+                        "future release. Pass --compress 3 explicitly.\n");
+        return mksprite_convert_lossy(infn, outfn, pm, 3);
+    }
+    switch (compression) {
+    case 0:
+        fprintf(stderr, "mksprite: --lossy requires --compress 1 or 3 "
+                        "(--compress 0 disables lossy compression)\n");
+        return 1;
+    case 1:
+        return mksprite_convert_bc1(infn, outfn, pm, compression);
+    case 2:
+        fprintf(stderr, "mksprite: --lossy --compress 2 is reserved for a "
+                        "future codec\n");
+        return 1;
+    case 3:
+        return mksprite_convert_lossy(infn, outfn, pm, compression);
+    default:
+        fprintf(stderr, "mksprite: invalid --compress level %d for lossy mode\n",
+                compression);
+        return 1;
+    }
+}
+
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     char *infn = NULL, *outdir = ".", *outfn = NULL;
-    parms_t pm = {0}; int compression = -1;
+    parms_t pm = {.lossy_quality = 100}; int compression = -1;
     bool at_least_one_file = false;
 
     if (argc < 2) {
@@ -1599,7 +2219,7 @@ int main(int argc, char *argv[])
             /* ---------------- VERBOSE console argument ------------------- */
             /* -v/--verbose   Verbose output             */
             else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "--verbose")) {
-                flag_verbose = true;
+                flag_verbose++;
             } 
 
             /* ---------------- DEBUG  console argument ------------------- */
@@ -1648,7 +2268,7 @@ int main(int argc, char *argv[])
             
             /* ---------------- MIPMAP console argument ------------------- */
             /* -m/--mipmap <algo>                    Calculate mipmap levels using the specified algorithm (default: NONE)             */
-             else if (!strcmp(argv[i], "-m") || !strcmp(argv[i], "--mipmap")) {
+            else if (!strcmp(argv[i], "-m") || !strcmp(argv[i], "--mipmap")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
@@ -1693,6 +2313,35 @@ int main(int argc, char *argv[])
                         fprintf(stderr, "invalid compression level: %s\n", argv[i+1]);
                         return 1;
                     }
+                }
+            }
+            
+            /* ---------------- GAMMA_CORRECT console argument ------------------- */
+            /* -g/--gamma  Adjust colors for when VI gamma correction is enabled on console (convert to linear colors)                          */
+            else if (!strcmp(argv[i], "-g") || !strcmp(argv[i], "--gamma")) {
+                pm.gamma_correct = 1;
+            }
+
+            /* ---------------- LOSSY console argument ------------------- */
+            /* --lossy <quality>  Encode as lossy sprite (H.264 intra). 0 disables lossy */
+            else if (!strcmp(argv[i], "-L") || !strcmp(argv[i], "--lossy")) {
+                if (++i == argc) {
+                    fprintf(stderr, "missing argument for %s\n", argv[i-1]);
+                    return 1;
+                }
+                char extra;
+                int q = 0;
+                if (sscanf(argv[i], "%d%c", &q, &extra) != 1) {
+                    fprintf(stderr, "invalid argument for %s: %s\n", argv[i - 1], argv[i]);
+                    return 1;
+                }
+                if (q < 0 || q > 100) {
+                    fprintf(stderr, "invalid lossy quality (0..100): %d\n", q);
+                    return 1;
+                }
+                pm.lossy_quality = q;
+                if (pm.lossy_quality < 100) {
+                    flag_lossy = true;
                 }
             }
 
@@ -1788,8 +2437,14 @@ int main(int argc, char *argv[])
 
         asprintf(&outfn, "%s/%s.sprite", outdir, basename_noext);
 
-        if (convert(infn, outfn, &pm, compression) != 0)
-            error = true;
+        if (pm.lossy_quality < 100) {
+            if (dispatch_lossy(infn, outfn, &pm, compression) != 0) {
+                error = true;
+            }
+        } else {
+            if (convert(infn, outfn, &pm, compression) != 0)
+                error = true;
+        }
 
         free(outfn);
     }
@@ -1813,8 +2468,14 @@ int main(int argc, char *argv[])
         setmode(1, _O_BINARY);
         #endif
 
-        if (convert(infn, outfn, &pm, compression) != 0) {
-            error = true;
+        if (pm.lossy_quality < 100) {
+            if (mksprite_convert_lossy(infn, outfn, &pm, compression) != 0) {
+                error = true;
+            }
+        } else {
+            if (convert(infn, outfn, &pm, compression) != 0) {
+                error = true;
+            }
         }
     }
 

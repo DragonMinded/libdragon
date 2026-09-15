@@ -16,11 +16,13 @@
 #include <string.h>
 #include <errno.h>
 #include <stdint.h>
+#include <stdarg.h>
 #include <sys/types.h>
 #include <sys/param.h>
 #include <stdbool.h>
 #include "dragonfs.h"
-#include "dfsinternal.h"
+#include "../../src/dfs_internal.h"
+#include "../common/polyfill.h"
 
 #define STBDS_NO_SHORT_NAMES
 #define STB_DS_IMPLEMENTATION //Hack to get tools to compile
@@ -44,6 +46,20 @@ dfs_file_t *dfs_files;
 
 uint32_t fs_size = 0;
 
+static void fatal(const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+    fprintf(stderr, "mkdfs: ");
+    vfprintf(stderr, fmt, args);
+    if (errno) {
+        fprintf(stderr, " (%s)", strerror(errno));
+    }
+    fprintf(stderr, "\n");
+    va_end(args);
+    exit(1);
+}
+
 /* Offset from start of filesystem */
 static inline uint32_t sector_offset(void *sector)
 {
@@ -60,11 +76,13 @@ static inline void *sector_to_memory(uint32_t offset)
 uint32_t dfs_alloc(int size)
 {
     void *end;
-    int rsize = (size + SECTOR_SIZE - 1) / SECTOR_SIZE * SECTOR_SIZE;
+    int rsize = size;
+    if (rsize & 1) rsize++;
 
     if(!dfs)
     {
         dfs = malloc(rsize);
+        if (!dfs) fatal("out of memory");
         fs_size = rsize;
 
         end = dfs;
@@ -72,6 +90,7 @@ uint32_t dfs_alloc(int size)
     else
     {
         dfs = realloc(dfs, fs_size + rsize);
+        if (!dfs) fatal("out of memory");
 
         end = dfs + fs_size;
         fs_size += rsize;
@@ -83,27 +102,9 @@ uint32_t dfs_alloc(int size)
     return sector_offset(end);    
 }
 
-/* Add a new sector to the filesystem, return that sector pointer */
-uint32_t new_sector(void)
-{
-    return dfs_alloc(SECTOR_SIZE);
-}
-
 uint32_t new_blob(int size)
 {
     return dfs_alloc(size);    
-}
-
-void kill_fs()
-{
-    if(dfs)
-    {
-        free(dfs);
-    }
-    for(size_t i=0; i<stbds_arrlenu(dfs_files); i++) {
-        free(dfs_files[i].path);
-    }
-    stbds_arrfree(dfs_files);
 }
 
 void print_help(const char * const prog_name)
@@ -120,34 +121,20 @@ uint32_t add_file(const char * const file, uint32_t *size)
     printf("Adding '%s' to filesystem image.\n", file);
 
     fp = fopen(file, "rb");
-
-    if(!fp)
-    {
-        fprintf(stderr, "Cannot open file '%s' for read!\n", file);
-        return 0;
-    }
+    if(!fp) fatal("cannot open file '%s' for read", file);
 
     fseek(fp, 0, SEEK_END);
     *size = ftell(fp);
     fseek(fp, 0, SEEK_SET);
 
     if (*size > 0x0FFFFFFF)
-    {
-        fprintf(stderr, "File '%s' too big for the filesystem!\n", file);
-        return 0;
-    }
+        fatal("file '%s' too big for the filesystem", file);
 
     uint32_t blob = new_blob(*size);
     uint8_t *data = sector_to_memory(blob);
 
-    int read = fread(data, 1, *size, fp);
-    if (read < 0) {
-        /* Wat? */
-        fprintf(stderr, "Cannot add all contents of file '%s' to filesystem!\n", file);
-        fclose(fp);
-        return 0;    
-    }
-
+    if (fread(data, 1, *size, fp) != *size)
+        fatal("cannot read all contents of file '%s'", file);
     fclose(fp);
     return blob;
 }
@@ -176,7 +163,7 @@ char **read_directory(const char * path)
 
     if((dirp = opendir(path)) == NULL)
     {
-        return 0;
+        fatal("cannot open directory '%s'", path);
     }
     
     // Read all file names into an array
@@ -187,7 +174,8 @@ char **read_directory(const char * path)
             continue;
         
         char *fn;
-        asprintf(&fn, "%s/%s", path, dp->d_name);
+        if (asprintf(&fn, "%s/%s", path, dp->d_name) < 0)
+            fatal("out of memory");
         stbds_arrpush(files, fn);
     }
 
@@ -197,7 +185,7 @@ char **read_directory(const char * path)
     // interested in making sure the order is consistent across different
     // runs of the tool, on different computers. We don't care about the
     // actual order.
-    qsort(files, stbds_arrlenu(files), sizeof(char *), file_name_sort);
+    if (files) qsort(files, stbds_arrlenu(files), sizeof(char *), file_name_sort);
 
     return files;
 }
@@ -225,23 +213,15 @@ uint32_t add_directory(const char * const base_path, const char * const path)
 
         if(S_ISREG(stats.st_mode))
         {
-            uint32_t new_entry = new_sector();
+            const char* bname = mybasename(file);
+            uint32_t new_entry = new_blob(sizeof(directory_entry_t) + strlen(bname) + 1);
             uint32_t file_size = 0;
 
             tmp_entry = sector_to_memory(new_entry);
             tmp_entry->next_entry = 0;
-
-            /* Copy over filename */
-            strncpy(tmp_entry->path, mybasename(file), MAX_FILENAME_LEN);
-            tmp_entry->path[MAX_FILENAME_LEN] = 0;
+            strcpy(tmp_entry->path, bname);
 
             uint32_t new_file = add_file(file, &file_size);
-
-            if(!new_file)
-            {
-                free(file);
-                return 0;
-            }
             dfs_file_t temp_file;
             temp_file.path = strdup(file+strlen(base_path)+1);
             temp_file.path_hash = prime_hash(temp_file.path, DFS_LOOKUP_PRIME);
@@ -265,27 +245,15 @@ uint32_t add_directory(const char * const base_path, const char * const path)
         }
         else if(S_ISDIR(stats.st_mode))
         {
-            uint32_t new_entry = new_sector();
+            /* Allocate the entry before children, even if empty */
+            const char *bname = mybasename(file);
+            uint32_t new_entry = new_blob(sizeof(directory_entry_t) + strlen(bname) + 1);
 
             tmp_entry = sector_to_memory(new_entry);
             tmp_entry->flags = SWAPLONG(FLAGS_DIR << 28); /* Size doesn't matter for directories */
             tmp_entry->next_entry = 0;
-
-            /* Copy over filename */
-            strncpy(tmp_entry->path, mybasename(file), MAX_FILENAME_LEN);
-            tmp_entry->path[MAX_FILENAME_LEN] = 0;
-
-            uint32_t new_directory = add_directory(base_path, file);
-
-            if(!new_directory)
-            {
-                fprintf(stderr, "Skipping empty directory: %s\n", file);
-                free(file);
-                continue;
-            }
-
-            tmp_entry = sector_to_memory(new_entry);
-            tmp_entry->file_pointer = SWAPLONG(new_directory);
+            strcpy(tmp_entry->path, bname);
+            tmp_entry->file_pointer = 0;
 
             if(cur_entry)
             {
@@ -296,6 +264,13 @@ uint32_t add_directory(const char * const base_path, const char * const path)
 
             /* This is now the current working entry */
             cur_entry = new_entry;
+
+            /* Recursively add the contents of the directory. Notice that it
+               is fine for empty directories to have no entries. */
+            uint32_t new_directory = add_directory(base_path, file);
+
+            tmp_entry = sector_to_memory(new_entry);
+            tmp_entry->file_pointer = SWAPLONG(new_directory);
         }
 
         free(file);
@@ -340,7 +315,7 @@ uint32_t dfs_get_path_size(void)
     return size;
 }
 
-void write_dfs_lookup(void)
+void create_dfs_lookup(void)
 {
     uint32_t num_files = stbds_arrlenu(dfs_files);
     qsort(&dfs_files[0], num_files, sizeof(dfs_file_t), compare_dfs_entry_hash);
@@ -384,6 +359,7 @@ void write_dfs_lookup(void)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
     if(argc != 3)
     {
         print_help(argv[0]);
@@ -391,7 +367,7 @@ int main(int argc, char *argv[])
     }
 
     /* Add in identifier */
-    directory_entry_t *id = sector_to_memory(new_sector());
+    directory_entry_t *id = sector_to_memory(new_blob(ID_DIRENT_SIZE));
 
     if(!id)
     {
@@ -409,33 +385,14 @@ int main(int argc, char *argv[])
     if (path[strlen(path) - 1] == '/')
         path[strlen(path) - 1] = 0;
 
-    if(!add_directory(path, path))
-    {
-        /* Error adding directory */
-        fprintf(stderr, "Error creating '%s': directory '%s' is empty or does not exist\n", argv[1], argv[2]);
+    add_directory(path, path);
+    create_dfs_lookup();
 
-        kill_fs();
-
-        return -1;
-    }
-    write_dfs_lookup();
     /* Write out filesystem */
     FILE *fp = fopen(argv[1], "wb");
-
-    if(!fp)
-    {
-        /* Error writing file out */
-        fprintf(stderr, "Error opening '%s' for writing.\n", argv[1]);
-
-        kill_fs();
-
-        return -1;
-    }
-    
+    if(!fp) fatal("error opening '%s' for writing", argv[1]);
     fwrite(dfs, 1, fs_size, fp);
     fclose(fp);
-
-    kill_fs();
 
     return 0;
 }
