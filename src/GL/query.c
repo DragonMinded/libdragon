@@ -149,82 +149,82 @@ static bool gl_query_get_value_source(GLenum value, const void **src, uint32_t *
         SET_RESULT(&state->texcoord_halfx_precision.precision, 1, &from_u32);
         break;
     case GL_VERTEX_ARRAY:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_VERTEX].enabled, 1, &from_bool);
+        SET_RESULT(&state->array_object->arrays[ARRAY_VERTEX].enabled, 1, &from_bool);
         break;
     case GL_VERTEX_ARRAY_SIZE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_VERTEX].size, 1, &from_i32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_VERTEX].size, 1, &from_i32);
         break;
     case GL_VERTEX_ARRAY_STRIDE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_VERTEX].stride, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_VERTEX].stride, 1, &from_u32);
         break;
     case GL_VERTEX_ARRAY_TYPE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_VERTEX].type, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_VERTEX].type, 1, &from_u32);
         break;
     case GL_VERTEX_ARRAY_BUFFER_BINDING_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_VERTEX].binding, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_VERTEX].binding, 1, &from_u32);
         break;
     case GL_NORMAL_ARRAY:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_NORMAL].enabled, 1, &from_bool);
+        SET_RESULT(&state->array_object->arrays[ARRAY_NORMAL].enabled, 1, &from_bool);
         break;
     case GL_NORMAL_ARRAY_STRIDE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_NORMAL].stride, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_NORMAL].stride, 1, &from_u32);
         break;
     case GL_NORMAL_ARRAY_TYPE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_NORMAL].type, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_NORMAL].type, 1, &from_u32);
         break;
     case GL_NORMAL_ARRAY_BUFFER_BINDING_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_NORMAL].binding, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_NORMAL].binding, 1, &from_u32);
         break;
     case GL_COLOR_ARRAY:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_COLOR].enabled, 1, &from_bool);
+        SET_RESULT(&state->array_object->arrays[ARRAY_COLOR].enabled, 1, &from_bool);
         break;
     case GL_COLOR_ARRAY_SIZE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_COLOR].size, 1, &from_i32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_COLOR].size, 1, &from_i32);
         break;
     case GL_COLOR_ARRAY_STRIDE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_COLOR].stride, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_COLOR].stride, 1, &from_u32);
         break;
     case GL_COLOR_ARRAY_TYPE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_COLOR].type, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_COLOR].type, 1, &from_u32);
         break;
     case GL_COLOR_ARRAY_BUFFER_BINDING_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_COLOR].binding, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_COLOR].binding, 1, &from_u32);
         break;
     case GL_TEXTURE_COORD_ARRAY:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_TEXCOORD].enabled, 1, &from_bool);
+        SET_RESULT(&state->array_object->arrays[ARRAY_TEXCOORD].enabled, 1, &from_bool);
         break;
     case GL_TEXTURE_COORD_ARRAY_SIZE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_TEXCOORD].size, 1, &from_i32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_TEXCOORD].size, 1, &from_i32);
         break;
     case GL_TEXTURE_COORD_ARRAY_STRIDE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_TEXCOORD].stride, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_TEXCOORD].stride, 1, &from_u32);
         break;
     case GL_TEXTURE_COORD_ARRAY_TYPE:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_TEXCOORD].type, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_TEXCOORD].type, 1, &from_u32);
         break;
     case GL_TEXTURE_COORD_ARRAY_BUFFER_BINDING_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_TEXCOORD].binding, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_TEXCOORD].binding, 1, &from_u32);
         break;
     case GL_MATRIX_INDEX_ARRAY_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_MTX_INDEX].enabled, 1, &from_bool);
+        SET_RESULT(&state->array_object->arrays[ARRAY_MTX_INDEX].enabled, 1, &from_bool);
         break;
     case GL_MATRIX_INDEX_ARRAY_SIZE_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_MTX_INDEX].size, 1, &from_i32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_MTX_INDEX].size, 1, &from_i32);
         break;
     case GL_MATRIX_INDEX_ARRAY_STRIDE_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_MTX_INDEX].stride, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_MTX_INDEX].stride, 1, &from_u32);
         break;
     case GL_MATRIX_INDEX_ARRAY_TYPE_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_MTX_INDEX].type, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_MTX_INDEX].type, 1, &from_u32);
         break;
     case GL_MATRIX_INDEX_ARRAY_BUFFER_BINDING_ARB:
-        SET_RESULT(&state->array_object->arrays[ATTRIB_MTX_INDEX].binding, 1, &from_u32);
+        SET_RESULT(&state->array_object->arrays[ARRAY_MTX_INDEX].binding, 1, &from_u32);
         break;
     case GL_ARRAY_BUFFER_BINDING_ARB:
         SET_RESULT(&state->array_buffer, 1, &from_u32);
         break;
     case GL_ELEMENT_ARRAY_BUFFER_BINDING_ARB:
-        SET_RESULT(&state->element_array_buffer, 1, &from_u32);
+        SET_RESULT(&state->array_object->element_array_buffer, 1, &from_u32);
         break;
     case GL_VERTEX_ARRAY_BINDING:
         SET_RESULT(&state->array_object, 1, &from_u32);
@@ -511,15 +511,15 @@ GLboolean glIsEnabled(GLenum value)
 {
     switch (value) {
     case GL_VERTEX_ARRAY:
-        return state->array_object->arrays[ATTRIB_VERTEX].enabled;
+        return state->array_object->arrays[ARRAY_VERTEX].enabled;
     case GL_NORMAL_ARRAY:
-        return state->array_object->arrays[ATTRIB_NORMAL].enabled;
+        return state->array_object->arrays[ARRAY_NORMAL].enabled;
     case GL_COLOR_ARRAY:
-        return state->array_object->arrays[ATTRIB_COLOR].enabled;
+        return state->array_object->arrays[ARRAY_COLOR].enabled;
     case GL_TEXTURE_COORD_ARRAY:
-        return state->array_object->arrays[ATTRIB_TEXCOORD].enabled;
+        return state->array_object->arrays[ARRAY_TEXCOORD].enabled;
     case GL_MATRIX_INDEX_ARRAY_ARB:
-        return state->array_object->arrays[ATTRIB_MTX_INDEX].enabled;
+        return state->array_object->arrays[ARRAY_MTX_INDEX].enabled;
     case GL_ALPHA_TEST:
     case GL_AUTO_NORMAL:
     case GL_BLEND:
@@ -590,19 +590,19 @@ void glGetPointerv(GLenum pname, GLvoid **params)
 {
     switch (pname) {
     case GL_VERTEX_ARRAY_POINTER:
-        *params = (GLvoid*)state->array_object->arrays[ATTRIB_VERTEX].pointer;
+        *params = (GLvoid*)state->array_object->arrays[ARRAY_VERTEX].pointer;
         break;
     case GL_NORMAL_ARRAY_POINTER:
-        *params = (GLvoid*)state->array_object->arrays[ATTRIB_NORMAL].pointer;
+        *params = (GLvoid*)state->array_object->arrays[ARRAY_NORMAL].pointer;
         break;
     case GL_COLOR_ARRAY_POINTER:
-        *params = (GLvoid*)state->array_object->arrays[ATTRIB_COLOR].pointer;
+        *params = (GLvoid*)state->array_object->arrays[ARRAY_COLOR].pointer;
         break;
     case GL_TEXTURE_COORD_ARRAY_POINTER:
-        *params = (GLvoid*)state->array_object->arrays[ATTRIB_TEXCOORD].pointer;
+        *params = (GLvoid*)state->array_object->arrays[ARRAY_TEXCOORD].pointer;
         break;
     case GL_MATRIX_INDEX_ARRAY_POINTER_ARB:
-        *params = (GLvoid*)state->array_object->arrays[ATTRIB_MTX_INDEX].pointer;
+        *params = (GLvoid*)state->array_object->arrays[ARRAY_MTX_INDEX].pointer;
         break;
     case GL_EDGE_FLAG_ARRAY_POINTER:
     case GL_INDEX_ARRAY_POINTER:

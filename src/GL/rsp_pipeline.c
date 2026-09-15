@@ -7,102 +7,129 @@
 
 #include "gl_internal.h"
 #include "rsp_asm.h"
+#include "magma_constants.h"
+#include "rdpq_debug.h"
+#include "../magma/magma_internal.h"
+#include "mgfx_macros.h"
+#include "indices.h"
+#include "draw_call_cache.h"
+#include "data_cache.h"
+#include "array.h"
+#include "array_object.h"
+#include "buffer.h"
+#include "fnv1a.h"
+#include "array_convert.h"
+#include "pipelines.h"
+#include "mg_ex.h"
+
+_Static_assert(BEGIN_END_BUFFER_SIZE <= MG_VERTEX_CACHE_COUNT);
 
 extern gl_state_t *state;
 
-#define DEFINE_BYTE_READ_FUNC(name, src_type, convert) \
-    static void name(gl_cmd_stream_t *s, const src_type *src, uint32_t count) \
+static phys_addr_t magma_rsp_state;
+
+#define DEFINE_READ_FUNC(name, dst_type, src_type, convert, max_size, default) \
+    static void name(dst_type *dst, const src_type *src, uint32_t count) \
     { \
-        for (uint32_t i = 0; i < count; i++) gl_cmd_stream_put_byte(s, convert(src[i])); \
+        uint32_t real_count = MIN(count, max_size); \
+        for (uint32_t i = 0; i < real_count; i++) dst[i] = convert(src[i]); \
+        for (uint32_t i = count; i < max_size; i++) dst[i] = default[i]; \
     }
 
-#define DEFINE_HALF_READ_FUNC(name, src_type, convert) \
-    static void name(gl_cmd_stream_t *s, const src_type *src, uint32_t count) \
+#define DEFINE_FIXED_READ_FUNC(name, dst_type, precision, max_size, default) \
+    static void name(dst_type *dst, const int16u_t *src, uint32_t count) \
     { \
-        for (uint32_t i = 0; i < count; i++) gl_cmd_stream_put_half(s, convert(src[i])); \
+        int shift = precision.shift_amount; \
+        uint32_t real_count = MIN(count, max_size); \
+        if (shift < 0) { \
+            for (uint32_t i = 0; i < real_count; i++) dst[i] = src[i] >> -shift; \
+        } else { \
+            for (uint32_t i = 0; i < real_count; i++) { \
+                int16_t value = src[i]; \
+                assertf(value <= SHRT_MAX>>shift && value >= SHRT_MIN>>shift, "Fixed point overflow: %d << %d", value, shift); \
+                dst[i] = value << shift; \
+            } \
+        } \
+        for (uint32_t i = count; i < max_size; i++) dst[i] = default[i]; \
     }
 
-static void read_fixed_point(gl_cmd_stream_t *s, const int16u_t *src, uint32_t count, int shift)
+#define GLP_NRM(x, y, z) MGFX_NRM(x, y, z);
+
+#define DEFINE_NORMAL_FLT_READ_FUNC(name, src_type) \
+    static void name(int16_t *dst, const src_type *src, uint32_t count) \
+    { \
+        int16_t x = CLAMP(roundf(src[0] * 15.5f), -16.0f, 15.0f); \
+        int16_t y = CLAMP(roundf(src[1] * 31.5f), -32.0f, 31.0f); \
+        int16_t z = CLAMP(roundf(src[2] * 15.5f), -16.0f, 15.0f); \
+        *dst = GLP_NRM(x, y, z); \
+    }
+
+#define DEFINE_NORMAL_INT_READ_FUNC(name, src_type, shift) \
+    static void name(int16_t *dst, const src_type *src, uint32_t count) \
+    { \
+        int16_t x = src[0] >> shift; \
+        int16_t y = src[1] >> (shift-1); \
+        int16_t z = src[2] >> shift; \
+        *dst = GLP_NRM(x, y, z); \
+    }
+
+static const int16_t vtx_default[3] = {0, 0, 0};
+static const uint8_t col_default[4] = {0, 0, 0, 255};
+
+#define POS_CONVERT(v)  MGFX_FIXED_POINT(v, GLP_VTX_POS_SHIFT)
+
+DEFINE_READ_FUNC(vtx_read_i8,   int16_t, int8_t,    POS_CONVERT, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_i16,  int16_t, int16u_t,  POS_CONVERT, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_i32,  int16_t, int32u_t,  POS_CONVERT, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_f32,  int16_t, floatu,    POS_CONVERT, 3, vtx_default)
+DEFINE_READ_FUNC(vtx_read_f64,  int16_t, doubleu,   POS_CONVERT, 3, vtx_default)
+DEFINE_FIXED_READ_FUNC(vtx_read_x16, int16_t, state->vertex_halfx_precision, 3, vtx_default)
+
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i8,  int8_t,    3)
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i16, int16u_t,  11)
+DEFINE_NORMAL_INT_READ_FUNC(nrm_read_i32, int32u_t,  27)
+DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f32, floatu)
+DEFINE_NORMAL_FLT_READ_FUNC(nrm_read_f64, doubleu)
+
+static void nrm_read_packed565(int16_t *dst, const int16_t *src, uint32_t count)
 {
-    if (shift > 0) {
-        for (uint32_t i = 0; i < count; i++) {
-            int16_t value = src[i];
-            assertf(value <= SHRT_MAX>>shift && value >= SHRT_MIN>>shift, "Fixed point overflow: %d << %d", value, shift);
-            gl_cmd_stream_put_half(s, value << shift);
-        }
-    } else {
-        for (uint32_t i = 0; i < count; i++) {
-            gl_cmd_stream_put_half(s, src[i] >> -shift);
-        }
-    }
+    *dst = *src;
 }
 
-#define DEFINE_HALF_FIXED_READ_FUNC(name, precision) \
-    static void name(gl_cmd_stream_t *s, const int16u_t *src, uint32_t count) \
-    { \
-        read_fixed_point(s, src, count, precision.shift_amount); \
-    }
+#define COL_CONVERT_U8(v) ((v))
+#define COL_CONVERT_I8(v) (MAX(v, 0) << 1)
+#define COL_CONVERT_U16(v) ((v) >> 8)
+#define COL_CONVERT_I16(v) (MAX(v, 0) >> 7)
+#define COL_CONVERT_U32(v) ((v) >> 24)
+#define COL_CONVERT_I32(v) (MAX(v, 0) >> 23)
+#define COL_CONVERT_F32(v) (FLOAT_TO_U8(v))
+#define COL_CONVERT_F64(v) (FLOAT_TO_U8(v))
 
-#define VTX_CONVERT_INT(v) ((v) << VTX_SHIFT)
-#define VTX_CONVERT_FLT(v) ((v) * (1<<VTX_SHIFT))
+DEFINE_READ_FUNC(col_read_u8,   uint8_t,    uint8_t,   COL_CONVERT_U8,  4, col_default)
+DEFINE_READ_FUNC(col_read_i8,   uint8_t,    int8_t,    COL_CONVERT_I8,  4, col_default)
+DEFINE_READ_FUNC(col_read_u16,  uint8_t,    uint16u_t, COL_CONVERT_U16, 4, col_default)
+DEFINE_READ_FUNC(col_read_i16,  uint8_t,    int16u_t,  COL_CONVERT_I16, 4, col_default)
+DEFINE_READ_FUNC(col_read_u32,  uint8_t,    uint32u_t, COL_CONVERT_U32, 4, col_default)
+DEFINE_READ_FUNC(col_read_i32,  uint8_t,    int32u_t,  COL_CONVERT_I32, 4, col_default)
+DEFINE_READ_FUNC(col_read_f32,  uint8_t,    floatu,    COL_CONVERT_F32, 4, col_default)
+DEFINE_READ_FUNC(col_read_f64,  uint8_t,    doubleu,   COL_CONVERT_F64, 4, col_default)
 
-DEFINE_HALF_READ_FUNC(vtx_read_i8,    int8_t,    VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_i16,   int16u_t,  VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_i32,   int32u_t,  VTX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(vtx_read_f32,   floatu,    VTX_CONVERT_FLT)
-DEFINE_HALF_READ_FUNC(vtx_read_f64,   doubleu,   VTX_CONVERT_FLT)
-DEFINE_HALF_FIXED_READ_FUNC(vtx_read_x16, state->vertex_halfx_precision)
+#define TEX_CONVERT(v)  MGFX_FIXED_POINT(v, GLP_VTX_TEX_SHIFT)
 
-#define COL_CONVERT_U8(v) ((v) << 7)
-#define COL_CONVERT_I8(v) ((v) << 8)
-#define COL_CONVERT_U16(v) ((v) >> 1)
-#define COL_CONVERT_I16(v) ((v))
-#define COL_CONVERT_U32(v) ((v) >> 17)
-#define COL_CONVERT_I32(v) ((v) >> 16)
-#define COL_CONVERT_F32(v) (FLOAT_TO_I16(v))
-#define COL_CONVERT_F64(v) (FLOAT_TO_I16(v))
-
-DEFINE_HALF_READ_FUNC(col_read_u8,  uint8_t,   COL_CONVERT_U8)
-DEFINE_HALF_READ_FUNC(col_read_i8,  int8_t,    COL_CONVERT_I8)
-DEFINE_HALF_READ_FUNC(col_read_u16, uint16u_t, COL_CONVERT_U16)
-DEFINE_HALF_READ_FUNC(col_read_i16, int16u_t,  COL_CONVERT_I16)
-DEFINE_HALF_READ_FUNC(col_read_u32, uint32u_t, COL_CONVERT_U32)
-DEFINE_HALF_READ_FUNC(col_read_i32, int32u_t,  COL_CONVERT_I32)
-DEFINE_HALF_READ_FUNC(col_read_f32, floatu,    COL_CONVERT_F32)
-DEFINE_HALF_READ_FUNC(col_read_f64, doubleu,   COL_CONVERT_F64)
-
-#define TEX_CONVERT_INT(v) ((v) << TEX_SHIFT)
-#define TEX_CONVERT_FLT(v) ((v) * (1<<TEX_SHIFT))
-
-DEFINE_HALF_READ_FUNC(tex_read_i8,   int8_t,    TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_i16,  int16u_t,  TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_i32,  int32u_t,  TEX_CONVERT_INT)
-DEFINE_HALF_READ_FUNC(tex_read_f32,  floatu,    TEX_CONVERT_FLT)
-DEFINE_HALF_READ_FUNC(tex_read_f64,  doubleu,   TEX_CONVERT_FLT)
-DEFINE_HALF_FIXED_READ_FUNC(tex_read_x16, state->texcoord_halfx_precision)
-
-#define NRM_CONVERT_U8(v) ((v) >> 1)
-#define NRM_CONVERT_I8(v) ((v))
-#define NRM_CONVERT_U16(v) ((v) >> 9)
-#define NRM_CONVERT_I16(v) ((v) >> 8)
-#define NRM_CONVERT_U32(v) ((v) >> 25)
-#define NRM_CONVERT_I32(v) ((v) >> 24)
-#define NRM_CONVERT_F32(v) ((v) * 0x7F)
-#define NRM_CONVERT_F64(v) ((v) * 0x7F)
-
-DEFINE_BYTE_READ_FUNC(nrm_read_i8,  int8_t,    NRM_CONVERT_I8)
-DEFINE_BYTE_READ_FUNC(nrm_read_i16, int16u_t,  NRM_CONVERT_I16)
-DEFINE_BYTE_READ_FUNC(nrm_read_i32, int32u_t,  NRM_CONVERT_I32)
-DEFINE_BYTE_READ_FUNC(nrm_read_f32, floatu,    NRM_CONVERT_F32)
-DEFINE_BYTE_READ_FUNC(nrm_read_f64, doubleu,   NRM_CONVERT_F64)
+DEFINE_READ_FUNC(tex_read_i8,   int16_t, int8_t,    TEX_CONVERT, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_i16,  int16_t, int16u_t,  TEX_CONVERT, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_i32,  int16_t, int32u_t,  TEX_CONVERT, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_f32,  int16_t, floatu,    TEX_CONVERT, 2, vtx_default)
+DEFINE_READ_FUNC(tex_read_f64,  int16_t, doubleu,   TEX_CONVERT, 2, vtx_default)
+DEFINE_FIXED_READ_FUNC(tex_read_x16, int16_t, state->texcoord_halfx_precision, 2, vtx_default)
 
 #define MTX_INDEX_CONVERT(v) (v)
 
-DEFINE_BYTE_READ_FUNC(mtx_index_read_u8,  uint8_t,   MTX_INDEX_CONVERT)
-DEFINE_BYTE_READ_FUNC(mtx_index_read_u16, uint16u_t, MTX_INDEX_CONVERT)
-DEFINE_BYTE_READ_FUNC(mtx_index_read_u32, uint32u_t, MTX_INDEX_CONVERT)
+DEFINE_READ_FUNC(mtx_index_read_u8, uint8_t,  uint8_t,   MTX_INDEX_CONVERT, 1, vtx_default)
+DEFINE_READ_FUNC(mtx_index_read_u16, uint8_t, uint16u_t, MTX_INDEX_CONVERT, 1, vtx_default)
+DEFINE_READ_FUNC(mtx_index_read_u32, uint8_t, uint32u_t, MTX_INDEX_CONVERT, 1, vtx_default)
 
-const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
+const rsp_read_attrib_func rsp_read_funcs[ARRAY_COUNT][ATTRIB_TYPE_COUNT] = {
     {
         (rsp_read_attrib_func)vtx_read_i8,
         NULL,
@@ -113,6 +140,19 @@ const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (rsp_read_attrib_func)vtx_read_f32,
         (rsp_read_attrib_func)vtx_read_f64,
         (rsp_read_attrib_func)vtx_read_x16,
+        NULL,
+    },
+    {
+        (rsp_read_attrib_func)nrm_read_i8,
+        NULL,
+        (rsp_read_attrib_func)nrm_read_i16,
+        NULL,
+        (rsp_read_attrib_func)nrm_read_i32,
+        NULL,
+        (rsp_read_attrib_func)nrm_read_f32,
+        (rsp_read_attrib_func)nrm_read_f64,
+        NULL,
+        (rsp_read_attrib_func)nrm_read_packed565,
     },
     {
         (rsp_read_attrib_func)col_read_i8,
@@ -123,6 +163,7 @@ const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (rsp_read_attrib_func)col_read_u32,
         (rsp_read_attrib_func)col_read_f32,
         (rsp_read_attrib_func)col_read_f64,
+        NULL,
         NULL,
     },
     {
@@ -135,16 +176,6 @@ const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         (rsp_read_attrib_func)tex_read_f32,
         (rsp_read_attrib_func)tex_read_f64,
         (rsp_read_attrib_func)tex_read_x16,
-    },
-    {
-        (rsp_read_attrib_func)nrm_read_i8,
-        NULL,
-        (rsp_read_attrib_func)nrm_read_i16,
-        NULL,
-        (rsp_read_attrib_func)nrm_read_i32,
-        NULL,
-        (rsp_read_attrib_func)nrm_read_f32,
-        (rsp_read_attrib_func)nrm_read_f64,
         NULL,
     },
     {
@@ -157,426 +188,506 @@ const rsp_read_attrib_func rsp_read_funcs[ATTRIB_COUNT][ATTRIB_TYPE_COUNT] = {
         NULL,
         NULL,
         NULL,
+        NULL,
     },
 };
 
-static const gl_array_t dummy_arrays[ATTRIB_COUNT] = {
-    { .enabled = true, .size = 4 }
-};
-
-typedef enum {
-    BEGIN_END_INDETERMINATE,
-    BEGIN_END_VERTEX,
-    BEGIN_END_ARRAY_ELEMENT,
-} begin_end_type_t;
-
-static begin_end_type_t begin_end_type;
-static uint32_t vtx_cmd_size;
-
-static void upload_current_attributes(const gl_array_t *arrays)
+static void create_begin_end_layout(vertex_layout_t *layout)
 {
-    if (arrays[ATTRIB_COLOR].enabled) {
-        gl_set_current_color(state->current_attributes.color);
-    }
-
-    if (arrays[ATTRIB_TEXCOORD].enabled) {
-        gl_set_current_texcoords(state->current_attributes.texcoord);
-    }
-
-    if (arrays[ATTRIB_NORMAL].enabled) {
-        gl_set_current_normal(state->current_attributes.normal);
-    }
-
-    if (arrays[ATTRIB_MTX_INDEX].enabled) {
-        gl_set_current_mtx_index(state->current_attributes.mtx_index);
-    }
+    vertex_layout_init(layout);
+    vertex_layout_add(layout, GLP_ATTRIBUTE_POSITION, offsetof(native_vertex_t, position), sizeof(int16_t)*3);
+    vertex_layout_add(layout, GLP_ATTRIBUTE_NORMAL, offsetof(native_vertex_t, normal), sizeof(int16_t));
+    vertex_layout_add(layout, GLP_ATTRIBUTE_COLOR, offsetof(native_vertex_t, color), sizeof(uint32_t));
+    vertex_layout_add(layout, GLP_ATTRIBUTE_TEXCOORD, offsetof(native_vertex_t, texcoord), sizeof(int16_t)*2);
+    vertex_layout_set_stride(layout, sizeof(native_vertex_t));
+    vertex_layout_finalize(layout);
 }
 
-static void load_attribs_at_index(const gl_array_t *arrays, uint32_t index)
+void rsp_pipeline_init()
 {
-    gl_fill_all_attrib_defaults(arrays);
-    gl_load_attribs(arrays, index);
+    magma_rsp_state = PhysicalAddr(mg_get_rsp_state());
+    hashtable_init(&state->pipeline_cache, MAX_PIPELINE_COUNT, NULL);
+    create_begin_end_layout(&state->begin_end_layout);
 }
 
-static void load_last_attributes(const gl_array_t *arrays, uint32_t last_index)
+static void free_pipeline_visitor(uint32_t key, void *value, int refcount)
 {
-    load_attribs_at_index(arrays, last_index);
-    upload_current_attributes(arrays);
+    mg_pipeline_t **pipelines = value;
+    for (size_t i = 0; i < PIPELINE_COUNT; i++)
+    {
+        mg_pipeline_free(pipelines[i]);
+    }
+    free(pipelines);
 }
 
-static void glp_set_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size)
+void rsp_pipeline_close()
 {
-    static const glp_command_t cmd_table[] = { GLP_CMD_SET_LONG, GLP_CMD_SET_LONG, GLP_CMD_SET_WORD, GLP_CMD_SET_BYTE };
-    static const uint32_t cmd_size_table[] = { 3, 3, 2, 2 };
-    static const uint32_t offset_table[] = {
-        offsetof(gl_server_state_t, color),
-        offsetof(gl_server_state_t, tex_coords),
-        offsetof(gl_server_state_t, normal),
-        offsetof(gl_server_state_t, mtx_index)
-    };
-    static const int16_t default_value_table[][4] = {
-        { 0, 0, 0, 0x7FFF },
-        { 0, 0, 0, 1 }
-    };
+    if (state->begin_end_buffer.buffer != NULL) {
+        ringbuffer_free(&state->begin_end_buffer);
+    }
 
-    uint32_t table_index = array_type - 1;
+    hashtable_visit(&state->pipeline_cache, free_pipeline_visitor);
+    hashtable_free(&state->pipeline_cache);
+}
 
-    const uint32_t offset = offset_table[table_index];
+static void begin_end_next_buffer()
+{
+    if (rspq_block_is_recording()) {
+        state->begin_end_current_buffer = malloc_uncached(sizeof(native_vertex_t) * BEGIN_END_BUFFER_SIZE);
+        rspq_block_atexit(free_uncached, state->begin_end_current_buffer);
+    } else {
+        state->begin_end_current_buffer = ringbuffer_alloc_next(&state->begin_end_buffer);
+    }
+    state->begin_end_index = 0;
+    state->begin_end_load_index = 0;
+    mg_bind_vertex_buffer(state->begin_end_current_buffer);
+}
 
-    const rsp_read_attrib_func *read_funcs = rsp_read_funcs[array_type];
-    const rsp_read_attrib_func read_func = read_funcs[gl_type_to_index(type)];
+static native_vertex_t *begin_end_get_current_vertex()
+{
+    return state->begin_end_current_buffer + state->begin_end_index;
+}
 
-    gl_cmd_stream_t s = gl_cmd_stream_begin(glp_overlay_id, cmd_table[table_index], cmd_size_table[table_index]);
-    gl_cmd_stream_put_half(&s, offset);
-
-    switch (array_type) {
-    case ATTRIB_COLOR:
-    case ATTRIB_TEXCOORD:
-        read_func(&s, value, size);
-        read_funcs[gl_type_to_index(GL_SHORT)](&s, default_value_table[table_index] + size, 4 - size);
-        break;
-    case ATTRIB_NORMAL:
-        read_func(&s, value, size);
-        break;
-    case ATTRIB_MTX_INDEX:
-        for (uint32_t i = 0; i < 3; i++) gl_cmd_stream_put_byte(&s, 0);
-        read_func(&s, value, size);
-        break;
+static uint32_t get_begin_end_multiple(GLenum mode)
+{
+    switch (mode)
+    {
+    case GL_POINTS:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+        return 1;
+    case GL_LINES:
+    case GL_QUAD_STRIP:
+        return 2;
+    case GL_TRIANGLES:
+        return 3;
+    case GL_QUADS:
+        return 4;
     default:
-        assert(!"Unexpected array type");
-        break;
+        return 0;
     }
-
-    gl_cmd_stream_end(&s);
 }
 
-static void set_attrib(gl_array_type_t array_type, const void *value, GLenum type, uint32_t size)
+static bool get_begin_end_need_save(GLenum mode)
 {
-    glp_set_attrib(array_type, value, type, size);
-    gl_read_attrib(array_type, value, type, size);
-}
-
-static bool check_last_array_element(int32_t *index)
-{
-    if (state->last_array_element >= 0) {
-        *index = state->last_array_element;
-        state->last_array_element = -1;
+    switch (mode)
+    {
+    case GL_LINE_LOOP:
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
         return true;
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_STRIP:
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    default:
+        return false;
     }
-
-    return false;
 }
 
-static void require_array_element(const gl_array_t *arrays)
+static uint32_t get_client_flags()
 {
-    int32_t index;
-    if (check_last_array_element(&index)) {
-        for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    uint32_t client_flags = 0;
+    if (state->begin_end_active) client_flags |= CLIENT_FLAG_BEGIN_END;
+    if (state->array_object->arrays[ARRAY_COLOR].enabled) client_flags |= CLIENT_FLAG_COLOR_ARRAY;
+    return client_flags;
+}
+
+static void magma_init()
+{
+    uint32_t client_flags = get_client_flags();
+    gl2_write(GL_CMD_PRE_INIT_MAGMA, magma_rsp_state, client_flags);
+}
+
+static void gl_rsp_begin(GLenum mode)
+{
+    state->primitive_mode = mode;
+    state->begin_end_multiple = get_begin_end_multiple(mode);
+    state->begin_end_need_save = get_begin_end_need_save(mode);
+
+    update_pipelines_from_layout(&state->begin_end_layout);
+    magma_init();
+    mg_set_vertex_stride(sizeof(native_vertex_t));
+
+    mg_draw_begin();
+
+    if (!rspq_block_is_recording() && state->begin_end_buffer.buffer == NULL) {
+        ringbuffer_init(&state->begin_end_buffer, sizeof(native_vertex_t) * BEGIN_END_BUFFER_SIZE, BEGIN_END_BUFFER_COUNT);
+    }
+
+    begin_end_next_buffer();
+}
+
+__attribute__((noinline))
+static void begin_end_load()
+{
+    if (state->begin_end_index > state->begin_end_load_index) {
+        mg_load_vertices(state->begin_end_load_index, state->begin_end_load_index, state->begin_end_index - state->begin_end_load_index);
+        state->begin_end_load_index = state->begin_end_index;
+    }
+}
+
+static uint32_t draw_batch(GLenum mode, uint32_t count, uint32_t cache_offset)
+{
+    switch (mode) {
+        case GL_TRIANGLES:
         {
-            const gl_array_t *array = &arrays[i];
-            const void *value = gl_get_attrib_element(array, index);
-            set_attrib(i, value, array->type, array->size);
+            size_t prim_count = count / 3;
+            for (size_t i = 0; i < prim_count; i++) mg_draw_triangle(3*i, 3*i+1, 3*i+2);
+            return cache_offset;
         }
-    }
-}
-
-static inline gl_cmd_stream_t write_vertex_begin(uint32_t cache_index)
-{
-    gl_cmd_stream_t s = gl_cmd_stream_begin(glp_overlay_id, GLP_CMD_SET_PRIM_VTX, vtx_cmd_size>>2);
-    gl_cmd_stream_put_half(&s, cache_index * PRIM_VTX_SIZE);
-    return s;
-}
-
-static inline void write_vertex_end(gl_cmd_stream_t *s)
-{
-    gl_cmd_stream_end(s);
-}
-
-static void write_vertex_from_arrays(const gl_array_t *arrays, uint32_t index, uint8_t cache_index)
-{
-    gl_cmd_stream_t s = write_vertex_begin(cache_index);
-
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
-    {
-        const gl_array_t *array = &arrays[i];
-        if (!array->enabled) {
-            continue;
+        case GL_TRIANGLE_STRIP:
+        {
+            size_t prim_count = MAX(0, count - 2);
+            for (size_t i = 0; i < prim_count; i++) mg_draw_triangle(i, i + 1 + i%2, i + 2 - i%2);
+            return cache_offset;
         }
-
-        const void *src = gl_get_attrib_element(array, index);
-        array->rsp_read_func(&s, src, array->size);
-    }
-
-    write_vertex_end(&s);
-}
-
-static void submit_vertex(uint32_t cache_index)
-{
-    uint8_t indices[3];
-    if (gl_prim_assembly(cache_index, indices))
-    {
-        glpipe_draw_triangle(indices[0], indices[1], indices[2]);
-    }
-}
-
-static void draw_vertex_from_arrays(const gl_array_t *arrays, uint32_t id, uint32_t index)
-{
-    uint8_t cache_index;
-    if (gl_get_cache_index(id, &cache_index))
-    {
-        write_vertex_from_arrays(arrays, index, cache_index);
-    }
-
-    submit_vertex(cache_index);
-}
-
-static void gl_asm_vtx_loader(const gl_array_t *arrays)
-{
-    extern uint8_t rsp_gl_pipeline_text_start[];
-
-    rspq_write_t w = rspq_write_begin(glp_overlay_id, GLP_CMD_SET_VTX_LOADER, 3 + VTX_LOADER_MAX_COMMANDS);
-    rspq_write_arg(&w, PhysicalAddr(rsp_gl_pipeline_text_start) - 0x1000);
-
-    uint32_t pointer = PhysicalAddr(w.pointer);
-    bool aligned = (pointer & 0x7) == 0;
-
-    rspq_write_arg(&w, aligned ? pointer + 8 : pointer + 4);
-
-    if (aligned) {
-        rspq_write_arg(&w, 0);
-    }
-
-    const uint8_t default_reg = 16;
-    const uint8_t current_reg = 17;
-    const uint8_t cmd_ptr_reg = 20;
-    const uint8_t norm_reg = 2;
-    const uint8_t mtx_index_reg = 3;
-    const uint8_t dst_vreg_base = 24;
-    const uint32_t current_normal_offset = offsetof(gl_server_state_t, normal) - offsetof(gl_server_state_t, color);
-    const uint32_t current_mtx_index_offset = offsetof(gl_server_state_t, mtx_index) - offsetof(gl_server_state_t, color);
-
-    uint32_t cmd_offset = 0;
-
-    for (uint32_t i = 0; i < ATTRIB_NORMAL; i++)
-    {
-        const uint32_t dst_vreg = dst_vreg_base + i;
-        const gl_array_t *array = &arrays[i];
-
-        if (!array->enabled) {
-            rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, i-1, current_reg));
-        } else {
-            uint32_t cmd_size = array->size * 2;
-            uint32_t alignment = next_pow2(cmd_size);
-            if (cmd_offset & (alignment-1)) {
-                rspq_write_arg(&w, rsp_asm_addi(cmd_ptr_reg, cmd_ptr_reg, cmd_offset));
-                cmd_offset = 0;
+        case GL_TRIANGLE_FAN:
+        case GL_POLYGON:
+        {
+            size_t prim_count = MAX(0, count - 2 + cache_offset);
+            for (size_t i = 0; i < prim_count; i++) mg_draw_triangle(i+1, i+2, 0);
+            return 1;
+        }
+        case GL_QUADS:
+        {
+            size_t prim_count = count / 4;
+            for (size_t i = 0; i < prim_count; i++) {
+                size_t o = 4*i;
+                mg_draw_triangle(o, o+1, o+2);
+                mg_draw_triangle(o, o+2, o+3);
             }
-
-            switch (array->size)
+            return cache_offset;
+            
+        }
+        case GL_QUAD_STRIP:
+        {
+            size_t prim_count = MAX(0, count - 2) / 2;
+            for (size_t i = 0; i < prim_count; i++)
             {
-            case 1:
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, (i*8)>>3, default_reg));
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_HALF, dst_vreg, 0, cmd_offset>>1, cmd_ptr_reg));
-                break;
-            case 2:
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_LONG, dst_vreg, 0, cmd_offset>>2, cmd_ptr_reg));
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_LONG, dst_vreg, 4, ((i*8)>>2) + 1, default_reg));
-                break;
-            case 3:
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, cmd_offset>>3, cmd_ptr_reg));
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_HALF, dst_vreg, 6, ((i*8)>>1) + 3, default_reg));
-                break;
-            case 4:
-                rspq_write_arg(&w, rsp_asm_lwc2(VLOAD_DOUBLE, dst_vreg, 0, cmd_offset>>3, cmd_ptr_reg));
-                break;
+                size_t o = 2*i;
+                mg_draw_triangle(o, o+2, o+1);
+                mg_draw_triangle(o+1, o+2, o+3);
             }
-
-            cmd_offset += cmd_size;
+            return cache_offset;
+        }
+        default:
+        {
+            return cache_offset;
         }
     }
-
-    // TODO: optimize for when both normal and matrix index com from the same source (They fit into a single word)
-
-    if (!arrays[ATTRIB_NORMAL].enabled) {
-        rspq_write_arg(&w, rsp_asm_lw(norm_reg, current_normal_offset, current_reg));
-    } else {
-        rspq_write_arg(&w, rsp_asm_lw(norm_reg, cmd_offset, cmd_ptr_reg));
-        cmd_offset += 3;
-    }
-
-    if (!arrays[ATTRIB_MTX_INDEX].enabled) {
-        rspq_write_arg(&w, rsp_asm_lbu(mtx_index_reg, current_mtx_index_offset, current_reg));
-    } else {
-        rspq_write_arg(&w, rsp_asm_lbu(mtx_index_reg, cmd_offset, cmd_ptr_reg));
-    }
-
-    rspq_write_end(&w);
 }
 
-static uint32_t get_vertex_cmd_size(const gl_array_t *arrays)
+static void begin_end_draw_current_buffer()
 {
-    uint32_t cmd_size = 4;
+    begin_end_load();
+    draw_batch(state->primitive_mode, state->begin_end_index, 0);
 
-    for (uint32_t i = 0; i < ATTRIB_NORMAL; i++)
-    {
-        if (arrays[i].enabled) {
-            cmd_size += arrays[i].size * 2;
-        }
-    }
-    if (arrays[ATTRIB_NORMAL].enabled) {
-        cmd_size += 3;
-    }
-    if (arrays[ATTRIB_MTX_INDEX].enabled) {
-        cmd_size += 1;
-    }
-
-    return ROUND_UP(cmd_size, 4);
-}
-
-static void gl_update_vertex_cmd_size(const gl_array_t *arrays)
-{
-    vtx_cmd_size = get_vertex_cmd_size(arrays);
-
-    // TODO: This is dependent on the layout of data structures internal to rspq.
-    //       How can we make it more robust?
-
-    extern uint8_t rsp_queue_data_start[];
-    extern uint8_t rsp_queue_data_end[0];
-    extern uint8_t rsp_gl_pipeline_data_start[];
-
-    uint32_t ovl_data_offset = rsp_queue_data_end - rsp_queue_data_start;
-    uint8_t *rsp_gl_pipeline_ovl_header = rsp_gl_pipeline_data_start + ovl_data_offset;
-
-    #define CMD_DESC_SIZE   2
-
-    uint16_t *cmd_descriptor = (uint16_t*)(rsp_gl_pipeline_ovl_header + RSPQ_OVERLAY_HEADER_SIZE + GLP_CMD_SET_PRIM_VTX*CMD_DESC_SIZE);
-    uint16_t patched_cmd_descriptor = (*cmd_descriptor & 0x3FF) | ((vtx_cmd_size & 0xFC) << 8);
-
-    data_cache_hit_writeback_invalidate(cmd_descriptor, CMD_DESC_SIZE);
-    glpipe_set_vtx_cmd_size(patched_cmd_descriptor, cmd_descriptor);
-}
-
-static void gl_prepare_vtx_cmd(const gl_array_t *arrays)
-{
-    gl_asm_vtx_loader(arrays);
-    gl_update_vertex_cmd_size(arrays);
-}
-
-static void gl_rsp_begin()
-{
-    glpipe_init();
-    state->last_array_element = -1;
-    begin_end_type = BEGIN_END_INDETERMINATE;
+    if (!rspq_block_is_recording()) ringbuffer_release_current(&state->begin_end_buffer);
 }
 
 static void gl_rsp_end()
 {
-    int32_t index;
-    if (check_last_array_element(&index)) {
-        load_last_attributes(state->array_object->arrays, index);
+    // TODO: line loops will need special handling (insert saved vtx at the end)
+
+    if (state->begin_end_index > 0) {
+        begin_end_draw_current_buffer();
     }
 
-    if (state->begin_end_active) {
-        // TODO: Load from arrays
-        gl_set_current_color(state->current_attributes.color);
-        gl_set_current_texcoords(state->current_attributes.texcoord);
-        gl_set_current_normal(state->current_attributes.normal);
-        gl_set_current_mtx_index(state->current_attributes.mtx_index);
+    mg_draw_end();
+}
+
+static void begin_end_append_vtx(const native_vertex_t *vtx)
+{
+    memcpy(begin_end_get_current_vertex(), vtx, sizeof(native_vertex_t));
+    state->begin_end_index++;
+}
+
+static void begin_end_prep_next_buffer(const native_vertex_t *prev_end)
+{
+    // Appending these vertices is guaranteed to not overflow the buffer since we just started a fresh one
+    switch (state->primitive_mode) {
+    case GL_TRIANGLE_STRIP:
+    case GL_QUAD_STRIP:
+    {
+        // The two previous vertices
+        begin_end_append_vtx(prev_end - 2);
+        begin_end_append_vtx(prev_end - 1);
+        break;
     }
+    case GL_TRIANGLE_FAN:
+    case GL_POLYGON:
+    {
+        // The "hub" of the fan
+        begin_end_append_vtx(&state->begin_end_saved_vtx);
+        // The previous vertex
+        begin_end_append_vtx(prev_end - 1);
+        break;
+    }
+    }
+}
+
+static void begin_end_advance()
+{
+    begin_end_append_vtx(&state->current_attribs);
+
+    // In some cases, we need to save the very first vertex for later (for example triangle fan, line loop)
+    if (state->begin_end_need_save) {
+        memcpy(&state->begin_end_saved_vtx, &state->current_attribs, sizeof(native_vertex_t));
+        state->begin_end_need_save = false;
+    }
+
+    // Check if we have reached the required multiple of vertices and the next multiple would overflow the current buffer
+    if (state->begin_end_index % state->begin_end_multiple == 0 && 
+        state->begin_end_index + state->begin_end_multiple > BEGIN_END_BUFFER_SIZE) {
+        begin_end_draw_current_buffer();
+        native_vertex_t *prev_end = begin_end_get_current_vertex();
+        begin_end_next_buffer();
+        begin_end_prep_next_buffer(prev_end);
+    }
+}
+
+static void *get_attrib_dst(array_type_t array_type)
+{
+    switch (array_type)
+    {
+    case ARRAY_VERTEX:
+        return state->current_attribs.position;
+    case ARRAY_NORMAL:
+        return &state->current_attribs.normal;
+    case ARRAY_COLOR:
+        return &state->current_attribs.color;
+    case ARRAY_TEXCOORD:
+        return state->current_attribs.texcoord;
+    case ARRAY_MTX_INDEX:
+        return state->current_attribs.mtx_index;
+    default:
+        return NULL;
+    }
+}
+
+void rsp_read_attrib(array_type_t array_type, GLenum type, const void *value, uint32_t size)
+{
+    rsp_read_attrib_func read_func = rsp_read_funcs[array_type][gl_type_to_index(type)];
+    assertf(read_func != NULL, "Could not find read func");
+    void *dst = get_attrib_dst(array_type);
+    assertf(dst != NULL, "Array type not supported");
+
+    read_func(dst, value, size);
 }
 
 static void gl_rsp_vertex(const void *value, GLenum type, uint32_t size)
 {
-    if (begin_end_type != BEGIN_END_VERTEX) {
-        gl_prepare_vtx_cmd(dummy_arrays);
-        begin_end_type = BEGIN_END_VERTEX;
+    rsp_read_attrib(ARRAY_VERTEX, type, value, size);
+    begin_end_advance();
+}
+
+static void load_matrix(uint8_t mtx_index)
+{
+    const mg_uniform_t *uniform = get_matrices_uniform();
+    mg_uniform_load(uniform, state->matrix_palette + mtx_index);
+}
+
+static void gl_rsp_mtx_index(const uint8_t *mtx_index)
+{
+    if (state->begin_end_active) {
+        begin_end_load();
+        load_matrix(*mtx_index);
     }
+}
 
-    static const int16_t default_values[] = { 0, 0, 0, 1 };
+static void get_array_element_convert_parms(array_convert_parms_t *parms, uint32_t index)
+{
+    static const data_layout_t layout = {
+        .offsets = {
+            offsetof(native_vertex_t, position),
+            offsetof(native_vertex_t, normal),
+            offsetof(native_vertex_t, color),
+            offsetof(native_vertex_t, texcoord),
+            offsetof(native_vertex_t, mtx_index),
+        },
+        .stride = sizeof(native_vertex_t)
+    };
 
-    uint8_t cache_index;
-    if (gl_get_cache_index(next_prim_id(), &cache_index))
+    for (array_type_t i = 0; i < ARRAY_COUNT; i++)
     {
-        require_array_element(state->array_object->arrays);
-
-        rsp_read_attrib_func read_func = rsp_read_funcs[ATTRIB_VERTEX][gl_type_to_index(type)];
-
-        gl_cmd_stream_t s = write_vertex_begin(cache_index);
-        read_func(&s, value, size);
-        vtx_read_i16(&s, default_values + size, 4 - size);
-        write_vertex_end(&s);
+        parms->arrays[i] = &state->array_object->arrays[i];
     }
 
-    submit_vertex(cache_index);
+    parms->array_count = ARRAY_COUNT;
+    parms->out_layout = &layout;
+    parms->out_buffer = &state->current_attribs;
+    parms->range.first = index;
+    parms->range.count = 1;
 }
 
-static void gl_rsp_color(const void *value, GLenum type, uint32_t size)
+static bool is_array_enabled(array_type_t type)
 {
-    set_attrib(ATTRIB_COLOR, value, type, size);
+    return state->array_object->arrays[type].enabled;
 }
 
-static void gl_rsp_tex_coord(const void *value, GLenum type, uint32_t size)
+static bool is_vertex_array_enabled()
 {
-    set_attrib(ATTRIB_TEXCOORD, value, type, size);
-}
-
-static void gl_rsp_normal(const void *value, GLenum type, uint32_t size)
-{
-    set_attrib(ATTRIB_NORMAL, value, type, size);
-}
-
-static void gl_rsp_mtx_index(const void *value, GLenum type, uint32_t size)
-{
-    set_attrib(ATTRIB_MTX_INDEX, value, type, size);
+    return is_array_enabled(ARRAY_VERTEX);
 }
 
 static void gl_rsp_array_element(uint32_t index)
 {
-    if (begin_end_type != BEGIN_END_ARRAY_ELEMENT) {
-        gl_prepare_vtx_cmd(state->array_object->arrays);
-        begin_end_type = BEGIN_END_ARRAY_ELEMENT;
+    array_convert_parms_t convert_parms;
+    get_array_element_convert_parms(&convert_parms, index);
+    array_convert(&convert_parms);
+
+    if (is_array_enabled(ARRAY_MTX_INDEX)) {
+        gl_rsp_mtx_index(state->current_attribs.mtx_index);
     }
 
-    draw_vertex_from_arrays(state->array_object->arrays, index, index);
-    state->last_array_element = index;
+    if (is_vertex_array_enabled()) {
+        begin_end_advance();
+    }
+    // TODO: if vertex array is not enabled, send attributes to RSP?
 }
 
-static void gl_rsp_draw_arrays(uint32_t first, uint32_t count)
+static data_view_t get_vertex_data_for_block(gl_array_object_t *array_object, index_bounds_t bounds)
 {
-    if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
-        gl_prepare_vtx_cmd(state->array_object->arrays);
-        for (uint32_t i = 0; i < count; i++)
-        {
-            draw_vertex_from_arrays(state->array_object->arrays, next_prim_id(), first + i);
-        }
-    }
+    uint32_t stride = data_source_get_stride(&array_object->vertex_data_source);
 
-    load_last_attributes(state->array_object->arrays, first + count - 1);
+    void *buffer = malloc_uncached(stride * bounds.count);
+    rspq_block_atexit(free_uncached, buffer);
+    data_source_pull(&array_object->vertex_data_source, buffer, bounds);
+
+    return (data_view_t) {
+        .pointer = buffer,
+        .stride = data_source_get_stride(&array_object->vertex_data_source)
+    };
 }
 
-static void gl_rsp_draw_elements(uint32_t count, const void* indices, read_index_func read_index)
+static void update_pipelines(gl_array_object_t *array_object)
 {
-    gl_fill_all_attrib_defaults(state->array_object->arrays);
+    vertex_layout_cache_update(&array_object->layout_cache, array_object->arrays);
+    const vertex_layout_t *vertex_layout = vertex_layout_cache_get_layout(&array_object->layout_cache);
+    update_pipelines_from_layout(vertex_layout);
+}
 
-    if (state->array_object->arrays[ATTRIB_VERTEX].enabled) {
-        gl_prepare_vtx_cmd(state->array_object->arrays);
-        for (uint32_t i = 0; i < count; i++)
-        {
-            uint32_t index = read_index(indices, i);
-            draw_vertex_from_arrays(state->array_object->arrays, index, index);
-        }
+static data_view_t get_vertex_data_view(gl_array_object_t *array_object, index_bounds_t bounds)
+{
+    if (rspq_block_is_recording()) {
+        return get_vertex_data_for_block(array_object, bounds);
     }
 
-    load_last_attributes(state->array_object->arrays, read_index(indices, count - 1));
+    return data_cache_prepare_at_bounds(&array_object->vertex_data_cache, bounds);
+}
+
+static void prepare_vertex_data(gl_array_object_t *array_object, index_bounds_t bounds)
+{
+    data_view_t vertex_data_view = get_vertex_data_view(state->array_object, bounds);
+    mg_set_vertex_stride(vertex_data_view.stride);
+    mg_bind_vertex_buffer(vertex_data_view.pointer);
+}
+
+static void prepare_drawing(gl_array_object_t *array_object, index_bounds_t bounds)
+{
+    update_pipelines(array_object);
+    magma_init();
+    prepare_vertex_data(array_object, bounds);
+}
+
+static void gl_rsp_draw_arrays(GLenum mode, uint32_t first, uint32_t count)
+{
+    if (!is_vertex_array_enabled()) {
+        return;
+    }
+    
+    index_bounds_t range = {
+        .first = first,
+        .count = count
+    };
+    
+    prepare_drawing(state->array_object, range);
+
+    mg_draw_begin();
+    mg_input_assembly_parms_t input_assembly_parms = array_object_get_input_assembly_parms(state->array_object, mode, range);
+    mg_ex_draw(&input_assembly_parms, count, first, mode);
+    mg_draw_end();
+}
+
+static const uint16_t *get_indices_from_buffer(gl_buffer_object_t *buffer_object, uint32_t offset)
+{
+    return (const uint16_t*)((const uint8_t*)buffer_object->storage.data + offset);
+}
+
+static const uint16_t *get_indices(gl_buffer_object_t *element_buffer, const void* indices)
+{
+    if (element_buffer == NULL) {
+        return (const uint16_t*)indices;
+    } else {
+        return get_indices_from_buffer(element_buffer, (uint32_t)indices);
+    }
+}
+
+static cached_draw_call_t *prepare_draw_call(gl_array_object_t *array_object, const draw_call_parms_t *parms, const void *index_data)
+{
+    draw_call_cache_t *draw_call_cache = array_object_get_draw_call_cache(array_object);
+    return draw_call_cache_get_or_create(draw_call_cache, parms, index_data, array_object);
+}
+
+static void draw_elements_from_buffer(GLenum mode, uint32_t count, const void* indices, gl_buffer_object_t *element_buffer)
+{
+    draw_call_parms_t parms = {
+        .mode = mode,
+        .offset = (uint32_t)indices,
+        .count = count
+    };
+
+    const void *index_data = get_indices(element_buffer, indices);
+    cached_draw_call_t *draw_call = prepare_draw_call(state->array_object, &parms, index_data);
+    
+    prepare_drawing(state->array_object, draw_call->index_range);
+
+    mg_draw_begin();
+    draw_call_run(draw_call);
+    mg_draw_end();
+}
+
+static void draw_elements_from_pointer(GLenum mode, uint32_t count, const void* indices)
+{
+    index_bounds_t range = find_index_bounds(indices, count);
+
+    prepare_drawing(state->array_object, range);
+
+    mg_draw_begin();
+    mg_input_assembly_parms_t input_assembly_parms = array_object_get_input_assembly_parms(state->array_object, mode, range);
+    mg_ex_draw_indexed(&input_assembly_parms, indices, count, -range.first, mode);
+    mg_draw_end();
+}
+
+static void gl_rsp_draw_elements(GLenum mode, uint32_t count, const void* indices, GLenum type)
+{
+    assertf(type == GL_UNSIGNED_SHORT, "Index type must be GL_UNSIGNED_SHORT");
+    
+    if (!is_vertex_array_enabled()) {
+        return;
+    }
+
+    gl_buffer_object_t *element_buffer = state->array_object->element_array_buffer;
+    
+    if (element_buffer != NULL && !rspq_block_is_recording()) {
+        draw_elements_from_buffer(mode, count, indices, element_buffer);
+    } else {
+        const void *index_data = get_indices(element_buffer, indices);
+        draw_elements_from_pointer(mode, count, index_data);
+    }
 }
 
 const gl_pipeline_t gl_rsp_pipeline = (gl_pipeline_t) {
     .begin = gl_rsp_begin,
     .end = gl_rsp_end,
     .vertex = gl_rsp_vertex,
-    .color = gl_rsp_color,
-    .tex_coord = gl_rsp_tex_coord,
-    .normal = gl_rsp_normal,
     .mtx_index = gl_rsp_mtx_index,
     .array_element = gl_rsp_array_element,
     .draw_arrays = gl_rsp_draw_arrays,

@@ -13,6 +13,8 @@
 #include "../rdpq/rdpq_internal.h"
 #include <malloc.h>
 #include <string.h>
+#include "array.h"
+#include "rsp_pipeline.h"
 
 _Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_DEPTH_TEST     >> TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_ZBUF << 8));
 _Static_assert(((RDPQ_CMD_TRI << 8) | (FLAG_TEXTURE_ACTIVE >> TRICMD_ATTR_SHIFT)) == (RDPQ_CMD_TRI_TEX  << 8));
@@ -21,22 +23,10 @@ _Static_assert(((FLAG_DEPTH_TEST | FLAG_TEXTURE_ACTIVE) >> TRICMD_ATTR_SHIFT) ==
 
 extern gl_state_t *state;
 
-uint8_t gl_points();
-uint8_t gl_lines();
-uint8_t gl_line_strip();
-uint8_t gl_triangles();
-uint8_t gl_triangle_strip();
-uint8_t gl_triangle_fan();
-uint8_t gl_quads();
-
-void gl_reset_vertex_cache();
-
-void gl_init_cpu_pipe();
-void gl_vertex_pre_tr(uint8_t cache_index);
-void gl_draw_primitive(const uint8_t *indices);
-
 void gl_primitive_init()
 {
+    rsp_pipeline_init();
+
     state->tex_gen[0].mode = GL_EYE_LINEAR;
     state->tex_gen[0].object_plane[0] = 1;
     state->tex_gen[0].eye_plane[0] = 1;
@@ -51,18 +41,15 @@ void gl_primitive_init()
     state->point_size = 1;
     state->line_width = 1;
 
-    state->current_attributes.color[0] = 1;
-    state->current_attributes.color[1] = 1;
-    state->current_attributes.color[2] = 1;
-    state->current_attributes.color[3] = 1;
-    state->current_attributes.texcoord[3] = 1;
-    state->current_attributes.normal[2] = 1;
+    glNormal3f(0, 0, 1);
+    glColor4f(1, 1, 1, 1);
+    glTexCoord4f(0, 0, 0, 1);
 
-    state->vertex_halfx_precision.target_precision = VTX_SHIFT;
-    state->texcoord_halfx_precision.target_precision = TEX_SHIFT;
+    state->vertex_halfx_precision.target_precision = GLP_VTX_POS_SHIFT;
+    state->texcoord_halfx_precision.target_precision = GLP_VTX_TEX_SHIFT;
 
-    glVertexHalfFixedPrecisionN64(VTX_SHIFT);
-    glTexCoordHalfFixedPrecisionN64(TEX_SHIFT);
+    glVertexHalfFixedPrecisionN64(GLP_VTX_POS_SHIFT);
+    glTexCoordHalfFixedPrecisionN64(GLP_VTX_TEX_SHIFT);
 
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
@@ -71,9 +58,10 @@ void gl_primitive_init()
 
 void gl_primitive_close()
 {
+    rsp_pipeline_close();
 }
 
-bool gl_can_use_rsp_pipeline()
+bool gl_can_use_rsp_pipeline(GLenum mode)
 {
     #define WARN_CPU_REQUIRED(msg) ({ \
         static bool warn_state ## __LINE__; \
@@ -82,6 +70,23 @@ bool gl_can_use_rsp_pipeline()
             debugf("GL WARNING: The CPU pipeline is being used because a feature is enabled that is not supported on RSP: " msg "\n"); \
         } \
     })
+
+    switch (mode) {
+    case GL_TRIANGLES:
+    case GL_TRIANGLE_STRIP:
+    case GL_TRIANGLE_FAN:
+    case GL_QUADS:
+    case GL_QUAD_STRIP:
+    case GL_POLYGON:
+        break;
+    case GL_POINTS:
+    case GL_LINES:
+    case GL_LINE_LOOP:
+    case GL_LINE_STRIP:
+    default:
+        WARN_CPU_REQUIRED("primitive mode");
+        return false;
+    }
 
     // Points and lines are not implemented
     if (state->polygon_mode != GL_FILL) {
@@ -114,6 +119,20 @@ bool gl_can_use_rsp_pipeline()
         }
     }
 
+    for (size_t i = 0; i < TEX_GEN_COUNT; i++)
+    {
+        if (state->tex_gen[i].enabled) {
+            if (state->tex_gen[i].mode == GL_OBJECT_LINEAR) {
+                WARN_CPU_REQUIRED("tex gen object linear");
+                return false;
+            }
+            if (state->tex_gen[i].mode == GL_EYE_LINEAR) {
+                WARN_CPU_REQUIRED("tex gen eye linear");
+                return false;
+            }
+        }
+    }
+
     return true;
 
     #undef WARN_CPU_REQUIRED
@@ -124,118 +143,46 @@ void set_can_use_rsp_dirty()
     state->can_use_rsp_dirty = true;
 }
 
-bool gl_init_prim_assembly(GLenum mode)
+extern const gl_pipeline_t gl_cpu_pipeline;
+extern const gl_pipeline_t gl_rsp_pipeline;
+
+static void prepare_drawing(GLenum mode)
 {
+    state->can_use_rsp = gl_can_use_rsp_pipeline(mode);
+    state->current_pipeline = state->can_use_rsp ? &gl_rsp_pipeline : &gl_cpu_pipeline;
 
-    state->lock_next_vertex = false;
+    gl_pre_init_pipe(mode);
+    array_object_update_pointers(state->array_object);
+}
 
+static bool validate_mode(GLenum mode)
+{
     switch (mode) {
     case GL_POINTS:
-        state->prim_func = gl_points;
-        state->prim_size = 1;
-        break;
     case GL_LINES:
-        state->prim_func = gl_lines;
-        state->prim_size = 2;
-        break;
     case GL_LINE_LOOP:
-        // Line loop is equivalent to line strip, except for special case handled in glEnd
-        state->prim_func = gl_line_strip;
-        state->prim_size = 2;
-        state->lock_next_vertex = true;
-        break;
     case GL_LINE_STRIP:
-        state->prim_func = gl_line_strip;
-        state->prim_size = 2;
-        break;
     case GL_TRIANGLES:
-        state->prim_func = gl_triangles;
-        state->prim_size = 3;
-        break;
     case GL_TRIANGLE_STRIP:
-        state->prim_func = gl_triangle_strip;
-        state->prim_size = 3;
-        break;
     case GL_TRIANGLE_FAN:
-        state->prim_func = gl_triangle_fan;
-        state->prim_size = 3;
-        state->lock_next_vertex = true;
-        break;
     case GL_QUADS:
-        state->prim_func = gl_quads;
-        state->prim_size = 3;
-        break;
     case GL_QUAD_STRIP:
-        // Quad strip is equivalent to triangle strip
-        state->prim_func = gl_triangle_strip;
-        state->prim_size = 3;
-        break;
     case GL_POLYGON:
-        // Polygon is equivalent to triangle fan
-        state->prim_func = gl_triangle_fan;
-        state->prim_size = 3;
-        state->lock_next_vertex = true;
-        break;
+        return true;
     default:
         gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
         return false;
     }
-
-    state->primitive_mode = mode;
-    state->prim_progress = 0;
-    state->prim_counter = 0;
-    state->prim_id = 0x80000000;
-
-    return true;
-}
-
-extern const gl_pipeline_t gl_cpu_pipeline;
-extern const gl_pipeline_t gl_rsp_pipeline;
-
-bool gl_begin(GLenum mode)
-{
-    if (state->can_use_rsp_dirty) {
-        state->can_use_rsp = gl_can_use_rsp_pipeline();
-        state->can_use_rsp_dirty = false;
-    }
-
-    if (!gl_init_prim_assembly(mode)) {
-        return false;
-    }
-
-    gl_reset_vertex_cache();
-
-    __rdpq_autosync_change(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
-
-    gl_pre_init_pipe(mode);
-
-    // FIXME: This is pessimistically marking everything as used, even if textures are turned off
-    //        CAUTION: texture state is owned by the RSP currently, so how can we determine this?
-    __rdpq_autosync_use(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEM(0));
-
-    gl_update_array_pointers(state->array_object);
-
-    // Only triangles are implemented on RSP
-    bool rsp_pipeline_enabled = state->can_use_rsp && state->prim_size == 3;
-    state->current_pipeline = rsp_pipeline_enabled ? &gl_rsp_pipeline : &gl_cpu_pipeline;
-    
-    state->current_pipeline->begin();
-
-    return true;
-}
-
-void gl_end()
-{
-    state->current_pipeline->end();
 }
 
 void glBegin(GLenum mode)
 {
     if (!gl_ensure_no_begin_end()) return;
+    if (!validate_mode(mode)) return;
 
-    if (gl_begin(mode)) {
-        state->begin_end_active = true;
-    }
+    prepare_drawing(mode);
+    state->begin_end_active = true;
+    state->current_pipeline->begin(mode);
 }
 
 void glEnd(void)
@@ -244,63 +191,15 @@ void glEnd(void)
         gl_set_error(GL_INVALID_OPERATION, "glEnd must be called after glBegin");
     }
 
-    gl_end();
-
+    state->current_pipeline->end();
     state->begin_end_active = false;
 }
 
-void gl_reset_vertex_cache()
+void gl_load_attribs(const array_t *arrays, uint32_t index)
 {
-    memset(state->vertex_cache_ids, 0, sizeof(state->vertex_cache_ids));
-    memset(state->lru_age_table, 0, sizeof(state->lru_age_table));
-    state->lru_next_age = 1;
-}
-
-bool gl_check_vertex_cache(uint32_t id, uint8_t *cache_index, bool lock)
-{
-    const uint32_t INFINITE_AGE = 0xFFFFFFFF; // infinitely recent
-
-    bool miss = true;
-
-    uint32_t min_age = INFINITE_AGE;
-    for (uint8_t ci = 0; ci < VERTEX_CACHE_SIZE; ci++)
+    for (uint32_t i = 0; i < ARRAY_COUNT; i++)
     {
-        if (state->vertex_cache_ids[ci] == id) {
-            miss = false;
-            *cache_index = ci;
-            break;
-        }
-
-        if (state->lru_age_table[ci] < min_age) {
-            min_age = state->lru_age_table[ci];
-            *cache_index = ci;
-        }
-    }
-
-    uint32_t age = lock ? INFINITE_AGE : state->lru_next_age++;
-    state->lru_age_table[*cache_index] = age;
-    state->vertex_cache_ids[*cache_index] = id;
-
-    return miss;
-}
-
-bool gl_get_cache_index(uint32_t vertex_id, uint8_t *cache_index)
-{
-    bool result = gl_check_vertex_cache(vertex_id + 1, cache_index, state->lock_next_vertex);
-
-    if (state->lock_next_vertex) {
-        state->lock_next_vertex = false;
-        state->locked_vertex = *cache_index;
-    }
-
-    return result;
-}
-
-void gl_load_attribs(const gl_array_t *arrays, uint32_t index)
-{
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
-    {
-        const gl_array_t *array = &arrays[i];
+        const array_t *array = &arrays[i];
         if (!array->enabled) {
             continue;
         }
@@ -312,15 +211,15 @@ void gl_load_attribs(const gl_array_t *arrays, uint32_t index)
     }
 }
 
-void gl_fill_attrib_defaults(gl_array_type_t array_type, uint32_t size)
+void gl_fill_attrib_defaults(array_type_t array_type, uint32_t size)
 {
     static const GLfloat default_attribute_value[] = {0.0f, 0.0f, 0.0f, 1.0f};
     uint32_t element_size = sizeof(GLfloat);
 
     switch (array_type) {
-    case ATTRIB_VERTEX:
-    case ATTRIB_COLOR:
-    case ATTRIB_TEXCOORD:
+    case ARRAY_VERTEX:
+    case ARRAY_COLOR:
+    case ARRAY_TEXCOORD:
         break;
     default:
         return;
@@ -331,12 +230,12 @@ void gl_fill_attrib_defaults(gl_array_type_t array_type, uint32_t size)
     memcpy(dst, src, (4 - size) * element_size);
 }
 
-void gl_fill_all_attrib_defaults(const gl_array_t *arrays)
+void gl_fill_all_attrib_defaults(const array_t *arrays)
 {
     // There are no default values for the matrix index because it is always specified fully.
-    for (uint32_t i = 0; i < ATTRIB_COUNT; i++)
+    for (uint32_t i = 0; i < ARRAY_COUNT; i++)
     {
-        const gl_array_t *array = &arrays[i];
+        const array_t *array = &arrays[i];
         if (!arrays[i].enabled) {
             continue;
         }
@@ -345,190 +244,49 @@ void gl_fill_all_attrib_defaults(const gl_array_t *arrays)
     }
 }
 
-uint8_t gl_points()
-{
-    // Reset the progress to zero since we start with a completely new primitive that
-    // won't share any vertices with the previous ones
-    return 0;
-}
-
-uint8_t gl_lines()
-{
-    // Reset the progress to zero since we start with a completely new primitive that
-    // won't share any vertices with the previous ones
-    return 0;
-}
-
-uint8_t gl_line_strip()
-{
-    state->prim_indices[0] = state->prim_indices[1];
-
-    return 1;
-}
-
-uint8_t gl_triangles()
-{
-    // Reset the progress to zero since we start with a completely new primitive that
-    // won't share any vertices with the previous ones
-    return 0;
-}
-
-uint8_t gl_triangle_strip()
-{
-    // Which vertices are shared depends on whether the primitive counter is odd or even
-    state->prim_indices[state->prim_counter] = state->prim_indices[2];
-    state->prim_counter ^= 1;
-
-    // The next triangle will share two vertices with the previous one, so reset progress to 2
-    return 2;
-}
-
-uint8_t gl_triangle_fan()
-{
-    state->prim_indices[1] = state->prim_indices[2];
-
-    // The next triangle will share two vertices with the previous one, so reset progress to 2
-    // It will always share the last one and the very first vertex that was specified.
-    // To make sure the first vertex is not overwritten it was locked earlier (see glBegin)
-    return 2;
-}
-
-uint8_t gl_quads()
-{
-    state->prim_indices[1] = state->prim_indices[2];
-
-    state->prim_counter ^= 1;
-    return state->prim_counter << 1;
-}
-
-bool gl_prim_assembly(uint8_t cache_index, uint8_t *indices)
-{
-    if (state->lock_next_vertex) {
-        state->lock_next_vertex = false;
-        state->locked_vertex = cache_index;
-    }
-
-    state->prim_indices[state->prim_progress] = cache_index;
-    state->prim_progress++;
-
-    if (state->prim_progress < state->prim_size) {
-        return false;
-    }
-
-    memcpy(indices, state->prim_indices, state->prim_size * sizeof(uint8_t));
-
-    assert(state->prim_func != NULL);
-    state->prim_progress = state->prim_func();
-    return true;
-}
-
 void glDrawArrays(GLenum mode, GLint first, GLsizei count)
 {
     if (!gl_ensure_no_begin_end()) return;
-
-    switch (mode) {
-    case GL_POINTS:
-    case GL_LINES:
-    case GL_LINE_LOOP:
-    case GL_LINE_STRIP:
-    case GL_TRIANGLES:
-    case GL_TRIANGLE_STRIP:
-    case GL_TRIANGLE_FAN:
-    case GL_QUADS:
-    case GL_QUAD_STRIP:
-    case GL_POLYGON:
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
-        return;
-    }
+    if (!validate_mode(mode)) return;
 
     if (count == 0) {
         return;
     }
 
-    gl_begin(mode);
-    state->current_pipeline->draw_arrays(first, count);
-    gl_end();
-}
+    array_object_validate_drawing(state->array_object, false);
 
-uint32_t read_index_8(const uint8_t *src, uint32_t i)
-{
-    return src[i];
-}
-
-uint32_t read_index_16(const uint16_t *src, uint32_t i)
-{
-    return src[i];
-}
-
-uint32_t read_index_32(const uint32_t *src, uint32_t i)
-{
-    return src[i];
+    prepare_drawing(mode);
+    state->current_pipeline->draw_arrays(mode, first, count);
 }
 
 void glDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices)
 {
     if (!gl_ensure_no_begin_end()) return;
-
-    switch (mode) {
-    case GL_POINTS:
-    case GL_LINES:
-    case GL_LINE_LOOP:
-    case GL_LINE_STRIP:
-    case GL_TRIANGLES:
-    case GL_TRIANGLE_STRIP:
-    case GL_TRIANGLE_FAN:
-    case GL_QUADS:
-    case GL_QUAD_STRIP:
-    case GL_POLYGON:
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid primitive mode", mode);
-        return;
-    }
-
-    read_index_func read_index;
-
-    switch (type) {
-    case GL_UNSIGNED_BYTE:
-        read_index = (read_index_func)read_index_8;
-        break;
-    case GL_UNSIGNED_SHORT:
-        read_index = (read_index_func)read_index_16;
-        break;
-    case GL_UNSIGNED_INT:
-        read_index = (read_index_func)read_index_32;
-        break;
-    default:
-        gl_set_error(GL_INVALID_ENUM, "%#04lx is not a valid index type", type);
-        return;
-    }
+    if (!validate_mode(mode)) return;
     
     if (count == 0) {
         return;
     }
 
-    if (state->element_array_buffer != NULL) {
-        indices = state->element_array_buffer->storage.data + (uint32_t)indices;
-    }
+    array_object_validate_drawing(state->array_object, true);
 
-    gl_begin(mode);
-    state->current_pipeline->draw_elements(count, indices, read_index);
-    gl_end();
+    prepare_drawing(mode);
+    state->current_pipeline->draw_elements(mode, count, indices, type);
 }
 
 void glArrayElement(GLint i)
 {
     // Calling glArrayElement while the vertex array is enabled has, among other things,
     // the same effect as glVertex. See __gl_vertex for that function's behavior.
-    assertf(!state->array_object->arrays[ATTRIB_VERTEX].enabled || state->begin_end_active, 
+    assertf(!state->array_object->arrays[ARRAY_VERTEX].enabled || state->begin_end_active, 
         "glArrayElement was called outside of glBegin/glEnd while vertex array was enabled");
 
     if (i < 0) {
         gl_set_error(GL_INVALID_VALUE, "Index must not be negative");
         return;
     }
+
+    array_object_validate_drawing(state->array_object, false);
 
     state->current_pipeline->array_element(i);
 }
@@ -541,33 +299,33 @@ void __gl_vertex(GLenum type, const void *value, uint32_t size)
     state->current_pipeline->vertex(value, type, size);
 }
 
+static void read_attrib(array_type_t array_type, const void *value, GLenum type, uint32_t size)
+{
+    gl_read_attrib(array_type, value, type, size);
+    rsp_read_attrib(array_type, type, value, size);
+}
+
+void __gl_normal(GLenum type, const void *value, uint32_t size)
+{
+    read_attrib(ARRAY_NORMAL, value, type, size);
+    if (!state->begin_end_active) {
+        gl_set_current_normal(state->current_attributes.normal);
+    }
+}
+
 void __gl_color(GLenum type, const void *value, uint32_t size)
 {
-    if (state->begin_end_active) {
-        state->current_pipeline->color(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_COLOR, value, type, size);
+    read_attrib(ARRAY_COLOR, value, type, size);
+    if (!state->begin_end_active) {
         gl_set_current_color(state->current_attributes.color);
     }
 }
 
 void __gl_tex_coord(GLenum type, const void *value, uint32_t size)
 {
-    if (state->begin_end_active) {
-        state->current_pipeline->tex_coord(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_TEXCOORD, value, type, size);
+    read_attrib(ARRAY_TEXCOORD, value, type, size);
+    if (!state->begin_end_active) {
         gl_set_current_texcoords(state->current_attributes.texcoord);
-    }
-}
-
-void __gl_normal(GLenum type, const void *value, uint32_t size)
-{
-    if (state->begin_end_active) {
-        state->current_pipeline->normal(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_NORMAL, value, type, size);
-        gl_set_current_normal(state->current_attributes.normal);
     }
 }
 
@@ -578,12 +336,11 @@ void __gl_mtx_index(GLenum type, const void *value, uint32_t size)
         return;
     }
 
-    if (state->begin_end_active) {
-        state->current_pipeline->mtx_index(value, type, size);
-    } else {
-        gl_read_attrib(ATTRIB_MTX_INDEX, value, type, size);
+    read_attrib(ARRAY_MTX_INDEX, value, type, size);
+    if (!state->begin_end_active) {
         gl_set_current_mtx_index(state->current_attributes.mtx_index);
     }
+    state->current_pipeline->mtx_index(state->current_attributes.mtx_index);
 }
 
 #define __ATTR_IMPL(func, argtype, enumtype, ...) ({\
@@ -761,9 +518,9 @@ void glRectf(GLfloat x1, GLfloat y1, GLfloat x2, GLfloat y2)        { __RECT_IMP
 void glRectd(GLdouble x1, GLdouble y1, GLdouble x2, GLdouble y2)    { __RECT_IMPL(glVertex2d, x1, y1, x2, y2); }
 
 void glRectsv(const GLshort *v1, const GLshort *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
-void glRectiv(const GLint *v1, const GLint *v2)         { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
-void glRectfv(const GLfloat *v1, const GLfloat *v2)     { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
-void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2s, v1[0], v1[1], v2[0], v2[1]); }
+void glRectiv(const GLint *v1, const GLint *v2)         { __RECT_IMPL(glVertex2i, v1[0], v1[1], v2[0], v2[1]); }
+void glRectfv(const GLfloat *v1, const GLfloat *v2)     { __RECT_IMPL(glVertex2f, v1[0], v1[1], v2[0], v2[1]); }
+void glRectdv(const GLdouble *v1, const GLdouble *v2)   { __RECT_IMPL(glVertex2d, v1[0], v1[1], v2[0], v2[1]); }
 
 void glPointSize(GLfloat size)
 {
@@ -825,6 +582,9 @@ void glPolygonMode(GLenum face, GLenum mode)
 void glDepthRange(GLclampd n, GLclampd f)
 {
     if (!gl_ensure_no_begin_end()) return;
+
+    state->current_viewport.n = n;
+    state->current_viewport.f = f;
     
     state->current_viewport.scale[2] = (f - n) * 0.5f;
     state->current_viewport.offset[2] = n + (f - n) * 0.5f;
@@ -840,6 +600,11 @@ void glDepthRange(GLclampd n, GLclampd f)
 void glViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
     if (!gl_ensure_no_begin_end()) return;
+
+    state->current_viewport.x = x;
+    state->current_viewport.y = y;
+    state->current_viewport.w = w;
+    state->current_viewport.h = h;
     
     uint32_t fbh = state->color_buffer->height;
 
