@@ -1,0 +1,117 @@
+/**
+ * @file ksemaphore.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @brief Kernel Semaphore prmitive
+ * @ingroup kernel
+ * 
+ */
+
+#ifndef LIBDRAGON_KERNEL_KSEMAPHORE_H
+#define LIBDRAGON_KERNEL_KSEMAPHORE_H
+
+#include <stdint.h>
+#include "preview.h"
+#include "kernel.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** @brief Kernel Semaphore structure
+ * 
+ * This structure represents a semaphore in the kernel. Semaphores are
+ * used to synchronize access to shared resources between threads.
+ */
+typedef struct {
+    kmutex_t mutex;
+    kcond_t cond;
+    int count;
+} ksemaphore_t;
+
+/**
+ * @brief Initialize a semaphore
+ * @preview
+ * 
+ * This function initializes a semaphore with the specified value.
+ * 
+ * @param[in] sem      Pointer to the semaphore structure
+ * @param[in] value    Initial value of the semaphore
+ */
+LIBDRAGON_PREVIEW_API
+void ksemaphore_init(ksemaphore_t *sem, int value);
+
+/**
+ * @brief Destroy a semaphore
+ * @preview
+ * 
+ * This function destroys a semaphore, freeing all the resources
+ * associated with it.
+ * 
+ * @param[in] sem      Pointer to the semaphore structure
+ */
+LIBDRAGON_PREVIEW_API
+void ksemaphore_destroy(ksemaphore_t *sem);
+
+/**
+ * @brief Post to a semaphore
+ * @preview
+ * 
+ * This function increments the value of a semaphore and signals
+ * any threads waiting on the semaphore.
+ * 
+ * @param sem       Pointer to the semaphore structure
+ */
+LIBDRAGON_PREVIEW_API
+void ksemaphore_post(ksemaphore_t *sem);
+
+/**
+ * @brief Post to a semaphore from an interrupt context
+ * @preview
+ *
+ * This function increments the value of the semaphore and signals
+ * a thread waiting on the semaphore.
+ *
+ * @param sem       Pointer to the semaphore structure
+ */
+LIBDRAGON_PREVIEW_API
+void ksemaphore_post_isr(ksemaphore_t *sem);
+
+/**
+ * @brief Wait on a semaphore
+ * @preview
+ * 
+ * This function waits on a semaphore. If the semaphore's value is
+ * greater than 0, the function will decrement the value and return
+ * immediately. If the value is 0, the function will block until
+ * the semaphore's value is greater than 0.
+ * 
+ * @param[in] sem      Pointer to the semaphore structure
+ */
+LIBDRAGON_PREVIEW_API
+void ksemaphore_wait(ksemaphore_t *sem);
+
+/**
+ * @brief Try to wait on a semaphore, up to a timeout
+ * @preview
+ * 
+ * This function tries to wait on a semaphore, up to a specified
+ * timeout. If the semaphore's value is greater than 0, the function
+ * will decrement the value and return true. If the value is 0, the
+ * function will block until the semaphore's value is greater than 0,
+ * or the timeout expires.
+ * 
+ * As a special case, if the timeout is 0, the function will not block.
+ * 
+ * @param sem       Pointer to the semaphore structure
+ * @param ticks     Timeout in ticks
+ * @return true     If the semaphore was successfully waited on
+ * @return false    If the semaphore was not successfully waited on
+ */
+LIBDRAGON_PREVIEW_API
+bool ksemaphore_try_wait(ksemaphore_t *sem, uint32_t ticks);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

@@ -1,7 +1,7 @@
 /**
  * @file system.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
- * @author thekovic <https://github.com/thekovic>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief newlib Interface Hooks
  * @ingroup system
  */
@@ -40,6 +40,11 @@
  * @{
  */
 
+#include <dir.h>
+#include <stdbool.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+
 /** @brief Number of filesystems that can be attached to the system */
 #define MAX_FILESYSTEMS     10
 /** @brief Number of open handles that can be maintained at one time */
@@ -48,9 +53,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include <dir.h>
-#include <sys/stat.h>
 
 /**
  * @brief Filesystem hook structure
@@ -64,6 +66,33 @@ extern "C" {
  */
 typedef struct
 {
+    /** 
+     * @brief True if the filesystem is thread safe
+     * 
+     * This flag is used to determine if the filesystem can be accessed
+     * concurrently by multiple threads, through *different* file handles.
+     * 
+     * If the filesystem is not thread safe, system code will protect
+     * all accesses to the filesystem with a mutex. This guarantees that if
+     * eg. a thread is suspended while reading a file, another thread will
+     * not be able to read or write any other file until the first thread
+     * resumes.
+     * 
+     * On the other hand, if the filesystem is thread safe, the system code
+     * will not use a mutex to protect accesses to the filesystem. This means
+     * that the filesystem code must be able to handle concurrent accesses
+     * to different files without any protection.
+     * 
+     * In general, read-only filesystems are easily thread safe: only pay
+     * attention to some shared mutable state like eg some global cache.
+     * On the other hand, read-write filesystems are usually not thread safe
+     * because of shared mutable structures like directories or inode tables.
+     * 
+     * Notice that concurrent accesses to the same file handle are always
+     * meant to be unsafe and must be protected by the user code itself.
+     */
+    bool thread_safe;
+
     /** 
      * @brief Function to call when performing an open command
      *
@@ -229,6 +258,18 @@ typedef struct
      * @return 0 on success or a negative value on failure (errno must be set)
      */
     int (*ioctl)(void *file, unsigned long cmd, void *argp);
+    /**
+     * @brief Change the access and modification times of a file
+     *
+     * @param[in] path
+     *            Full path of the file to modify
+     * @param[in] times
+     *            Pointer to a timeval structure containing the new access and
+     *            modification times. This must not be NULL.
+     *
+     * @return 0 on success or a negative value on failure (errno must be set)
+     */
+    int (*utimes)(const char *path, const struct timeval times[2]);
 } filesystem_t;
 
 /**
@@ -276,24 +317,46 @@ typedef struct
 } stdio_t;
 
 /**
+ * @brief Real-time clock hook structure
+ *
+ * This structure provides optional callback hooks for code wishing to
+ * implement C time functions.  Any function that code does not wish to handle
+ * should be left as a NULL pointer.
+ */
+typedef struct
+{
+    /** 
+     * @brief Function to call to retrieve the current date/time
+     * 
+     * @param[out] out pointer to time_t (number of seconds since 1970-01-01 00:00:00 UTC)
+     *
+     * @retval RTC_ESUCCESS if the operation was successful
+     * @retval RTC_ENOCLOCK if the RTC is not available
+     * @retval RTC_EBADCLOCK if the RTC is not operational
+     * @retval RTC_EBADTIME if the RTC clock time is not representable
+     */
+    int (*gettime)( time_t * );
+    /** 
+     * @brief Function to call to set the current date/time
+     * 
+     * @param time number of seconds since 1970-01-01 00:00:00 UTC
+     * 
+     * @retval RTC_ESUCCESS if the operation was successful
+     * @retval RTC_ENOCLOCK if the RTC is not available
+     * @retval RTC_EBADCLOCK if the RTC is not operational
+     * @retval RTC_EBADTIME if the RTC cannot represent the new time
+     */
+    int (*settime)( time_t );
+} rtc_hooks_t;
+
+/**
  * @brief Register a filesystem with newlib
  *
- * This function will take a prefix in the form of 'prefix:/' and a pointer
- * to a filesystem structure of relevant callbacks and register it with newlib.
- * Any standard open/fopen calls with the registered prefix will be passed
- * to this filesystem.  Userspace code does not need to know the underlying
- * filesystem, only the prefix that it has been registered under.
- *
- * The filesystem pointer passed in to this function should not go out of scope
- * for the lifetime of the filesystem.
- *
  * @param[in] prefix
- *            Prefix of the filesystem
+ *            The prefix that will be used to register the filesystem
  * @param[in] filesystem
- *            Structure of callbacks for various functions in the filesystem.
- *            If the registered filesystem doesn't support an operation, it
- *            should leave the callback null.
- * 
+ *            Pointer to structure containing filesystem callbacks
+ *
  * @retval -1 if the parameters are invalid
  * @retval -2 if the prefix is already in use
  * @retval -3 if there are no more slots for filesystems
@@ -316,6 +379,21 @@ int attach_filesystem( const char * const prefix, filesystem_t *filesystem );
  */
 int detach_filesystem( const char * const prefix );
 
+/**
+ * @brief Unregister a filesystem from newlib by pointer
+ *
+ * @note This function will make sure all files are closed before unregistering
+ *       the filesystem.
+ *
+ * @param[in] filesystem
+ *            The filesystem pointer that was passed to #attach_filesystem
+ *
+ * @retval -1 if the parameters were invalid
+ * @retval -2 if the filesystem couldn't be found
+ * @retval 0 if the filesystem was successfully unregistered
+ */
+int detach_filesystem_by_pointer( filesystem_t *filesystem );
+
 
 /**
  * @brief Hook into stdio for STDIN, STDOUT and STDERR callbacks
@@ -337,26 +415,77 @@ int hook_stdio_calls( stdio_t *stdio_calls );
  */
 int unhook_stdio_calls( stdio_t *stdio_calls );
 
+/**
+ * @brief Hook into POSIX time callbacks
+ *
+ * @param[in] hooks Pointer to real-time clock callbacks structure
+ *
+ * @return 0 on a successful hook or a negative value on failure
+ */
+int hook_rtc_calls( rtc_hooks_t *hooks );
 
 /**
- * @brief Hook into gettimeofday with a current time callback.
+ * @brief Unhook from POSIX time callbacks
  *
- * @param[in] time_fn
- *            Pointer to callback for the current time function
+ * @param[in] hooks Pointer to real-time clock callbacks structure
  *
- * @return 0 if successful or a negative value on failure.
+ * @return 0 on a successful unhook or a negative value on failure
  */
+int unhook_rtc_calls( rtc_hooks_t *hooks );
+
+/**************************************
+ *  DEPRECATED FUNCTIONS
+ **************************************/
+
+/// @cond
+
+/**
+ * @brief Time hook structure
+ * @deprecated Use rtc_hooks_t instead
+ *
+ * This structure provides optional callback hooks for code wishing to
+ * implement C time functions.  Any function that code does not wish to handle
+ * should be left as a NULL pointer.
+ */
+typedef struct
+{
+    /** 
+     * @brief Function to call to retrieve the current date/time
+     * 
+     * @return number of seconds since 1970-01-01 00:00:00 UTC
+     */
+    time_t (*gettime)( void );
+    /** 
+     * @brief Function to call to set the current date/time
+     * 
+     * @param time number of seconds since 1970-01-01 00:00:00 UTC
+     * 
+     * @return whether the time was set successfully
+     */
+    bool (*settime)( time_t );
+} time_hooks_t;
+
+#ifndef SYSTEM_NO_DEPRECATED
+__attribute__((deprecated("use hook_rtc_calls instead")))
+#endif
+int hook_time_calls( time_hooks_t *hooks );
+
+#ifndef SYSTEM_NO_DEPRECATED
+__attribute__((deprecated("use unhook_rtc_calls instead")))
+#endif
+int unhook_time_calls( time_hooks_t *hooks );
+
+#ifndef SYSTEM_NO_DEPRECATED
+__attribute__((deprecated("use hook_time_calls instead")))
+#endif
 int hook_time_call( time_t (*time_fn)( void ) );
 
-/**
- * @brief Unhook from gettimeofday current time callback.
- *
- * @param[in] time_fn
- *            Pointer to callback for the current time function
- *
- * @return 0 if successful or a negative value on failure.
- */
+#ifndef SYSTEM_NO_DEPRECATED
+__attribute__((deprecated("use unhook_time_calls instead")))
+#endif
 int unhook_time_call( time_t (*time_fn)( void ) );
+
+/// @endcond
 
 #ifdef __cplusplus
 }
