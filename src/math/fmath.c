@@ -26,13 +26,14 @@ static float sinf_approx(float x, int approx) {
     s = x * x;
     // Execute only a portion of the series, depending on the approximation level.
     // This generate the most efficient code among similar approaches.
-    if (LIKELY(--approx < 0)) p +=   1.32729383e-10f, p *= s;
-    if (LIKELY(--approx < 0)) p += - 2.33177868e-8f,  p *= s;
-    if (LIKELY(--approx < 0)) p +=   2.52223435e-6f,  p *= s;
-    if (LIKELY(--approx < 0)) p += - 1.73503853e-4f,  p *= s;
-    if (LIKELY(--approx < 0)) p +=   6.62087463e-3f,  p *= s;
-    if (LIKELY(--approx < 0)) p += - 1.01321176e-1f;
-    return x * ((x - pi_hi) - pi_lo) * ((x + pi_hi) + pi_lo) * p;   
+    if (LIKELY(--approx < 0)) p +=   1.3291330536e-10f, p *= s;
+    if (LIKELY(--approx < 0)) p += - 2.3317808128e-8f,  p *= s;
+    if (LIKELY(--approx < 0)) p +=   2.5222900603e-6f,  p *= s;
+    if (LIKELY(--approx < 0)) p += - 1.7350520647e-4f,  p *= s;
+    if (LIKELY(--approx < 0)) p +=   6.6208802163e-3f,  p *= s;
+    if (LIKELY(--approx < 0)) p += - 1.0132116824e-1f;
+    x = x * ((x - pi_hi) - pi_lo) * ((x + pi_hi) + pi_lo) * p;
+    return x;
 }
 
 float fm_sinf_approx(float x, int approx) {
@@ -42,10 +43,6 @@ float fm_sinf_approx(float x, int approx) {
     // to the 5 ULP figure.
     x = fm_wrapf(x+pi_hi, 2*pi_hi) - pi_hi;
     x = sinf_approx(x, approx);
-    // FIXME: workaround for a bug in our sinf approximation. We found at least
-    // one input (0xbfc915a2 => -1.570973) that produces an out of bounds result
-    // -1.000000119209289551 (0xbf800001).
-    x = CLAMP(x, -1.0f, 1.0f);
     return x;
 }
 
@@ -84,3 +81,51 @@ float fm_atan2f(float y, float x) {
     return copysignf(r, y);
 }
 
+float fm_expf(float x){
+    // Approximation of exp(x) with a relative error <3%.
+    // This is several times faster than exp(x). The implementation uses a
+    // method by Nicole Schraudolph.
+    // Note that there's no bounds check and x will overflow if x is not in ~(-85,85) range
+    // Source: https://gist.github.com/jrade/293a73f89dfef51da6522428c857802d
+    const float a = (1 << 23) / 0.69314718f;
+    const float b = (1 << 23) * (127 - 0.043677448f);
+    x = a * x + b;
+
+    uint32_t i = (uint32_t)x;
+    return BITCAST_I2F(i);
+}
+
+float fm_exp2f(float x)
+{
+    // 2^x = 2^(n+f) = 2^n · 2^f, with f ∈ [0, 1). 2^n is a bit-shift of the
+    // IEEE754 exponent; 2^f is a degree-5 Remez polynomial (rel. err. ~1e-5).
+    int32_t n = (int32_t)x;
+    if ((float)n > x) n--;
+    float f = x - (float)n;
+
+    // Remez minimax for 2^f on [0, 1], degree 5.
+    const float c0 = 1.0000000000e+00f;
+    const float c1 = 6.9314718056e-01f;
+    const float c2 = 2.4022650696e-01f;
+    const float c3 = 5.5503486648e-02f;
+    const float c4 = 9.6183710763e-03f;
+    const float c5 = 1.3333558146e-03f;
+    float y = c0 + f * (c1 + f * (c2 + f * (c3 + f * (c4 + f * c5))));
+
+    uint32_t bits = (uint32_t)(n + 127) << 23;
+    return y * BITCAST_I2F(bits);
+}
+
+float fm_lerp_angle(float a, float b, float t)
+{
+    float diff = fm_fmodf((b - a), FM_PI*2);
+    float dist = fm_fmodf(diff*2, FM_PI*2) - diff;
+    return a + dist * t;
+}
+
+float fm_wrap_angle(float angle)
+{
+    return fm_wrapf(angle, FM_PI*2);
+}
+
+extern inline float fm_lerp(float a, float b, float t);
