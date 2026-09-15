@@ -1,6 +1,7 @@
 /**
  * @file dragonfs.c
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief DragonFS
  * @ingroup dfs
  */
@@ -11,12 +12,13 @@
 #include <errno.h>
 #include <malloc.h>
 #include <stdalign.h>
+#include <fcntl.h>
 #include "dragonfs.h"
 #include "n64sys.h"
 #include "dma.h"
 #include "debug.h"
 #include "system.h"
-#include "dfsinternal.h"
+#include "dfs_internal.h"
 #include "rompak_internal.h"
 #include "utils.h"
 
@@ -28,7 +30,9 @@ enum
     /** @brief Walk the directory structure for the purpose of changing directories */
     WALK_CHDIR,
     /** @brief Walk the directory structure for the purpose of opening a file or directory */
-    WALK_OPEN
+    WALK_OPEN,
+    /** @brief Walk the directory structure for the purpose of inspecting a file or directory */
+    WALK_STAT
 };
 
 /**
@@ -45,17 +49,17 @@ enum
 };
 
 /** @brief Base filesystem pointer */
-static uint32_t base_ptr = 0;
+static pi_addr_t base_ptr = 0;
 /** @brief Base pointer for lookup data */
 static dfs_lookup_t *lookup;
 /** @brief Base ROM address for path data */
 static uint32_t lookup_path_ofs;
 /** @brief Directory pointer stack */
-static uint32_t directories[MAX_DIRECTORY_DEPTH];
+static pi_addr_t directories[MAX_DIRECTORY_DEPTH];
 /** @brief Depth into directory pointer stack */
 static uint32_t directory_top = 0;
 /** @brief Pointer to next directory entry set when doing a directory walk */
-static directory_entry_t *next_entry = 0;
+static pi_addr_t next_entry = 0;
 /** @brief Convert an open file pointer to a handle */
 #define OPENFILE_TO_HANDLE(file)        ((int)PhysicalAddr(file))
 /** @brief Convert a handle to an open file pointer */
@@ -72,63 +76,11 @@ static directory_entry_t *next_entry = 0;
  * @param[out] ram_loc
  *             Pointer to RAM buffer to place the read sector
  */
-static inline void grab_sector(void *cart_loc, void *ram_loc)
+static inline void grab_sector(pi_addr_t cart_loc, void *ram_loc)
 {
     /* Make sure we have fresh cache */
-    data_cache_hit_writeback_invalidate(ram_loc, SECTOR_SIZE);
-
-    dma_read((void *)(((uint32_t)ram_loc) & 0x1FFFFFFF), (uint32_t)cart_loc, SECTOR_SIZE);
-}
-
-/**
- * @brief Look up a sector number based on offset
- *
- * Given a byte offset from the start of a filesystem, this
- * function will return the sector that this byte offset falls
- * into.
- * 
- * @param[in] loc
- *            Offset in bytes
- *
- * @return The sector number corresponding to the offset
- */
-static inline int sector_from_loc(uint32_t loc)
-{
-    return (loc / SECTOR_PAYLOAD);
-}
-
-/**
- * @brief Look up a byte offset into a sector
- *
- * Given a byte offset from the start of a filesystem, this
- * function will return the offset into the current sector.
- * This essentially clamps the ouput from 0 to #SECTOR_PAYLOAD.
- *
- * @param[in] loc
- *            Offset in bytes
- *
- * @return The offset into a sector
- */
-static inline int offset_into_sector(uint32_t loc)
-{
-    return loc % SECTOR_PAYLOAD;
-}
-
-/**
- * @brief Look up the remaining data size in a sector
- *
- * Given a byte offset from the start of a filesystem, this
- * function will return the number of bytes from the current
- * location to the end of the sector.
- *
- * @param[in] loc
- *            Offset in bytes
- *
- * @return The number of bytes left in a sector based on an offset
- */
-static inline int data_left_in_sector(uint32_t loc)
-{
-    return SECTOR_PAYLOAD - offset_into_sector(loc);
+    data_cache_hit_writeback_invalidate(ram_loc, MAX_DIRENT_SIZE);
+    dma_read(ram_loc, cart_loc, MAX_DIRENT_SIZE);
 }
 
 /**
@@ -168,9 +120,9 @@ static inline uint32_t get_size(directory_entry_t *dirent)
  *
  * @return A pointer to the directory represented by the directory entry.
  */
-static inline directory_entry_t *get_first_entry(directory_entry_t *dirent)
+static inline pi_addr_t get_first_entry(directory_entry_t *dirent)
 {
-    return (directory_entry_t *)(dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
+    return (pi_addr_t)(dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
 }
 
 /**
@@ -181,9 +133,9 @@ static inline directory_entry_t *get_first_entry(directory_entry_t *dirent)
  *
  * @return A pointer to the next directory entry after the current directory entry.
  */
-static inline directory_entry_t *get_next_entry(directory_entry_t *dirent)
+static inline pi_addr_t get_next_entry(directory_entry_t *dirent)
 {
-    return (directory_entry_t *)(dirent->next_entry ? (dirent->next_entry + base_ptr) : 0);
+    return (pi_addr_t)(dirent->next_entry ? (dirent->next_entry + base_ptr) : 0);
 }
 
 /**
@@ -197,7 +149,7 @@ static inline directory_entry_t *get_next_entry(directory_entry_t *dirent)
  *
  * @return A location of the start of the file.
  */
-static inline uint32_t get_start_location(directory_entry_t *dirent)
+static inline pi_addr_t get_start_location(directory_entry_t *dirent)
 {
     return (dirent->file_pointer ? (dirent->file_pointer + base_ptr) : 0);
 }
@@ -205,7 +157,7 @@ static inline uint32_t get_start_location(directory_entry_t *dirent)
 /**
  * @brief Reset the directory stack to the root
  */
-static inline void clear_directory()
+static inline void clear_directory(void)
 {
     directory_top = 0;
 }
@@ -216,12 +168,12 @@ static inline void clear_directory()
  * @param[in] dirent
  *            Directory entry to push onto the stack
  */
-static inline void push_directory(directory_entry_t *dirent)
+static inline void push_directory(pi_addr_t dirent)
 {
     if(directory_top < MAX_DIRECTORY_DEPTH)
     {
         /* Order of execution for assignment undefined in C, lets force it */
-        directories[directory_top] = (uint32_t)dirent;
+        directories[directory_top] = dirent;
 
         directory_top++;
     }
@@ -232,18 +184,18 @@ static inline void push_directory(directory_entry_t *dirent)
  *
  * @return The directory entry on the top of the stack
  */
-static inline directory_entry_t *pop_directory()
+static inline pi_addr_t pop_directory(void)
 {
     if(directory_top > 0)
     {
         /* Order of execution for assignment undefined in C */
         directory_top--;
 
-        return (directory_entry_t *)directories[directory_top];
+        return directories[directory_top];
     }
 
     /* Just return the root pointer */
-    return (directory_entry_t *)(base_ptr + SECTOR_SIZE);
+    return base_ptr + ID_DIRENT_SIZE;
 }
 
 /**
@@ -251,14 +203,14 @@ static inline directory_entry_t *pop_directory()
  *
  * @return The directory entry on the top of the stack
  */
-static inline directory_entry_t *peek_directory()
+static inline pi_addr_t peek_directory()
 {
     if(directory_top > 0)
     {
-        return (directory_entry_t *)directories[directory_top-1];
+        return directories[directory_top-1];
     }
 
-    return (directory_entry_t *)(base_ptr + SECTOR_SIZE);
+    return base_ptr + ID_DIRENT_SIZE;
 }
 
 /**
@@ -369,25 +321,26 @@ static char *get_next_token(char *path, char *token)
  * @param[in] cur_node
  *            Directory entry to start search from
  *
- * @return The directory entry matching the name requested or NULL if not found.
+ * @return The address of the directory entry matching the name requested or 0 if not found.
  */
-static directory_entry_t *find_dirent(char *name, directory_entry_t *cur_node)
+static pi_addr_t find_dirent(char *name, pi_addr_t cur_node)
 {
+    directory_entry_t* node = alloca(MAX_DIRENT_SIZE);
+
     while(cur_node)
     {
         /* Fetch sector off of 'disk' */
-        directory_entry_t node;
-        grab_sector(cur_node, &node);
+        grab_sector(cur_node, node);
 
         /* Do a string comparison on the filename */
-        if(strcmp(node.path, name) == 0)
+        if(strcmp(node->path, name) == 0)
         {
             /* We have a match! */
             return cur_node;
         }
 
         /* Follow linked list */
-        cur_node = get_next_entry(&node);
+        cur_node = get_next_entry(node);
     }
 
     /* Couldn't find entry */
@@ -406,13 +359,17 @@ static directory_entry_t *find_dirent(char *name, directory_entry_t *cur_node)
  * itself is returned.  If it is a directory, the directory entry of the first
  * file or directory inside that directory is returned. 
  *
+ * If mode is WALK_STAT, the result of this function is the same as WALK_OPEN,
+ * except directories return their own directory entry, instead of the first
+ * file or directory inside that directory.
+ *
  * The type specifier allows a person to specify that only a directory or file
- * should be returned.  This works for WALK_OPEN only.
+ * should be returned.  This works for WALK_OPEN and WALK_STAT only.
  * 
  * @param[in]     path
  *                The path to walk through
  * @param[in]     mode
- *                Either #WALK_CHDIR or #WALK_OPEN.
+ *                Either #WALK_CHDIR, #WALK_OPEN or #WALK_STAT.
  * @param[in,out] dirent
  *                Directory entry to start at, directory entry finished at
  * @param[in]     type
@@ -420,7 +377,7 @@ static directory_entry_t *find_dirent(char *name, directory_entry_t *cur_node)
  *
  * @return DFS_ESUCCESS on successful recurse, or a negative error on failure.
  */
-static int recurse_path(const char * const path, int mode, directory_entry_t **dirent, int type)
+static int recurse_path(const char * const path, int mode, pi_addr_t *dirent, int type)
 {
     int ret = DFS_ESUCCESS;
     char token[MAX_FILENAME_LEN+1];
@@ -474,20 +431,29 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
         else
         {
             /* Find directory entry, push */
-            directory_entry_t *tmp_node = find_dirent(token, peek_directory());
+            pi_addr_t tmp_node = find_dirent(token, peek_directory());
 
             if(tmp_node)
             {
                 /* Grab node, make sure it is a directory, push subdirectory, try again! */
-                directory_entry_t node;
-                grab_sector(tmp_node, &node);
+                directory_entry_t* node = alloca(MAX_DIRENT_SIZE);
+                grab_sector(tmp_node, node);
 
-                uint32_t flags = get_flags(&node);
+                uint32_t flags = get_flags(node);
 
                 if(FILETYPE(flags) == FLAGS_DIR)
                 {
-                    /* Push subdirectory onto stack and loop */
-                    push_directory(get_first_entry(&node));
+                    /* Only perform special handling if this is the last thing we are doing */
+                    if(mode == WALK_STAT && !cur_path) 
+                    {
+                        /* Push current directory onto stack in preparation of a return */
+                        push_directory(tmp_node);
+                    } 
+                    else 
+                    {
+                        /* Push subdirectory onto stack and loop */
+                        push_directory(get_first_entry(node));
+                    }
                     last_type = TYPE_DIR;
                 }
                 else
@@ -532,7 +498,7 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
         ret = DFS_ENOFILE;
     }
 
-    if(mode == WALK_OPEN)
+    if(mode == WALK_OPEN || mode == WALK_STAT)
     {
         /* Must return the node found if we found one */
         if(ret == DFS_ESUCCESS && dirent)
@@ -541,7 +507,7 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
         }
     }
 
-    if(mode == WALK_OPEN || ret != DFS_ESUCCESS)
+    if(mode == WALK_OPEN || mode == WALK_STAT || ret != DFS_ESUCCESS)
     {
         /* Restore stack */
         directory_top = dir_loc;
@@ -554,12 +520,13 @@ static int recurse_path(const char * const path, int mode, directory_entry_t **d
 
 static bool init_dfs_lookup(directory_entry_t *id_node)
 {
-    uint32_t romaddr = get_start_location(id_node);
+    pi_addr_t romaddr = get_start_location(id_node);
     if(romaddr == 0) {
         return false;
     }
     uint32_t size = id_node->next_entry;
     lookup = malloc(size);
+    assertf(lookup, "Out of memory");
     data_cache_hit_writeback_invalidate(lookup, size);
     dma_read(lookup, romaddr, size);
     lookup_path_ofs = base_ptr+lookup->path_ofs;
@@ -574,19 +541,19 @@ static bool init_dfs_lookup(directory_entry_t *id_node)
  *
  * @return DFS_ESUCCESS on successful initialization or a negative error on failure.
  */
-static int __dfs_init(uint32_t base_fs_loc)
+static int __dfs_init(pi_addr_t base_fs_loc)
 {
     /* Check to see if it passes the check */
-    directory_entry_t id_node;
-    grab_sector((void *)base_fs_loc, &id_node);
+    directory_entry_t* id_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(base_fs_loc, id_node);
 
-    if(id_node.flags == ROOT_FLAGS && !strcmp(id_node.path, ROOT_PATH))
+    if(id_node->flags == ROOT_FLAGS && !strcmp(id_node->path, ROOT_PATH))
     {
         /* Passes, set up the FS */
         base_ptr = base_fs_loc;
         clear_directory();
         /* Initialize lookup data */
-        return (init_dfs_lookup(&id_node)) ? DFS_ESUCCESS : DFS_EBADFS;
+        return (init_dfs_lookup(id_node)) ? DFS_ESUCCESS : DFS_EBADFS;
     }
 
     /* Failed! */
@@ -622,9 +589,9 @@ int dfs_chdir(const char * const path)
     return __dfs_chdir(path);
 }
 
-static int __dfs_findfirst(const char * const path, char *buf, directory_entry_t **next_entry)
+static int __dfs_findfirst(const char * const path, char *buf, pi_addr_t *next_entry)
 {
-    directory_entry_t *dirent;
+    pi_addr_t dirent;
     int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_DIR);
 
     /* Ensure that if this fails, they can't call findnext */
@@ -636,22 +603,28 @@ static int __dfs_findfirst(const char * const path, char *buf, directory_entry_t
         return ret;
     }
 
+    if(!dirent)
+    {
+        /* Directory exists but has no entries */
+        return FLAGS_EOF;
+    }
+
     /* We now have the pointer to the first entry */
-    directory_entry_t t_node;
-    grab_sector(dirent, &t_node);
+    directory_entry_t* t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(dirent, t_node);
 
     if(buf)
     {
-        strcpy(buf, t_node.path);    
+        strcpy(buf, t_node->path);    
     }
     
     /* Set up directory to point to next entry */
-    *next_entry = get_next_entry(&t_node);
+    *next_entry = get_next_entry(t_node);
 
-    return get_flags(&t_node);
+    return get_flags(t_node);
 }
 
-static int __dfs_findnext(char *buf, directory_entry_t **next_entry)
+static int __dfs_findnext(char *buf, pi_addr_t *next_entry)
 {
     if(!*next_entry)
     {
@@ -660,18 +633,18 @@ static int __dfs_findnext(char *buf, directory_entry_t **next_entry)
     }
 
     /* We already calculated the pointer, just grab the information */
-    directory_entry_t t_node;
-    grab_sector(*next_entry, &t_node);
+    directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(*next_entry, t_node);
 
     if(buf)
     {
-        strcpy(buf, t_node.path);    
+        strcpy(buf, t_node->path);    
     }
     
     /* Set up directory to point to next entry */
-    *next_entry = get_next_entry(&t_node);
+    *next_entry = get_next_entry(t_node);
 
-    return get_flags(&t_node);
+    return get_flags(t_node);
 }
 
 /**
@@ -799,7 +772,7 @@ int dfs_open(const char *path)
         file->cart_start_loc = base_ptr+entry->data_ofs;
     } else {
         /* Try to find file */
-        directory_entry_t *dirent;
+        pi_addr_t dirent;
         int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
 
         if(ret != DFS_ESUCCESS)
@@ -817,13 +790,13 @@ int dfs_open(const char *path)
         }
 
         /* We now have the pointer to the file entry */
-        directory_entry_t t_node;
-        grab_sector(dirent, &t_node);
+        directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+        grab_sector(dirent, t_node);
 
         /* Set up file handle */
-        file->size = get_size(&t_node);
+        file->size = get_size(t_node);
         file->loc = 0;
-        file->cart_start_loc = get_start_location(&t_node);
+        file->cart_start_loc = get_start_location(t_node);
     }
     return OPENFILE_TO_HANDLE(file);
 }
@@ -1016,7 +989,7 @@ int dfs_size(uint32_t handle)
     return file->size;
 }
 
-uint32_t dfs_rom_addr(const char *path)
+pi_addr_t dfs_rom_addr(const char *path)
 {
     //Skip initial slash
     if(path[0] == '/') {
@@ -1032,7 +1005,7 @@ uint32_t dfs_rom_addr(const char *path)
         return base_ptr+entry->data_ofs;
     } else {
         /* Try to find file */
-        directory_entry_t *dirent;
+        pi_addr_t dirent;
         int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
 
         if(ret != DFS_ESUCCESS)
@@ -1042,11 +1015,11 @@ uint32_t dfs_rom_addr(const char *path)
         }
 
         /* We now have the pointer to the file entry */
-        directory_entry_t t_node;
-        grab_sector(dirent, &t_node);
+        directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+        grab_sector(dirent, t_node);
 
         /* Return the starting location in ROM */
-        return get_start_location(&t_node);
+        return get_start_location(t_node);
     }
 }
 
@@ -1071,7 +1044,7 @@ int dfs_rom_size(const char *path)
     else
     {
         /* Try to find file */
-        directory_entry_t *dirent;
+        pi_addr_t dirent;
         int ret = recurse_path(path, WALK_OPEN, &dirent, TYPE_FILE);
 
         if(ret != DFS_ESUCCESS)
@@ -1081,11 +1054,11 @@ int dfs_rom_size(const char *path)
         }
 
         /* We now have the pointer to the file entry */
-        directory_entry_t t_node;
-        grab_sector(dirent, &t_node);
+        directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+        grab_sector(dirent, t_node);
 
         /* Return the starting location in ROM */
-        return (int)(get_size(&t_node));
+        return (int)(get_size(t_node));
     }
 }
 
@@ -1110,6 +1083,24 @@ int dfs_eof(uint32_t handle)
 }
 
 /**
+ * @brief Set the errno variable based on the error code
+ *
+ * @param[in] error
+ *            Error code to set the errno variable to
+ */
+static void __dfs_set_errno(int error)
+{
+    switch (error) {
+        case DFS_EBADINPUT:  errno = EINVAL; break;
+        case DFS_ENOFILE:    errno = ENOENT; break;
+        case DFS_EBADFS:     errno = ENODEV; break;
+        case DFS_ENFILE:     errno = ENFILE; break;
+        case DFS_EBADHANDLE: errno = EBADF;  break;
+        default:             errno = EPERM;  break;
+    }
+}
+
+/**
  * @brief Newlib-compatible open
  *
  * @param[in] name
@@ -1124,17 +1115,16 @@ static void *__open( char *name, int flags )
     /* Always want a consistent interface */
     __dfs_chdir("/");
 
+    /* DragonFS only supports read-only access */
+    if ((flags & O_ACCMODE) != O_RDONLY) {
+        errno = EACCES;
+        return NULL;
+    }
+
     /* We disregard flags here */
     int handle = dfs_open( name );
     if (handle <= 0) {
-        switch (handle) {
-        case DFS_EBADINPUT:  errno = EINVAL; break;
-        case DFS_ENOFILE:    errno = ENOENT; break;
-        case DFS_EBADFS:     errno = ENODEV; break;
-        case DFS_ENFILE:     errno = ENFILE; break;
-        case DFS_EBADHANDLE: errno = EBADF;  break;
-        default:             errno = EPERM;  break;
-        }
+        __dfs_set_errno(handle);
         return NULL;
     }
     return (void *)handle;
@@ -1152,22 +1142,53 @@ static void *__open( char *name, int flags )
  */
 static int __fstat( void *file, struct stat *st )
 {
-    st->st_dev = 0;
-    st->st_ino = 0;
+    memset(st, 0, sizeof(struct stat));
     st->st_mode = S_IFREG;
     st->st_nlink = 1;
-    st->st_uid = 0;
-    st->st_gid = 0;
-    st->st_rdev = 0;
     st->st_size = dfs_size( (uint32_t)file );
-    st->st_atime = 0;
-    st->st_mtime = 0;
-    st->st_ctime = 0;
-    st->st_blksize = 0;
-    st->st_blocks = 0;
-    //st->st_attr = S_IAREAD | S_IAREAD;
-
     return 0;
+}
+
+/**
+ * @brief Newlib-compatible stat
+ *
+ * @param[in]  file
+ *             File name of the file in question
+ * @param[out] st
+ *             Stat structure to populate
+ *
+ * @return 0 on success or a negative value on error.
+ */
+static int __stat( char *name, struct stat *st )
+{
+    pi_addr_t dirent;
+    int ret = recurse_path(name, WALK_STAT, &dirent, TYPE_ANY);
+
+    if(ret != DFS_ESUCCESS) {
+        /* File not found, or other error */
+        __dfs_set_errno(ret);
+        return -1;
+    }
+
+    /* Initialize the stat structure */
+    memset(st, 0, sizeof(struct stat));
+    st->st_nlink = 1;
+
+    /* We now have the pointer to the first entry */
+    directory_entry_t *t_node = alloca(MAX_DIRENT_SIZE);
+    grab_sector(dirent, t_node);
+
+    /* Populate the structure with the proper values */
+    uint32_t flags = get_flags(t_node);
+    if (FILETYPE(flags) == FLAGS_FILE) {
+        st->st_mode = S_IFREG;
+        st->st_size = (int)(get_size(t_node));
+    } else {
+        st->st_mode = S_IFDIR;
+        st->st_size = 0;
+    }
+
+    return DFS_ESUCCESS;
 }
 
 /**
@@ -1184,7 +1205,11 @@ static int __fstat( void *file, struct stat *st )
  */
 static int __lseek( void *file, int ptr, int dir )
 {
-    dfs_seek( (uint32_t)file, ptr, dir );
+    int err = dfs_seek( (uint32_t)file, ptr, dir );
+    if (err != DFS_ESUCCESS) {
+        __dfs_set_errno(err);
+        return -1;
+    }
 
     return dfs_tell( (uint32_t)file );
 }
@@ -1203,7 +1228,12 @@ static int __lseek( void *file, int ptr, int dir )
  */
 static int __read( void *file, uint8_t *ptr, int len )
 {
-    return dfs_read( ptr, 1, len, (uint32_t)file );
+    int err = dfs_read( ptr, 1, len, (uint32_t)file );
+    if (err < 0) {
+        __dfs_set_errno(err);
+        return -1;
+    }
+    return err;
 }
 
 /**
@@ -1216,7 +1246,12 @@ static int __read( void *file, uint8_t *ptr, int len )
  */
 static int __close( void *file )
 {
-    return dfs_close( (uint32_t)file );
+    int err = dfs_close( (uint32_t)file );
+    if (err != DFS_ESUCCESS) {
+        __dfs_set_errno(err);
+        return -1;
+    }
+    return 0;
 }
 
 /**
@@ -1227,30 +1262,26 @@ static int __close( void *file )
  * @param[out] dir
  *             Directory structure to populate with information on the first entry found
  *
- * @return 0 on success or a negative value on failure.
+ * @return 0 on successful lookup, -1 if the directory existed and is empty,
+ *         or a different negative value on error (in which case, errno will be set).
  */
 static int __findfirst( char *path, dir_t *dir )
 {
     /* Grab first entry, return if bad */
-    int flags = __dfs_findfirst( path, dir->d_name, (struct directory_entry**)&dir->d_cookie );
-    if( flags < 0 ) { return -1; }
-
-    if( flags == FLAGS_FILE )
-    {
-        dir->d_type = DT_REG;
+    int flags = __dfs_findfirst( path, dir->d_name, &dir->d_cookie );
+    switch (flags) {
+        case FLAGS_FILE:
+            dir->d_type = DT_REG;
+            return 0;
+        case FLAGS_DIR:
+            dir->d_type = DT_DIR;
+            return 0;
+        case FLAGS_EOF:
+            return -1;
+        default:
+            __dfs_set_errno(flags);
+            return -2;
     }
-    else if( flags == FLAGS_DIR )
-    {
-        dir->d_type = DT_DIR;
-    }
-    else
-    {
-        /* Unknown type */
-        return -1;
-    }
-
-    /* Success */
-    return 0;
 }
 
 /**
@@ -1261,28 +1292,19 @@ static int __findfirst( char *path, dir_t *dir )
  *
  * @return 0 on success or a negative value on failure.
  */
-static int __findnext( dir_t *dir )
+static int __findnext( const char * path, dir_t *dir )
 {
-    /* Grab first entry, return if bad */
-    int flags = __dfs_findnext( dir->d_name, (struct directory_entry**)&dir->d_cookie );
-    if( flags < 0 ) { return -1; }
-
-    if( flags == FLAGS_FILE )
-    {
-        dir->d_type = DT_REG;
+    switch (__dfs_findnext( dir->d_name, &dir->d_cookie )) {
+        case FLAGS_FILE:
+            dir->d_type = DT_REG;
+            return 0;
+        case FLAGS_DIR:
+            dir->d_type = DT_DIR;
+            return 0;
+        default:
+        case FLAGS_EOF:
+            return -1;
     }
-    else if( flags == FLAGS_DIR )
-    {
-        dir->d_type = DT_DIR;
-    }
-    else
-    {
-        /* Unknown type */
-        return -1;
-    }
-
-    /* Success */
-    return 0;
 }
 
 static int __ioctl(void *file, unsigned long cmd, void *argp)
@@ -1290,9 +1312,9 @@ static int __ioctl(void *file, unsigned long cmd, void *argp)
     switch(cmd) {
         case IODFS_GET_ROM_BASE:
         {
-            uint32_t *rom_addr = argp;
+            pi_addr_t *rom_addr = argp;
             dfs_open_file_t *openfile = HANDLE_TO_OPENFILE(file);
-            *rom_addr = openfile->cart_start_loc & 0x1FFFFFFF;
+            *rom_addr = openfile->cart_start_loc;
         }
             return 0;
             
@@ -1311,11 +1333,12 @@ static int __ioctl(void *file, unsigned long cmd, void *argp)
 static filesystem_t dragon_fs = {
     .open = __open,
     .fstat = __fstat,
+    .stat = __stat,
     .lseek = __lseek,
     .read = __read,
     .close = __close,
     .findfirst = __findfirst,
-    .findnext = __findnext,
+    .findnext2 = __findnext,
     .ioctl = __ioctl
 };
 
@@ -1344,7 +1367,7 @@ static void __dfs_check_emulation(void)
     assertf(0, "Your emulator is not accurate enough to run this ROM.\nSpecifically, it doesn't support accurate PI DMA");
 }
 
-int dfs_init(uint32_t base_fs_loc)
+int dfs_init(pi_addr_t base_fs_loc)
 {
     /* Detect if we are running on emulator accurate enough to emulate DragonFS. */
     __dfs_check_emulation();
@@ -1352,7 +1375,7 @@ int dfs_init(uint32_t base_fs_loc)
     if( base_fs_loc == DFS_DEFAULT_LOCATION )
     {
         /* Search for the DFS image location in the ROM */
-        base_fs_loc = rompak_search_ext( ".dfs" );
+        base_fs_loc = rompak_search_ext( ".dfs", NULL );
         if( !base_fs_loc )
         {
             /* We could not find the DragonFS via rompak.
@@ -1360,8 +1383,14 @@ int dfs_init(uint32_t base_fs_loc)
              * to hardcode as default. */
             base_fs_loc = 0x10101000;
         }
-        /* Convert the address to virtual (as expected for base_fs_loc). */
-        base_fs_loc |= 0xA0000000;
+    }
+    else if ( base_fs_loc >= 0xB0000000 && base_fs_loc <= 0xBFFFFFFF )
+    {
+        /* Historically, we accepts base_fs_loc as virtual address. Keep allowing
+           that for backward compatibility. */
+        debugf("dfs_init: WARNING: base_fs_loc is a virtual address: %08lX\n"
+               "Please update your code to use a PI addresses instead.\n", base_fs_loc);
+        base_fs_loc -= 0xA0000000;
     }
 
     /* Try opening the filesystem */
