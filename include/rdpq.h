@@ -27,7 +27,8 @@
  *    * rdpq_rect.h: Low-level screen-space rectangle drawing API.
  *    * rdpq_attach.h: Attachment API (optional), to simplify configuring the render target
  *    * rdpq_mode.h: Mode API (optional), to simplify configuring the render modes
- *    * rdpq_tex.h: Texture API (optional), to simplify uploading to TMEM and blitting 2D surfaces 
+ *    * rdpq_tex.h: Texture API (optional), to simplify uploading to TMEM and blitting 2D surfaces
+ *    * rdpq_blendfx.h: BlendFX API (optional), for destination-aware blend effects
  *    * rdpq_sprite.h: Sprite API (optional), to simplify uploading to TMEM and blitting sprites
  *    * rdpq_debug.h: Debugging API (optional), to help catching bugs.
  * 
@@ -186,6 +187,7 @@ enum {
     RDPQ_CMD_SET_SCISSOR_EX             = 0x12,
     RDPQ_CMD_SET_PRIM_COLOR_COMPONENT   = 0x13,
     RDPQ_CMD_MODIFY_OTHER_MODES         = 0x14,
+    RDPQ_CMD_SET_TEXTURE_IMAGE_COLOR    = 0x15,
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
     RDPQ_CMD_SET_BLENDING_MODE          = 0x18,
     RDPQ_CMD_SET_FOG_MODE               = 0x19,

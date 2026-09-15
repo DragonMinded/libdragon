@@ -423,6 +423,8 @@ typedef struct rdpq_blitparms_s {
  */
 void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms);
 
+
+
 ///@cond
 __attribute__((deprecated("use rdpq_tex_upload instead")))
 static inline int rdpq_tex_load(rdpq_tile_t tile, surface_t *tex, const rdpq_texparms_t *parms) {

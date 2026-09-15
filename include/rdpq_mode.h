@@ -540,10 +540,11 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
 /** @brief Blending mode: additive alpha.
  * You can pass this macro to #rdpq_mode_blender.
  * 
- * NOTE: additive blending is broken on RDP because it can overflow. Basically,
- *       as soon as the result of the sum is slightly larger than 1.0 (in scale 0..1),
- *       instead of being clamped to 1, it overflows back to 0, which makes the
- *       mode almost useless. It is defined it for completeness.
+ * NOTE: additive blending is broken on RDP because overflow wraps within the
+ *       normalized 0..1 range. As soon as the result of the sum exceeds 1.0, it
+ *       wraps around instead of being clamped to 1, which makes the mode almost
+ *       useless. It is defined for completeness. For additive blending
+ *       of 2D sprites, prefer #rdpq_blendfx_blit configured with #RDPQ_BLENDFX_ADD.
  */
 #define RDPQ_BLENDER_ADDITIVE       RDPQ_BLENDER((IN_RGB, IN_ALPHA, MEMORY_RGB, ONE))      
 
@@ -564,9 +565,11 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * you just want to add a fixed-level semi-transparency to an existing texture,
  * use #RDPQ_BLENDER_MULTIPLY_CONST.
  * 
- * #RDPQ_BLENDER_ADDITIVE is mostly broken on RDP, as it doesn't handle correctly
- * overflowing values. Basically, values that overflow 1.0 are not clamped but
- * wrap back to 0, which makes the mode almost useless.
+ * #RDPQ_BLENDER_ADDITIVE is mostly broken on RDP because overflow wraps within
+ * the normalized 0..1 range. As soon as the result of the sum exceeds 1.0, it
+ * wraps around instead of being clamped to 1, which makes the mode almost useless.
+ * For additive blending of 2D sprites, prefer #rdpq_blendfx_blit configured with
+ * #RDPQ_BLENDFX_ADD, which provides saturated additive compositing.
  * 
  * It is possible to also create custom formulas. The blender unit
  * allows for up to two passes. Use #RDPQ_BLENDER to create a one-pass

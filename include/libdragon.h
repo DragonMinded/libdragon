@@ -93,6 +93,7 @@
 #include "rdpq_attach.h"
 #include "rdpq_mode.h"
 #include "rdpq_tex.h"
+#include "rdpq_blendfx.h"
 #include "rdpq_sprite.h"
 #include "rdpq_text.h"
 #include "rdpq_paragraph.h"
