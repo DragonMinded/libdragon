@@ -22,18 +22,11 @@
  *
  */
 
-#ifndef assertf
-#define assertf(x, ...) assert(x)
-#endif
-#define memalign(a, b) malloc(b)
+#include <cstdlib>
+#include <cstring>
 
-#include "../../src/compress/lzh5_internal.h"  // LZH5 decompression
-#include "../../src/compress/lzh5.c"
-#include "../../src/compress/ringbuf.c"
-#include "../common/lzh5_compress.h"           // LZH5 compression
-#include "../common/lzh5_compress.c"
-#include <stdalign.h>
-
+#include "liblzh5.h"
+#include "audioconv64.h"
 
 bool flag_ym_compress = false;
 
@@ -49,7 +42,7 @@ typedef struct __attribute__((packed)) {
     uint8_t filename_len;
 } lhaheader;
 
-_Static_assert(sizeof(lhaheader) == 22, "invalid lhaheader size");
+static_assert(sizeof(lhaheader) == 22, "invalid lhaheader size");
 
 typedef struct __attribute__((packed)) {
     uint32_t nvbl;
@@ -61,11 +54,11 @@ typedef struct __attribute__((packed)) {
     uint16_t sizeext;
 } ym5header;
 
-_Static_assert(sizeof(ym5header) == 22, "invalid ym5header size");
+static_assert(sizeof(ym5header) == 22, "invalid ym5header size");
 
 static FILE *ym_f;
 static bool ym_compressed;
-static uint8_t alignas(8) ym_decoder[DECOMPRESS_LZH5_STATE_SIZE];
+static uint8_t __attribute__((aligned(8))) ym_decoder[DECOMPRESS_LZH5_STATE_SIZE + DECOMPRESS_LZH5_DEFAULT_WINDOW_SIZE];
 
 static void ymread(void *buf, int sz) {
     if (ym_compressed) {
@@ -187,14 +180,14 @@ int ym_convert(const char *infn, const char *outfn) {
         int nframes = csize / 14;
 
         // Read the whole file. If YM3b, read also the looping frame number.
-        uint8_t *data = malloc(csize);
+        uint8_t *data = (uint8_t*)malloc(csize);
         ymread(data, csize);
         if (head[3] == 'b') ymread(&loop, 4);
         fclose(ym_f);
 
         // De-interleave the data. Notice that YM3! stores data for 14
         // registers, while YM5! has room for 16 registers (to handle digidrums).
-        uint8_t *outdata = malloc(csize/14*16);
+        uint8_t *outdata = (uint8_t*)malloc(csize/14*16);
         memset(outdata, 0, csize/14*16);
         for (int i=0;i<csize;i++) {
             int r = i / nframes;
@@ -255,7 +248,7 @@ int ym_convert(const char *infn, const char *outfn) {
         // Read file contents
         int numframes = BE32_TO_HOST(ymhead.nvbl);
         int datasize = numframes*16;
-        uint8_t *data = malloc(datasize);
+        uint8_t *data = (uint8_t *)malloc(datasize);
         ymread(data, datasize);
 
         // Check terminator
@@ -264,7 +257,7 @@ int ym_convert(const char *infn, const char *outfn) {
         fclose(ym_f); ym_f = NULL;
 
         // De-interleave (if required)
-        uint8_t *outdata = malloc(datasize);
+        uint8_t *outdata = (uint8_t *)malloc(datasize);
         if (BE32_TO_HOST(ymhead.attrs) & 1) {
             for (int i=0;i<datasize;i++) {
                 int f = i % numframes;

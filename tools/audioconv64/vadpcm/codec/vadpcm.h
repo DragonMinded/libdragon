@@ -1,5 +1,5 @@
 // Copyright 2022 Dietrich Epp.
-// This file is part of Skelly 64. Skelly 64 is licensed under the terms of the
+// This file is part of VADPCM. VADPCM is licensed under the terms of the
 // Mozilla Public License, version 2.0. See LICENSE.txt for details.
 #pragma once
 // VADPCM encoding and decoding.
@@ -23,17 +23,11 @@ typedef enum {
     // Invalid data.
     kVADPCMErrInvalidData,
 
-    // Predictor order is too large.
-    kVADPCMErrLargeOrder,
-
-    // Predictor count is too large.
-    kVADPCMErrLargePredictorCount,
-
-    // Data uses an unsupported / unknown version of VADPCM.
-    kVADPCMErrUnknownVersion,
-
     // Invalid encoding parameters.
     kVADPCMErrInvalidParams,
+
+    // Memory allocation failed.
+    kVADPCMErrMemory,
 } vadpcm_error;
 
 // Return the short name of the VADPCM error code. Returns NULL for unknown
@@ -85,29 +79,6 @@ struct vadpcm_codebook_spec {
     int order;
 };
 
-// Parse a codebook spec, as it appears in an AIFC file. On success, fills in
-// 'spec' and stores the offset to the vector data in data_offset.
-//
-// The data is taken from an AIFC 'APPL' (application-specific) chunk with the
-// name "VADPCMCODES". The chunk header, APPL header, and chunk name should not
-// be included in the data passed to this function.
-//
-// Error codes:
-//   kVADPCMErrInvalidData: Order or predictor count is zero, or the data is
-//                          incomplete (unexpected EOF).
-//   kVADPCMErrLargeOrder: Order is larger than largest supported order.
-//   kVADPCMErrLargePredictorCount: Predictor count is larger than the largest
-//                                  supported predictor count.
-//   kVADPCMErrUnknownVersion: Data uses an unknown version of VADPCM.
-vadpcm_error vadpcm_read_codebook_aifc(
-    struct vadpcm_codebook_spec *VADPCM_RESTRICT spec,
-    size_t *VADPCM_RESTRICT data_offset, const void *VADPCM_RESTRICT data,
-    size_t size);
-
-// Parse codebook vectors.
-void vadpcm_read_vectors(int count, const void *VADPCM_RESTRICT data,
-                         struct vadpcm_vector *VADPCM_RESTRICT vectors);
-
 // Decode VADPCM-encoded audio.
 //
 // Arguments:
@@ -127,15 +98,47 @@ vadpcm_error vadpcm_decode(int predictor_count, int order,
                            size_t frame_count, int16_t *VADPCM_RESTRICT dest,
                            const void *VADPCM_RESTRICT src);
 
+// Dither applied to the residual before it is quantized to four bits.
+typedef enum {
+    // No dither. The residual is rounded to the nearest representable value,
+    // which gives the lowest error energy. The error is correlated with the
+    // signal, so what remains is heard as distortion rather than as noise.
+    kVADPCMDitherNone,
+
+    // Rectangular dither. A random value, uniformly distributed over one
+    // quantization step, is added to the residual before it is rounded. This
+    // decorrelates the error from the signal, so the error is heard as noise,
+    // and costs about 3 dB of signal-to-noise ratio: the error variance is
+    // d^2/6 rather than d^2/12, for a quantization step of d.
+    kVADPCMDitherRectangular,
+} vadpcm_dither;
+
 // Parameters for VADPCM encoding.
 struct vadpcm_params {
     // The number of predictors to put in the codebook.
     int predictor_count;
+
+    // The dither to apply when quantizing residuals. Note that the zero value
+    // is kVADPCMDitherNone; the vadpcm command-line tool defaults to
+    // kVADPCMDitherRectangular instead.
+    vadpcm_dither dither;
+
+    // Optional clamp range for encoded residual values. Valid range is [-8, 7].
+    // Use the default full-range values (-8, 7) to match classic VADPCM.
+    // Libdragon extension: supports encoding with fewer residual bits.
+    int min_residual;
+    int max_residual;
 };
 
-// Return the amount of scratch space needed to encode a file with the given
-// number of frames.
-size_t vadpcm_encode_scratch_size(size_t frame_count);
+// Statistics about the VADPCM encoding.
+struct vadpcm_stats {
+    // The mean of the square of the original input signal.
+    double signal_mean_square;
+
+    // The mean of the square of the encoding error (the difference between the
+    // original signal and the encoded signal).
+    double error_mean_square;
+};
 
 // Encode PCM as VADPCM. The predictor order is kVADPCMEncodeOrder (2) and
 // cannot be changed.
@@ -150,14 +153,15 @@ size_t vadpcm_encode_scratch_size(size_t frame_count);
 //   frame_count: Number of frames of VADPCM to encode
 //   dest: Output array of frame_count * kVADPCMFrameByteSize bytes
 //   src: Input array of frame_count * kVADPCMFrameSampleCount elements
-//   scratch: Scratch space with size vadpcm_encode_scratch_size(frame_count)
+//   stats: If not NULL, this will be filled with stats about the encoding
 //
 // Error codes:
 //   kVADPCMErrInvalidParams: Invalid encoding parameters.
 vadpcm_error vadpcm_encode(const struct vadpcm_params *VADPCM_RESTRICT params,
                            struct vadpcm_vector *VADPCM_RESTRICT codebook,
                            size_t frame_count, void *VADPCM_RESTRICT dest,
-                           const int16_t *VADPCM_RESTRICT src, void *scratch);
+                           const int16_t *VADPCM_RESTRICT src,
+                           struct vadpcm_stats *stats);
 
 #ifdef __cplusplus
 }
