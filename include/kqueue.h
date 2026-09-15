@@ -1,0 +1,188 @@
+/**
+ * @file kqueue.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
+ */
+#ifndef LIBDRAGON_KERNEL_KQUEUE_H
+#define LIBDRAGON_KERNEL_KQUEUE_H
+
+#include <stdbool.h>
+#include <stdint.h>
+#include "preview.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/** 
+ * @brief A thread-safe FIFO queue 
+ * 
+ * This structure is used to create a thread-safe FIFO queue. The queue
+ * is implemented as a circular buffer of void* pointers.
+ * 
+ * It is possible to enqueue and dequeue elements from the queue, and
+ * the queue will block if the queue is full or empty, respectively.
+ * 
+ * The size of the queue is fixed at creation time, and cannot be changed
+ * afterwards.
+ */
+typedef struct kqueue_s kqueue_t;
+
+/**
+ * @brief Create a new queue
+ * @preview
+ * 
+ * This function creates a new queue with the specified size. The size
+ * is the number of elements that the queue can hold.
+ * 
+ * @param[in] size 	Size of the queue in number of elements
+ * 
+ * @return A pointer to the queue structure created
+ */
+LIBDRAGON_PREVIEW_API
+kqueue_t *kqueue_new(int size);
+
+/**
+ * @brief Destroy a queue
+ * @preview
+ * 
+ * This function destroys a queue, freeing all the resources associated
+ * with it.
+ * 
+ * @param[in] queue 	Pointer to the queue structure
+ */
+LIBDRAGON_PREVIEW_API
+void kqueue_destroy(kqueue_t *queue);
+
+/**
+ * @brief Add an element to the queue
+ * @preview
+ * 
+ * This function adds an element to the queue. If the queue is full, the
+ * function will block until there is space in the queue.
+ * 
+ * @param[in] queue 	Pointer to the queue structure
+ * @param[in] element 	Pointer to the element to add
+ */
+LIBDRAGON_PREVIEW_API
+void kqueue_put(kqueue_t *queue, void *element);
+
+/**
+ * @brief Attempt to add an element to a queue from an interrupt context
+ * @preview
+ *
+ * @param[in] queue 	Pointer to the queue structure
+ * @param[in] element	Pointer to the element to add
+ *
+ * @return true if the element was added to the queue, false otherwise
+ */
+LIBDRAGON_PREVIEW_API
+bool kqueue_try_put_isr(kqueue_t *queue, void *element);
+
+/**
+ * @brief Try to add an element to the queue with timeout
+ * @preview
+ *
+ * This function adds an element to the queue. If the queue is full, the
+ * function will block until there is space in the queue or the timer
+ * expires.
+ *
+ * @param[in] queue 	Pointer to the queue structure
+ * @param[in] element	Pointer to the element to add
+ * @param[in] ticks 	Number of hardware ticks to wait
+ *
+ * @return true if the element was added to the queue, false on timeout
+ */
+LIBDRAGON_PREVIEW_API
+bool kqueue_try_put(kqueue_t *queue, void *element, uint32_t ticks);
+
+/**
+ * @brief Remove an element from the queue
+ * @preview
+ * 
+ * This function removes an element from the queue. If the queue is empty,
+ * the function will block until there is an element in the queue.
+ * 
+ * @param[in] queue 	Pointer to the queue structure
+ * 
+ * @return Pointer to the element removed
+ */
+LIBDRAGON_PREVIEW_API
+void *kqueue_get(kqueue_t *queue);
+
+/**
+ * @brief Try to remove an element from the queue with timeout
+ * @preview
+ *
+ * This function removes an element from the queue. If the queue is empty,
+ * the function will block until there is an element in the queue or the
+ * timeout expires.
+ *
+ * @param[in] queue 	Pointer to qeueue structure
+ * @param[out] element	Pointer pointer to element
+ * @param[in] ticks 	Number of hardware ticks to wait
+ *
+ * @return true if the element was fetched from queue, false on timeout
+ */
+LIBDRAGON_PREVIEW_API
+bool kqueue_try_get(kqueue_t *queue, void **element, uint32_t ticks);
+
+/**
+ * @brief Get the number of elements in the queue
+ * @preview
+ * 
+ * @param[in] queue 	Pointer to the queue structure
+ * 
+ * @return The number of elements in the queue
+ */
+LIBDRAGON_PREVIEW_API
+int kqueue_count(kqueue_t *queue);
+
+/**
+ * @brief Get the size of the queue
+ * @preview
+ * 
+ * @param[in] queue 	Pointer to the queue structure
+ * 
+ * @return The size of the queue
+ */
+LIBDRAGON_PREVIEW_API
+int kqueue_size(kqueue_t *queue);
+
+/**
+ * @brief Check if the queue is empty
+ * @preview
+ * 
+ * @param[in] queue 	Pointer to the queue structure
+ * 
+ * @return true if the queue is empty, false otherwise
+ */
+LIBDRAGON_PREVIEW_API
+bool kqueue_empty(kqueue_t *queue);
+
+/**
+ * @brief Check if the queue is full
+ * @preview
+ * 
+ * @param[in] queue 	Pointer to the queue structure
+ * 
+ * @return true if the queue is full, false otherwise
+ */
+LIBDRAGON_PREVIEW_API
+bool kqueue_full(kqueue_t *queue);
+
+/**
+ * @brief Peek at the element at the head of the queue
+ * @preview
+ * 
+ * @param[in] queue 	Pointer to the queue structure
+ * 
+ * @return Element at the head of the queue, or NULL if the queue is empty
+ */
+LIBDRAGON_PREVIEW_API
+void *kqueue_peek(kqueue_t *queue);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif

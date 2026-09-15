@@ -2,7 +2,7 @@
 
 void test_dma_read_misalign(TestContext *ctx) {
 	uint32_t rom = dfs_rom_addr("counter.dat");
-	uint8_t rom_copy[4096] __attribute__((aligned(8)));
+	uint8_t rom_copy[4096] __attribute__((aligned(16)));
 	uint8_t *ram = memalign(0x1000, 8192);
 	DEFER(free(ram));
 

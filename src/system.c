@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/times.h>
+#include <sys/utime.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -22,7 +23,12 @@
 #define SYSTEM_NO_DEPRECATED
 ///@endcond
 #include "system.h"
+#include "kernel.h"
+#include "debug.h"
+#include "kernel/kernel_internal.h"
+#include "rand_internal.h"
 #include "n64sys.h"
+#include "rtc_internal.h"
 
 /**
  * @name STDIN/STDOUT/STDERR definitions from unistd.h
@@ -53,10 +59,26 @@
 
 /** Total Size of the heap */
 int __heap_total_size = 0;
+/** Memory allocated via sbrk_top */
+int __heap_top_allocated_size = 0;
 /** End of the heap */
 char *__heap_end = 0;
 /** Top of the heap */
 char *__heap_top = 0;
+
+/**
+ * @brief Lazy initialize heap boundaries.
+ *
+ * Both sbrk() and sbrk_top() can be the first heap API called at runtime.
+ */
+static void __heap_init_if_needed(void)
+{
+    if (__heap_end == 0) {
+        __heap_end = (char*)HEAP_START_ADDR;
+        __heap_top = (char*)KSEG0_START_ADDR + __boot_memsize - STACK_SIZE;
+        __heap_total_size = (int)((unsigned long)__heap_top - (unsigned long)__heap_end);
+    }
+}
 
 /**
  * @brief Write to the MESS debug register
@@ -99,6 +121,10 @@ typedef struct
     char *prefix;
     /** @brief Filesystem callback pointers */
     filesystem_t *fs;
+    /** @brief Mutex used to protect concurrent accesses to the filesystem */
+    kmutex_t lock;
+    /** @brief True if a lock is needed for this filesystem */
+    bool need_lock;
 } fs_mapping_t;
 
 /** @brief Extract bits from word */
@@ -149,8 +175,10 @@ static int handle_open_count;
 static fs_mapping_t filesystems[MAX_FILESYSTEMS] = { { 0 } };
 /** @brief Current stdio hook structure */
 static stdio_t stdio_hooks = { 0 };
-/** @brief Function to provide the current time */
-time_t (*time_hook)( void ) = NULL;
+/** @brief Current time hooks structure */
+static time_hooks_t time_hooks = { 0 };
+/** @brief Current real-time clock hooks structure */
+static rtc_hooks_t rtc_hooks = { 0 };
 
 /* Forward definitions */
 int close( int fildes );
@@ -274,34 +302,6 @@ static int __strcmp( const char * const a, const char * const b )
     return __strncmp( a, b, -1 );
 }
 
-/**
- * @brief Simple implementation of rand()
- * 
- * @param state         Random state
- * @return uint32_t     New random value
- */
-static uint32_t __rand( uint32_t *state )
-{
-	uint32_t x = *state;
-	x ^= x << 13;
-	x ^= x >> 7;
-	x ^= x << 5;
-	return *state = x;
-}
-
-/**
- * @brief Generate a random number in range [0..n[
- * 
- * @param state         Random state
- * @param n             Upper bound (exclusive)
- * @return uint32_t     Random number
- */
-static inline uint32_t __randn( uint32_t *state, int n )
-{
-    if(__builtin_constant_p( n )) return __rand( state ) % n;
-    return ((uint64_t)__rand( state ) * n) >> 32;
-}
-
 int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
 {
     /* Sanity checking */
@@ -359,6 +359,10 @@ int attach_filesystem( const char * const prefix, filesystem_t *filesystem )
     /* Attach the inputted filesystem */
     filesystems[handle].fs = filesystem;
 
+    /* Initialize the mutex */
+    kmutex_init(&filesystems[handle].lock, KMUTEX_STANDARD);
+    filesystems[handle].need_lock = __kernel && !filesystem->thread_safe;
+
     /* All went well */
     return 0;
 }
@@ -394,15 +398,45 @@ int detach_filesystem( const char * const prefix )
     return -2;
 }
 
+int detach_filesystem_by_pointer( filesystem_t *filesystem )
+{
+    /* Sanity checking */
+    if( !filesystem )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    for( int i = 0; i < MAX_FILESYSTEMS; i++ )
+    {
+        if( filesystems[i].prefix && filesystems[i].fs == filesystem )
+        {
+            /* Now free the memory associated with the prefix and zero out the filesystem */
+            free( filesystems[i].prefix );
+            filesystems[i].prefix = 0;
+            filesystems[i].fs = 0;
+
+            /* All went well */
+            return 0;
+        }
+    }
+
+    /* Couldn't find the filesystem to free */
+    errno = EPERM;
+    return -2;
+}
+
 /**
  * @brief Allocate a new fileno for the given handle
  * 
  * @param handle        Filesystem handle
  * @param fs_index      Filesystem index
- * @return int          New fileno, or -1 if it cannot be allocated (errno will be set)
+ * @return              New fileno, or -1 if it cannot be allocated (errno will be set)
  */
 static int __allocate_fileno( void *handle, int fs_index )
 {
+    kthread_lock();
+
     /* Allocate whenever the handle map is full at 75% to avoid wasting too
      * much time looking for an empty ID. */
     if( !handle_buckets_count || 
@@ -412,6 +446,7 @@ static int __allocate_fileno( void *handle, int fs_index )
         void *mem = calloc( HANDLE_BUCKET_SIZE, sizeof( void* ) );
         if( !mem ) 
         {
+            kthread_unlock();
             errno = ENOMEM;
             return -1;
         }
@@ -419,12 +454,12 @@ static int __allocate_fileno( void *handle, int fs_index )
     }
 
     /* Select a random bucket and a random initial position. This should
-     * help finding an empty slot fast enough. Use the handle pointer
-     * as seed; avoid using C0_COUNT because aggressively changing fileno
-     * might cause some headaches during debugging sessions. */
-    uint32_t rand_state = (uint32_t)handle ^ (uint32_t)fs_index;
-    uint32_t bkt_idx = handle_buckets_count > 1 ? __randn( &rand_state, handle_buckets_count ) : 0;
-    uint32_t bkt_pos = __randn( &rand_state, HANDLE_BUCKET_SIZE );
+     * help finding an empty slot fast enough. Avoid using C0_COUNT because
+     * aggressively changing fileno might cause some headaches during debugging
+     * sessions. */
+    uint32_t rn = __rand32();
+    uint32_t bkt_pos = rn % HANDLE_BUCKET_SIZE;
+    uint32_t bkt_idx = handle_buckets_count > 1 ? ( (rn >> 16) % handle_buckets_count ) : 0;
 
     /* Go through all buckets and positions and look for an empty slot. */
     for (int i=0; i<handle_buckets_count; i++)
@@ -435,6 +470,7 @@ static int __allocate_fileno( void *handle, int fs_index )
             {
                 handle_map[bkt_idx][bkt_pos] = handle;
                 handle_open_count++;
+                kthread_unlock();
                 return FILENO_MAKE( bkt_idx, bkt_pos, fs_index );
             }
             bkt_pos = (bkt_pos+1) % HANDLE_BUCKET_SIZE;
@@ -446,6 +482,7 @@ static int __allocate_fileno( void *handle, int fs_index )
     }
 
     /* All slots are full. Set ENFILE and return error */
+    kthread_unlock();
     errno = ENFILE;
     return -1;
 }
@@ -615,15 +652,19 @@ int close( int fileno )
         return -1;
     }
 
-    /* Access the filesystem handle */
-    void *handle = *handle_ptr;
 
     /* Clear the map slot */
+    kthread_lock();
+    void *handle = *handle_ptr;
     *handle_ptr = 0;
     handle_open_count--;
+    kthread_unlock();
 
     /* Tell the filesystem to close the file */
-    return fsm->fs->close( handle );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->close( handle );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -716,7 +757,10 @@ int fstat( int fileno, struct stat *st )
             return -1;
         }
 
-        return fsm->fs->fstat( *handle_ptr, st );
+        if (fsm->need_lock) kmutex_lock(&fsm->lock);
+        int ret = fsm->fs->fstat( *handle_ptr, st );
+        if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+        return ret;
     }
 }
 
@@ -746,14 +790,91 @@ int getpid( void )
  */
 int gettimeofday( struct timeval *ptimeval, void *ptimezone )
 {
-    if( time_hook != NULL )
+    time_t time;
+    if( time_hooks.gettime != NULL )
     {
-        time_t time = time_hook();
+        time = time_hooks.gettime();
         if( time != -1 )
         {
             ptimeval->tv_sec = time;
             ptimeval->tv_usec = 0;
             return 0;
+        }
+        errno = EIO;
+        return -2;
+    }
+
+    if( rtc_hooks.gettime != NULL )
+    {
+        switch( rtc_hooks.gettime( &time ) )
+        {
+            case RTC_ESUCCESS:
+                ptimeval->tv_sec = time;
+                ptimeval->tv_usec = 0;
+                return 0;
+            case RTC_ENOCLOCK:
+                errno = ENODEV;
+                return -2;
+            case RTC_EBADCLOCK:
+                errno = EIO;
+                return -2;
+            case RTC_EBADTIME:
+                errno = EBADMSG;
+                return -2;
+            default:
+                errno = ENOMSG;
+                return -1;
+        }
+    }
+
+    errno = ENOSYS;
+    return -1;
+}
+
+/**
+ * @brief Set the current time
+ *
+ * @param[out] ptimeval
+ *             Time structure containing the new current time.
+ * @param[out] ptimezone
+ *             Timezone information. (Not supported)
+ *
+ * @retval 0 Success
+ * @retval -1 Operation not available (errno is set)
+ * @retval -2 Operation failed (errno is set)
+ */
+int settimeofday( const struct timeval *ptimeval, const struct timezone *ptimezone)
+{
+    time_t time = ptimeval->tv_sec;
+    if( time_hooks.settime != NULL )
+    {
+        if( time_hooks.settime( time ) )
+        {
+            return 0;
+        }
+
+        errno = EIO;
+        return -2;
+    }
+
+    if( rtc_hooks.settime != NULL )
+    {
+        switch( rtc_hooks.settime( time ) )
+        {
+            case RTC_ESUCCESS:
+                return 0;
+            case RTC_ENOCLOCK:
+                errno = ENODEV;
+                return -2;
+            case RTC_EBADCLOCK:
+                errno = EIO;
+                return -2;
+            case RTC_EBADTIME:
+                errno = EINVAL;
+                return -2;
+            default:
+                errno = ENOMSG;
+                return -1;
         }
     }
 
@@ -856,7 +977,10 @@ int lseek( int file, int ptr, int dir )
         return -1;
     }
 
-    return fsm->fs->lseek( *handle_ptr, ptr, dir );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->lseek( *handle_ptr, ptr, dir );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -914,7 +1038,9 @@ int open( const char *file, int flags, ... )
     errno = 0;
 
     /* Use the old open() call that will cause an additional allocation */
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
     void *handle = fsm->fs->open( (char *)( file + __strlen( filesystems[fs_index].prefix ) ), flags );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
 
     if( handle )
     {
@@ -981,7 +1107,10 @@ int read( int fileno, char *ptr, int len )
             return -1;
         }
 
-        return fsm->fs->read( *handle_ptr, (uint8_t *)ptr, len );
+        if (fsm->need_lock) kmutex_lock(&fsm->lock);
+        int ret = fsm->fs->read( *handle_ptr, (uint8_t *)ptr, len );
+        if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+        return ret;
     }
 }
 
@@ -1016,38 +1145,78 @@ int readlink( const char *path, char *buf, size_t bufsize )
  */
 void *sbrk( int incr )
 {
-    char *        prev_heap_end;
+    char *prev_heap_end;
+    char *new_heap_end;
+    bool emit_exp_pak_warning = false;
 
     disable_interrupts();
 
-    if( __heap_end == 0 )
-    {
-        __heap_end = (char*)HEAP_START_ADDR;
-        __heap_top = (char*)KSEG0_START_ADDR + __boot_memsize - STACK_SIZE;
-        __heap_total_size = (int)((unsigned long)__heap_top - (unsigned long)__heap_end);
-    }
+    __heap_init_if_needed();
 
     prev_heap_end = __heap_end;
-    __heap_end += incr;
+    new_heap_end = __heap_end + incr;
 
-    // check if out of memory
-    if (__heap_end > __heap_top)
+    // Keep the heap end inside [HEAP_START_ADDR, __heap_top]
+    if (new_heap_end < (char*)HEAP_START_ADDR || new_heap_end > __heap_top)
     {
-        __heap_end -= incr;
         prev_heap_end = (char *)-1;
         errno = ENOMEM;
+    } else {
+        __heap_end = new_heap_end;
     }
 
     if (__heap_end - (char*)KSEG0_START_ADDR >= 4*1024*1024 - STACK_SIZE && !__expanded_memory_asserted)
     {
-        static char warning[] = "WARNING: Allocations beyond 4 MiB: this ROM requires the expansion pak to work properly.\nWARNING: Call assert_memory_expanded() or is_memory_expanded() in main to disable this warning.\n";
-        write( STDERR_FILENO, warning, sizeof(warning) - 1 );
         __expanded_memory_asserted = true; // only emit the warning once
+        emit_exp_pak_warning = true;
     }
 
     enable_interrupts();
 
+    if (emit_exp_pak_warning)
+    {
+        static char warning[] = "WARNING: Allocations beyond 4 MiB: this ROM requires the expansion pak to work properly.\nWARNING: Call assert_memory_expanded() or is_memory_expanded() in main to disable this warning.\n";
+        write( STDERR_FILENO, warning, sizeof(warning) - 1 );
+    }
+
     return (void *)prev_heap_end;
+}
+
+/**
+ * @brief Allocate static memory from the top of the heap
+ * 
+ * @param incr 
+ *        The amount of memory needed in bytes
+ *
+ * @return A pointer to the memory or ((void*)-1) on error allocating.
+ * 
+ * @note This function is internal, and can only used by the display module,
+ *       to allocate memory from the top memory bank for the Z buffer.
+ */
+void* sbrk_top( int incr )
+{
+    char *heap_top_limit;
+    char *new_heap_top;
+
+    disable_interrupts();
+
+    __heap_init_if_needed();
+    heap_top_limit = (char*)KSEG0_START_ADDR + __boot_memsize - STACK_SIZE;
+    new_heap_top = __heap_top - incr;
+
+    if (new_heap_top < __heap_end || new_heap_top > heap_top_limit)
+    {
+        errno = ENOMEM;
+        enable_interrupts();
+        return (void *)-1;
+    }
+
+    __heap_top = new_heap_top;
+    __heap_top_allocated_size += incr;
+
+    enable_interrupts();
+
+    return __heap_top;
 }
 
 /**
@@ -1074,7 +1243,10 @@ int stat( const char *file, struct stat *st )
     /* Use stat function when available, and fstat as a fallback */
     if( fsm != 0 && mapping >= 0 && fsm->fs->stat )
     {
-        return fsm->fs->stat( (char *)file + __strlen( filesystems[mapping].prefix ) - 1, st );
+        if (fsm->need_lock) kmutex_lock(&fsm->lock);
+        int ret = fsm->fs->stat( (char *)file + __strlen( filesystems[mapping].prefix ) - 1, st );
+        if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+        return ret;
     }
 
     /* Dirty hack, open read only */
@@ -1151,7 +1323,10 @@ int unlink( char *name )
     }
 
     /* Must offset past the prefix */
-    return fsm->fs->unlink( name + __strlen( filesystems[mapping].prefix ) );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->unlink( name + __strlen( filesystems[mapping].prefix ) );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -1180,13 +1355,16 @@ int ioctl(int fd, unsigned long cmd, void *argp)
         errno = EBADF;
         return -1;
     }
-    if( fsm->fs->ioctl == 0 )
+    if(fsm->fs->ioctl == 0 )
     {
         /* Filesystem doesn't support ioctl */
         errno = ENOTTY;
         return -1;
     }
-    return fsm->fs->ioctl(*handle_ptr, cmd, argp);
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->ioctl(*handle_ptr, cmd, argp);
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -1252,7 +1430,10 @@ int write( int file, char *ptr, int len )
             return -1;
         }
 
-        return fsm->fs->write( *handle_ptr, (uint8_t *)ptr, len );
+        if (fsm->need_lock) kmutex_lock(&fsm->lock);
+        int ret = fsm->fs->write( *handle_ptr, (uint8_t *)ptr, len );
+        if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+        return ret;
     }
 }
 
@@ -1266,7 +1447,7 @@ int write( int file, char *ptr, int len )
  * 
  * @param file      File handle
  * @param length    New length of the file
- * @return int      0 on success, -1 on failure (errno will be set)
+ * @return          0 on success, -1 on failure (errno will be set)
  */
 int ftruncate( int file, off_t length )
 {
@@ -1286,7 +1467,10 @@ int ftruncate( int file, off_t length )
         return -1;
     }
 
-    return fsm->fs->ftruncate( *handle_ptr, length );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->ftruncate( *handle_ptr, length );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -1299,7 +1483,7 @@ int ftruncate( int file, off_t length )
  * 
  * @param path      Path to the file
  * @param length    New length of the file
- * @return int      0 on success, -1 on failure (errno will be set)
+ * @return          0 on success, -1 on failure (errno will be set)
  */
 int truncate( const char *path, off_t length )
 {
@@ -1320,14 +1504,14 @@ int dir_findfirst( const char * const path, dir_t *dir )
     if( fsm == 0 || mapping < 0 || dir == 0 )
     {
         errno = EINVAL;
-        return -1;
+        return -2;
     }
 
     if( fsm->fs->findfirst == 0 )
     {
         /* Filesystem doesn't support findfirst */
         errno = ENOSYS;
-        return -1;
+        return -2;
     }
 
     /* Initialize dir_t structure. Set size to -1 in case the filesystem
@@ -1335,7 +1519,10 @@ int dir_findfirst( const char * const path, dir_t *dir )
     __builtin_memset( dir, 0, sizeof( dir_t ) );
     dir->d_size = -1;
 
-    return fsm->fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->findfirst( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, dir );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 int dir_findnext( const char * const path, dir_t *dir )
@@ -1346,19 +1533,22 @@ int dir_findnext( const char * const path, dir_t *dir )
     if( fsm == 0 || dir == 0 )
     {
         errno = EINVAL;
-        return -1;
+        return -2;
     }
 
     if( fsm->fs->findnext == 0 && fsm->fs->findnext2 == 0 )
     {
         /* Filesystem doesn't support findnext */
         errno = ENOSYS;
-        return -1;
+        return -2;
     }
 
-    return fsm->fs->findnext2 ? 
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->findnext2 ? 
         fsm->fs->findnext2( path + __strlen( filesystems[mapping].prefix ) - 1, dir ) : 
         fsm->fs->findnext( dir );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
 }
 
 /**
@@ -1368,7 +1558,7 @@ int dir_findnext( const char * const path, dir_t *dir )
  * 
  * @param path      Path of the directory to create, relative to the root of the filesystem
  * @param mode      Directory access mode
- * @return int      0 on success, -1 on failure (errno will be set)
+ * @return          0 on success, -1 on failure (errno will be set)
  */
 int mkdir( const char * path, mode_t mode )
 {
@@ -1388,7 +1578,74 @@ int mkdir( const char * path, mode_t mode )
         return -1;
     }
     
-    return fsm->fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->mkdir( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, mode );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
+}
+
+/**
+ * @brief Update the access and modification times of a file.
+ * 
+ * @param path      Path to the file (with filesystem prefix)
+ * @param times     New access and modification times. If NULL, use the current time.
+ * @return          0 on success, -1 on failure (errno will be set)
+ */
+int utimes(const char *path, const struct timeval times[2])
+{
+    fs_mapping_t *fsm = __get_fs_pointer_by_name( path );
+    int mapping = __get_fs_link_by_name( path );
+
+    if( fsm == 0 || mapping < 0 )
+    {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if( fsm->fs->utimes == 0 )
+    {
+        /* Filesystem doesn't support utimes */
+        errno = ENOSYS;
+        return -1;
+    }
+ 
+    // If times is NULL, use the current time
+    struct timeval now[2];
+    if (times == NULL) {
+        if (gettimeofday(&now[0], NULL) != 0) {
+            return -1;
+        }
+        now[1] = now[0];
+        times = now;
+    }
+
+    if (fsm->need_lock) kmutex_lock(&fsm->lock);
+    int ret = fsm->fs->utimes( (char *)path + __strlen( filesystems[mapping].prefix ) - 1, times );
+    if (fsm->need_lock) kmutex_unlock(&fsm->lock);
+    return ret;
+}
+
+/**
+ * @brief Update the access and modification times of a file.
+ * 
+ * @param path      Path to the file (with filesystem prefix)
+ * @param times     New access and modification times. If NULL, use the current time.
+ * @return          0 on success, -1 on failure (errno will be set)
+ */
+int utime(const char *path, const struct utimbuf *times)
+{
+    if (times)
+    {
+        struct timeval tv[2] = {
+            { .tv_sec = times->actime,  .tv_usec = 0 },
+            { .tv_sec = times->modtime, .tv_usec = 0 }
+        };
+        return utimes(path, tv);
+    }
+    else
+    {
+        return utimes(path, NULL);
+    }
 }
 
 int hook_stdio_calls( stdio_t *stdio_calls )
@@ -1425,26 +1682,60 @@ int unhook_stdio_calls( stdio_t *stdio_calls )
     return 0;
 }
 
-int hook_time_call( time_t (*time_fn)( void ) )
+int hook_rtc_calls( rtc_hooks_t *hooks )
 {
-    if( time_fn == NULL )
-    {
-        return -1;
-    }
+    if( hooks == NULL ) return -1;
 
-    time_hook = time_fn;
+    rtc_hooks.gettime = hooks->gettime;
+    rtc_hooks.settime = hooks->settime;
 
     return 0;
 }
 
-int unhook_time_call( time_t (*time_fn)( void ) )
+int unhook_rtc_calls( rtc_hooks_t *hooks )
 {
-    if( time_hook == time_fn )
-    {
-        time_hook = NULL;
-    }
+    if( hooks == NULL ) return -1;
+
+    if( rtc_hooks.gettime == hooks->gettime ) rtc_hooks.gettime = NULL;
+    if( rtc_hooks.settime == hooks->settime ) rtc_hooks.settime = NULL;
 
     return 0;
+}
+
+/** @deprecated Use #hook_rtc_calls instead. */
+int hook_time_calls( time_hooks_t *hooks )
+{
+    if( hooks == NULL ) return -1;
+
+    time_hooks.gettime = hooks->gettime;
+    time_hooks.settime = hooks->settime;
+
+    return 0;
+}
+
+/** @deprecated Use #unhook_rtc_calls instead. */
+int unhook_time_calls( time_hooks_t *hooks )
+{
+    if( hooks == NULL ) return -1;
+
+    if( time_hooks.gettime == hooks->gettime ) time_hooks.gettime = NULL;
+    if( time_hooks.settime == hooks->settime ) time_hooks.settime = NULL;
+
+    return 0;
+}
+
+/** @deprecated Use #hook_time_calls instead. */
+int hook_time_call( time_t (*time_fn)( void ) )
+{
+    time_hooks_t hooks = { time_fn, NULL };
+    return hook_time_calls( &hooks );
+}
+
+/** @deprecated Use #unhook_time_calls instead. */
+int unhook_time_call( time_t (*time_fn)( void ) )
+{
+    time_hooks_t hooks = { time_fn, NULL };
+    return unhook_time_calls( &hooks );
 }
 
 /**
@@ -1474,3 +1765,7 @@ void __assert_func(const char *file, int line, const char *func, const char *fai
         __assert_func_ptr(file, line, func, failedexpr);
     abort();
 }
+
+#ifdef __NEWLIB__
+#include "system_newlib_locks.c"
+#endif

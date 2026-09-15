@@ -5,10 +5,22 @@
  * @ingroup controllerpak
  */
 #include <string.h>
-#include "regsinternal.h"
+#include <errno.h>
 #include <unistd.h>
-#include "controller.h"
+#include "kernel/kernel_internal.h"
+#include "kirq.h"
+#include "regsinternal.h"
+#include "joybus.h"
+#include "joybus_accessory.h"
+#include "joypad_accessory_internal.h"
 #include "mempak.h"
+#include "cpak.h"
+#include "cpakfs.h"
+
+// Disable deprecation warnings for this file
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 
 /**
  * @name Inode values
@@ -30,14 +42,22 @@ int read_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
-    /* Sectors are 256 bytes, a Controller Pak reads 32 bytes at a time */
-    for( int i = 0; i < 8; i++ )
-    {
-        if( read_mempak_address( controller, (sector * MEMPAK_BLOCK_SIZE) + (i * 32), sector_data + (i * 32) ) )
-        {
-            /* Failed to read a block */
-            return -2;
-        }
+    // NOTE: don't use cpak_read here, because this function has historically
+    // never supported bankswitching, so it would work on the "current bank".
+    // We can't know if somebody implemented bankswitching manually around it,
+    // so we keep the old behavior of accessing the current pak. To do so,
+    // we use the internal API directly (as the public API doesn't support
+    // accessing implicitly the current bank, for good reasons)
+    joypad_accessory_error_t result = joypad_accessory_xfer(
+        controller,
+        JOYPAD_ACCESSORY_XFER_READ,
+        sector * MEMPAK_BLOCK_SIZE,
+        sector_data,
+        MEMPAK_BLOCK_SIZE
+    );
+
+    if (result != JOYPAD_ACCESSORY_ERROR_NONE) {
+        return -2;
     }
 
     return 0;
@@ -48,14 +68,22 @@ int write_mempak_sector( int controller, int sector, uint8_t *sector_data )
     if( sector < 0 || sector >= 128 ) { return -1; }
     if( sector_data == 0 ) { return -1; }
 
-    /* Sectors are 256 bytes, a Controller Pak writes 32 bytes at a time */
-    for( int i = 0; i < 8; i++ )
-    {
-        if( write_mempak_address( controller, (sector * MEMPAK_BLOCK_SIZE) + (i * 32), sector_data + (i * 32) ) )
-        {
-            /* Failed to read a block */
-            return -2;
-        }
+    // NOTE: don't use cpak_write here, because this function has historically
+    // never supported bankswitching, so it would work on the "current bank".
+    // We can't know if somebody implemented bankswitching manually around it,
+    // so we keep the old behavior of accessing the current pak. To do so,
+    // we use the internal API directly (as the public API doesn't support
+    // accessing implicitly the current bank, for good reasons)
+    joypad_accessory_error_t result = joypad_accessory_xfer(
+        controller,
+        JOYPAD_ACCESSORY_XFER_WRITE,
+        sector * MEMPAK_BLOCK_SIZE,
+        sector_data,
+        MEMPAK_BLOCK_SIZE
+    );
+
+    if (result != JOYPAD_ACCESSORY_ERROR_NONE) {
+        return -2;
     }
 
     return 0;
@@ -165,66 +193,86 @@ static int __validate_toc( uint8_t *sector )
 }
 
 /**
- * @brief Convert a Controller Pak character to ASCII
+ * @brief Convert a Controller Pak character to UTF-8
+ *
+ * The codepage used by the controller pak contains a subset of ASCII and
+ * some Katakana.
  *
  * @param[in] c
  *            A character read from a Controller Pak entry title
+ * @param[out] out
+ *            Output buffer to write the bytes to (at least 3 bytes).
  *
- * @return ASCII equivalent of character read
+ * @return    The number of bytes written to the output buffer
  */
-static char __n64_to_ascii( char c )
+static int __n64_to_utf8( uint8_t c, char *out )
 {
     /* Miscelaneous chart */
     switch( c )
     {
         case 0x00:
-            return 0;
+            *out++ = 0; return 1;
         case 0x0F:
-            return ' ';
+            *out++ = ' '; return 1;
         case 0x34:
-            return '!';
+            *out++ = '!'; return 1;
         case 0x35:
-            return '\"';
+            *out++ = '\"'; return 1;
         case 0x36:
-            return '#';
+            *out++ = '#'; return 1;
         case 0x37:
-            return '`';
+            *out++ = '`'; return 1;
         case 0x38:
-            return '*';
+            *out++ = '*'; return 1;
         case 0x39:
-            return '+';
+            *out++ = '+'; return 1;
         case 0x3A:
-            return ',';
+            *out++ = ','; return 1;
         case 0x3B:
-            return '-';
+            *out++ = '-'; return 1;
         case 0x3C:
-            return '.';
+            *out++ = '.'; return 1;
         case 0x3D:
-            return '/';
+            *out++ = '/'; return 1;
         case 0x3E:
-            return ':';
+            *out++ = ':'; return 1;
         case 0x3F:
-            return '=';
+            *out++ = '='; return 1;
         case 0x40:
-            return '?';
+            *out++ = '?'; return 1;
         case 0x41:
-            return '@';
+            *out++ = '@'; return 1;
     }
 
     /* Numbers */
     if( c >= 0x10 && c <= 0x19 )
     {
-        return '0' + (c - 0x10);
+        *out++ = '0' + (c - 0x10);
+        return 1;
     }
 
     /* Uppercase ASCII */
     if( c >= 0x1A && c <= 0x33 )
     {
-        return 'A' + (c - 0x1A);
+        *out++ = 'A' + (c - 0x1A);
+        return 1;
+    }
+
+    /* Katakana and CJK symbols */
+    if( c >= 0x42 && c <= 0x94 )
+    {
+        const int cjk_base = 0x3000;
+        static uint8_t cjk_map[83] = { 2, 155, 156, 161, 163, 165, 167, 169, 195, 227, 229, 231, 242, 243, 162, 164, 166, 168, 170, 171, 173, 175, 177, 179, 181, 183, 185, 187, 189, 191, 193, 196, 198, 200, 202, 203, 204, 205, 206, 207, 210, 213, 216, 219, 222, 223, 224, 225, 226, 228, 230, 232, 233, 234, 235, 236, 237, 239, 172, 174, 176, 178, 180, 182, 184, 186, 188, 190, 192, 194, 197, 199, 201, 208, 211, 214, 217, 220, 209, 212, 215, 218, 221 };
+        uint16_t codepoint = cjk_base + cjk_map[c - 0x42];
+        *out++ = 0xE0 | ((codepoint >> 12) & 0x0F);
+        *out++ = 0x80 | ((codepoint >> 6) & 0x3F);
+        *out++ = 0x80 | (codepoint & 0x3F);
+        return 3;
     }
 
     /* Default to space for unprintables */
-    return ' ';
+    *out++ = ' ';
+    return 1;
 }
 
 /**
@@ -363,22 +411,24 @@ static int __read_note( uint8_t *tnote, entry_structure_t *note )
     /* Translate n64 to ascii */
     memset( note->name, 0, sizeof( note->name ) );
 
+    int nidx = 0;
     for( int i = 0; i < 16; i++ )
     {
-        note->name[i] = __n64_to_ascii( tnote[0x10 + i] );
+        if ( tnote[0x10 + i] == 0 ) break;
+        nidx += __n64_to_utf8( tnote[0x10 + i], &note->name[nidx] );
     }
 
-    /* Find the last position */
-    for( int i = 0; i < 17; i++ )
+    /* Separator between name and extension */
+    note->name[nidx++] = '.';
+
+    for( int i = 0; i < 4; i++ )
     {
-        if( note->name[i] == 0 )
-        {
-            /* Here it is! */
-            note->name[i]   = '.';
-            note->name[i+1] = __n64_to_ascii( tnote[0xC] );
-            break;
-        }
+        if ( tnote[0xC + i] == 0 ) break;
+        nidx += __n64_to_utf8( tnote[0xC + i], &note->name[nidx] );
     }
+
+    /* String terminator */
+    note->name[nidx++] = 0;
 
     /* Validate entries */
     if( note->inode < BLOCK_VALID_FIRST || note->inode > BLOCK_VALID_LAST )
@@ -413,7 +463,7 @@ static int __read_note( uint8_t *tnote, entry_structure_t *note )
  */
 static int __write_note( entry_structure_t *note, uint8_t *out_note )
 {
-    char tname[19];
+    char tname[sizeof(note->name)];
     if( !out_note || !note ) { return -1; }
 
     /* Start with baseline */
@@ -653,18 +703,12 @@ static int __get_valid_toc( int controller )
 
 int validate_mempak( int controller )
 {
-    int toc = __get_valid_toc( controller );
-
-    if( toc == 1 || toc == 2 )
-    {
-        /* Found a valid TOC */
-        return 0;
-    }
-    else
-    {
-        /* Pass on return code */
-        return toc;
-    }
+    int ret = cpakfs_fsck( controller, false, NULL, NULL );
+    if (ret > 0)
+        return -3; /* Filesystem has issues */
+    if (ret < 0)
+        return -2; /* Controller Pak is not inserted or I/O error in general */
+    return 0; /* Valid filesystem */
 }
 
 int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
@@ -684,7 +728,7 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
 
     /* Entries are spread across two sectors, but we can luckly grab just one
        with a single Controller Pak read */
-    if( read_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry * 32), data ) )
+    if( joybus_accessory_read( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry * 32), data ) )
     {
         /* Couldn't read note database */
         return -2;
@@ -723,96 +767,27 @@ int get_mempak_entry( int controller, int entry, entry_structure_t *entry_data )
 
 int get_mempak_free_space( int controller )
 {
-    uint8_t data[MEMPAK_BLOCK_SIZE];
-    int toc;
+    cpakfs_stats_t stats;
+    if (cpakfs_get_stats( controller, &stats ) < 0) {
+        if (errno != ENODEV)
+            return -2; /* Controller Pak is not inserted or I/O error in general */
 
-    /* Make sure Controller Pak is valid */
-    if( (toc = __get_valid_toc( controller )) <= 0 )
-    {
-        /* Bad Controller Pak or was removed, return */
-        return -2;
+        // Controller Pak not mounted. Try mounting it
+        if (cpakfs_mount(controller, "mempak_shim") < 0)
+            return -2;
+        int err = cpakfs_get_stats( controller, &stats );
+        cpakfs_unmount(controller);
+        if (err < 0)
+            return -2;
     }
 
-    /* Grab the valid TOC to get free space */
-    if( read_mempak_sector( controller, toc, data ) )
-    {
-        /* Couldn't read TOC */
-        return -2;
-    }
-
-    return __get_free_space( data );
+    return stats.pages.total - stats.pages.used;
 }
 
 int format_mempak( int controller )
 {
-    /* Many mempak dumps exist online for users of emulated games to get
-       saves that have all unlocks.  Every beginning sector on all these
-       was the same, so this is the data I use to initialize the first
-       sector */
-    uint8_t sector[MEMPAK_BLOCK_SIZE] = { 0x81,0x01,0x02,0x03,0x04,0x05,0x06,0x07,
-                            0x08,0x09,0x0a,0x0b,0x0c,0x0d,0x0e,0x0f,
-                            0x10,0x11,0x12,0x13,0x14,0x15,0x16,0x17,
-                            0x18,0x19,0x1a,0x1b,0x1c,0x1d,0x1e,0x1f,
-                            0xff,0xff,0xff,0xff,0x05,0x1a,0x5f,0x13,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-                            0xff,0xff,0x01,0xff,0x66,0x25,0x99,0xcd,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0x05,0x1a,0x5f,0x13,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-                            0xff,0xff,0x01,0xff,0x66,0x25,0x99,0xcd,
-                            0xff,0xff,0xff,0xff,0x05,0x1a,0x5f,0x13,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-                            0xff,0xff,0x01,0xff,0x66,0x25,0x99,0xcd,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0x05,0x1a,0x5f,0x13,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0xff,0xff,0xff,0xff,0xff,0xff,0xff,0xff,
-                            0xff,0xff,0x01,0xff,0x66,0x25,0x99,0xcd,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
-                            0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 };
-
-    if( write_mempak_sector( controller, 0, sector ) )
-    {
-        /* Couldn't write initial sector */
-        return -2;
-    }
-
-    /* Write out entry sectors, which can safely be zero */
-    memset( sector, 0x0, MEMPAK_BLOCK_SIZE );
-    if( write_mempak_sector( controller, 3, sector ) ||
-        write_mempak_sector( controller, 4, sector ) )
-    {
-        /* Couldn't write entry sectors */
-        return -2;
-    }
-
-    /* Go through, insert 'empty sector' marking on all entries */
-    for( int i = 0; i < 128; i++ )
-    {
-        sector[(i << 1) + 1] = BLOCK_EMPTY;
-    }
-
-    /* Fix the checksum */
-    sector[1] = __get_toc_checksum( sector );
-
-    /* Write out */
-    if( write_mempak_sector( controller, 1, sector ) ||
-        write_mempak_sector( controller, 2, sector ) )
-    {
-        /* Couldn't write TOC sectors */
-        return -2;
-    }
+    if (cpakfs_format( controller, false ) < 0)
+        return -2; /* Controller Pak is not inserted or I/O error in general */
 
     return 0;
 }
@@ -858,28 +833,6 @@ int read_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *d
     return 0;
 }
 
-/**
- * @brief Write associated data to a Controller Pak entry
- *
- * Given a Controller Pak entry structure with a valid region, name and block count, writes the
- * entry and associated data to the Controller Pak.  This function will not overwrite any existing
- * user data.  To update an existing entry, use #delete_mempak_entry followed by
- * #write_mempak_entry_data with the same entry structure.
- *
- * @param[in] controller
- *            The controller (0-3) to write the entry and data to
- * @param[in] entry
- *            The entry structure containing a region, name and block count
- * @param[in] data
- *            The associated data to write to to the created entry
- *
- * @retval 0 if the entry was created and written successfully
- * @retval -1 if the parameters were invalid or the note has no length
- * @retval -2 if the Controller Pak wasn't present or was bad
- * @retval -3 if there was an error writing to the Controller Pak
- * @retval -4 if there wasn't enough space to store the note
- * @retval -5 if there is no room in the TOC to add a new entry
- */
 int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *data )
 {
     uint8_t sector[MEMPAK_BLOCK_SIZE];
@@ -968,7 +921,7 @@ int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *
     {
         entry_structure_t tmp_entry;
 
-        if( read_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (i * 32), tmp_data ) )
+        if( joybus_accessory_read( controller, (3 * MEMPAK_BLOCK_SIZE) + (i * 32), tmp_data ) )
         {
             /* Couldn't read note database */
             return -2;
@@ -1011,7 +964,7 @@ int write_mempak_entry_data( int controller, entry_structure_t *entry, uint8_t *
     __write_note( entry, tmp_data );
 
     /* Store entry to empty slot on Controller Pak */
-    if( write_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), tmp_data ) )
+    if( joybus_accessory_write( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), tmp_data ) )
     {
         /* Couldn't update note database */
         return -2;
@@ -1033,7 +986,7 @@ int delete_mempak_entry( int controller, entry_structure_t *entry )
     if( entry->inode < BLOCK_VALID_FIRST || entry->inode > BLOCK_VALID_LAST ) { return -1; }
 
     /* Ensure that the entry passed in matches what's on the Controller Pak */
-    if( read_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), data ) )
+    if( joybus_accessory_read( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), data ) )
     {
         /* Couldn't read note database */
         return -2;
@@ -1053,7 +1006,7 @@ int delete_mempak_entry( int controller, entry_structure_t *entry )
 
     /* The entry matches, so blank it */
     memset( data, 0, 32 );
-    if( write_mempak_address( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), data ) )
+    if( joybus_accessory_write( controller, (3 * MEMPAK_BLOCK_SIZE) + (entry->entry_id * 32), data ) )
     {
         /* Couldn't update note database */
         return -2;

@@ -31,6 +31,16 @@ void test_fm_floorf(TestContext *ctx) {
     }
 }
 
+void test_fm_roundf(TestContext *ctx) {
+    float vals[] = {
+        1.0f, 1.2f, 1.5f, 1.7f, -1.0f, -1.2f, -1.5f, -1.7f,
+    };
+    for (int i = 0; i < 8; i++) {
+        float x = vals[i];
+        ASSERT_EQUAL_FLOAT(roundf(x), fm_roundf(x), "x=%f", x);
+    }
+}
+
 void test_fm_fmodf(TestContext *ctx) {
     struct {
         float x, y;
@@ -101,5 +111,35 @@ void test_fm_atan2f(TestContext *ctx) {
         float y = vals[i].y;
         ASSERT(fabsf(atan2f(x, y) - fm_atan2f(x, y)) < FM_TRIG_EPS, "x=%f y=%f",
                x, y);
+    }
+}
+
+void test_fm_expf(TestContext *ctx) {
+    for (float x = -10.0f; x < 10; x += 0.2f) {
+        float ex = expf(x);
+        ASSERT(fabsf(ex - fm_expf(x)) / ex < 0.03f, "x=%f", x);
+    }
+}
+
+void test_fm_lerp_angle(TestContext *ctx) {
+    struct {
+        float a, b, t, f;
+    } vals[] = {
+        {0.0f, 1.0f, 0.5f, 0.5f},         {0.0f, 2 * M_PI, 0.5f, 0.0f},
+        {0.0f, -2 * M_PI, 0.5f, 0.0f},    {1.0f, 0.0f, 0.5f, 0.5f},
+        {2 * M_PI, 0.0f, 0.5f, 2 * M_PI}, {-2 * M_PI, 0.0f, 0.5f, -2 * M_PI},
+    };
+    for (int i = 0; i < 6; i++) {
+        float fa = vals[i].a, fb = vals[i].b, t = vals[i].t, f = vals[i].f;
+        ASSERT_EQUAL_FLOAT(fm_lerp_angle(fa, fb, t), f, "a=%f b=%f t=%f", a, b,
+                           t);
+    }
+}
+
+void test_fm_wrap_angle(TestContext *ctx) {
+    for (float x = -10.0f; x < 10; x += 0.2f) {
+        ASSERT(fabsf(fmodf(fmodf(x, 2 * M_PI) + 2 * M_PI, 2 * M_PI) -
+                     fm_wrap_angle(x)) < 1e-6f,
+               "x=%f", x);
     }
 }

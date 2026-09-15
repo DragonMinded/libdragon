@@ -327,11 +327,15 @@ static int rdram_calibrate_current(uint16_t chip_id)
 
 int rdram_init(void (*bank_found)(int chip_id, bool last))
 {
-    // Start current calibration. This is necessary to ensure the RAC outputs
-    // the correct current value to talk to RDRAM chips.
-    *RI_CONFIG = RI_CONFIG_AUTO_CALIBRATION;   // Turn on the RI auto current calibration
-    wait(0x100);                               // Wait for calibration
-    *RI_CURRENT_LOAD = 0;                      // Apply the calibrated value
+    // Configure RI/RAC output current (towards RDRAM). This is necessary to
+    // allow communication with the chips. 
+    // The automatic current calibration has a hardware bug (it might cause
+    // corruptions in burst data transfers when many 1s have previously been
+    // on the bus), so we instead use the manual mode, with a current value
+    // at the middle of the range.
+    *RI_CONFIG = 0x20;
+    wait(0x100);                               // Seems like this wait is necessary(?)
+    *RI_CURRENT_LOAD = 0;                      // Apply the current value
     
     // Activate communication with RDRAM chips. We can't do this before current calibration
     // as the chips might not be able to communicate correctly if the current is wrong.
@@ -383,6 +387,16 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
         // now that we know if it's the last one or not.
         if (chip_id)
             bank_found(chip_id-2, false);
+
+        // The RI only supports up to 4 chips, so stop here. If we tried to
+        // calibrate a 5th chip connected to the bus, we would confuse RI bank
+        // tracking logic and cause all sorts of problems that would eventually
+        // lead to a crash. We tried that.
+        if (chip_id >= 8) {
+            debugf("\nWARNING: more than 4 2-MiB RDRAM chips connected");
+            debugf("RI does not support more than 4, skipping remaining\n");
+            break;
+        }
 
         // Calibrate the chip current. n64brew suggests to do 4 attempts here
         // but our tests seem to indicate that results are really stable and

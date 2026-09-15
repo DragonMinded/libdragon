@@ -36,6 +36,7 @@ class MatchFinder {
 	int min_length;
 	int match_patience;
 	int max_same_length;
+	int max_offset;
 
 	// Suffix array
 	vector<int> suffix_array;
@@ -124,8 +125,8 @@ class MatchFinder {
 	}
 
 public:
-	MatchFinder(unsigned char *data, int length, int min_length, int match_patience, int max_same_length) :
-		data(data), length(length), min_length(min_length), match_patience(match_patience), max_same_length(max_same_length) {
+	MatchFinder(unsigned char *data, int length, int min_length, int match_patience, int max_same_length, int max_offset) :
+		data(data), length(length), min_length(min_length), match_patience(match_patience), max_same_length(max_same_length), max_offset(max_offset) {
 		make_suffix_array();
 		reset();
 	}
@@ -136,7 +137,12 @@ public:
 	// Start finding matches between strings starting at pos and earlier strings.
 	void beginMatching(int pos) {
 		current_pos = pos;
-		min_pos = 0;
+		if (max_offset > 0) {
+			min_pos = current_pos - max_offset;
+			if (min_pos < 0) min_pos = 0;
+		} else {
+			min_pos = 0;
+		}
 
 		left_index = rev_suffix_array[pos];
 		left_length = length - pos;

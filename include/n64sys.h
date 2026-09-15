@@ -2,20 +2,22 @@
  * @file n64sys.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @author thekovic <https://github.com/thekovic>
  * @brief N64 System Interface
  * @ingroup n64sys
  */
 #ifndef __LIBDRAGON_N64SYS_H
 #define __LIBDRAGON_N64SYS_H
 
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <assert.h>
+#include "preview.h"
 #include "cop0.h"
 #include "cop1.h"
+#include "n64types.h"
 
 /**
  * @defgroup n64sys N64 System Interface
@@ -55,24 +57,6 @@ extern int __boot_tvtype;
  * @brief void pointer to cached and non-mapped memory start address
  */
 #define KSEG0_START_ADDR ((void*)0x80000000)
-
-/** 
- * @brief A physical address on the MIPS bus.
- * 
- * Physical addresses are 32-bit wide, and are used to address the memory
- * space of the MIPS R4300 CPU. The MIPS R4300 CPU has a 32-bit address bus,
- * and can address up to 4 GiB of memory.
- * 
- * Physical addresses are just numbers, they cannot be used as pointers (dereferenced).
- * To access them, you must first convert them virtual addresses using the
- * #VirtualCachedAddr or #VirtualUncachedAddr macros.
- * 
- * In general, libdragon will try to use #phys_addr_t whenever a physical
- * address is expected or returned, and C pointers for virtual addresses.
- * Unfortunately, not all codebase can be changed to follow this convention
- * for backward compatibility reasons.
- */
-typedef uint32_t phys_addr_t;
 
 /**
  * @brief Return the physical memory address for a given virtual address (pointer)
@@ -120,6 +104,22 @@ typedef uint32_t phys_addr_t;
  */
 #define VirtualUncachedAddr(_addr) ((void *)(((unsigned long)(_addr))|0xA0000000))
 
+/**
+ * @brief Create a virtual addresses in a 64-bit uncached segment to access a physical address
+ * 
+ * This function is similar to #VirtualUncachedAddr, but it returns a 64-bit
+ * virtual address (#vaddr64_t) instead of a 32-bit address (pointer). This is
+ * useful to access specific portions of the physical address space that are
+ * not accessible using 32-bit addresses, like the upper part of the PI space.
+ * 
+ * Use sys_vaddr_readN and sys_vaddr_writeN to read from and write to 64-bit virtual
+ * addresses.
+ * 
+ * @param[in] _addr     Physical address to convert to a virtual address
+ * 
+ * @return A 64-bit virtual address to access the physical address
+ */
+ #define VirtualUncachedAddr64(_addr) ((vaddr64_t)(((_addr))|0x9000000000000000ull))
 
 /**
  * @brief Return the uncached memory address for a given virtual address
@@ -289,14 +289,60 @@ inline bool sys_bbplayer(void) {
 }
 
 /**
- * @brief Read the number of ticks since system startup
+ * @brief Read the number of ticks since system startup (wall time)
  *
+ * This function reads the number of overall ticks since system startup. This
+ * is normally called "wall time", as it includes all the time spent by the CPU,
+ * including all the wait/spin loops and interrupts.
+ * 
  * The frequency of this counter is #TICKS_PER_SECOND. The counter will
  * never overflow, being a 64-bit number.
- *
+ * 
  * @return The number of ticks since system startup
+ * @see #get_user_ticks
+ * @see #get_system_ticks
  */
 uint64_t get_ticks(void);
+
+/**
+ * @brief Read the number of ticks since system startup (user time)
+ * @preview
+ *
+ * This function is similar to #get_ticks, but it returns the number of ticks
+ * spent in "user time", that is excluding the "system time". This is useful
+ * to measure the actual CPU time spent doing an operation, subtracting all the
+ * various wait/spin loops and interrupts.
+ *
+ * For instance, calling #get_user_ticks() once at each main loop iteration,
+ * and then subtracting the result from the previous iteration, will give the
+ * actual CPU time spent preparing the frame, excluding all the waiting for
+ * vblank or for RSP to finish its work and interrupts.
+ * 
+ * @return The number of ticks since system startup (user time)
+ * @see #get_ticks
+ * @see #get_system_ticks
+ */
+LIBDRAGON_PREVIEW_API
+uint64_t get_user_ticks(void);
+
+/**
+ * @brief Read the number of system ticks since system startup (system time)
+ * @preview
+ * 
+ * This function returns the number of ticks spent in "system time", that is
+ * the time spent in wait/spin loops and interrupts. This is useful to measure
+ * how much time the CPU is not doing actual work and is just waiting for hardware
+ * components to finish their tasks.
+ * 
+ * @return The number of system ticks since system startup
+ * @see #get_ticks
+ * @see #get_user_ticks
+ */
+LIBDRAGON_PREVIEW_API
+inline uint64_t get_system_ticks(void) {
+    extern uint64_t __acct_system_ticks;
+    return __acct_system_ticks;
+}
 
 /**
  * @brief Read the number of microseconds since system startup
@@ -309,12 +355,12 @@ uint64_t get_ticks(void);
 uint64_t get_ticks_us(void);
 
 /**
- * @brief Read the number of millisecounds since system startup
+ * @brief Read the number of milliseconds since system startup
  * 
  * This is similar to #get_ticks, but converts the result in integer
  * milliseconds for convenience.
  * 
- * @return The number of millisecounds since system startup
+ * @return The number of milliseconds since system startup
  */
 uint64_t get_ticks_ms(void);
 
@@ -444,6 +490,18 @@ void inst_cache_hit_writeback(volatile const void *, unsigned long);
 void inst_cache_hit_invalidate(volatile void *, unsigned long);
 
 /**
+ * @brief Force an instruction cache fill over a memory region
+ * @preview
+ *
+ * @param[in] addr
+ *            Pointer to memory in question
+ * @param[in] length
+ *            Length in bytes of the data pointed at by addr
+ */
+ LIBDRAGON_PREVIEW_API
+ void inst_cache_hit_fill(volatile void *, unsigned long);
+ 
+ /**
  * @brief Force an instruction cache index invalidate over a memory region
  *
  * @param[in] addr
@@ -504,12 +562,24 @@ void assert_memory_expanded(void);
  * @brief Heap statistics
  */
 typedef struct {
-    int total;      ///< Total heap size in bytes
-    int used;       ///< Used heap size in bytes
+    int total;          ///< Total heap size in bytes
+    int used;           ///< Used heap size in bytes
+    LIBDRAGON_PREVIEW_SYM
+    int free;           ///< Free heap size in bytes @preview
+    LIBDRAGON_PREVIEW_SYM
+    int fragmented;     ///< Free bytes in malloc chunks that are not in the top chunk @preview
+    LIBDRAGON_PREVIEW_SYM
+    float fragmentation;///< Fragmentation factor, in range [0, 1] @preview
 } heap_stats_t;
 
 /**
  * @brief Return information about memory usage of the heap
+ *
+ * The fragmentation factor is computed from newlib's malloc arena as
+ * `fragmented / malloc_free`, where `fragmented` is the amount of free memory
+ * that is not part of the top chunk (`mallinfo().fordblks - mallinfo().keepcost`).
+ * This estimates how much malloc-managed free memory is trapped in internal
+ * holes rather than available as one expandable tail.
  */
 void sys_get_heap_stats(heap_stats_t *stats);
 
@@ -560,6 +630,24 @@ void *malloc_uncached_aligned(int align, size_t size);
  */
 void free_uncached(void *buf);
 
+/**
+ * @brief Reallocate an uncached memory buffer
+ * @preview
+ * 
+ * This function changes the size of the memory buffer pointed to by
+ * `old_buf` to the size specified by `new_size`. The contents will be
+ * unchanged up to the minimum of the old and new sizes. 
+ * 
+ * @param [in] old_buf   Pointer to the previously allocated buffer
+ * @param [in] new_size  New size of the buffer
+ * @return A pointer to the reallocated buffer (in the uncached segment) or
+ *         NULL if the reallocation failed (in which case the old buffer is
+ *         unchanged)
+ */
+LIBDRAGON_PREVIEW_API
+void *realloc_uncached(void *old_buf, size_t new_size);
+
+
 /** @brief Type of TV video output */
 typedef enum {
     TV_PAL = 0,      ///< Video output is PAL
@@ -596,21 +684,145 @@ typedef enum {
  */
 reset_type_t sys_reset_type(void);
 
+/**
+ * @brief Get the PI address of the main ELF in ROM
+ * @preview
+ *
+ * This function returns the PI address of the main ELF in ROM,
+ * that is, the address where the running application has been loaded from.
+ * 
+ * This is only useful in some very niche cases, eg. for manually loading
+ * sections of the ELF at runtime, or inspecting custom ROM layouts.
+ * 
+ * Use #dma_read or #io_read to access the ROM contents at this address space.
+ * 
+ * @return Address of the the ELF in PI space (ROM)
+ */
+LIBDRAGON_PREVIEW_API
+pi_addr_t sys_elf_address(void);
+
+/**
+ * @brief Libdragon version information
+ *
+ * This structure contains information about the current version of Libdragon,
+ * that was embedded in the ROM at build time.
+ */
+typedef struct {
+    char branch[32+1];          ///< Branch name (normally "stable" or "preview")
+    char hash[20+1];            ///< Commit hash (SHA1)
+    char commit_date[16+1];     ///< Commit date (YYYY-MM-DD)
+    bool dirty;                 ///< True if Libdragon repository was dirty at build time
+} sys_version_t;
+
+/**
+ * @brief Get the version of Libdragon
+ * @preview
+ * 
+ * This function will fill the version structure with the information about
+ * the current version of Libdragon, that was embedded in the ROM at build time.
+
+ * @param version               Pointer to the version structure to fill
+ * @return true if the version information was successfully retrieved, false otherwise
+ */
+LIBDRAGON_PREVIEW_API
+bool sys_get_version(sys_version_t *version);
+
+/**
+ * @brief Perform a hardware-accelerated memory set
+ * @preview
+ * 
+ * This function uses a special function in the RCP (MI repeat mode)
+ * to perform a fast memset operation. The actual speed is about 6x
+ * a standard 64-bit memeset, and 12x a 32-bit memset.
+ * 
+ * You can use both cached and uncached memory addresses. For cached
+ * addresses, full cache coherency is guaranteed (so it will behave
+ * like a CPU memset would do).
+ * 
+ * All the sys_hw_memsetN functions run at the same speed, so this
+ * function is just as fast as #sys_hw_memset64. You don't need to
+ * use the 64-bit version unless you have a 64-bit pattern to repeat.
+ * 
+ * @note This special mode is not supported on the iQue player, so this
+ *       function falls back to a standard memset when run on iQue.
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         Value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ * 
+ * @see #sys_hw_memset16
+ * @see #sys_hw_memset32
+ * @see #sys_hw_memset64
+ */
+LIBDRAGON_PREVIEW_API
+void* sys_hw_memset(void *ptr, uint8_t value, size_t len);
+
+/**
+ * @brief Perform a hardware-accelerated memory set of a 16-bit pattern
+ * @preview
+ * 
+ * This function is similar to #sys_hw_memset, but repeats a 16-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABB for 7 bytes will result in the following
+ * memory contents: AA BB AA BB AA BB AA
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         16-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ */
+LIBDRAGON_PREVIEW_API
+void* sys_hw_memset16(void *ptr, uint16_t value, size_t len);
+
+/**
+ * @brief Perform a hardware-accelerated memory set of a 32-bit pattern
+ * @preview
+ * 
+ * This function is similar to #sys_hw_memset, but repeats a 32-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABBCCDD for 7 bytes will result in the following
+ * memory contents: AA BB CC DD AA BB CC
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         32-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ */
+LIBDRAGON_PREVIEW_API
+void* sys_hw_memset32(void *ptr, uint32_t value, size_t len);
+
+/**
+ * @brief Perform a hardware-accelerated memory set of a 64-bit pattern
+ * @preview
+ * 
+ * This function is similar to #sys_hw_memset, but repeats a 64-bit
+ * value instead of an 8-bit value. For instance, doing a memset
+ * of value 0xAABBCCDD11223344 for 11 bytes will result in the following
+ * memory contents: AA BB CC DD 11 22 33 44 AA BB CC
+ * 
+ * @param ptr           Pointer to the memory area to set
+ * @param value         64-bit value to repeat across the memory area
+ * @param len           Length of the memory area in bytes
+ * @return The same pointer passed to it
+ */
+LIBDRAGON_PREVIEW_API
+void* sys_hw_memset64(void *ptr, uint64_t value, size_t len);
+
 /** @cond */
+
+/* Error out if srand(time(NULL)) is used. We cannot */
+#define srand(seed)  ({ \
+    if (strstr(#seed, "time") && strstr(#seed, "NULL")) \
+        assertf(0, "srand(time(NULL)) will not work on N64 where RTC is not guaranteed. Use srand(getentropy32()) instead"); \
+    srand(seed); \
+})
+
 /* Deprecated version of get_ticks */
 __attribute__((deprecated("use get_ticks instead")))
-static inline volatile unsigned long read_count(void) {
+static inline unsigned long read_count(void) {
     return get_ticks();
 }
-
-/* Deprecated functions to tell libdragon which CIC is installed.
-   This was only used to cope with differences in boot flags with
-   official IPL3s, but it's not required anymore with open source
-   IPL3. */
-__attribute__((deprecated("querying CIC type is not supported")))
-static inline int sys_get_boot_cic() { return 6102; }
-__attribute__((deprecated("cannot set CIC type at runtime, but this is not required anymore")))
-static inline void sys_set_boot_cic(int bc) {}
 /** @endcond */
 
 #ifdef __cplusplus

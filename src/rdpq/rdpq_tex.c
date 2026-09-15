@@ -13,6 +13,7 @@
 #include "rdpq_tri.h"
 #include "rdpq_rect.h"
 #include "rdpq_tex.h"
+#include "rdpq_xform.h"
 #include "rdpq_tex_internal.h"
 #include "utils.h"
 #include "fmath.h"
@@ -131,8 +132,8 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
         if (width != tload->rect.width) {
             // Calculate he new pitch in TMEM (in bytes). Notice that RGBA32 is special
             // as texture data is split in two halves, so the pitch can be halved.
-            int pitch_shift = fmt == FMT_RGBA32 ? 1 : 0;
-            int stride_mask = fmt == FMT_RGBA32 ? 15 : 7;
+            int pitch_shift = (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? 1 : 0;
+            int stride_mask = (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? 15 : 7;
             tload->rect.tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width) >> pitch_shift, 8);
 
             // Verify whether we can use LOAD_BLOCK. The conditions we can verify just by looking at the
@@ -168,11 +169,13 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
                 // within the 4K TMEM size).
                 static const uint8_t block_max_lines_table[] = { 20, 42, 26, 14, 19, 32, 13, 28, 26, 8, 9, 4, 4, 5, 20, 13, 18, 3, 6, 3, 2, 16, 2, 2, 3, 14, 2, 13, 2, 1, 12, 4, 2, 2, 2, 2, 2, 2, 4, 10, 0, 1, 2, 9, 0, 1, 8, 0, 2, 0, 1, 0, 1, 8, 0, 0, 1, 0, 1, 0, 2, 0, 0, 1, 0, 6, 0, 0, 4, 0, 0, 6, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 0, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
  
-                int words = tload->rect.tmem_pitch / 8;
-                if (words >= 11)
+                int words = (tload->rect.tmem_pitch << pitch_shift) / 8;
+                if (words < 11)
+                    tload->rect.block_max_lines = 4096;   // arbitrary high number, it will be limited by TMEM size anyway
+                else if (words - 11 < sizeof(block_max_lines_table))
                     tload->rect.block_max_lines = block_max_lines_table[words - 11];
                 else
-                    tload->rect.block_max_lines = 4096;  // arbitrary high number, it will be limited by TMEM size anyway
+                    tload->rect.block_max_lines = 0;
             } else {
                 tload->rect.block_max_lines = 0;
             }
@@ -184,7 +187,7 @@ static int texload_set_rect(tex_loader_t *tload, int s0, int t0, int s1, int t1)
 
         // If the height changed, complete filling the rect structure,
         // and calculate whether we can really use LOAD_BLOCK or not.
-        int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
+        int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_YUV16) ? 2048 : 4096;
         assertf(height * tload->rect.tmem_pitch <= tmem_size,
             "A rectangle of size %dx%d format %s is too big to fit in TMEM", width, height, tex_format_name(fmt));
         tload->rect.width = width;
@@ -258,7 +261,7 @@ static void texload_block(tex_loader_t *tload, int s0, int t0, int s1, int t1)
         tload->load_mode = TEX_LOAD_BLOCK;
     }
 
-    rdpq_load_block(tile_internal, s0, t0, tload->rect.num_texels, (fmt == FMT_RGBA32) ? tload->rect.tmem_pitch*2 : tload->rect.tmem_pitch);
+    rdpq_load_block(tile_internal, s0, t0, tload->rect.num_texels, (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? tload->rect.tmem_pitch*2 : tload->rect.tmem_pitch);
 
     s0 = s0*4 + tload->rect.s0fx;
     t0 = t0*4 + tload->rect.t0fx;
@@ -361,11 +364,26 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1)
     texload_set_rect(tload, s0, 0, s1, 1);
 
     tex_format_t fmt = surface_get_format(tload->tex);
-    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8) ? 2048 : 4096;
+    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_YUV16) ? 2048 : 4096;
     return tmem_size / tload->rect.tmem_pitch;
 }
 
 ///@endcond
+
+bool rdpq_tex_can_upload(const surface_t *tex)
+{
+    tex_format_t fmt = surface_get_format(tex);
+    int width = tex->width;
+
+    if (TEX_FORMAT_BITDEPTH(fmt) == 4)
+        width = (width + 1) & ~1;
+
+    int pitch_shift = (fmt == FMT_RGBA32 || fmt == FMT_YUV16) ? 1 : 0;
+    int tmem_pitch = ROUND_UP(TEX_FORMAT_PIX2BYTES(fmt, width) >> pitch_shift, 8);
+    int tmem_size = (fmt == FMT_RGBA32 || fmt == FMT_CI4 || fmt == FMT_CI8 || fmt == FMT_YUV16) ? 2048 : 4096;
+
+    return tex->height * tmem_pitch <= tmem_size;
+}
 
 int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1)
 {
@@ -614,11 +632,48 @@ static void tex_xblit(const surface_t *surf, float x0, float y0, const rdpq_blit
         float v1[5] = { k1x, k1y, s1, t0, 1.0f };
         float v2[5] = { k2x, k2y, s1, t1, 1.0f };
         float v3[5] = { k3x, k3y, s0, t1, 1.0f };
-        rdpq_triangle(&TRIFMT_TEX, v0, v1, v2);
-        rdpq_triangle(&TRIFMT_TEX, v0, v2, v3);
+
+        rdpq_trifmt_t trifmt = TRIFMT_TEX;
+        trifmt.tex_tile = tile;
+        rdpq_triangle(&trifmt, v0, v1, v2);
+        rdpq_triangle(&trifmt, v0, v2, v3);
     }
 
     (*ltd)(tile, surf, os0, ot0, os1, ot1, draw_cb, parms->filtering);
+}
+
+__attribute__((noinline))
+static void tex_xblit_xform(const surface_t *surf, float x0, float y0, const rdpq_blitparms_t *parms, large_tex_draw ltd)
+{
+    rdpq_tile_t tile = parms->tile;
+    int src_width = parms->width ? parms->width : surf->width;
+    int src_height = parms->height ? parms->height : surf->height;
+    int os0 = parms->s0;
+    int ot0 = parms->t0;
+    int os1 = os0 + src_width;
+    int ot1 = ot0 + src_height;
+    bool flip_x = parms->flip_x;
+    bool flip_y = parms->flip_y;
+    float ofs_x = -(os0 + parms->cx);
+    float ofs_y = -(ot0 + parms->cy);
+    
+    float scalex = parms->scale_x == 0 ? 1.0f : parms->scale_x;
+    float scaley = parms->scale_y == 0 ? 1.0f : parms->scale_y;
+    rdpq_xform_push();
+    rdpq_xform_mult_srt(x0, y0, parms->theta, scalex, scaley);
+    
+    void draw_cb(rdpq_tile_t tile, int s0, int t0, int s1, int t1)
+    {
+        int ks0 = s0, kt0 = t0, ks1 = s1, kt1 = t1;
+
+        if (flip_x) { ks0 = os1 - s0 + os0 - 1; ks1 = os1 - s1 + os0 - 1; }
+        if (flip_y) { kt0 = ot1 - t0 + ot0 - 1; kt1 = ot1 - t1 + ot0 - 1; }
+
+        rdpq_xform_texture_rectangle(tile, ofs_x + ks0, ofs_y + kt0, ofs_x + ks1, ofs_y + kt1, s0, t0);
+    }
+
+    (*ltd)(tile, surf, os0, ot0, os1, ot1, draw_cb, parms->filtering);
+    rdpq_xform_pop();
 }
 
 /** @brief Internal implementation of #rdpq_tex_blit, using a custom large tex loader callback function */
@@ -626,9 +681,13 @@ void __rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitp
 {
     static const rdpq_blitparms_t default_parms = {0};
     if (!parms) parms = &default_parms;
-
+    
+    if(parms->allow_xform) {
+        tex_xblit_xform(surf, x0, y0, parms, ltd);
+        return;
+    }
     // Check which implementation to use, depending on the requested features.
-    if (F2I(parms->theta) == 0) {
+    if (F2I(parms->theta) == 0 && !parms->filtering) {
         if (F2I(parms->scale_x) == 0 && F2I(parms->scale_y) == 0)
                 tex_xblit_norotate_noscale(surf, x0, y0, parms, ltd);
             else
@@ -645,13 +704,12 @@ void rdpq_tex_blit(const surface_t *surf, float x0, float y0, const rdpq_blitpar
 
 void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors)
 {
-    // TODO: this is a conservative limit. It should be possible to workaround
-    // this limit by playing with the tlut pointer passed to SET_TEX_IMAGE and
-    // then adjust the first_color offset in rdpq_load_tlut_raw.
-    assertf((PhysicalAddr(tlut) & 7) == 0, "TLUT pointer must be 8-byte aligned");
-    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, 256, 1);
-    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*4*2, 256, NULL);
-    rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, 0, num_colors);
+    assert(num_colors > 0);
+    int init_offset = (PhysicalAddr(tlut) & 7) / 2;
+    tlut -= init_offset;
+    rdpq_set_texture_image_raw(0, PhysicalAddr(tlut), FMT_RGBA16, 256+4, 1);
+    rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_I4, TMEM_PALETTE_ADDR + color_idx*4*2, 256+8, NULL);
+    rdpq_load_tlut_raw(RDPQ_TILE_INTERNAL, init_offset, num_colors);
 }
 
 void rdpq_tex_multi_begin(void)
@@ -671,5 +729,5 @@ int rdpq_tex_multi_end(void)
     rdpq_set_tile_autotmem(-1);
     --multi_upload.used;
     assert(multi_upload.used >= 0);
-    return 0;
+    return multi_upload.bytes;
 }

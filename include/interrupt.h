@@ -74,6 +74,17 @@ void register_AI_handler( void (*callback)() );
 
 /**
  * @brief Register a VI callback
+ * 
+ * This function will be called on any programmer VI interrupt, so possibly
+ * more than once per frame if the application uses line interrupts via
+ * the VI library. Normally, it will be called on vblank.
+
+ * @note Most applications should not use this function directly, but instead
+ *       let the VI library manage interrupts, and use #vi_install_vblank_handler
+ *       to install a custom vblank handler.
+ * 
+ * @note VI interrupts are not generated until the VI is turned on. Use
+ *       #vi_init or #display_init to turn the VI on.
  *
  * @param[in] callback
  *            Function to call when a VI interrupt occurs
@@ -396,6 +407,14 @@ void set_AI_interrupt( int active );
 /**
  * @brief Enable or disable the VI interrupt
  *
+ * @note Most applications should not use this function directly, but instead
+ *       let the VI library handle interrupts, and use #vi_install_vblank_handler
+ *       to install a custom vblank handler.
+ * 
+ * @note Even if enabled here in the interrupt controller, VI interrupts are not
+ *       generated until the VI is turned on. Use #vi_init or #display_init to
+ *       turn the VI on.
+ * 
  * The VI interrupt is generated when the VI begins displaying a specific line
  * of the display output. The line number configured always refers to the
  * final TV output, so it should be either in the range 0..524 (NTSC) or
@@ -616,7 +635,7 @@ void register_reset_handler( void (*callback)() )
  *       system.  Therefore it is safe to nest disable/enable calls.  After the least
  *       nested enable call, systemwide interrupts will be reenabled.
  */
-void enable_interrupts();
+void enable_interrupts(void);
 
 /**
  * @brief Disable interrupts systemwide
@@ -624,7 +643,7 @@ void enable_interrupts();
  * @note If interrupts are already disabled on the system or interrupts have not
  *       been initialized, this function will not modify the system state.
  */
-void disable_interrupts();
+void disable_interrupts(void);
 
 
 /**
@@ -634,7 +653,7 @@ void disable_interrupts();
  * @retval INTERRUPTS_DISABLED if interrupts have been disabled.
  * @retval INTERRUPTS_ENABLED if interrupts are currently enabled.
  */
-interrupt_state_t get_interrupts_state(); 
+interrupt_state_t get_interrupts_state(void); 
 
 #ifdef __cplusplus
 }

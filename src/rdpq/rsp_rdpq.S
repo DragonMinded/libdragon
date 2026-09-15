@@ -16,7 +16,7 @@
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xC0 NOOP
         RSPQ_DefineCommand RDPQCmd_SetLookupAddress,        8   # 0xC1 Set lookup address
         RSPQ_DefineCommand RDPQCmd_RectEx,                  8   # 0xC2 Fill Rectangle (esclusive bounds)
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xC3
+        RSPQ_DefineCommand RDPQCmd_ClearZBuffer,            16  # 0xC3 CLear Z-Buffer
         RSPQ_DefineCommand RDPQCmd_ResetMode,               16  # 0xC4 Reset Mode (set mode standard)
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_2Pass,    8   # 0xC5 SET_COMBINE_MODE (two pass)
         RSPQ_DefineCommand RDPQCmd_PushMode,                4   # 0xC6 Push Mode
@@ -35,22 +35,22 @@
         RSPQ_DefineCommand RDPQCmd_SetScissorEx,            8   # 0xD2 Set Scissor (exclusive bounds)
         RSPQ_DefineCommand RDPQCmd_SetPrimColorComponent,   8   # 0xD3 Set Primimive Color Component (minlod or primlod or rgba)
         RSPQ_DefineCommand RDPQCmd_ModifyOtherModes,        12  # 0xD4 Modify SOM
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD5
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xD5
         RSPQ_DefineCommand RDPQCmd_SetFillColor32,          8   # 0xD6
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xD7
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xD7
         RSPQ_DefineCommand RDPQCmd_SetBlendingMode,         8   # 0xD8 Set Blending Mode
         RSPQ_DefineCommand RDPQCmd_SetFogMode,              8   # 0xD9 Set Fog Mode
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xDA
+        RSPQ_DefineCommand RDPQCmd_RdpWaitIdle,             4   # 0xDA RDP Wait Idle
         RSPQ_DefineCommand RDPQCmd_SetCombineMode_1Pass,    16  # 0xDB SET_COMBINE_MODE (one pass)
         RSPQ_DefineCommand RDPQCmd_AutoTmem_SetAddr,        4   # 0xDC AutoTmem_SetAddr
         RSPQ_DefineCommand RDPQCmd_AutoTmem_SetTile,        8   # 0xDD AutoTmem_SetTile
         RSPQ_DefineCommand RDPQCmd_Triangle,                4   # 0xDE Triangle (assembled by RSP)
         RSPQ_DefineCommand RDPQCmd_TriangleData,            28  # 0xDF Set Triangle Data
 
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE0
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE1
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE2
-        RSPQ_DefineCommand RSPQCmd_Noop,                    8   # 0xE3
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE0
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE1
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE2
+        RSPQ_DefineCommand RSPQ_Loop,                       8   # 0xE3
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE4 TEXTURE_RECTANGLE
         RSPQ_DefineCommand RDPQCmd_Passthrough16,           16  # 0xE5 TEXTURE_RECTANGLE_FLIP
         RSPQ_DefineCommand RDPQCmd_Passthrough8,            8   # 0xE6 SYNC_LOAD
@@ -367,8 +367,11 @@ RDPQCmd_SetFixupImage:
     #############################################################
     .func RDPQCmd_SetColorImage
 RDPQCmd_SetColorImage:
+    lbu t1, %lo(RDPQ_TARGET_BITDEPTH)
     srl t0, a0, 19
     andi t0, 3
+    andi t1, 0x80
+    or t0, t1
     # fixup DRAM address using address slots
     jal RDPQ_FixupAddress
     sb t0, %lo(RDPQ_TARGET_BITDEPTH)
@@ -476,10 +479,59 @@ RDPQCmd_SetLookupAddress:
     #############################################################
     .func RDPQ_FixupAddress
 RDPQ_FixupAddress:
-    srl t0, a1, 26
+    srl t0, a1, 24
     lw t1, %lo(RDPQ_ADDRESS_TABLE)(t0)
     jr ra
     add a1, t1
+    .endfunc
+
+    #############################################################
+    # RSPQCmd_RdpWaitIdle
+    #
+    # Wait until RDP is idle. 
+    # 
+    # *NOTE*: a SYNC_FULL command *must* have been already written
+    # to the RDP output buffer,  otherwise this function will stall
+    # forever. In fact, once the RDP is running, it never gets back
+    # to idle state until a SYNC_FULL is found, even if it has no
+    # more commands to run.
+    #############################################################
+    .func RDPQCmd_RdpWaitIdle
+RDPQCmd_RdpWaitIdle:
+    li t3, DP_STATUS_BUSY
+
+RdpWait:
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+#endif
+    mfc0 t2, COP0_DP_STATUS
+1:
+    # Wait for selected RDP status bits to become 0.
+    and t1, t2, t3
+    bnez t1, 1b
+    mfc0 t2, COP0_DP_STATUS
+#if RSPQ_PROFILE
+    # Measure the time we have been waiting for the RDP and save it to the special "RDP idle" slot.
+    # Also, subtract this time from the sample that is currently being recorded by adding it to the current start time.
+    mfc0 t1, COP0_DP_CLOCK
+
+    # If DP_STATUS_BUSY is set we are waiting for a FULL_SYNC. Divert this to yet another special slot.
+    andi t2, t3, DP_STATUS_BUSY
+    bnez t2, 1f
+    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPSYNCFULL)
+    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPBUSY)
+1:
+    lw t2, %lo(RSPQ_PROFILE_START_TIME)
+    subu t1, t0
+    and t0, t1, 0xFFFFFF
+    # Masking the updated start time is not necessary here because that will happen in RSPQ_Loop anyway
+    add t2, t0
+    j RSPQ_ProfileAccumulate
+    sw t2, %lo(RSPQ_PROFILE_START_TIME)
+#else
+    jr ra
+    nop
+#endif
     .endfunc
 
     #############################################################
@@ -492,8 +544,24 @@ RDPQ_FixupAddress:
 RDPQCmd_SyncFull:
     # Wait until:
     #  * the previous SYNC_FULL interrupt has been processed by the CPU.
+    #  * any pending RSP interrupt for checkpoint has been processed by the CPU.
+    # We need to wait for checkpoints so that we can fetch the correct checkpoint ID,
+    # which in turn is necessary for implementing rdpq_call_deferred.
+#if RSPQ_PROFILE
+    mfc0 t1, COP0_DP_CLOCK
+#endif
     jal SpStatusWait
-    li t2, SP_STATUS_SIG_RDPSYNCFULL
+    li t2, SP_STATUS_SIG_RDPSYNCFULL | SP_STATUS_SIG_SYNCPOINT
+#if RSPQ_PROFILE
+    mfc0 t0, COP0_DP_CLOCK
+    lw t2, %lo(RSPQ_PROFILE_START_TIME)
+    li s0, %lo(RSPQ_PROFILESLOT_IDLE_RDPSYNCFULLMULTI)
+    subu t0, t1
+    and t0, 0xFFFFFF
+    add t2, t0
+    jal RSPQ_ProfileAccumulate
+    sw t2, %lo(RSPQ_PROFILE_START_TIME)
+#endif
 
     # Fetch the current syncpoint ID and put it into the state
     lw s0, %lo(RDPQ_RDRAM_SYNCPOINT_ADDR)
@@ -714,8 +782,12 @@ RDPQ_Triangle_Cull:
 
     .func RDPQCmd_SetDebugMode
 RDPQCmd_SetDebugMode:
-    jr ra
-    sb a0, %lo(RDPQ_DEBUG)
+    lbu t0, %lo(RDPQ_TARGET_BITDEPTH)
+    beqz a0, 1f
+     andi t0, 0x7F
+    ori t0, 0x80
+1:  jr ra
+    sb t0, %lo(RDPQ_TARGET_BITDEPTH)
     .endfunc
 
 
@@ -815,6 +887,68 @@ autotmem_lowerlimit:
     j RDPQCmd_Passthrough8
     sh t0, %lo(RDPQ_AUTOTMEM_LIMIT)
     .endfunc
+
+
+    #######################################################################
+    # RDPQCmd_ClearZBuffer
+    #
+    # Clear the Z-Buffer by filling it with ZBUF_MAX. This is quite a bit
+    # faster than using RDP, though it does require a RDP fence to make
+    # sure the Z-Buffer is not in use anymore
+    #
+    #   a0: Address of the Z-Buffer
+    #   a1: Size of the Z-Buffer in bytes
+    #   a2: Temporary buffer
+    #   a3: Z-Buffer clear value
+    #
+    #######################################################################
+
+    .func RDPQCmd_ClearZBuffer
+RDPQCmd_ClearZBuffer:
+    # Prepare the fill value in $v01
+    mtc2 a3, $v01.e0
+    vor $v01, vzero, $v01.e0
+    li t7, %lo(_data_end)
+
+    # If this is hit, increase the temporary buffer in __rdpq_clear_z_with_rsp()
+    assert_le t7, 1280, RDPQ_ASSERT_ZCLEAR_INVALID_BUFFER
+
+    # Backup DMEM
+    jal ClearZBuf_DMEM_Backup
+    li t2, DMA_OUT    # FIXME: switch to ASYNC here when Ares is fixed
+
+    # Now start filling the whole DMEM with the clear code. Start from the
+    # end of data, so that we don't risk racing with DMA.
+    li s4, 1280
+    addiu s3, s4, 4096
+1:  sqv $v01, 0x00,s4
+    sqv $v01, 0x10,s4
+    sqv $v01, 0x20,s4
+    addiu s4, 0x40
+    bne s4, s3, 1b
+    sqv $v01, -0x10,s4
+
+    # Clear the Z-Buffer
+    jal DMAWaitReady
+    nop
+    mtc0 $0, COP0_DMA_SPADDR
+    mtc0 a0, COP0_DMA_RAMADDR
+    mtc0 a1, COP0_DMA_WRITE
+
+    # Restore DMEM
+    li t2, DMA_IN
+    jal_and_j ClearZBuf_DMEM_Backup, RSPQ_Loop
+
+    .endfunc
+
+ClearZBuf_DMEM_Backup:
+    # Backup the used DMEM area
+    li s4, 0
+    move s0, a2
+    j DMAExec
+    addiu t0, t7, -1
+
+
 
 # Include RDPQ library
 #include <rsp_rdpq.inc>

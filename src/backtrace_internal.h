@@ -5,6 +5,11 @@
 #ifndef __LIBDRAGON_BACKTRACE_INTERNAL_H
 #define __LIBDRAGON_BACKTRACE_INTERNAL_H
 
+#include "dlfcn_internal.h"
+
+/** @brief Module resolver function for backtrace */
+extern module_lookup_func __bt_lookup_module;
+
 /** @brief The "type" of funciton as categorized by the backtrace heuristic (__bt_analyze_func) */
 typedef enum {
     BT_FUNCTION,                ///< Regular function with a stack frame
@@ -40,7 +45,7 @@ int __backtrace_from(void **buffer, int size, uint32_t *pc, uint32_t *sp, uint32
  * @param vaddr         Address to symbolize 
  * @param buf           Buffer where to store the result
  * @param size          Size of the buffer
- * @return char*        Pointer to the return string. This is within the provided
+ * @return              Pointer to the return string. This is within the provided
  *                      buffer, but not necessarily at the beginning because of DMA
  *                      alignment constraints.
  */

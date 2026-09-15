@@ -10,10 +10,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
 #include <sys/errno.h>
 #include "console.h"
 #include "debug.h"
+#include "emux.h"
 #include "regsinternal.h"
 #include "system.h"
 #include "n64types.h"
@@ -25,9 +25,10 @@
 #include "libcart/cart.h"
 #include "interrupt.h"
 #include "backtrace.h"
+#include "kernel/kernel_internal.h"
 #include "exception_internal.h"
+#include "fat.h"
 #include "fatfs/ff.h"
-#include "fatfs/ffconf.h"
 #include "fatfs/diskio.h"
 
 /**
@@ -71,7 +72,7 @@ static FILE *sdlog_file = NULL;
 
 /** @brief prefix used to address SD filesystem */
 static char sdfs_prefix[16];
-static char sdfs_logic_drive[3] = { 0 };
+static int sdfs_vol_id = -1;
 
 /** @brief debug writer functions (USB, SD, IS64) */
 static void (*debug_writer[3])(const uint8_t *buf, int size) = { 0 };
@@ -149,6 +150,11 @@ static void isviewer_write(const uint8_t *data, int len)
 	}
 }
 
+static void emux_write(const uint8_t *data, int len)
+{
+	emux_logn((const char*)data, len);
+}
+
 static void usblog_write(const uint8_t *data, int len)
 {
 	usb_write(DATATYPE_TEXT, data, len);
@@ -170,94 +176,10 @@ static void sdlog_write(const uint8_t *data, int len)
 /*********************************************************************
  * FAT backend
  *********************************************************************/
-/** @cond */
 
-static FATFS sd_fat;
-#define FAT_VOLUME_SD    0
+static int fat_disk_status_default(void) { return 0; }
 
-typedef struct
-{
-	DSTATUS (*disk_initialize)(void);
-	DSTATUS (*disk_status)(void);
-	DRESULT (*disk_read)(BYTE* buff, LBA_t sector, UINT count);
-	DRESULT (*disk_read_sdram)(BYTE* buff, LBA_t sector, UINT count);
-	DRESULT (*disk_write)(const BYTE* buff, LBA_t sector, UINT count);
-	DRESULT (*disk_ioctl)(BYTE cmd, void* buff);
-} fat_disk_t;
-
-static fat_disk_t fat_disks[FF_VOLUMES] = {0};
-
-DSTATUS disk_initialize(BYTE pdrv)
-{
-	if (fat_disks[pdrv].disk_initialize)
-		return fat_disks[pdrv].disk_initialize();
-	return STA_NOINIT;
-}
-
-DSTATUS disk_status(BYTE pdrv)
-{
-	if (fat_disks[pdrv].disk_status)
-		return fat_disks[pdrv].disk_status();
-	return STA_NOINIT;
-}
-
-DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
-{
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-	if (fat_disks[pdrv].disk_read && PhysicalAddr(buff) < 0x00800000)
-		return fat_disks[pdrv].disk_read(buff, sector, count);
-	if (fat_disks[pdrv].disk_read_sdram && io_accessible(PhysicalAddr(buff)))
-		return fat_disks[pdrv].disk_read_sdram(buff, sector, count);
-	return RES_PARERR;
-}
-
-DRESULT disk_write(BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
-{
-	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
-	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
-	if (fat_disks[pdrv].disk_write)
-		return fat_disks[pdrv].disk_write(buff, sector, count);
-	return RES_PARERR;
-}
-
-DRESULT disk_ioctl(BYTE pdrv, BYTE cmd, void* buff)
-{
-	if (fat_disks[pdrv].disk_ioctl)
-		return fat_disks[pdrv].disk_ioctl(cmd, buff);
-	return RES_PARERR;
-}
-
-DWORD get_fattime(void)
-{
-	time_t t = time(NULL);
-	if (t == -1) {
-		return (DWORD)(
-			(FF_NORTC_YEAR - 1980) << 25 |
-			FF_NORTC_MON << 21 |
-			FF_NORTC_MDAY << 16
-		);
-	}
-  	struct tm tm = *localtime(&t);
-	return (DWORD)(
-		(tm.tm_year - 80) << 25 |
-		(tm.tm_mon + 1) << 21 |
-		tm.tm_mday << 16 |
-		tm.tm_hour << 11 |
-		tm.tm_min << 5 |
-		(tm.tm_sec >> 1)
-	);
-}
-
-/** @endcond */
-
-/*********************************************************************
- * Helpers
- *********************************************************************/
-
-static DSTATUS fat_disk_status_default(void) { return 0; }
-
-static DRESULT fat_disk_ioctl_default(BYTE cmd, void* buff)
+static int fat_disk_ioctl_default(uint8_t cmd, void* buff)
 {
 	switch (cmd)
 	{
@@ -266,240 +188,46 @@ static DRESULT fat_disk_ioctl_default(BYTE cmd, void* buff)
 	}
 }
 
-static DSTATUS fat_disk_initialize_sd(void)
+static int fat_disk_initialize_sd(void)
 {
 	return cart_card_init() ? STA_NOINIT : 0;
 }
 
-static DRESULT fat_disk_read_sd(BYTE* buff, LBA_t sector, UINT count)
+static int fat_disk_read_sd(uint8_t* buff, int64_t sector, int count)
 {
-	return cart_card_rd_dram(buff, sector, count) ? RES_ERROR : RES_OK;
+	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
+	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
+	assertf((uint32_t)sector == sector, "unsupported access to SD card > 2 TiB");
+
+	// Check whether the user is requesting a read into RDRAM, or into
+	// the cartridge's SDRAM (that is, a PI-accessible address). We try
+	// to be generic here and not hardcode specific addresses; we assume
+	// libcart will know better than us where the SDRAM is located.
+	if (PhysicalAddr(buff) < 0x00800000)
+		return cart_card_rd_dram(buff, sector, count) ? RES_ERROR : RES_OK;
+	if (io_accessible(PhysicalAddr(buff)))
+		return cart_card_rd_cart(PhysicalAddr(buff), sector, count) ? RES_ERROR : RES_OK;
+
+	return RES_PARERR;
 }
 
-static DRESULT fat_disk_read_sdram_sd(BYTE* buff, LBA_t sector, UINT count)
-{
-	return cart_card_rd_cart(PhysicalAddr(buff), sector, count) ? RES_ERROR : RES_OK;
-}
 
-static DRESULT fat_disk_write_sd(const BYTE* buff, LBA_t sector, UINT count)
+static int fat_disk_write_sd(const uint8_t* buff, int64_t sector, int count)
 {
+	_Static_assert(FF_MIN_SS == 512, "this function assumes sector size == 512");
+	_Static_assert(FF_MAX_SS == 512, "this function assumes sector size == 512");
+	assertf((uint32_t)sector == sector, "unsupported access to SD card > 2 TiB");
 	return cart_card_wr_dram(buff, sector, count) ? RES_ERROR : RES_OK;
 }
 
 static fat_disk_t fat_disk_sd =
 {
-	fat_disk_initialize_sd,
-	fat_disk_status_default,
-	fat_disk_read_sd,
-	fat_disk_read_sdram_sd,
-	fat_disk_write_sd,
-	fat_disk_ioctl_default
+	.disk_initialize = fat_disk_initialize_sd,
+	.disk_status = fat_disk_status_default,
+	.disk_read = fat_disk_read_sd,
+	.disk_write = fat_disk_write_sd,
+	.disk_ioctl = fat_disk_ioctl_default,
 };
-
-/*********************************************************************
- * FAT newlib wrappers
- *********************************************************************/
-
-/** Maximum number of FAT files that can be concurrently opened */
-#define MAX_FAT_FILES 4
-static FIL fat_files[MAX_FAT_FILES] = {0};
-static DIR find_dir;
-
-static void __fresult_set_errno(FRESULT err)
-{
-	assertf(err != FR_INT_ERR, "FatFS assertion error");
-	switch (err) {
-	case FR_OK: return;
-	case FR_DISK_ERR: 			errno = EIO; return;
-	case FR_NOT_READY: 			errno = EBUSY; return;
-	case FR_NO_FILE: 			errno = ENOENT; return;
-	case FR_NO_PATH: 			errno = ENOENT; return;
-	case FR_INVALID_NAME: 		errno = EINVAL; return;
-	case FR_DENIED: 			errno = EACCES; return;
-	case FR_EXIST: 				errno = EEXIST; return;
-	case FR_INVALID_OBJECT: 	errno = EINVAL; return;
-	case FR_WRITE_PROTECTED: 	errno = EROFS; return;
-	case FR_INVALID_DRIVE: 		errno = ENODEV; return;
-	case FR_NOT_ENABLED: 		errno = ENODEV; return;
-	case FR_NO_FILESYSTEM: 		errno = ENODEV; return;
-	case FR_MKFS_ABORTED: 		errno = EIO; return;
-	case FR_TIMEOUT: 			errno = ETIMEDOUT; return;
-	case FR_LOCKED: 			errno = EBUSY; return;
-	case FR_NOT_ENOUGH_CORE: 	errno = ENOMEM; return;
-	case FR_TOO_MANY_OPEN_FILES: errno = EMFILE; return;
-	case FR_INVALID_PARAMETER: 	errno = EINVAL; return;
-	default: 					errno = EIO; return;
-	}
-}
-
-static void *__fat_open(char *name, int flags)
-{
-	int i;
-	for (i=0;i<MAX_FAT_FILES;i++)
-		if (fat_files[i].obj.fs == NULL)
-			break;
-	if (i == MAX_FAT_FILES)
-		return NULL;
-
-	int fatfs_flags = 0;
-	if ((flags & O_ACCMODE) == O_RDONLY)
-		fatfs_flags |= FA_READ;
-	if ((flags & O_ACCMODE) == O_WRONLY)
-		fatfs_flags |= FA_WRITE;
-	if ((flags & O_ACCMODE) == O_RDWR)
-		fatfs_flags |= FA_READ | FA_WRITE;
-	if ((flags & O_APPEND) == O_APPEND)
-		fatfs_flags |= FA_OPEN_APPEND;
-	if ((flags & O_TRUNC) == O_TRUNC)
-		fatfs_flags |= FA_CREATE_ALWAYS;
-	if ((flags & O_CREAT) == O_CREAT) {
-		if ((flags & O_EXCL) == O_EXCL)
-			fatfs_flags |= FA_CREATE_NEW;
-		else
-			fatfs_flags |= FA_OPEN_ALWAYS;
-	} else
-		 fatfs_flags |= FA_OPEN_EXISTING;
-
-	FRESULT res = f_open(&fat_files[i], name, fatfs_flags);
-	if (res != FR_OK)
-	{
-		__fresult_set_errno(res);
-		fat_files[i].obj.fs = NULL;
-		return NULL;
-	}
-	return &fat_files[i];
-}
-
-static void __fat_stat_fill(FSIZE_t size, BYTE attr, struct stat *st)
-{
-	memset(st, 0, sizeof(struct stat));
-	st->st_size = size;
-	if (attr & AM_RDO)
-		st->st_mode |= 0444;
-	else
-		st->st_mode |= 0666;
-	if (attr & AM_DIR)
-		st->st_mode |= S_IFDIR;
-	else
-		st->st_mode |= S_IFREG;
-}
-
-static int __fat_fstat(void *file, struct stat *st)
-{
-	FIL *f = file;
-	__fat_stat_fill(f_size(f), f->obj.attr, st);
-	return 0;
-}
-
-static int __fat_read(void *file, uint8_t *ptr, int len)
-{
-	UINT read;
-	FRESULT res = f_read(file, ptr, len, &read);
-	if (res != FR_OK) {
-		__fresult_set_errno(res);
-		return -1;
-	}
-	return read;
-}
-
-static int __fat_write(void *file, uint8_t *ptr, int len)
-{
-	UINT written;
-	FRESULT res = f_write(file, ptr, len, &written);
-	if (res != FR_OK) {
-		__fresult_set_errno(res);
-		return -1;
-	}
-	return written;
-}
-
-static int __fat_close(void *file)
-{
-	FRESULT res = f_close(file);
-	if (res != FR_OK) {
-		__fresult_set_errno(res);
-		return -1;
-	}
-	return 0;
-}
-
-static int __fat_lseek(void *file, int offset, int whence)
-{
-	FRESULT res;
-	FIL *f = file;
-	switch (whence)
-	{
-	case SEEK_SET: res = f_lseek(f, offset); break;
-	case SEEK_CUR: res = f_lseek(f, f_tell(f) + offset); break;
-	case SEEK_END: res = f_lseek(f, f_size(f) + offset); break;
-	default: return -1;
-	}
-	if (res != FR_OK) {
-		__fresult_set_errno(res);
-		return -1;
-	}
-	return f_tell(f);
-}
-
-static int __fat_unlink(char *name)
-{
-	FRESULT res = f_unlink(name);
-	if (res != FR_OK) {
-		__fresult_set_errno(res);
-		return -1;
-	}
-	return 0;
-}
-
-static int __fat_findnext(dir_t *dir)
-{
-	FILINFO info;
-	FRESULT res = f_readdir(&find_dir, &info);
-	if (res != FR_OK) {
-		__fresult_set_errno(res);
-		return -1;
-	}
-
-	// Check if we reached the end of the directory
-	if (info.fname[0] == 0) {
-		res = f_closedir(&find_dir);
-		if (res != FR_OK) {
-			__fresult_set_errno(res);
-			return -1;
-		}
-		return -1;
-	}
-
-	strlcpy(dir->d_name, info.fname, sizeof(dir->d_name));
-	if (info.fattrib & AM_DIR)
-		dir->d_type = DT_DIR;
-	else
-		dir->d_type = DT_REG;
-	return 0;
-}
-
-static int __fat_findfirst(char *name, dir_t *dir)
-{
-	FRESULT res = f_opendir(&find_dir, name);
-	if (res != FR_OK) {
-		return -1;
-	}
-	return __fat_findnext(dir);
-}
-
-static filesystem_t fat_fs = {
-	.open = __fat_open,
-	.fstat = __fat_fstat,
-	.lseek = __fat_lseek,
-	.read = __fat_read,
-	.write = __fat_write,
-	.close = __fat_close,
-	.unlink = __fat_unlink,
-	.findfirst = __fat_findfirst,
-	.findnext = __fat_findnext,
-};
-
-
 
 /** Initialize the SD stack just once */
 static bool sd_initialize_once(void) {
@@ -535,6 +263,7 @@ static bool usb_initialize_once(void) {
 	return ok;
 }
 
+/** Emit debug output */
 static int __stderr_write(char *buf, unsigned int len)
 {
 	for (int i=0; i<sizeof(debug_writer) / sizeof(debug_writer[0]); i++)
@@ -579,12 +308,21 @@ bool debug_init_usblog(void)
 
 bool debug_init_emulog(void)
 {
-	if (!isviewer_init())
-		return false;
+	if (emux_detect(1) & EMUX_FEAT1_LOG)
+	{
+		hook_init_once();
+		debug_writer[1] = emux_write;
+		return true;
+	}
 
-	hook_init_once();
-	debug_writer[1] = isviewer_write;
-	return true;
+	if (isviewer_init())
+	{
+		hook_init_once();
+		debug_writer[1] = isviewer_write;
+		return true;
+	}
+	
+	return false;
 }
 
 bool debug_init_sdlog(const char *fn, const char *openfmt)
@@ -603,36 +341,51 @@ bool debug_init_sdfs(const char *prefix, int npart)
 	if (!sd_initialize_once())
 		return false;
 
-	fat_disks[FAT_VOLUME_SD] = fat_disk_sd;
-
-	if (npart >= 0) {
-		sdfs_logic_drive[0] = '0' + npart;
-		sdfs_logic_drive[1] = ':';
-		sdfs_logic_drive[2] = '\0';
-	} else {
-		sdfs_logic_drive[0] = '\0';
-	}
-
-	FRESULT res = f_mount(&sd_fat, sdfs_logic_drive, 1);
-	if (res != FR_OK)
-	{
-		debugf("Cannot mount SD FAT filesystem: %d\n", res);
-		return false;
-	}
-
 	strlcpy(sdfs_prefix, prefix, sizeof(sdfs_prefix));
-	attach_filesystem(sdfs_prefix, &fat_fs);
+	sdfs_vol_id = fat_mount(sdfs_prefix, &fat_disk_sd, FAT_MOUNT_DEFERRED);
+	if (sdfs_vol_id < 0)
+		return false;
+
 	enabled_features |= DEBUG_FEATURE_FILE_SD;
 	return true;
 }
 
 void debug_close_sdfs(void)
 {
-	if (enabled_features & DEBUG_FEATURE_FILE_SD)
+	if ((enabled_features & DEBUG_FEATURE_FILE_SD) && sdfs_vol_id >= 0)
 	{
-		detach_filesystem(sdfs_prefix);
-		f_mount(NULL, sdfs_logic_drive, 0);
+		if (fat_unmount(sdfs_vol_id) == 0) {
+			sdfs_vol_id = -1;
+			enabled_features &= ~DEBUG_FEATURE_FILE_SD;
+		}
 	}
+}
+
+static void debugfv(const char *msg, va_list args)
+{
+	// Debug output. The goal is to call __stderr_write() with the final output
+	// string. Normally, we can do this simply by calling vfprintf(stderr, ...).
+	//
+	// Under interrupts, when the kernel is used, though, we need to avoid
+	// using stdio functions as they could deadlock on FILE mutexes. The best
+	// would be to have a fprintf variant that calls a custom function for each
+	// output character, but that doesn't exist in newlib. So we resort to a
+	// fixed-size vsnprintf buffer.
+	if (__kernel && exception_is_running()) {
+		char buf[256] __attribute__((uninitialized));
+		int n = vsnprintf(buf, sizeof(buf), msg, args);
+		if (n > 0) __stderr_write(buf, n < sizeof(buf) ? n : sizeof(buf));
+		return;
+	}
+
+	vfprintf(stderr, msg, args);
+}
+
+void debugf(const char *msg, ...)
+{
+	va_list args;
+	va_start(args, msg);
+	debugfv(msg, args);
 }
 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
@@ -642,7 +395,7 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 	// As first step, immediately print the assertion on stderr. This is
 	// very likely to succeed as it should not cause any further allocations
 	// and we would display the assertion immediately on logs.
-	fprintf(stderr,
+	debugf(
 		"ASSERTION FAILED: %s\n"
 		"file \"%s\", line %d%s%s\n",
 		failedexpr, file, line,
@@ -653,13 +406,13 @@ void debug_assert_func_f(const char *file, int line, const char *func, const cha
 		va_list args;
 
 		va_start(args, msg);
-		vfprintf(stderr, msg, args);
+		debugfv(msg, args);
 		va_end(args);
 
-		fprintf(stderr, "\n");
+		debugf("\n");
 	}
 
-	fprintf(stderr, "\n");
+	debugf("\n");
 
 	va_list args;
 	va_start(args, msg);

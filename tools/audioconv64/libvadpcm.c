@@ -1,0 +1,6 @@
+#include "vadpcm/codec/autocorr.c"
+#include "vadpcm/codec/predictor.c"
+#include "vadpcm/codec/random.c"
+#include "vadpcm/codec/encode.c"
+#include "vadpcm/codec/decode.c"
+#include "vadpcm/codec/error.c"

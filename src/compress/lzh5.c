@@ -17,6 +17,8 @@
 #include "utils.h"
 #include "n64sys.h"
 #include "dragonfs.h"
+#include "asset.h"
+
 #else
 #include <stdlib.h>
 #endif
@@ -42,6 +44,7 @@ typedef struct {
 	uint8_t *buf_ptr, *buf_end;
 	int buf_size;
 	int cur_buf;
+	uint64_t ticket[2];
 
 	// Bits from the input stream that are waiting to be read.
 	uint64_t bit_buffer;
@@ -59,8 +62,9 @@ static void bit_stream_reader_init(BitStreamReader *reader, FILE *fp, uint32_t r
 
 	#ifdef N64
 	if (reader->rom_addr) {
-		data_cache_hit_invalidate(reader->buf[reader->cur_buf^1], sizeof(reader->buf[0]));
-		dma_read_raw_async(reader->buf[reader->cur_buf^1], reader->rom_addr, sizeof(reader->buf[0]));
+		int next = reader->cur_buf ^ 1;
+		data_cache_hit_invalidate(reader->buf[next], sizeof(reader->buf[0]));
+		reader->ticket[next] = dma_read_raw_async(reader->buf[next], reader->rom_addr, sizeof(reader->buf[0]));
 		reader->rom_addr += sizeof(reader->buf[0]);
 	}
 	#endif
@@ -72,8 +76,10 @@ static void refill_bits_fetch(BitStreamReader *reader)
 
 	#ifdef N64
 	if (reader->rom_addr) {
-		data_cache_hit_invalidate(reader->buf[reader->cur_buf^1], sizeof(reader->buf[0]));
-		dma_read_raw_async(reader->buf[reader->cur_buf^1], reader->rom_addr, sizeof(reader->buf[0]));
+		dma_wait_finished(reader->ticket[reader->cur_buf]);
+		int next = reader->cur_buf ^ 1;
+		data_cache_hit_invalidate(reader->buf[next], sizeof(reader->buf[0]));
+		reader->ticket[next] = dma_read_raw_async(reader->buf[next], reader->rom_addr, sizeof(reader->buf[0]));
 		reader->rom_addr += sizeof(reader->buf[0]);
 		reader->buf_size = sizeof(reader->buf[0]);
 	#else
@@ -557,7 +563,7 @@ int decompress_lzh5_pos(void *state) {
 void* decompress_lzh5_full(const char *fn, FILE *fp, size_t cmp_size, size_t size)
 {
 	void *s = memalign(ASSET_ALIGNMENT, size);
-	assertf(s, "asset_load: out of memory");
+	assertf(s, "Out of memory");
 
 	uint32_t rom_addr = 0;
 	#ifdef N64

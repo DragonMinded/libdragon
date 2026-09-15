@@ -24,7 +24,7 @@ spriteanim.z64: N64_ROM_TITLE="Sprite Anim Demo"
 spriteanim.z64: $(BUILD_DIR)/spriteanim.dfs 
 
 clean:
-	rm -rf $(BUILD_DIR) spriteanim.z64
+	rm -rf $(BUILD_DIR) spriteanim.z64 filesystem
 
 -include $(wildcard $(BUILD_DIR)/*.d)
 

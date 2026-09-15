@@ -41,6 +41,7 @@ SECTIONS {
         KEEP(build/loader.o(.data .data.*))
         . = ALIGN(8);
         __stage2_end = .;
+        KEEP(build/cleanup.o(.text .text.* .data .rodata .rodata.*))
         build/debug.o      (.text .text.* .data)
         *(.rodata)
         *(.rodata.*)

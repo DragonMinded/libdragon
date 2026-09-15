@@ -1,7 +1,7 @@
 /**
  * @file pputils.h
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
+ * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  */
 /*
  * Preprocessor metaprogramming utils

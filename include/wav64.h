@@ -8,6 +8,8 @@
 #ifndef __LIBDRAGON_WAV64_H
 #define __LIBDRAGON_WAV64_H
 
+
+#include "preview.h"
 #include "mixer.h"
 
 #ifdef __cplusplus
@@ -15,6 +17,8 @@ extern "C" {
 #endif
 
 /// @cond
+typedef struct wav64_state_s wav64_state_t;
+extern void __wav64_init_compression_lvl2(void);
 extern void __wav64_init_compression_lvl3(void);
 /// @endcond
 
@@ -37,11 +41,9 @@ typedef struct wav64_s {
 	 */
 	waveform_t wave;
 
-	/** @brief File descriptor to read WAV64 */
-	int current_fd;			 ///< File descriptor for the wav64 file
-	int base_offset;		 ///< Start of Wav64 data.
-	int format;			     ///< Internal format of the file
-	void *ext;               ///< Pointer to extended data (internal use)
+	///@cond
+	wav64_state_t *st;				 // Extra opaque data
+	///@endcond
 } wav64_t;
 
 /**
@@ -52,9 +54,8 @@ typedef struct wav64_s {
  * for which no initialization is required. Level 0 (uncompressed) also
  * requires no initialization.
  * 
- * Currently, only level 3 requires initialization (level 2 does not exist yet).
- * If you have any wav64 compressed with level 3, you must call this function
- * before opening them.
+ * Levels 2 and 3 require initialization. If you have any wav64 compressed with 
+ * either level, you must call this function before opening them.
  * 
  * @code{.c}
  *      wav64_init_compression(3); 
@@ -71,6 +72,7 @@ typedef struct wav64_s {
     switch (level) { \
     case 0: break; \
     case 1: break; \
+    case 2: __wav64_init_compression_lvl2(); break; \
     case 3: __wav64_init_compression_lvl3(); break; \
     default: assertf(0, "Unsupported compression level: %d", level); \
     } \
@@ -86,6 +88,58 @@ typedef struct wav64_s {
  *                      only files on DFS ("rom:/") are supported.
  */ 
 void wav64_open(wav64_t *wav, const char *fn);
+
+/** @brief WAV64 streaming mode */
+typedef enum {
+	/** 
+	 * @brief Full streaming
+	 * 
+	 * This is the default mode for streaming. All samples of the files are
+	 * streamed from the file (typically, from ROM but could also be SD) on-demand.
+	 * 
+	 * This uses the least amount of memory but requires data transfers from
+	 * the storage device during playback.
+	 */
+	WAV64_STREAMING_FULL,
+
+	/**
+	 * @brief Preload and decompress the whole file
+	 * 
+	 * This mode preloads the whole file into memory and decompresses it in full
+	 * at the beginning. This is useful for small files that can fit in memory,
+	 * and for which you do not want to pay for the streaming overhead.
+	 */
+	WAV64_STREAMING_NONE,
+
+} wav64_streaming_mode_t;
+
+/** @brief WAV64 loading parameters (to be passed to #wav64_load) */
+typedef struct wav64_loadparms_s {
+	/**
+	 * @brief Streaming mode for the wav64
+	 * 
+	 * See #wav64_streaming_mode_t for details.
+	 */
+	wav64_streaming_mode_t streaming_mode;
+
+} wav64_loadparms_t;
+
+/** 
+ * @brief Load a WAV64 file for playback.
+ * @preview
+ * 
+ * This function opens the file, parses the header, and initializes for
+ * playing back through the audio mixer. 
+ * 
+ * You can use the #wav64_loadparms_t structure to specify additional parameters
+ * for the loading process, like the maximum number of simultaneous playbacks
+ * or the streaming mode.
+ * 
+ * @param   fn          Filename of the wav64 (with filesystem prefix).
+ * @param   parms       Optional loading parameters (or NULL for defaults).
+ */ 
+LIBDRAGON_PREVIEW_API
+wav64_t *wav64_load(const char *fn, wav64_loadparms_t *parms);
 
 /** @brief Configure a WAV64 file for looping playback. */
 void wav64_set_loop(wav64_t *wav, bool loop);
@@ -107,10 +161,27 @@ void wav64_set_loop(wav64_t *wav, bool loop);
 void wav64_play(wav64_t *wav, int ch);
 
 /**
+ * @brief Seek a playing WAV64 to a given time position (in seconds).
+ * @preview
+ *
+ * This is a convenience wrapper around #mixer_ch_set_pos that calculates the
+ * nearest seekable position for the given time position, depending on how
+ * the file was compressed. In general, compressed audio files can only seek to
+ * specific precomputed skip points. 
+ *
+ * @param wav       Pointer to wav64_t structure
+ * @param ch        Channel of the mixer to seek (same channel passed to #wav64_play)
+ * @param time_sec  Desired time position (in seconds)
+ * @return          The adjusted time in seconds that was actually used for seeking
+ */
+LIBDRAGON_PREVIEW_API
+double wav64_seek(wav64_t *wav, int ch, double time_sec);
+
+/**
  * @brief Get the (possibly compressed) bitrate of the WAV64 file.
  * 
  * @param wav 			Pointer to wav64_t structure
- * @return int 			Bitrate in bits per second
+ * @return     			Bitrate in bits per second
  */
 int wav64_get_bitrate(wav64_t *wav);
 

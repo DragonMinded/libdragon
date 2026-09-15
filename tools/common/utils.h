@@ -128,4 +128,83 @@ static const char *n64_tools_dir(void)
     n64_inst = path_remove_trailing_slash(n64_inst);
     return n64_inst;
 }
+
+__attribute__((used))
+static uint8_t* slurp(const char *fn, int *size)
+{
+    FILE *f = fopen(fn, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    int sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    uint8_t *buf = (uint8_t*)malloc(sz);
+    fread(buf, 1, sz, f);
+    fclose(f);
+    if (size) *size = sz;
+    return buf;
+}
+
+/** @brief Read entire contents of an open FILE (e.g. tmpfile). Caller must free(). */
+__attribute__((used))
+static uint8_t* slurp_fp(FILE *f, int *size)
+{
+    fflush(f);
+    if (fseek(f, 0, SEEK_END) != 0) return NULL;
+    long sz = ftell(f);
+    if (sz < 0) return NULL;
+    if (fseek(f, 0, SEEK_SET) != 0) return NULL;
+    uint8_t *buf = (uint8_t*)malloc(sz);
+    if (!buf) return NULL;
+    if (sz > 0 && fread(buf, 1, sz, f) != (size_t)sz) {
+        free(buf);
+        return NULL;
+    }
+    if (size) *size = (int)sz;
+    return buf;
+}
+
+#ifdef __cplusplus
+#include <vector>
+__attribute__((used))
+static std::vector<uint8_t> slurp(const char *fn)
+{
+    std::vector<uint8_t> ret;
+    FILE *f = fopen(fn, "rb");
+    if (!f) return ret;
+    fseek(f, 0, SEEK_END);
+    ret.resize(ftell(f));
+    fseek(f, 0, SEEK_SET);
+    if (!ret.empty() && fread(&ret[0], 1, ret.size(), f) != ret.size())
+        ret.clear();
+    fclose(f);
+    return ret;
+}
+
+__attribute__((used))
+static std::vector<uint8_t> slurp(FILE *f)
+{
+    std::vector<uint8_t> ret;
+    fflush(f);
+    if (fseek(f, 0, SEEK_END) != 0) return ret;
+    long sz = ftell(f);
+    if (sz < 0) return ret;
+    if (fseek(f, 0, SEEK_SET) != 0) return ret;
+    ret.resize((size_t)sz);
+    if (sz > 0 && fread(&ret[0], 1, (size_t)sz, f) != (size_t)sz)
+        ret.clear();
+    return ret;
+}
+#endif
+
+__attribute__((used))
+static void forward_to_stderr(FILE *log, const char *prefix)
+{
+    char *line = 0; size_t linesize = 0;
+    while (getline(&line, &linesize, log) != -1) {
+        fputs(prefix, stderr);
+        fputs(line, stderr);
+    }
+    free(line);
+}
+
 #endif

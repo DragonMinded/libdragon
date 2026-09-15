@@ -132,6 +132,7 @@ void test_rdpq_tex_upload(TestContext *ctx) {
     surface_clear(&fb, 0);
 
     uint16_t* tlut = malloc_uncached(256*2);
+    DEFER(free_uncached(tlut));
     for (int i=0;i<256;i++) {
         tlut[i] = color_to_packed16(palette_debug_color(i));
     }
@@ -289,6 +290,7 @@ void test_rdpq_tex_upload_multi(TestContext *ctx) {
             rdpq_tex_upload(TILE2, &tex2, NULL);
         rdpq_tex_multi_end();
     rspq_block_t *tex1_tex2_loader = rspq_block_end();
+    DEFER(rspq_block_free(tex1_tex2_loader));
 
     // Load them both via block loading
     rdpq_tex_upload(TILE0, &empty, NULL);
@@ -341,6 +343,76 @@ void test_rdpq_tex_multi_i4(TestContext *ctx) {
     });
 }
 
+void test_rdpq_tex_can_upload(TestContext *ctx)
+{
+    // RGBA16 path: 4KB TMEM budget, no 4bpp alignment, no pitch shift.
+    // Use a non-8 width to verify pitch ROUND_UP to 8-byte boundary.
+    {
+        surface_t surf = surface_alloc(FMT_RGBA16, 5, 256);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "RGBA16 5x256 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_RGBA16, 5, 257);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "RGBA16 5x257 should not fit in TMEM");
+    }
+
+    // RGBA32 path: 2KB TMEM budget + pitch_shift branch.
+    // Use a non-8 width to verify pitch ROUND_UP after pitch_shift.
+    {
+        surface_t surf = surface_alloc(FMT_RGBA32, 3, 256);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "RGBA32 3x256 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_RGBA32, 3, 257);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "RGBA32 3x257 should not fit in TMEM");
+    }
+
+    // CI8 path: 2KB TMEM budget, no pitch_shift.
+    // Use a non-8 width to verify pitch ROUND_UP to 8-byte boundary.
+    {
+        surface_t surf = surface_alloc(FMT_CI8, 9, 128);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "CI8 9x128 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_CI8, 9, 129);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "CI8 9x129 should not fit in TMEM");
+    }
+
+    // YUV16 path: same branch family as RGBA32 (2KB + pitch_shift).
+    {
+        surface_t surf = surface_alloc(FMT_YUV16, 5, 256);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "YUV16 5x256 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_YUV16, 5, 257);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "YUV16 5x257 should not fit in TMEM");
+    }
+
+    // 4bpp alignment path: odd width must be rounded up to even,
+    // then line pitch must still be rounded up to 8-byte boundary.
+    // For I4 17px width, aligned width becomes 18:
+    // tmem_pitch = ROUND_UP(18/2,8) = ROUND_UP(9,8) = 16.
+    // So max height is floor(4096 / 16) = 256.
+    {
+        surface_t surf = surface_alloc(FMT_I4, 17, 256);
+        DEFER(surface_free(&surf));
+        ASSERT(rdpq_tex_can_upload(&surf), "I4 17x256 should fit in TMEM");
+    }
+    {
+        surface_t surf = surface_alloc(FMT_I4, 17, 257);
+        DEFER(surface_free(&surf));
+        ASSERT(!rdpq_tex_can_upload(&surf), "I4 17x257 should not fit in TMEM");
+    }
+}
+
 void test_rdpq_tex_blit_normal(TestContext *ctx)
 {
     RDPQ_INIT();
@@ -352,7 +424,7 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
         FMT_CI4, FMT_I4, FMT_IA4,
     };
 
-    const int FBWIDTH = 32;
+    const int FBWIDTH = 80;
     surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
     DEFER(surface_free(&fb));
     surface_clear(&fb, 0);
@@ -372,8 +444,11 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
         SRAND(i);
         tex_format_t fmt = fmts[i];
 
-        // Create the random surface
-        for (int tex_width = 72; tex_width < 75; tex_width++)  {
+        // The special value 48 exercises RGBA32 strip loads where
+        // LOAD_BLOCK must account for the split TMEM layout.
+        static const int tex_widths[] = { 48, 72, 73, 74 };
+        for (int tw=0; tw<sizeof(tex_widths) / sizeof(tex_widths[0]); tw++)  {
+            int tex_width = tex_widths[tw];
             LOG("  tex_width: %d\n", tex_width);
             surface_t surf_full = surface_create_random(tex_width, tex_width, fmt);
             DEFER(surface_free(&surf_full));
@@ -393,13 +468,17 @@ void test_rdpq_tex_blit_normal(TestContext *ctx)
             //  width=[-0..-2]  we need width-2 to have an effect on 4bpp textures (width-1 uses the same bytes of width in 4bpp)
             for (int s0=0; s0<3; s0++) for (int t0=0; t0<3; t0++) for (int width=tex_width-s0; width>tex_width-s0-3; width--) {
                 LOG("    s0/t0/w: %d %d %d\n", s0, t0, width);
+                surface_clear(&fb, 0);
                 rdpq_tex_blit(&surf_full, 0, 0, &(rdpq_blitparms_t){
                     .s0 = s0, .width = width, .t0 = t0, .height = tex_width-t0,
                 });
                 rspq_wait();
 
                 ASSERT_SURFACE(&fb, {
-                    return surface_debug_expected_color(&surf_full, x+s0, y+t0);
+                    if (x < width && y < tex_width-t0)
+                        return surface_debug_expected_color(&surf_full, x+s0, y+t0);
+                    else
+                        return color_from_packed32(0);
                 });
             }
         }
@@ -464,6 +543,158 @@ void test_rdpq_tex_upload_tlut(TestContext *ctx)
                 else
                     return color_from_packed32(0xE0); 
             });
+        }
+    }
+}
+
+void test_rdpq_tex_upload_tlut_alignments(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0xFF);
+
+    surface_t tex = surface_alloc(FMT_CI8, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&tex));
+    for (int y = 0; y < FBWIDTH; y++)
+        for (int x = 0; x < FBWIDTH; x++)
+            surface_set_pixel(&tex, x, y, y * FBWIDTH + x);
+
+    /* Buffer: 8-byte aligned from malloc_uncached; we use offsets 0,2,4,6 to get all four alignments. */
+    char *buf = malloc_uncached(256 * 2 + 8);
+    DEFER(free_uncached(buf));
+    uint16_t *base = (uint16_t *)buf;
+
+    uint16_t *tlut_black = malloc_uncached(256 * 2);
+    DEFER(free_uncached(tlut_black));
+    memset(tlut_black, 0, 256 * 2);
+
+    color_t expected_fb[256];
+    for (int i = 0; i < 256; i++) {
+        uint16_t c16 = color_to_packed16(palette_debug_color(i));
+        expected_fb[i] = color_from_packed16(c16);
+        expected_fb[i].a = 0xE0;
+    }
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_mode_standard();
+    rdpq_mode_tlut(TLUT_RGBA16);
+
+    /* Exhaustive test: all four possible 2-byte alignments (0,2,4,6 mod 8). */
+    for (int align = 0; align <= 6; align += 2) {
+        LOG("TLUT full palette: align=%d (byte offset mod 8)\n", align);
+        uint16_t *tlut = (uint16_t *)((char *)base + align);
+        memset(base, 0, 256 * 2 + 8);
+        for (int i = 0; i < 256; i++)
+            tlut[i] = color_to_packed16(palette_debug_color(i));
+
+        surface_clear(&fb, 0xFF);
+        rdpq_tex_upload_tlut(tlut_black, 0, 256);
+        rdpq_tex_upload_tlut(tlut, 0, 256);
+        rdpq_tex_blit(&tex, 0, 0, NULL);
+        rspq_wait();
+
+        ASSERT_SURFACE(&fb, {
+            int pos = y * 16 + x;
+            return expected_fb[pos];
+        });
+        if (ctx->result == TEST_FAILED)
+            return;
+    }
+
+    /* Sub-palette cases for each alignment: first_color + num_colors. */
+    for (int align = 0; align <= 6; align += 2) {
+        uint16_t *tlut = (uint16_t *)((char *)base + align);
+        for (int first_color = 8; first_color < 16; first_color++) {
+            for (int i = 1; i < 9; i++) {
+                LOG("TLUT sub-palette: align=%d first_color=%d num_colors=%d\n", align, first_color, i);
+                memset(base, 0, 256 * 2 + 8);
+                for (int j = 0; j < i; j++)
+                    tlut[j] = color_to_packed16(palette_debug_color(first_color + j));
+
+                surface_clear(&fb, 0xFF);
+                rdpq_tex_upload_tlut(tlut_black, 0, 256);
+                rdpq_tex_upload_tlut(tlut, first_color, i);
+                rdpq_tex_blit(&tex, 0, 0, NULL);
+                rspq_wait();
+
+                ASSERT_SURFACE(&fb, {
+                    int pos = y * 16 + x;
+                    if (pos >= first_color && pos < first_color + i)
+                        return expected_fb[pos];
+                    else
+                        return color_from_packed32(0xE0);
+                });
+                if (ctx->result == TEST_FAILED)
+                    return;
+            }
+        }
+    }
+}
+
+void test_rdpq_tex_blit_filtering(TestContext *ctx)
+{
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+
+    const int FBW = 8;
+    const int TEXW = 4;
+    surface_t fb = surface_alloc(FMT_RGBA32, FBW, FBW);
+    DEFER(surface_free(&fb));
+    surface_t tex = surface_alloc(FMT_RGBA16, TEXW, 4);
+    DEFER(surface_free(&tex));
+
+    // Alternating black/white columns: bilinear at a half-texel offset blends neighbors.
+    uint16_t black = color_to_packed16(RGBA32(0, 0, 0, 255));
+    uint16_t white = color_to_packed16(RGBA32(255, 255, 255, 255));
+    for (int y = 0; y < 4; y++)
+        for (int x = 0; x < TEXW; x++)
+            ((uint16_t*)tex.buffer)[y * TEXW + x] = (x & 1) ? white : black;
+
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_mode_standard();
+    rdpq_mode_filter(FILTER_BILINEAR);
+
+    // filtering=true must use the triangle xblit path (rectangles don't bilinear-filter interiors).
+    debug_rdp_stream_reset();
+    surface_clear(&fb, 0);
+    rdpq_tex_blit(&tex, 0, 0, &(rdpq_blitparms_t){ .filtering = true });
+    rspq_wait();
+    ASSERT(debug_rdp_stream_count_cmd(0xCA) > 0,
+        "filtering blit should use RDP triangles");
+    ASSERT_EQUAL_UNSIGNED(debug_rdp_stream_count_cmd(0xE4), 0,
+        "filtering blit should not use RDP texture rectangles");
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    // filtering=false on a simple blit should stay on the fast rectangle path.
+    debug_rdp_stream_reset();
+    surface_clear(&fb, 0);
+    rdpq_tex_blit(&tex, 0, 0, NULL);
+    rspq_wait();
+    ASSERT(debug_rdp_stream_count_cmd(0xE4) > 0,
+        "non-filtering blit should use RDP texture rectangles");
+    ASSERT_EQUAL_UNSIGNED(debug_rdp_stream_count_cmd(0xCA), 0,
+        "non-filtering blit should not use RDP triangles");
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    // Half-texel offset with filtering: interior pixels are bilinear blends (~gray).
+    surface_clear(&fb, 0);
+    rdpq_tex_blit(&tex, 0.5f, 0, &(rdpq_blitparms_t){ .filtering = true });
+    rspq_wait();
+    for (int y = 0; y < 4; y++) {
+        uint32_t *line = (uint32_t*)(fb.buffer + y * fb.stride);
+        for (int x = 1; x < TEXW; x++) {
+            uint32_t px = line[x];
+            uint8_t r = px & 0xFF, g = (px >> 8) & 0xFF, b = (px >> 16) & 0xFF;
+            ASSERT(r > 0x10 && r < 0xF0 && g > 0x10 && g < 0xF0 && b > 0x10 && b < 0xF0,
+                "filtering blit should bilinear-filter at (%d,%d), got %08lx", x, y, (unsigned long)px);
+            if (ctx->result == TEST_FAILED)
+                return;
         }
     }
 }

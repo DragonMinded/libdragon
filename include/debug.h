@@ -14,6 +14,8 @@
 extern "C" {
 #endif
 
+#ifdef N64
+
 /** 
  * @brief Flag to activate the USB logging channel.
  *
@@ -42,7 +44,9 @@ extern "C" {
 /** 
  * @brief Flag to activate the logging channel in emulators.
  *
- * Currently relies on ISViewer support from the emulator.
+ * The logging is done using @ref emux if available,
+ * or through ISViewer otherwise if available.
+ *
  * ISViewer was a real development cartridge that was used in the 90s
  * to debug N64 development. It is emulated by a few emulators to ease
  * the work of homebrew developers.
@@ -53,10 +57,10 @@ extern "C" {
  *
  * Supported emulators:
  *
- *   * cen64 (https://github.com/n64dev/cen64) - run with -is-viewer command line flag
- *   * Ares (https://ares-emulator.github.io)
- *   * simple64 (https://simple64.github.io)
- *   * dgb-n64 (https://github.com/Dillonb/n64)
+ *   * cen64 (https://github.com/n64dev/cen64) - ISViewer only. Run with -is-viewer command line flag
+ *   * Ares (https://ares-emulator.github.io) - emux and ISViewer
+ *   * Gopher64 (https://loganmc10.itch.io/gopher64) - ISViewer only
+ *   * dgb-n64 (https://github.com/Dillonb/n64) - ISViewer only
  *
  */
 #define DEBUG_FEATURE_LOG_EMU       (1 << 1)
@@ -142,9 +146,24 @@ extern "C" {
 
 
 #ifndef NDEBUG
-	/** @brief Initialize USB logging. */
+	/** 
+	 * @brief Initialize USB logging. 
+	 *
+	 * This function initializes the USB logging channel. It is used to log messages
+	 * to the USB port of the development cartridge.
+	 *
+	 * @return true if the USB logging channel was initialized successfully, false otherwise.
+	 * @note This function is not available on iQue Player
+	 */
 	bool debug_init_usblog(void);
-	/** @brief Initialize emulator logging. */
+	/** 
+	 * @brief Initialize ISViewer logging. 
+	 *
+	 * This function initializes the ISViewer logging channel. It is used to log messages
+	 * to emulators that support it.
+	 *
+	 * @return true if the ISViewer logging channel was initialized successfully, false otherwise
+	 */
 	bool debug_init_emulog(void);
 	/** @brief Initialize SD logging. */
 	bool debug_init_sdlog(const char *fn, const char *openfmt);
@@ -182,14 +201,19 @@ extern "C" {
 	/** 
 	 * @brief Write a message to the debugging channel.
 	 *
-	 * This macro is a simple wrapper over fprintf(stderr), to write
+	 * This function is a simple wrapper over fprintf(stderr), to write
 	 * a debugging message through all the activated debugging channels.
 	 *
-	 * Writing directly to stderr is perfectly supported; this macro
+	 * Writing directly to stderr is perfectly supported; this function
 	 * only simplifies disabling all debugging features, because it
 	 * is disabled when compiling with NDEBUG.
+	 * 
+	 * Moreover, this function also has a special codepath to allow
+	 * writing debug messages during interrupts or exceptions, when standard
+	 * I/O functions cannot be used safely.
 	 */
-	#define debugf(msg, ...)           fprintf(stderr, msg, ##__VA_ARGS__)
+	__attribute__((format(printf, 1, 2)))
+	void debugf(const char *msg, ...);
 
 	/** 
 	 * @brief assertf() is like assert() with an attached printf().
@@ -209,11 +233,11 @@ extern "C" {
 	})
 
 #else
-	#define debug_init(ch)             ({ false; })
-	#define debug_init_usblog()        ({ false; })
-	#define debug_init_emulog()        ({ false; })
-	#define debug_init_sdlog(fn,fmt)   ({ false; })
-	#define debug_init_sdfs(prefix,np) ({ false; })
+	#define debug_init(ch)             ((void)(false), false)
+	#define debug_init_usblog()        ((void)(false), false)
+	#define debug_init_emulog()        ((void)(false), false)
+	#define debug_init_sdlog(fn,fmt)   ((void)(false), false)
+	#define debug_init_sdfs(prefix,np) ((void)(false), false)
 	#define debugf(msg, ...)           ({ })
 	#define assertf(expr, msg, ...)    ({ })
 #endif
@@ -258,6 +282,30 @@ void debug_backtrace(void);
 /** @brief Underlying implementation function for assert() and #assertf. */ 
 void debug_assert_func_f(const char *file, int line, const char *func, const char *failedexpr, const char *msg, ...)
    __attribute__((noreturn, format(printf, 5, 6)));
+
+
+#else /* N64 */
+
+#include <stdlib.h>
+
+// Lots of tools code include this file transitively. Make sure we expose the
+// bare minimum assertion APIs.
+
+#define assertf(expr, msg, ...)   ({ \
+	if (!(expr)) { \
+		fprintf(stderr, "ASSERTION FAILED: "); \
+		fprintf(stderr, msg, ##__VA_ARGS__); \
+		assert(expr); \
+		abort(); \
+	} \
+})
+
+#define debugf(msg, ...)           ({ \
+	fprintf(stderr, msg, ##__VA_ARGS__); \
+})
+
+#endif /* N64 */
+
 
 #ifdef __cplusplus
 } /* extern "C" */

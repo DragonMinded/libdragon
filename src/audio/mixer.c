@@ -1,7 +1,7 @@
 /**
  * @file mixer.c
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @brief RSP Audio mixer 
+ * @brief RSP Audio mixer
  * @ingroup mixer
  */
 
@@ -16,6 +16,10 @@
 #include "audio.h"
 #include "n64sys.h"
 #include "interrupt.h"
+#include "profile.h"
+#include "fmath.h"
+#include "accounting_internal.h"
+#include "../rspq/rspq_internal.h"
 #include <memory.h>
 #include <stdlib.h>
 #include <math.h>
@@ -33,40 +37,74 @@
 #define tracef(fmt, ...)  ({ })
 #endif
 
-/**
- * @name AI Status Register Values
- * @{
- */
-/** @brief Bit representing that the AI is busy */
-#define AI_STATUS_BUSY  ( 1 << 30 )
-/** @brief Bit representing that the AI is full */
-#define AI_STATUS_FULL  ( 1 << 31 )
-/** @} */
-
 /** @brief Maximum number of mixer events */
 #define MAX_EVENTS              32
-/** @brief Number of expected #mixer_poll calls per second 
+/** @brief Maximum number of soft (per-round) mixer callbacks */
+#define MAX_SOFT_EVENTS         8
+/** @brief Fallback samplebuffer depth when #audio_init has not been called yet.
  *
- * This is used to allocate memory for the sample buffers
- * according to the expected number of samples that must
- * be calculated and held in memory.
+ * Sizing normally follows the AI queue (#audio_get_num_buffers ×
+ * #audio_get_buffer_length). This rate is only the fallback and the
+ * #mixer_throttle extra, so it stays conservative.
  */
 #define MIXER_POLL_PER_SECOND   8
+
+/** @brief Polls the sample buffers are sized to hold at once.
+ *
+ * One is the minimum: a single #mixer_poll_async must never have to wait for
+ * the RSP, whatever the number of rounds it splits into. The second one is
+ * what keeps the CPU from waiting in practice, since by the time it starts a
+ * poll the RSP is normally done with the one before the last (see
+ * #__mixer_inflight_samples).
+ */
+#define MIXER_POLL_LOOKAHEAD    2
 
 /**
  * RSP mixer ucode (rsp_mixer.S)
  */
 DEFINE_RSP_UCODE(rsp_mixer);
 
-/** @brief Size of the ucode state that is automatically persisted by rspq */
-#define MIXER_STATE_SIZE 128
+/** @brief Size of the ucode state that is automatically persisted by rspq.
+ * Layout must match RSPQ_BeginSavedState in rsp_mixer.S: just the per-channel
+ * VADPCM pointer table.
+ * ACCUM lives in .bss (not saved state) so the VADPCM bssovl1 bank still fits.
+ */
+#define MIXER_STATE_SIZE 384
+
+/** @brief Max output samples per mix round (must match rsp_mixer.S). */
+#define MIXER_MAX_SAMPLES_PER_ROUND  512
+
+/**
+ * @brief Length of the ramp #mixer_ch_set_vol spreads a volume change over.
+ *
+ * A volume that jumps from one sample to the next is a step in the waveform,
+ * and a step is heard as a click. Music players change volumes constantly (an
+ * XM does it on every tick, on every channel), so the change is walked over a
+ * few milliseconds instead. That is short enough that nothing sounds delayed,
+ * and it replaces the one-pole filter the ucode used to run on every channel.
+ * #mixer_ch_set_vol_ramp is left alone: a caller that names a duration means
+ * it, zero included.
+ */
+#define MIXER_DECLICK_SAMPLES  128
 
 // NOTE: keep these in sync with rsp_mixer.S
 #define CH_FLAGS_BPS_SHIFT  	(3<<0)   ///< BPS shift value
 #define CH_FLAGS_16BIT      	(1<<2)   ///< Set if the channel is 16 bit
 #define CH_FLAGS_STEREO     	(1<<3)   ///< Set if the channel is stereo (left)
 #define CH_FLAGS_STEREO_SUB 	(1<<4)   ///< The channel is the second half of a stereo (right)
-#define CH_FLAGS_STEREO_ALLOC	(1<<5)   ///< The channel has a buffer sized for stereo
+#define CH_FLAGS_VADPCM     	(1<<5)   ///< In-mixer VADPCM mono (wire + CPU)
+#define CH_FLAGS_VLOOP_STATE 	(1<<6)   ///< VADPCM: decode from the loop-start state (wire only, see mixer_emit_channel)
+#define CH_FLAGS_CLEAR_ACCUM 	(1<<7)   ///< Zero ACCUM before mixing (first MIX_CHANNEL of a round)
+#define CH_FLAGS_RESIDENT       (1<<8)   ///< Channel plays from waveform->mem (no samplebuffer)
+#define CH_FLAGS_LOOP_CACHED    (1<<10)  ///< Streamed loop pinned in the samplebuffer; RSP wraps
+#define CH_FLAGS_STEREO_ALLOC	(1<<9)   ///< The channel has a buffer sized for stereo (CPU-side only)
+#define CH_FLAGS_FORCE_MONO  	(1<<11)  ///< Fold this channel's output to both buses (mono downmix). CPU-side only; RSP ucode ignores this bit.
+
+#define MIXER_CMD_CHANNEL     0x0        ///< rspq command ID for channel setup
+#define MIXER_CMD_SETCHANNEL  0x1        ///< rspq command ID for setting a channel
+#define MIXER_CMD_FLUSH       0x2        ///< rspq command ID for flushing the mixer
+#define MIXER_CMD_SETSTATE    0x3        ///< rspq command ID for seeding a VADPCM state
+#define MIXER_CMD_COPY        0x4        ///< rspq command ID for an RDRAM to RDRAM copy
 
 /// @brief Fixed point value used in waveform position calculations.
 /// This is a signed 64-bit integer with the fractional part using
@@ -87,52 +125,101 @@ typedef int16_t mixer_fx15_t;
 /// Convert a floating point value to #mixer_fx15_t
 #define MIXER_FX15(f)      (int16_t)((f) * ((1<<MIXER_FX15_FRAC)-1))
 
+/// @brief Fixed point 16.16 value, used for the global volume.
+/// You can use #MIXER_FX16 to convert from float.
+typedef int32_t mixer_fx16_t;
+
 /// Number of fractional bits for a fixed 16.16 value
 #define MIXER_FX16_FRAC    16
 /// Convert a floating point value to a fixed 16.16 value
-#define MIXER_FX16(f)      (int16_t)((f) * ((1<<MIXER_FX16_FRAC)-1))
+#define MIXER_FX16(f)      (mixer_fx16_t)((f) * (1<<MIXER_FX16_FRAC))
 
 /** @brief Mixer channel state - CPU side */
 typedef struct mixer_channel_s {
-	mixer_fx64_t pos;      ///< Current position within the waveform (in bytes)
-	mixer_fx64_t step;     ///< Step between samples (in bytes) to playback at the correct frequency
-	mixer_fx64_t len;      ///< Length of the waveform (in bytes)
-	mixer_fx64_t loop_len; ///< Length of the loop in the waveform (in bytes)
-	void *ptr;             ///< Pointer to the waveform
+	mixer_fx64_t pos;      ///< Position (bytes for PCM, samples for VADPCM)
+	mixer_fx64_t step;     ///< Step per output sample (same units as pos)
+	mixer_fx64_t len;      ///< Active end: loop end while looping, waveform length otherwise
+	mixer_fx64_t loop_len; ///< Loop length, 0 if not looping (see #mixer_ch_set_loop)
+	void *ptr;             ///< Waveform data base (PCM samples or VADPCM frames)
+	void *codec_state;     ///< Per-channel codec state, CPU side
+	void *codebook;        ///< VADPCM codebook (NULL for PCM)
+	void *loop_state;      ///< VADPCM state at loop start (NULL if none)
 	uint32_t flags;        ///< Misc flags (see CH_FLAGS_*)
+	waveform_t *wave;      ///< Waveform being played back on this channel
+	uint32_t wave_uuid;    ///< UUID of last configured waveform (survives stop)
+	int vframe;            ///< VADPCM frame the decoder state in RDRAM refers to
+	uint8_t vbits;         ///< VADPCM residual width (see #VADPCM_FRAME_BYTES)
+	int max_round_ns;      ///< Max round length from step + samplebuffer margin (streamed)
 } mixer_channel_t;
 
-/** @brief Mixer channel state - RSP side
+/**
+ * @brief One scalar level ramp (volume L/R, gain, or frequency).
  *
- * This structure represents the state of a mixer channel as stored in RSP
- * DMEM. Structure-wise, it is similar to #mixer_channel_t, but waveform-related
- * offsets are 32-bit wide rather than 64-bit, since RSP cannot easily work
- * with 64-bit integers. Check #mixer_poll to see how this difference is handled.
+ * Target lives next to the ramp in Mixer; this stores the start value and the
+ * #mixer_ramp_fn_t so any point is `fn(start, target, u(t))`.
  */
-typedef struct rsp_mixer_channel_s {
-	uint32_t pos;           ///< Current position within the waveform (in bytes)
-	uint32_t step;          ///< Step between samples (in bytes) to playback at the correct frequency
-	uint32_t len;           ///< Length of the waveform (in bytes)
-	uint32_t loop_len;      ///< Length of the loop in the waveform (in bytes)
-	void *ptr;              ///< Pointer to the waveform
-	uint32_t flags;         ///< Misc flags (see CH_FLAGS_*)
-} __attribute__((packed)) rsp_mixer_channel_t;
+typedef struct {
+	float start;           ///< Value at #start_tick
+	int64_t start_tick;    ///< Absolute tick the ramp started at
+	int32_t duration;      ///< Length in output samples, 0 if idle
+	float inv_duration;    ///< 1 / #duration (valid while #duration > 0)
+	float k;               ///< Exp curve: log2(end/start); silence asymptote if end≤0
+	mixer_ramp_fn_t fn;    ///< Curve (ignored when #duration is 0)
+} mixer_ramp_t;
 
-/// @cond
-_Static_assert(sizeof(rsp_mixer_channel_t) == 6*4);
-/// @endcond
+/** Fade-to-silence exponent for #mixer_ramp_exp when the target is 0. */
+#define MIXER_RAMP_EXP_SILENCE  9.226f
+/** log2(e): converts the natural silence asymptote into an #fm_exp2f argument. */
+#define MIXER_LOG2E             1.44269504f
 
-/** @brief Mixer ucode settings. 
+float mixer_ramp_linear(float start, float end, float u)
+{
+	return start + (end - start) * u;
+}
+
+float mixer_ramp_exp(float start, float end, float u)
+{
+	if (start <= 0.0f)
+		return end * u;
+	if (end <= 0.0f)
+		return start * fm_exp2f(u * -(MIXER_RAMP_EXP_SILENCE * MIXER_LOG2E));
+	return start * fm_exp2f(u * log2f(end / start));
+}
+
+/** @brief Volumes a channel is mixed with over one round.
  *
- * This struct reflects the settings defined in rsp_mixer.S.
+ * The ucode is given a slope and the value the slope is heading for: it walks
+ * the volume one output sample at a time and clamps it between the two ends of
+ * the ramp, which is what lets a ramp end in the middle of a round. With no
+ * ramp running the target equals the starting volume and the clamp holds it
+ * there.
  */
-typedef struct rsp_mixer_settings_s {
-	uint32_t lvol[MIXER_MAX_CHANNELS/2] __attribute__((aligned(16)));
-	uint32_t rvol[MIXER_MAX_CHANNELS/2];
-	rsp_mixer_channel_t channels[MIXER_MAX_CHANNELS] __attribute__((aligned(16)));
-} rsp_mixer_settings_t;
+typedef struct {
+	mixer_fx15_t l;        ///< Left volume at the first sample of the round
+	mixer_fx15_t r;        ///< Right volume at the first sample of the round
+	mixer_fx15_t dl;       ///< Left increment per block of 4 samples
+	mixer_fx15_t dr;       ///< Right increment per block of 4 samples
+	mixer_fx15_t tl;       ///< Left volume the round ends on
+	mixer_fx15_t tr;       ///< Right volume the round ends on
+} mixer_round_vol_t;
 
-/** @brief Configured limits of a mixer channel. 
+/** @brief Overlay saved-state layout (must match rsp_mixer.S) */
+typedef struct {
+	uint32_t codebook[MIXER_MAX_CHANNELS];
+	uint32_t state[MIXER_MAX_CHANNELS];
+	uint32_t loop_state[MIXER_MAX_CHANNELS];
+} mixer_overlay_state_t;
+
+_Static_assert(sizeof(mixer_overlay_state_t) == MIXER_STATE_SIZE, "mixer overlay state size mismatch");
+
+/** @brief Shadow of the VADPCM pointers currently held by the ucode table. */
+typedef struct {
+	void *codebook;
+	void *state;
+	void *loop_state;
+} mixer_chtbl_t;
+
+/** @brief Configured limits of a mixer channel.
  *
  * This structure describes the playback limits for a mixer channel. The limits
  * are used to avoid over-allocating memory via sample buffers.
@@ -150,79 +237,256 @@ typedef struct {
 	void *ctx;              ///< Opaque context pointer to pass to the callback
 } mixer_event_t;
 
+/** @brief Per-round soft callback (does not split mix rounds) */
+typedef struct {
+	MixerSoftEvent cb;
+	void *ctx;
+} mixer_soft_event_t;
+
 static struct {
 	uint32_t sample_rate;
 	int num_channels;
 	float vol;
 	float max_samples;
 	bool throttled;
+	uint32_t uuid_counter;
 
 	int64_t ticks;
 	int num_events;
 	mixer_event_t events[MAX_EVENTS];
+	int num_soft;
+	mixer_soft_event_t soft[MAX_SOFT_EVENTS];
 
 	samplebuffer_t ch_buf[MIXER_MAX_CHANNELS];
 	channel_limit_t limits[MIXER_MAX_CHANNELS];
 
 	mixer_channel_t channels[MIXER_MAX_CHANNELS];
-	mixer_fx15_t lvol[MIXER_MAX_CHANNELS];
-	mixer_fx15_t rvol[MIXER_MAX_CHANNELS];
+	mixer_chtbl_t chtbl[MIXER_MAX_CHANNELS];
+	float lvol[MIXER_MAX_CHANNELS];         ///< Target left volume [-1..1] (signed for Dolby)
+	float rvol[MIXER_MAX_CHANNELS];         ///< Target right volume [-1..1] (signed for Dolby)
+	float gain[MIXER_MAX_CHANNELS];         ///< Target mono gain [0..1] (default 1)
+	float freq[MIXER_MAX_CHANNELS];         ///< Target playback frequency (Hz)
+	mixer_ramp_t lvol_ramp[MIXER_MAX_CHANNELS];
+	mixer_ramp_t rvol_ramp[MIXER_MAX_CHANNELS];
+	mixer_ramp_t gain_ramp[MIXER_MAX_CHANNELS];
+	mixer_ramp_t freq_ramp[MIXER_MAX_CHANNELS];
+	uint8_t prio[MIXER_MAX_CHANNELS];       ///< Voice-stealing priority
+	int64_t start_tick[MIXER_MAX_CHANNELS]; ///< Absolute tick of last #mixer_ch_play
 
-	rsp_mixer_settings_t ucode_settings __attribute__((aligned(16)));
+	uint32_t chtbl_dirty;   ///< VADPCM channels whose SETCHANNEL is out of date
+	uint32_t vstate_dirty;  ///< VADPCM channels the CPU has re-seeded (see #mixer_vstate)
+	void *vstates;          ///< Decoder states owned by the RSP, 16 bytes per channel
+	int hi_ch;              ///< Exclusive upper bound of channels to scan
+
+	uint32_t round_id;      ///< Id of the last round emitted
+	volatile uint32_t *round_done;  ///< Last round the RSP finished, written by MIX_FLUSH
+	uint32_t poll_round[MIXER_POLL_LOOKAHEAD];  ///< Last round of each recent poll
+	uint32_t poll_count;    ///< Polls done so far (indexes #poll_round)
 
 } Mixer;
 
-/** @brief Count of ticks spent in mixer RSP, used for debugging purposes. */
-int64_t __mixer_profile_rsp = 0;
-
 uint32_t __mixer_overlay_id;
+
+void __mixer_profile_init(void) {
+	profile_register(PS_MIXER,        "mixer_try_play", 0);
+	profile_register(PS_XM_TICK,      "xm_tick", 1);
+	profile_register(PS_XM_GETPOS,    "xm_getpos", 2);
+	profile_register(PS_XM_LIBXM,     "xm_libxm", 2);
+	profile_register(PS_XM_SYNC,      "xm_sync", 2);
+	profile_register(PS_MID_TICK,     "mid_tick", 1);
+	profile_register(PS_MID_PROCESS,  "mid_process", 2);
+	profile_register(PS_MID_DISPATCH, "mid_dispatch", 2);
+	profile_register(PS_MIXER_EXEC,   "mixer_exec", 1);
+	profile_register(PS_MIXER_PREP,   "prep", 2);
+	profile_register(PS_MIXER_EMIT,   "emit", 2);
+	profile_register(PS_MIXER_FETCH,  "fetch", 3);
+	profile_register(PS_SBUF_GET,     "sbuf_get", 4);
+	profile_register(PS_VADPCM_READ,  "vadpcm_read", 5);
+	profile_register(PS_VADPCM_HUFF,  "vadpcm_huff", 6);
+	profile_register(PS_VADPCM_IO,    "vadpcm_io", 6);
+	profile_register(PS_MIXER_CMD,    "cmd", 3);
+	profile_register(PS_MIXER_VOL,    "vol", 4);
+	profile_register(PS_MIXER_DMAWAIT,"dma_wait", 4);
+	profile_register(PS_MIXER_RSPQ,   "rspq", 4);
+	profile_register(PS_MIXER_ADVANCE,"advance", 2);
+	profile_register(PS_MIXER_SEEK,   "ch_seek", 3);
+	profile_register(PS_MIXER_PREFETCH,"prefetch", 2);
+}
+
+static inline uint32_t mixer_bit(int ch) { return 1u << ch; }
+
+/** Grow the exclusive scan limit so channel @p ch is included. */
+static inline void mixer_touch_ch(int ch) {
+	if (ch + 1 > Mixer.hi_ch)
+		Mixer.hi_ch = ch + 1;
+}
+
+/** Recompute #mixer_channel_t.max_round_ns from step and samplebuffer margin. */
+static void mixer_refresh_max_ns(int ch);
 
 static inline int mixer_initialized(void) { return Mixer.num_channels != 0; }
 
 void mixer_init(int num_channels) {
 	memset(&Mixer, 0, sizeof(Mixer));
-	data_cache_hit_writeback_invalidate(&Mixer.ucode_settings, sizeof(Mixer.ucode_settings));
 
 	Mixer.num_channels = num_channels;
 	Mixer.sample_rate = audio_get_frequency();  // actual sample rate obtained via DAC clock
 	assertf(Mixer.sample_rate > 0, "audio_init() must be called before mixer_init()");
+	// Size AI buffers as a multiple of the mixer round cap so mixer_poll does
+	// not end on a remainder.
+	audio_set_buffer_granularity(MIXER_MAX_SAMPLES_PER_ROUND);
 	Mixer.vol = 1.0f;
 
 	for (int ch=0;ch<MIXER_MAX_CHANNELS;ch++) {
+		Mixer.gain[ch] = 1.0f;
 		mixer_ch_set_vol(ch, 1.0f, 1.0f);
 		mixer_ch_set_limits(ch, 16, Mixer.sample_rate, 0);
 	}
 
-	void *mixer_state = rspq_overlay_get_state(&rsp_mixer);
-	memset(mixer_state, 0, MIXER_STATE_SIZE);
-	data_cache_hit_writeback(mixer_state, MIXER_STATE_SIZE);
+	Mixer.vstates = malloc_uncached(num_channels * 16);
+	assertf(Mixer.vstates, "Out of memory");
+	memset(Mixer.vstates, 0, num_channels * 16);
+
+	// Where the RSP publishes the last round it has run (see MIX_FLUSH). Two
+	// words because that is the smallest transfer the RSP can do.
+	Mixer.round_done = malloc_uncached(8);
+	assertf(Mixer.round_done, "Out of memory");
+	Mixer.round_done[0] = 0;
+	Mixer.round_done[1] = 0;
 
 	rspq_init();
-    __mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
+	__mixer_overlay_id = rspq_overlay_register(&rsp_mixer);
+
+	mixer_overlay_state_t *mixer_state = rspq_overlay_get_state(&rsp_mixer);
+	memset(mixer_state, 0, sizeof(*mixer_state));
+	data_cache_hit_writeback_invalidate(mixer_state, sizeof(*mixer_state));
 }
 
-static int mixer_calc_buffer_size(int ch, int nchannels)
+/**
+ * @brief The VADPCM decoder state the RSP owns for a channel (16 bytes).
+ *
+ * The ucode saves into it the state of the frame each round ended on, so that
+ * the next one resumes from there, and it does so whenever it gets to the
+ * command — which can be several rounds behind the CPU, and at a different
+ * moment for each plane of a stereo pair. That makes the buffer unusable for
+ * the seeds the CPU produces, so those live in a buffer of their own
+ * (#mixer_channel_t.codec_state, written by the codec) and reach the RSP
+ * through #mixer_emit_setstate, which orders them against those saves.
+ */
+static inline void *mixer_vstate(int ch)
 {
-	// Get maximum frequency for this channel
-	int64_t nsamples = Mixer.limits[ch].max_frequency;
+	return (uint8_t*)Mixer.vstates + ch * 16;
+}
 
-	// Multiple by maximum byte per sample
-	nsamples *= Mixer.limits[ch].max_bits / 8;
+/** @brief Compressed frame size of a VADPCM waveform, in bytes. */
+static inline int mixer_vadpcm_frame_bytes(const waveform_t *wave)
+{
+	assert(wave->format == WAVEFORM_FORMAT_VADPCM && wave->codec);
+	return VADPCM_FRAME_BYTES(((const waveform_vadpcm_t*)wave->codec)->bits);
+}
 
-	// Multiply by number of channels
-	nsamples *= nchannels;
+/**
+ * @brief Output samples the CPU may mix without ever waiting for the RSP.
+ *
+ * A poll enqueues its rounds and returns, so the input windows it handed out
+ * stay live until the RSP gets to them: sample buffers are sized to span that
+ * much input (#MIXER_POLL_LOOKAHEAD polls of it). The next poll waits for the
+ * oldest of those before starting (see #mixer_poll_async).
+ */
+int __mixer_inflight_samples(void)
+{
+	int blen = audio_get_buffer_length();
+	if (blen > 0)
+		return blen * MIXER_POLL_LOOKAHEAD;
+	int rate = Mixer.sample_rate ? (int)Mixer.sample_rate : audio_get_frequency();
+	return rate / MIXER_POLL_PER_SECOND;
+}
 
-	// Calculate buffer size according to number of expected polls per second.
-	int64_t size = ROUND_UP((int64_t)ceilf((float)nsamples / (float)MIXER_POLL_PER_SECOND), 8);
+bool __mixer_round_done(uint32_t id)
+{
+	if (!Mixer.round_done)
+		return true;
+	return (int32_t)(*Mixer.round_done - id) >= 0;
+}
 
-	// If we're over the allowed maximum, clamp to it
+void __mixer_round_wait(uint32_t id)
+{
+	if (__mixer_round_done(id))
+		return;
+	rspq_flush();
+	ACCT_SCOPE(ACCT_CAT_RSPQ) RSP_WAIT_LOOP(200) {
+		if (__mixer_round_done(id))
+			break;
+	}
+}
+
+/** True if starting another poll would have the CPU wait for the RSP. */
+static bool mixer_poll_would_wait(void)
+{
+	if (Mixer.poll_count < MIXER_POLL_LOOKAHEAD)
+		return false;
+	return !__mixer_round_done(Mixer.poll_round[Mixer.poll_count % MIXER_POLL_LOOKAHEAD]);
+}
+
+/** Wait until starting another poll would not overwrite live sample windows. */
+static void mixer_poll_barrier(void)
+{
+	if (Mixer.poll_count < MIXER_POLL_LOOKAHEAD)
+		return;
+	__mixer_round_wait(Mixer.poll_round[Mixer.poll_count % MIXER_POLL_LOOKAHEAD]);
+}
+
+static int mixer_calc_buffer_size(int ch, waveform_t *wave)
+{
+	bool vadpcm = wave->format == WAVEFORM_FORMAT_VADPCM;
+	int ub = vadpcm ? mixer_vadpcm_frame_bytes(wave)
+		: (Mixer.limits[ch].max_bits / 8) * wave->channels;
+
+	int64_t out_samples = __mixer_inflight_samples();
+	int64_t nsamples = (int64_t)ceilf((float)out_samples *
+		(Mixer.limits[ch].max_frequency / (float)Mixer.sample_rate));
+
+	int64_t nunits = vadpcm ? DIVIDE_CEIL(nsamples, 16) : nsamples;
+
+	// Plus what sits between the oldest window the RSP still has to read and
+	// the write cursor: the window of the round being emitted now, and the
+	// units #samplebuffer_prefetch has already pulled in past it. Both are
+	// capped at a margin.
+	nunits += SAMPLEBUFFER_MARGIN_UNITS * 2;
+
+	// Block codecs (Opus, ULC) append one whole frame at a time, however few
+	// samples were asked for, so the ring needs room for one more of those on
+	// top of everything above. The mirrored tail is also enlarged to cover a
+	// whole frame (see #samplebuffer_t::margin_units); that extra is allocated
+	// by the caller (#mixer_ch_play), not here.
+	int f = wave->append_units;
+	if (f > SAMPLEBUFFER_MARGIN_UNITS)
+		nunits += f;
+
+	if (nunits < SAMPLEBUFFER_MARGIN_UNITS * 2)
+		nunits = SAMPLEBUFFER_MARGIN_UNITS * 2;
+
+	int64_t size = ROUND_UP(nunits * ub, 8);
+
 	if (Mixer.limits[ch].max_buf_sz && size > Mixer.limits[ch].max_buf_sz)
 		size = Mixer.limits[ch].max_buf_sz;
 
+	// samplebuffer needs ≥MARGIN units of usable space plus the mirrored tail.
+	// The mirrored tail itself is allocated by the caller (#mixer_ch_play).
+	int min_bytes = SAMPLEBUFFER_MARGIN_UNITS * 2 * ub;
+	if (size < min_bytes)
+		size = min_bytes;
+
 	assert((size % 8) == 0);
 	assert((int32_t)size == size);
-	
+
 	return size;
+}
+
+/** Mirrored-tail size in bytes for a waveform (see #samplebuffer_t::margin_units). */
+static int mixer_margin_bytes(waveform_t *wave, int ub)
+{
+	return samplebuffer_margin_units(wave->append_units) * ub;
 }
 
 void mixer_set_vol(float vol) {
@@ -232,37 +496,228 @@ void mixer_set_vol(float vol) {
 void mixer_close(void) {
 	assert(mixer_initialized());
 
+	rspq_highpri_sync();
+
 	rspq_overlay_unregister(__mixer_overlay_id);
 	__mixer_overlay_id = 0;
 
 	for (int i=0; i<Mixer.num_channels; i++)
 	{
+		mixer_channel_t *c = &Mixer.channels[i];
+		if ((c->flags & CH_FLAGS_RESIDENT) && c->codec_state) {
+			free_uncached(c->codec_state);
+			c->codec_state = NULL;
+		}
 		if (samplebuffer_is_inited(&Mixer.ch_buf[i]))
 			samplebuffer_close(&Mixer.ch_buf[i]);
+	}
+
+	if (Mixer.vstates) {
+		free_uncached(Mixer.vstates);
+		Mixer.vstates = NULL;
+	}
+
+	if (Mixer.round_done) {
+		free_uncached((void*)Mixer.round_done);
+		Mixer.round_done = NULL;
 	}
 
 	Mixer.num_channels = 0;
 }
 
-void mixer_ch_set_freq(int ch, float frequency) {
+/** Value of a scalar ramp at absolute tick @p t (target @p end). */
+static float mixer_ramp_at(const mixer_ramp_t *rmp, float end, int64_t t)
+{
+	int64_t d = t - rmp->start_tick;
+	if (!rmp->duration || d >= rmp->duration)
+		return end;
+	if (d < 0) d = 0;
+	float u = (float)d * rmp->inv_duration;
+	if (rmp->fn == mixer_ramp_linear)
+		return rmp->start + (end - rmp->start) * u;
+	if (rmp->fn == mixer_ramp_exp)
+		return rmp->start > 0.0f ? rmp->start * fm_exp2f(u * rmp->k) : end * u;
+	return rmp->fn(rmp->start, end, u);
+}
+
+/** Arm or replace a scalar ramp toward @p target over @p duration (0 = now).
+ * @p started_ago is how many samples before #Mixer.ticks the ramp began. */
+static void mixer_ramp_to(mixer_ramp_t *rmp, float *end, float target,
+	int duration, mixer_ramp_fn_t fn, int started_ago)
+{
+	assertf(started_ago >= 0, "mixer ramp: negative started_ago %d", started_ago);
+	int64_t start_tick = Mixer.ticks - started_ago;
+	if (*end == target && !rmp->duration)
+		return;
+	float cur = mixer_ramp_at(rmp, *end, start_tick);
+	if (duration && cur != target) {
+		assertf(fn, "mixer ramp: NULL curve with duration %d", duration);
+		float k = 0.0f;
+		if (fn == mixer_ramp_exp && cur > 0.0f) {
+			k = (target <= 0.0f)
+				? -(MIXER_RAMP_EXP_SILENCE * MIXER_LOG2E)
+				: log2f(target / cur);
+		}
+		*rmp = (mixer_ramp_t){
+			.start = cur,
+			.start_tick = start_tick,
+			.duration = duration,
+			.inv_duration = 1.0f / (float)duration,
+			.k = k,
+			.fn = fn,
+		};
+	} else {
+		rmp->duration = 0;
+	}
+	*end = target;
+}
+
+/** True while @p rmp still has samples to run at @p t; retires it when done. */
+static bool mixer_ramp_active(mixer_ramp_t *rmp, int64_t t)
+{
+	if (!rmp->duration)
+		return false;
+	if (t < rmp->start_tick + rmp->duration)
+		return true;
+	rmp->duration = 0;
+	return false;
+}
+
+/** Push @p frequency (Hz) into #mixer_channel_t::step for channel @p ch. */
+static void mixer_ch_apply_freq(int ch, float frequency)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(frequency >= 0, "cannot set negative frequency on channel %d: %f", ch, frequency);
+	// Check if the frequency is within the configured limit. Allow for a 1%
+	// margin because of rounding errors for the default maximum frequency.
+	assertf(frequency <= Mixer.limits[ch].max_frequency * 1.01f,
+		"frequency %.1f exceeds configured limit %.1f on channel %d; use mixer_ch_set_limit to change the limit for this channel",
+		frequency, Mixer.limits[ch].max_frequency, ch);
+	mixer_fx64_t step = MIXER_FX64(frequency / (float)Mixer.sample_rate);
+	if (!(c->flags & CH_FLAGS_VADPCM))
+		step <<= (c->flags & CH_FLAGS_BPS_SHIFT);
+	if (c->step == step)
+		return;
+	c->step = step;
+	mixer_refresh_max_ns(ch);
+}
+
+/** Sample the freq ramp at @p tick into the channel step (owners only). */
+static void mixer_ch_sync_freq(int ch, int64_t tick)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	if (c->flags & CH_FLAGS_STEREO_SUB)
+		return;
+	float f = mixer_ramp_at(&Mixer.freq_ramp[ch], Mixer.freq[ch], tick);
+	mixer_ramp_active(&Mixer.freq_ramp[ch], tick);
+	mixer_ch_apply_freq(ch, f);
+}
+
+void mixer_ch_set_freq(int ch, float frequency)
+{
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "cannot call on secondary stereo channel %d", ch);
-	assertf(frequency >= 0, "cannot set negative frequency on channel %d: %f", ch, frequency);
-	// Check if the frequency is within the configured limit. Allow for a 1% margin because of rounding errors
-	// for default maximum frequency being the output sample rate converted from fixed point.
-	assertf(frequency <= Mixer.limits[ch].max_frequency*1.01, "frequency %.1f exceeds configured limit %.1f on channel %d; use mixer_ch_set_limit to change the limit for this channel", frequency, Mixer.limits[ch].max_frequency, ch);
-	c->step = MIXER_FX64(frequency / (float)Mixer.sample_rate) << (c->flags & CH_FLAGS_BPS_SHIFT);
+	mixer_ramp_to(&Mixer.freq_ramp[ch], &Mixer.freq[ch], frequency, 0,
+		mixer_ramp_linear, 0);
+	mixer_ch_apply_freq(ch, Mixer.freq[ch]);
+}
+
+void mixer_ch_set_freq_ramp(int ch, float frequency, int duration,
+	mixer_ramp_fn_t curve, int started_ago)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
+		"mixer_ch_set_freq_ramp: cannot call on secondary stereo channel %d", ch);
+	assertf(duration >= 0,
+		"mixer_ch_set_freq_ramp: negative duration %d on channel %d", duration, ch);
+	assertf(started_ago >= 0,
+		"mixer_ch_set_freq_ramp: negative started_ago %d on channel %d", started_ago, ch);
+	mixer_ramp_to(&Mixer.freq_ramp[ch], &Mixer.freq[ch], frequency, duration, curve,
+		started_ago);
+	mixer_ch_apply_freq(ch,
+		mixer_ramp_at(&Mixer.freq_ramp[ch], Mixer.freq[ch], Mixer.ticks));
+}
+
+static void mixer_ch_vol_at(int ch, int64_t t, mixer_fx15_t *lvol, mixer_fx15_t *rvol)
+{
+	*lvol = MIXER_FX15(mixer_ramp_at(&Mixer.lvol_ramp[ch], Mixer.lvol[ch], t));
+	*rvol = MIXER_FX15(mixer_ramp_at(&Mixer.rvol_ramp[ch], Mixer.rvol[ch], t));
+}
+
+static void mixer_ch_vol_to(int ch, float l, float r, int duration)
+{
+	// Range [-1..1]: negative volumes invert phase. Dolby Pro Logic II matrix
+	// encoding needs that for the surrounds; the RSP already treats L/R as
+	// Q15 signed.
+	if (l < -1.0f) l = -1.0f;
+	if (l > 1.0f) l = 1.0f;
+	if (r < -1.0f) r = -1.0f;
+	if (r > 1.0f) r = 1.0f;
+	mixer_ramp_to(&Mixer.lvol_ramp[ch], &Mixer.lvol[ch], l, duration,
+		mixer_ramp_linear, 0);
+	mixer_ramp_to(&Mixer.rvol_ramp[ch], &Mixer.rvol[ch], r, duration,
+		mixer_ramp_linear, 0);
 }
 
 void mixer_ch_set_vol(int ch, float lvol, float rvol) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_vol: cannot call on secondary stereo channel %d", ch);
-	Mixer.lvol[ch] = MIXER_FX15(lvol);
-	Mixer.rvol[ch] = MIXER_FX15(rvol);
+	mixer_ch_vol_to(ch, lvol, rvol, MIXER_DECLICK_SAMPLES);
+}
+
+void mixer_ch_set_vol_ramp(int ch, float lvol, float rvol, int duration) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_vol_ramp: cannot call on secondary stereo channel %d", ch);
+	assertf(duration >= 0, "mixer_ch_set_vol_ramp: negative duration %d on channel %d", duration, ch);
+	mixer_ch_vol_to(ch, lvol, rvol, duration);
+}
+
+void mixer_ch_set_gain(int ch, float gain)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
+		"mixer_ch_set_gain: cannot call on secondary stereo channel %d", ch);
+	if (gain < 0.0f) gain = 0.0f;
+	if (gain > 1.0f) gain = 1.0f;
+	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, 0,
+		mixer_ramp_linear, 0);
+}
+
+void mixer_ch_set_gain_ramp(int ch, float gain, int duration,
+	mixer_ramp_fn_t curve, int started_ago)
+{
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB),
+		"mixer_ch_set_gain_ramp: cannot call on secondary stereo channel %d", ch);
+	assertf(duration >= 0,
+		"mixer_ch_set_gain_ramp: negative duration %d on channel %d", duration, ch);
+	assertf(started_ago >= 0,
+		"mixer_ch_set_gain_ramp: negative started_ago %d on channel %d", started_ago, ch);
+	if (gain < 0.0f) gain = 0.0f;
+	if (gain > 1.0f) gain = 1.0f;
+	mixer_ramp_to(&Mixer.gain_ramp[ch], &Mixer.gain[ch], gain, duration, curve,
+		started_ago);
 }
 
 void mixer_ch_set_vol_pan(int ch, float vol, float pan) {
 	mixer_ch_set_vol(ch, vol * (1.f - pan), vol * pan);
+}
+
+void mixer_ch_set_force_mono(int ch, bool enable) {
+	assert(ch < Mixer.num_channels);
+	if (enable) Mixer.channels[ch].flags |=  CH_FLAGS_FORCE_MONO;
+	else        Mixer.channels[ch].flags &= ~CH_FLAGS_FORCE_MONO;
+}
+
+bool mixer_ch_get_force_mono(int ch) {
+	assert(ch < Mixer.num_channels);
+	return (Mixer.channels[ch].flags & CH_FLAGS_FORCE_MONO) != 0;
+}
+
+void mixer_set_force_mono(bool enable) {
+	for (int i = 0; i < Mixer.num_channels; i++) {
+		mixer_ch_set_force_mono(i, enable);
+	}
 }
 
 void mixer_ch_set_vol_dolby(int ch, float fl, float fr,
@@ -300,179 +755,798 @@ static int waveform_wrap_wpos(int wpos, int len, int loop_len) {
 	return ((wpos - len) % loop_len) + (len - loop_len);
 }
 
-// A wrapper for a waveform's read function that handles loops.
-// Sample buffers are not aware of loops. The way the mixer handles
-// loops is by unrolling them in the sample buffer: that is, the sample
-// buffer is called with an unlimited growing wpos, and the
-// WaveformRead callback is expected to unroll the loop as wpos
-// grows. To alleviate all waveforms implementations to handle loop
-// unrolling, this simple wrapper performs the wpos wrapping calculations
-// and convert it in a sequence of calls to read callbacks using only positions
-// in the range [0, len].
-static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
-	waveform_t *wave = (waveform_t*)ctx;
+/** Exclusive end of the loop region of a waveform (0 means terminal loop). */
+static int waveform_loop_end(const waveform_t *wave) {
+	return wave->loop_end ? wave->loop_end : wave->len;
+}
 
-	if (!wave->loop_len) {
-		// If we're asked to read past the waveform length (because overread),
-		// call the underlying function only up to the actual length,
-		// and then zero the rest of data.
-		int len1 = wlen;
-		if (wpos + wlen > wave->len)
-			len1 = MAX(wave->len - wpos, 0);
-		int len2 = wlen-len1;
-
-		if (len1 > 0)
-			wave->read(wave->ctx, sbuf, wpos, len1, seeking);
-		if (len2 > 0) {
-			void *dest = samplebuffer_append(sbuf, len2);
-			memset(dest, 0, len2 << SAMPLES_BPS_SHIFT(sbuf));
-		}
-	} else {
-		// Calculate wrapped position
-		if (wpos >= wave->len)
-			wpos = waveform_wrap_wpos(wpos, wave->len, wave->loop_len);
-
-		// If we are requesting a read from 0, we force seeking because it
-		// means that previous read finished just exactly at the loop point.
-		if (wpos == 0)
-			seeking = true;
-
-		// The read might cross the end point of the waveform
-		// and continue at the loop point. We would need to handle
-		// this case by performing two reads with a seek inbetween.
-
-		// Split the length into two segments: before loop and loop.
-		int len1 = wlen;
-		if (wpos + wlen > wave->len)
-			len1 = wave->len - wpos;
-		int len2 = wlen-len1;
-
-		// Logic check: the second segment (loop) shouldn't be longer
-		// than the loop length plus the loop overread. Otherwise, it means
-		// that we've been requested a single read that spans more than two
-		// full loops, but that's impossible! In fact, a single request must fit
-		// a sample buffer, and if a whole loop fits the sample buffer,
-		// we wouldn't get here: the mixer handles fully-cachable loops
-		// without unrolling them (see mixer_poll).
-		assertf(len2 <= wave->loop_len + (MIXER_LOOP_OVERREAD >> SAMPLES_BPS_SHIFT(sbuf)),
-			"waveform %s: logic error: double loop in single read\n"
-			"wpos:%x, wlen:%x, len:%x loop_len:%x",
-			wave->name, wpos, wlen, wave->len, wave->loop_len);
-
-		// Perform the first read
-		wave->read(wave->ctx, sbuf, wpos, len1, seeking);
-
-		// See if we need to perform a second read for the loop. Because of
-		// overread, we need to read the loop as many times as necessary
-		// (though technically, once would be sufficient without overread).
-		while (len2 > 0) {
-			int loop_start = wave->len - wave->loop_len;
-			int ns = MIN(len2, wave->loop_len);
-			wave->read(wave->ctx, sbuf, loop_start, ns, true);
-			len2 -= ns;
-		}
+/**
+ * @brief Set the bounds a channel plays within: the loop region, or all of it.
+ *
+ * While looping, the channel ends at the loop end and wraps back by loop_len;
+ * otherwise it runs to the physical end of the waveform (which includes the
+ * release tail of a waveform whose loop ends before it).
+ */
+static void mixer_ch_bounds(mixer_channel_t *c, const waveform_t *wave, bool loop) {
+	int bps = (c->flags & CH_FLAGS_VADPCM) ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT);
+	loop = loop && wave->loop_len;
+	c->len = MIXER_FX64((int64_t)(loop ? waveform_loop_end(wave) : wave->len)) << bps;
+	c->loop_len = loop ? MIXER_FX64((int64_t)wave->loop_len) << bps : 0;
+	// The secondary channel of a stereo pair is played with the same bounds.
+	if (c->flags & CH_FLAGS_STEREO) {
+		c[1].len = c->len;
+		c[1].loop_len = c->loop_len;
 	}
 }
 
-void mixer_ch_play(int ch, waveform_t *wave) {
+// Clamp a WaveformRead so codecs only ever see positions in [0, len).
+//
+// Samplebuffers and codecs are not loop-aware. The mixer stops rounds at
+// loop boundaries (or pins small loops for the RSP to wrap), but a fetch
+// window still includes #MIXER_LOOP_OVERREAD past the last useful sample,
+// and a streamed wpos can sit past len while the samplebuffer keeps a
+// contiguous unrolled view of the stream. This wrapper maps those cases
+// onto reads in [0, len) — silence for one-shots, samples from loop_start
+// for looping waveforms — without forcing a seek on a contiguous wrap.
+static void waveform_read(void *ctx, samplebuffer_t *sbuf, int wpos, int wlen, bool seeking) {
+	waveform_t *wave = sbuf->wave;
+	// A seek that restarts the ring is the CPU moving playback where the
+	// stream does not go on its own, so the state the codec writes for it has
+	// to reach the RSP (see #mixer_emit_setstate). The refill that follows the
+	// end of a looping waveform arrives as a seek too, but there the ring
+	// keeps its live window: the RSP is still decoding the frames before the
+	// loop, and the state of the loop start only becomes the one it needs once
+	// the CPU wraps the position.
+	if (seeking && sbuf->widx == 0 && wave->format == WAVEFORM_FORMAT_VADPCM) {
+		int ch = sbuf - Mixer.ch_buf;
+		Mixer.vstate_dirty |= mixer_bit(ch);
+		if (Mixer.channels[ch].flags & CH_FLAGS_STEREO)
+			Mixer.vstate_dirty |= mixer_bit(ch+1);
+	}
+
+	// Bounds come from the channel, not from the waveform: they follow its
+	// loop state (see #mixer_ch_set_loop), so a voice in release reads through
+	// to the sample end while another one on the same waveform still loops.
+	mixer_channel_t *c = &Mixer.channels[sbuf - Mixer.ch_buf];
+	int bps_fx64 = ((c->flags & CH_FLAGS_VADPCM) ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+	int wave_len = c->len >> bps_fx64;
+	int wave_loop = c->loop_len >> bps_fx64;
+
+	// Samplebuffer units: PCM samples, or VADPCM frames. Wave metadata is
+	// always in samples; convert bounds when the buffer stores frames.
+	if (wave->format == WAVEFORM_FORMAT_VADPCM) {
+		// The last frame of a waveform is partial whenever its length is not a
+		// multiple of 16, and the loop point can sit anywhere inside a frame:
+		// both bounds have to become the frame the sample belongs to, or the
+		// samples living in those partial frames would never be fetched.
+		int loop_start = (wave_len - wave_loop) / 16;
+		wave_len = DIVIDE_CEIL(wave_len, 16);
+		wave_loop = wave_loop ? wave_len - loop_start : 0;
+	}
+	int ub = sbuf->unit_bytes;
+	// Silence past the end: the codec read fills both VADPCM planes, so the
+	// padding must too (and at the same wpos), or the right ring falls short
+	// / misaligns and samplebuffer_get tries to extend it without a reader.
+	bool stereo_vadpcm = (c->flags & (CH_FLAGS_VADPCM | CH_FLAGS_STEREO))
+		== (CH_FLAGS_VADPCM | CH_FLAGS_STEREO);
+	// On a ring the RSP writes into, every append has to leave the write cursor
+	// where the producer can write next (see #samplebuffer_align_units),
+	// including the appends the mixer makes itself: a few extra units of
+	// silence past the end of a waveform that does not loop cost nothing.
+	int pad = wave->rsp_written ? samplebuffer_align_units(sbuf) : 1;
+
+	if (wpos >= wave_len) {
+		if (!wave_loop) {
+			wlen = ROUND_UP(wlen, pad);
+			memset(samplebuffer_append(sbuf, wlen), 0, wlen * ub);
+			if (stereo_vadpcm) {
+				samplebuffer_t *r = sbuf + 1;
+				if (r->widx == 0) r->wpos = sbuf->wpos;
+				memset(samplebuffer_append(r, wlen), 0, wlen * ub);
+				r->wnext = r->wpos + r->widx;
+			}
+			return;
+		}
+		// Keep seeking as-is: a contiguous fetch past len is still sequential
+		// for the codec (it just continues); only force a seek when the
+		// wrapped position lands exactly on the loop point.
+		wpos = waveform_wrap_wpos(wpos, wave_len, wave_loop);
+	}
+	if (wave_loop && wpos == wave_len - wave_loop)
+		seeking = true;
+
+	int len1 = wlen;
+	if (wpos + wlen > wave_len)
+		len1 = wave_len - wpos;
+	int len2 = wlen - len1;
+
+	if (len1 > 0)
+		wave->read(ctx, sbuf, wpos, len1, seeking);
+	if (len2 <= 0)
+		return;
+
+	if (!wave_loop) {
+		len2 = ROUND_UP(len2, pad);
+		memset(samplebuffer_append(sbuf, len2), 0, len2 * ub);
+		if (stereo_vadpcm) {
+			samplebuffer_t *r = sbuf + 1;
+			if (r->widx == 0) r->wpos = sbuf->wpos;
+			memset(samplebuffer_append(r, len2), 0, len2 * ub);
+			r->wnext = r->wpos + r->widx;
+		}
+		return;
+	}
+
+	// Overread past the end: refill from the loop start. A single fragment
+	// covers MIXER_LOOP_OVERREAD; tiny loops may need more than one.
+	int loop_start = wave_len - wave_loop;
+	while (len2 > 0) {
+		int ns = MIN(len2, wave_loop);
+		wave->read(ctx, sbuf, loop_start, ns, true);
+		len2 -= ns;
+	}
+}
+
+static bool mixer_wave_fits(int ch);
+
+/**
+ * @brief Resume a streamed VADPCM channel over an emptied ring.
+ *
+ * A VADPCM stream can only be re-seeded on the points its asset was built
+ * with, so an empty ring must not turn the next fetch into a seek. It does not
+ * have to: the frames are addressed directly, and the decoder state the RSP
+ * carries already belongs to the frame playback sits on. Marking the ring as
+ * the continuation of that frame is enough for the refill to be a plain
+ * sequential read.
+ *
+ * The state is not the right one at exactly one moment: right after the CPU
+ * wrapped the position between two rounds (see #mixer_advance), where the RSP
+ * is still holding the one of the end of the waveform. That frame is the loop
+ * start, whose state every looping asset carries, so it can just be handed
+ * over (see #mixer_emit_setstate).
+ */
+static void mixer_vadpcm_resume(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
+	bool stereo = (c->flags & CH_FLAGS_STEREO) != 0;
+
+	sbuf->wpos = sbuf->wnext = c->vframe;
+	if (stereo) {
+		samplebuffer_t *sbuf_r = &Mixer.ch_buf[ch+1];
+		sbuf_r->wpos = sbuf_r->wnext = c->vframe;
+	}
+
+	if (!c->loop_state || !c->wave->loop_len)
+		return;
+	if (c->vframe != (waveform_loop_end(c->wave) - c->wave->loop_len) / 16)
+		return;
+	memcpy(c->codec_state, c->loop_state, 16 * (stereo ? 2 : 1));
+	Mixer.vstate_dirty |= mixer_bit(ch);
+	if (stereo)
+		Mixer.vstate_dirty |= mixer_bit(ch+1);
+}
+
+/**
+ * @brief Go back to streaming a loop that was pinned in the samplebuffer.
+ *
+ * The pinned copy is addressed relative to the loop region and is wrapped by
+ * the RSP, so it only survives while playback stays inside it. Dropping it
+ * empties the ring, and the next fetch refills it from wherever playback is.
+ */
+static void mixer_ch_unpin_loop(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	bool stereo_vadpcm = (c->flags & (CH_FLAGS_VADPCM | CH_FLAGS_STEREO))
+		== (CH_FLAGS_VADPCM | CH_FLAGS_STEREO);
+	c->flags &= ~CH_FLAGS_LOOP_CACHED;
+	if (stereo_vadpcm) {
+		Mixer.channels[ch+1].flags &= ~CH_FLAGS_LOOP_CACHED;
+		samplebuffer_flush(&Mixer.ch_buf[ch+1]);
+	}
+	samplebuffer_flush(&Mixer.ch_buf[ch]);
+	if (c->flags & CH_FLAGS_VADPCM)
+		mixer_vadpcm_resume(ch);
+	mixer_refresh_max_ns(ch);
+}
+
+/** @brief Apply a VADPCM seek to the channel's codec state via WaveformRead. */
+static void mixer_vadpcm_seek(mixer_channel_t *c, int sample_pos) {
+	assert(c->flags & CH_FLAGS_VADPCM);
+	assert(c->wave && c->wave->read && c->codec_state);
+	// Two buffers: a stereo read also touches the right-plane one, even when
+	// seeking with no data to fetch.
+	samplebuffer_t tmp[2] = {{0}};
+	tmp[0].wave = c->wave;
+	tmp[0].state = c->codec_state;
+	tmp[0].state_size = c->wave->state_size;
+	c->wave->read(c->wave->ctx, tmp, sample_pos / 16, 0, true);
+	c->vframe = sample_pos / 16;
+	int ch = c - Mixer.channels;
+	Mixer.vstate_dirty |= mixer_bit(ch);
+	if (c->flags & CH_FLAGS_STEREO) {
+		c[1].vframe = c->vframe;
+		Mixer.vstate_dirty |= mixer_bit(ch+1);
+	}
+}
+
+/**
+ * @brief Re-establish the playback state after the CPU moved a position.
+ *
+ * The RSP always resumes a channel from where the CPU says it is, assuming
+ * that what it needs is already in place: the samples of that position in the
+ * samplebuffer, and (for VADPCM) a decoder state in RDRAM saved exactly for the frame
+ * containing it. Both assumptions only hold while playback advances
+ * sequentially, so any jump made by the CPU must be fixed up here.
+ */
+static void mixer_ch_seek(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
+	bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
+	int bps_fx64 = (vadpcm ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+	int frame = (int)(c->pos >> (MIXER_FX64_FRAC + 4));
+
+	if (!c->wave)
+		return;
+
+	// Resident waveforms are always fully available: only the decoder state
+	// has to be moved.
+	if (c->flags & CH_FLAGS_RESIDENT) {
+		if (vadpcm && frame != c->vframe)
+			mixer_vadpcm_seek(c, frame * 16);
+		return;
+	}
+
+	if (c->flags & CH_FLAGS_LOOP_CACHED) {
+		int len = c->len >> bps_fx64;
+		int loop_len = c->loop_len >> bps_fx64;
+		int cache_start = mixer_wave_fits(ch) ? 0 : len - loop_len;
+		bool have_samples = (c->pos >> bps_fx64) >= cache_start;
+		if (have_samples) {
+			// The samples are pinned already: just move the decoder.
+			if (vadpcm && frame != c->vframe)
+				mixer_vadpcm_seek(c, frame * 16);
+			return;
+		}
+		// Seeking before the pinned region: go back to streaming, and let the
+		// next round pin the loop again (re-seeding the decoder while at it).
+		mixer_ch_unpin_loop(ch);
+		return;
+	}
+
+	// Streamed: flushing the samplebuffer forces the next fetch to seek, which
+	// is what re-seeds the decoder state.
+	if (vadpcm && frame != c->vframe)
+		samplebuffer_flush(sbuf);
+}
+
+void mixer_ch_play(int ch, waveform_t *wave)
+{
 	assert(ch < Mixer.num_channels);
 	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
 	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_play: cannot call on secondary stereo channel %d", ch);
 
-	// If we're going to play a stereo waveform on a channel that was allocated
-	// for mono, we need to reallocate the buffer.
-	if (wave->channels == 2 && !(c->flags & CH_FLAGS_STEREO_ALLOC))
-		samplebuffer_close(sbuf);
+	// Initialize uuid for this waveform if it wasn't already
+	if (wave->__uuid == 0) 
+		wave->__uuid = ++Mixer.uuid_counter;
 
-	if (!samplebuffer_is_inited(sbuf)) {
-		// If we have not yet allocated the memory for the sample buffers,
-		// this is a good moment to do so, as we might need the configure
-		// the samplebuffer in a moment.
-		int size = mixer_calc_buffer_size(ch, wave->channels);
-		void *ptr = malloc_uncached(size);
-		assertf(ptr, "out of memory (size=%d)", size);
-		samplebuffer_init(sbuf, ptr, size);
-		if (wave->channels == 2) c->flags |= CH_FLAGS_STEREO_ALLOC;
+	bool resident = wave->mem != NULL;
+	bool vadpcm = wave->format == WAVEFORM_FORMAT_VADPCM;
+	bool stereo_vadpcm = vadpcm && wave->channels == 2;
+
+	// Stereo VADPCM uses two mono rings (ch and ch+1). PCM stereo uses one
+	// interleaved buffer on the owner (STEREO_ALLOC). The ring on ch+1 belongs
+	// to this channel for as long as it keeps playing stereo VADPCM: ch+1
+	// cannot be played on its own while STEREO_SUB is set.
+	bool was_stereo_vadpcm = !(c->flags & CH_FLAGS_RESIDENT) &&
+		(c->flags & (CH_FLAGS_VADPCM|CH_FLAGS_STEREO)) == (CH_FLAGS_VADPCM|CH_FLAGS_STEREO);
+	if (!resident && stereo_vadpcm) {
+		// Only reuse the pair if it was allocated as a pair and is still intact
+		// (mixer_ch_set_limits frees one ring of the pair, either of them).
+		if (!was_stereo_vadpcm || !samplebuffer_is_inited(sbuf) ||
+			!samplebuffer_is_inited(&Mixer.ch_buf[ch+1])) {
+			rspq_highpri_sync();
+			samplebuffer_close(sbuf);
+			samplebuffer_close(&Mixer.ch_buf[ch+1]);
+		}
+	} else if (!resident) {
+		// Leaving stereo VADPCM: release the secondary ring, or the next stereo
+		// VADPCM would find it allocated but still holding the previous stream.
+		if (was_stereo_vadpcm) {
+			rspq_highpri_sync();
+			samplebuffer_close(&Mixer.ch_buf[ch+1]);
+		}
+		if (wave->channels == 2 && !(c->flags & CH_FLAGS_STEREO_ALLOC)) {
+			rspq_highpri_sync();
+			samplebuffer_close(sbuf);
+		}
+	}
+	// Check if the sample / state buffer is big enough for this waveform.
+	// A channel that first played a raw/VADPCM SFX may hold a ring sized
+	// without Opus/ULC append headroom; keep that from wrapping onto RSP-live
+	// samples when a block codec is played later.
+	if (!resident && samplebuffer_is_inited(sbuf)) {
+		int need = ROUND_UP(mixer_calc_buffer_size(ch, wave), 16);
+		int ub = vadpcm ? mixer_vadpcm_frame_bytes(wave)
+			: ((wave->bits / 8) * (stereo_vadpcm ? 1 : wave->channels));
+		need += mixer_margin_bytes(wave, ub);
+		need = ROUND_UP(need, 16);
+		if (sbuf->capacity_bytes < need || sbuf->state_size < wave->state_size) {
+			rspq_highpri_sync();
+			samplebuffer_close(sbuf);
+			if (stereo_vadpcm) samplebuffer_close(&Mixer.ch_buf[ch+1]);
+		}
 	}
 
-	// Configure the waveform on this channel, if we have not
-	// already. This optimization is useful in case the caller
-	// wants to play the same waveform on the same channel multiple
-	// times, and the waveform has been already decoded and cached
-	// in the sample buffer.
-	if (wave != sbuf->wv_ctx) {
-		samplebuffer_flush(sbuf);
+	if (!resident && !samplebuffer_is_inited(sbuf)) {
+		int size = ROUND_UP(mixer_calc_buffer_size(ch, wave), 16);
+		int ub = vadpcm ? mixer_vadpcm_frame_bytes(wave) : ((wave->bits / 8) * (stereo_vadpcm ? 1 : wave->channels));
+		size += mixer_margin_bytes(wave, ub);
+		size = ROUND_UP(size, 16);
+		int state_size = ROUND_UP(wave->state_size, 16);
+		void *ptr = malloc_uncached(size + state_size);
+		assertf(ptr, "Out of memory");
+		samplebuffer_init(sbuf, ptr, size, state_size);
+		if (stereo_vadpcm) {
+			assertf(ch != Mixer.num_channels-1, "cannot play stereo VADPCM on last channel");
+			void *ptr_r = malloc_uncached(size); // R samplebuffer: no second state (shared)
+			assertf(ptr_r, "Out of memory");
+			samplebuffer_init(&Mixer.ch_buf[ch+1], ptr_r, size, 0);
+			c->flags |= CH_FLAGS_STEREO_ALLOC;
+		} else if (wave->channels == 2) {
+			c->flags |= CH_FLAGS_STEREO_ALLOC;
+		}
+	}
 
-		// Configure the sample buffer for this waveform
-		assert(wave->channels == 1 || wave->channels == 2);
-		assert(wave->bits == 8 || wave->bits == 16);
-		samplebuffer_set_bps(sbuf, wave->bits*wave->channels);
-		samplebuffer_set_waveform(sbuf, wave->read ? waveform_read : NULL, wave);
-
-		// Configure the mixer channel structured used by the RSP ucode
-		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
-		assertf(wave->len != WAVEFORM_UNKNOWN_LEN || wave->loop_len == 0, "waveform %s with unknown length cannot loop", wave->name);
-		int bps = SAMPLES_BPS_SHIFT(sbuf);
-		c->flags = bps | (wave->channels == 2 ? CH_FLAGS_STEREO : 0) | (wave->bits == 16 ? CH_FLAGS_16BIT : 0);
-		c->len = MIXER_FX64((int64_t)wave->len) << bps;
-		c->loop_len = MIXER_FX64((int64_t)wave->loop_len) << bps;
-		mixer_ch_set_freq(ch, wave->frequency);
-
-		if (wave->channels == 2) {
-			assertf(ch != Mixer.num_channels-1, "cannot configure last channel (%d) as stereo", ch);
-			Mixer.channels[ch+1].flags |= CH_FLAGS_STEREO_SUB;
-		} else if (ch != Mixer.num_channels-1) {
-			Mixer.channels[ch+1].flags &= ~CH_FLAGS_STEREO_SUB;
+	// Configure the waveform on this channel, if we have not already. The uuid
+	// alone is not enough: the ring can have been closed and reallocated just
+	// above, and is then no longer configured for this waveform even though the
+	// channel still remembers playing it. VADPCM residual width can also change
+	// on the same waveform object (same uuid): unit_bytes and vbits must track it.
+	bool configured = resident || (sbuf->wave == wave && sbuf->unit_bytes);
+	if (configured && !resident && vadpcm) {
+		int ub = mixer_vadpcm_frame_bytes(wave);
+		int bits = ((const waveform_vadpcm_t *)wave->codec)->bits;
+		if (sbuf->unit_bytes != ub || c->vbits != bits ||
+			(stereo_vadpcm && Mixer.ch_buf[ch+1].unit_bytes != ub))
+			configured = false;
+	}
+	if (!configured || wave->__uuid != c->wave_uuid ||
+		(c->flags & CH_FLAGS_RESIDENT) != (resident ? CH_FLAGS_RESIDENT : 0)) {
+		if (!resident) {
+			samplebuffer_flush(sbuf);
+			// Stereo VADPCM keeps a second ring on ch+1, which is reconfigured
+			// below as well: it must be emptied too.
+			if (stereo_vadpcm)
+				samplebuffer_flush(&Mixer.ch_buf[ch+1]);
 		}
 
-		tracef("mixer_ch_play: ch=%d len=%llx loop_len=%llx wave=%s\n", ch, c->len >> (MIXER_FX64_FRAC+bps), c->loop_len >> (MIXER_FX64_FRAC+bps), wave->name);
+		// If this channel is playing something else, stop it
+		if (mixer_ch_playing(ch))
+			mixer_ch_stop(ch);
+
+		// Free a previous resident-only codec state if switching away.
+		if ((c->flags & CH_FLAGS_RESIDENT) && c->codec_state) {
+			free_uncached(c->codec_state);
+			c->codec_state = NULL;
+		}
+
+		assert(wave->channels == 1 || wave->channels == 2);
+		assert(wave->bits == 8 || wave->bits == 16);
+		assertf(wave->len >= 0 && wave->len <= WAVEFORM_MAX_LEN, "waveform %s: invalid length %x", wave->name, wave->len);
+		assertf(wave->len != WAVEFORM_UNKNOWN_LEN || wave->loop_len == 0, "waveform %s with unknown length cannot loop", wave->name);
+		assertf(wave->loop_len >= 0 && wave->loop_len <= waveform_loop_end(wave) && waveform_loop_end(wave) <= wave->len,
+			"waveform %s: invalid loop of %d samples ending at %d (len %d)",
+			wave->name, wave->loop_len, waveform_loop_end(wave), wave->len);
+
+		c->flags &= ~(CH_FLAGS_BPS_SHIFT | CH_FLAGS_16BIT | CH_FLAGS_STEREO | CH_FLAGS_VADPCM | CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED);
+		c->codebook = NULL;
+		c->loop_state = NULL;
+		c->codec_state = NULL;
+
+		if (resident) {
+			c->flags |= CH_FLAGS_RESIDENT;
+			if (wave->state_size) {
+				c->codec_state = malloc_uncached(ROUND_UP(wave->state_size, 16));
+				assertf(c->codec_state, "Out of memory");
+				memset(c->codec_state, 0, wave->state_size);
+			}
+		} else {
+			if (wave->format == WAVEFORM_FORMAT_VADPCM) {
+				samplebuffer_set_unit_bytes(sbuf, mixer_vadpcm_frame_bytes(wave));
+				if (stereo_vadpcm)
+					samplebuffer_set_unit_bytes(&Mixer.ch_buf[ch+1], mixer_vadpcm_frame_bytes(wave));
+			} else {
+				samplebuffer_set_bps(sbuf, wave->bits*wave->channels);
+			}
+			samplebuffer_set_waveform(sbuf, wave, wave->read ? waveform_read : NULL);
+			c->codec_state = sbuf->state;
+		}
+
+		if (wave->format == WAVEFORM_FORMAT_VADPCM) {
+			waveform_vadpcm_t *vc = wave->codec;
+			assertf(vc && vc->codebook, "waveform %s: VADPCM missing codec/codebook", wave->name);
+			assertf(vc->bits >= 2 && vc->bits <= 4, "waveform %s: invalid VADPCM residual width %d", wave->name, vc->bits);
+			c->flags |= CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
+			if (wave->channels == 2) c->flags |= CH_FLAGS_STEREO;
+			c->codebook = vc->codebook;
+			c->loop_state = vc->loop_state;
+			c->vbits = vc->bits;
+			if (stereo_vadpcm) {
+				mixer_channel_t *r = &Mixer.channels[ch+1];
+				r->flags = (r->flags & CH_FLAGS_FORCE_MONO) | CH_FLAGS_STEREO_SUB | CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
+				r->codebook = (uint8_t*)vc->codebook + VADPCM_CODEBOOK_STRIDE;
+				r->vbits = vc->bits;
+				r->codec_state = (uint8_t*)c->codec_state + 16;
+				r->loop_state = vc->loop_state ? (uint8_t*)vc->loop_state + 16 : NULL;
+				r->wave = wave;
+				r->wave_uuid = wave->__uuid;
+			}
+		} else {
+			int bps = (wave->bits == 16 ? 1 : 0) + (wave->channels == 2 ? 1 : 0);
+			c->flags |= bps | (wave->channels == 2 ? CH_FLAGS_STEREO : 0) | (wave->bits == 16 ? CH_FLAGS_16BIT : 0);
+		}
+		mixer_ch_set_freq(ch, wave->frequency);
+
+		if (!resident && wave->start)
+			wave->start(wave->ctx, sbuf);
+
+		c->wave_uuid = wave->__uuid;
+		tracef("mixer_ch_play[new]: ch=%d len=%llx loop_len=%llx wave=%s%s\n",
+			ch, (uint64_t)wave->len, (uint64_t)wave->loop_len, wave->name,
+			resident ? " [resident]" : "");
+	} else if (!resident) {
+		tracef("mixer_ch_play[old]: ch=%d wave=%s\n", ch, wave->name);
+		assertf(sbuf->wave == wave, "%s: uuid match (%ld) but pointer mismatch: %p != %p",
+			wave->name, wave->__uuid, sbuf->wave, wave);
 	}
 
-	// Restart from the beginning of the waveform
-	c->ptr = SAMPLES_PTR(sbuf);
+	// Restart from the beginning of the waveform, with the loop armed again:
+	// a #mixer_ch_set_loop only applies to the note that was playing.
+	c->wave = wave;
+	mixer_ch_bounds(c, wave, true);
+	if (resident && stereo_vadpcm) {
+		// Planes are laid out back to back, each holding every frame that
+		// carries a sample (the last one is partial if len is not a multiple
+		// of 16).
+		int nframes = DIVIDE_CEIL(wave->len, 16);
+		c->ptr = (void*)wave->mem;
+		Mixer.channels[ch+1].ptr = (uint8_t*)wave->mem + nframes * mixer_vadpcm_frame_bytes(wave);
+		Mixer.channels[ch+1].pos = 0;
+	} else {
+		c->ptr = resident ? (void*)wave->mem : SAMPLES_PTR(sbuf);
+	}
 	c->pos = 0;
+	PROFILE_START(PS_MIXER_SEEK);
+	mixer_ch_seek(ch);
+	PROFILE_STOP(PS_MIXER_SEEK);
+
+	// Mark ch+1 as stereo sub for PCM interleaved or VADPCM dual-mono.
+	if (c->flags & CH_FLAGS_STEREO) {
+		assertf(ch != Mixer.num_channels-1, "cannot configure last channel (%d) as stereo", ch);
+		assertf(!mixer_ch_playing(ch+1) || (Mixer.channels[ch+1].flags & CH_FLAGS_STEREO_SUB),
+			"cannot play stereo waveform on channel %d because channel %d is active", ch, ch+1);
+		if (!(c->flags & CH_FLAGS_VADPCM)) {
+			// PCM interleaved: R has no samplebuffer of its own. Replace flags
+			// so a previous mono/VADPCM occupant cannot leave VADPCM set and
+			// make Phase A try to fetch from a null-wave samplebuffer.
+			Mixer.channels[ch+1].flags = (Mixer.channels[ch+1].flags & CH_FLAGS_FORCE_MONO) | CH_FLAGS_STEREO_SUB;
+			Mixer.channels[ch+1].ptr = NULL;
+		} else {
+			Mixer.channels[ch+1].flags |= CH_FLAGS_STEREO_SUB;
+		}
+	} else if (ch != Mixer.num_channels-1) {
+		Mixer.channels[ch+1].flags &= ~CH_FLAGS_STEREO_SUB;
+	}
+
+	mixer_touch_ch(ch);
+	// The state buffer of a channel outlives the waveforms played on it, so a
+	// new one always has to seed it, even when it starts where the previous
+	// one happened to be.
+	if (c->flags & CH_FLAGS_VADPCM) {
+		Mixer.chtbl_dirty |= mixer_bit(ch);
+		Mixer.vstate_dirty |= mixer_bit(ch);
+	}
+	if (c->flags & CH_FLAGS_STEREO) {
+		mixer_touch_ch(ch+1);
+		if (c->flags & CH_FLAGS_VADPCM) {
+			Mixer.chtbl_dirty |= mixer_bit(ch+1);
+			Mixer.vstate_dirty |= mixer_bit(ch+1);
+		}
+	}
+	Mixer.start_tick[ch] = Mixer.ticks;
+	Mixer.prio[ch] = MIXER_PRIORITY_MAX;
+	mixer_refresh_max_ns(ch);
 }
 
-void mixer_ch_set_pos(int ch, float pos) {
+void mixer_ch_set_pos(int ch, double pos) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_pos: cannot call on secondary stereo channel %d", ch);
-	c->pos = MIXER_FX64(pos) << (c->flags & CH_FLAGS_BPS_SHIFT);
+	mixer_fx64_t p = MIXER_FX64(pos);
+	if (!(c->flags & CH_FLAGS_VADPCM))
+		p <<= (c->flags & CH_FLAGS_BPS_SHIFT);
+	c->pos = p;
+	PROFILE_START(PS_MIXER_SEEK);
+	mixer_ch_seek(ch);
+	PROFILE_STOP(PS_MIXER_SEEK);
+	tracef("mixer_ch_set_pos: ch=%d pos=%.32g(%llx)\n", ch, pos, c->pos);
 }
 
-float mixer_ch_get_pos(int ch) {
+void mixer_ch_set_loop(int ch, bool enable) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_set_loop: cannot call on secondary stereo channel %d", ch);
+	assertf(c->wave, "mixer_ch_set_loop: channel %d is not playing", ch);
+	assertf(!enable || c->wave->loop_len, "mixer_ch_set_loop: waveform %s does not loop", c->wave->name);
+	if (enable == (c->loop_len != 0))
+		return;
+
+	mixer_ch_bounds(c, c->wave, enable);
+	// The ring holds the loop unrolled: whatever it cached past the loop end
+	// was taken from the loop start, and a pinned loop is not even addressed
+	// linearly. Drop it and resume streaming from the current position.
+	if (!(c->flags & CH_FLAGS_RESIDENT))
+		mixer_ch_unpin_loop(ch);
+	tracef("mixer_ch_set_loop: ch=%d enable=%d len=%llx\n", ch, enable, (uint64_t)c->len);
+}
+
+double mixer_ch_get_pos(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
 	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_get_pos: cannot call on secondary stereo channel %d", ch);
-	uint64_t pos = c->pos >> (c->flags & CH_FLAGS_BPS_SHIFT);
-	return (float)pos / (float)(1<<MIXER_FX64_FRAC);
+	uint64_t pos = c->pos;
+	if (!(c->flags & CH_FLAGS_VADPCM))
+		pos >>= (c->flags & CH_FLAGS_BPS_SHIFT);
+	return (double)pos / (double)(1<<MIXER_FX64_FRAC);
 }
 
 void mixer_ch_stop(int ch) {
 	mixer_channel_t *c = &Mixer.channels[ch];
-	c->ptr = 0;
-	if (c->flags & CH_FLAGS_STEREO)
-		c[1].flags &= ~CH_FLAGS_STEREO_SUB;
 
-	// Restart caching if played again. We need this guarantee
-	// because after calling stop(), the caller must be able
-	// to free waveform, and thus this pointer might become invalid.
-	Mixer.ch_buf[ch].wv_ctx = NULL;
+	if (!c->ptr)
+		return;
+
+	tracef("mixer_ch_stop: ch=%d\n", ch);
+
+	bool stereo = (c->flags & CH_FLAGS_STEREO) != 0;
+	if (stereo) {
+		// Dropping STEREO_SUB releases ch+1, so it must be disarmed like the
+		// owner: a stereo VADPCM sub keeps its own ptr/pos, and would
+		// otherwise look like an independent channel and keep advancing and
+		// fetching from a samplebuffer that only its owner can fill.
+		c[1].flags &= ~CH_FLAGS_STEREO_SUB;
+		c[1].ptr = 0;
+		c[1].pos = 0;
+		Mixer.chtbl_dirty &= ~mixer_bit(ch+1);
+		Mixer.vstate_dirty &= ~mixer_bit(ch+1);
+	}
+
+	c->ptr = 0;
+	c->pos = 0;
+	Mixer.lvol_ramp[ch].duration = 0;
+	Mixer.rvol_ramp[ch].duration = 0;
+	Mixer.gain_ramp[ch].duration = 0;
+	Mixer.freq_ramp[ch].duration = 0;
+	Mixer.gain[ch] = 1.0f;
+	Mixer.prio[ch] = MIXER_PRIORITY_MIN;
+	Mixer.chtbl_dirty &= ~mixer_bit(ch);
+	Mixer.vstate_dirty &= ~mixer_bit(ch);
+
+	// Invalidate the wave pointer, as it might become dangling
+	// anyway, as the user can free the waveform memory at any time after stop.
+	// Keep the uuid valid instead. This allows
+	// for an optimization: if mixer_ch_play is called again on the same
+	// waveform, we will realize that by the uuid, and reuse the same
+	// samplebuffer contents.
+	c->wave = NULL;
 }
 
-void __mixer_wave_stopall(waveform_t *wave)
-{
-	for (int i=0; i<Mixer.num_channels; i++)
-	{
-		mixer_channel_t *c = &Mixer.channels[i];
-		samplebuffer_t *sbuf = &Mixer.ch_buf[i];
-		if (c->ptr && sbuf->wv_ctx == wave)
-			mixer_ch_stop(i);
+waveform_t *mixer_ch_playing_waveform(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	if (c->flags & CH_FLAGS_STEREO_SUB) {
+		assert(ch > 0);
+		c--;
 	}
+	return c->ptr != 0 ? c->wave : NULL;
 }
 
 bool mixer_ch_playing(int ch) {
-	mixer_channel_t *c = &Mixer.channels[ch];
-	assertf(!(c->flags & CH_FLAGS_STEREO_SUB), "mixer_ch_playing: cannot call on secondary stereo channel %d", ch);
-	return c->ptr != 0;
+	return mixer_ch_playing_waveform(ch) != NULL;
+}
+
+void mixer_ch_set_priority(int ch, int priority) {
+	assert(ch >= 0 && ch < Mixer.num_channels);
+	assertf(priority >= MIXER_PRIORITY_MIN && priority <= MIXER_PRIORITY_MAX,
+		"mixer_ch_set_priority: priority %d out of range on channel %d", priority, ch);
+	assertf(!(Mixer.channels[ch].flags & CH_FLAGS_STEREO_SUB),
+		"mixer_ch_set_priority: cannot call on secondary stereo channel %d", ch);
+	Mixer.prio[ch] = (uint8_t)priority;
+}
+
+/** Instantaneous loudness of @p ch (max of L/R, never negative). */
+static int mixer_ch_loudness(int ch)
+{
+	mixer_fx15_t l, r;
+	mixer_ch_vol_at(ch, Mixer.ticks, &l, &r);
+	int v = l > r ? l : r;
+	return v > 0 ? v : 0;
+}
+
+/** True if @p ch (and @p ch+1 when stereo) can play @p wave within its limits. */
+static bool mixer_ch_fits_wave(int ch, bool stereo, waveform_t *wave)
+{
+	if (!wave)
+		return true;
+	channel_limit_t *lim = &Mixer.limits[ch];
+	if (wave->bits > lim->max_bits)
+		return false;
+	if (wave->frequency > lim->max_frequency * 1.01f)
+		return false;
+	if (stereo && ch + 1 < Mixer.num_channels) {
+		lim = &Mixer.limits[ch + 1];
+		if (wave->bits > lim->max_bits)
+			return false;
+		if (wave->frequency > lim->max_frequency * 1.01f)
+			return false;
+	}
+	return true;
+}
+
+/** Ranking key bit set on an occupied slot: free slots sort before any steal. */
+#define MIXER_ALLOC_BUSY    (1ull << 63)
+/** Ranking key of a slot that cannot be used at all. */
+#define MIXER_ALLOC_NOKEY   UINT64_MAX
+
+/**
+ * Ranking key of the slot starting at @p ch: the smallest key wins.
+ *
+ * The whole ordering is packed into one integer, so selecting a slot is a
+ * plain compare and the volume ramps are evaluated once per channel instead
+ * of once per comparison:
+ *
+ *     bit 63     busy      free slots sort before any steal
+ *     bits 62-55 priority  cheapest to steal first
+ *     bits 54-40 loudness  quietest first
+ *     bits 39-8  age       oldest first (stored inverted)
+ *     bits 7-0   channel   lowest index breaks every tie
+ *
+ * A free slot leaves every middle field at zero, so its key is just the
+ * channel index: the stale volume and start tick of a previous occupant
+ * never affect it. Returns #MIXER_ALLOC_NOKEY if the slot is unusable
+ * (wrong geometry, limits too small, or an occupant above @p priority);
+ * that value is out of reach for a real key because the low byte holds a
+ * channel index below #MIXER_MAX_CHANNELS.
+ */
+static uint64_t mixer_alloc_key(int ch, bool stereo, int priority, waveform_t *wave)
+{
+	if (Mixer.channels[ch].flags & CH_FLAGS_STEREO_SUB)
+		return MIXER_ALLOC_NOKEY;
+	if (!mixer_ch_fits_wave(ch, stereo, wave))
+		return MIXER_ALLOC_NOKEY;
+
+	// Stopping a stereo primary frees its own sub, so that half is not an
+	// independent occupant. The sub of a pair starting at ch-1 is untouchable.
+	bool own_sub = stereo &&
+		(Mixer.channels[ch].flags & CH_FLAGS_STEREO) &&
+		(Mixer.channels[ch + 1].flags & CH_FLAGS_STEREO_SUB);
+	if (stereo && !own_sub && (Mixer.channels[ch + 1].flags & CH_FLAGS_STEREO_SUB))
+		return MIXER_ALLOC_NOKEY;
+
+	bool busy = false;
+	int prio = 0, loud = 0;
+	int64_t start = INT64_MIN;   // only read once "busy", so always assigned
+
+	if (mixer_ch_playing(ch)) {
+		if (Mixer.prio[ch] > priority)
+			return MIXER_ALLOC_NOKEY;
+		busy = true;
+		prio = Mixer.prio[ch];
+		loud = mixer_ch_loudness(ch);
+		start = Mixer.start_tick[ch];
+	}
+	if (stereo && !own_sub && mixer_ch_playing(ch + 1)) {
+		if (Mixer.prio[ch + 1] > priority)
+			return MIXER_ALLOC_NOKEY;
+		// Taking the pair costs whatever the more expensive half costs.
+		busy = true;
+		if (Mixer.prio[ch + 1] > prio) prio = Mixer.prio[ch + 1];
+		int l1 = mixer_ch_loudness(ch + 1);
+		if (l1 > loud) loud = l1;
+		if (Mixer.start_tick[ch + 1] > start) start = Mixer.start_tick[ch + 1];
+	}
+
+	if (!busy)
+		return (uint64_t)ch;
+
+	uint64_t age = Mixer.ticks - start;
+	if (age > 0xFFFFFFFFull) age = 0xFFFFFFFFull;
+	return MIXER_ALLOC_BUSY | ((uint64_t)prio << 55) | ((uint64_t)loud << 40) |
+		((0xFFFFFFFFull - age) << 8) | (uint64_t)ch;
+}
+
+/**
+ * Drop @p ch from the candidate set of #mixer_ch_alloc, together with the
+ * neighbouring slots that a stereo pair would overlap.
+ */
+static void mixer_alloc_retire(uint64_t *keys, int ch, int first_ch, int end,
+	bool stereo)
+{
+	keys[ch] = MIXER_ALLOC_NOKEY;
+	if (stereo) {
+		if (ch > first_ch) keys[ch - 1] = MIXER_ALLOC_NOKEY;
+		if (ch + 1 < end)  keys[ch + 1] = MIXER_ALLOC_NOKEY;
+	}
+}
+
+int mixer_ch_alloc(int first_ch, int num_ch, int count, bool stereo,
+	int priority, waveform_t *wave, int *out)
+{
+	assert(mixer_initialized());
+	assert(first_ch >= 0 && num_ch >= 0);
+	assert(first_ch + num_ch <= Mixer.num_channels);
+	assert(count >= 0);
+	assert(out || count == 0);
+	assertf(priority >= MIXER_PRIORITY_MIN && priority <= MIXER_PRIORITY_MAX,
+		"mixer_ch_alloc: priority %d out of range", priority);
+	if (count == 0)
+		return 0;
+
+	// A stereo slot also needs ch+1, so it cannot start on the last channel
+	// of the window.
+	int end = first_ch + num_ch - (stereo ? 1 : 0);
+	uint64_t keys[MIXER_MAX_CHANNELS];
+	int chosen = 0;
+
+	// Free slots outrank every steal and are ranked by index, so while walking
+	// upwards we can commit to them on the spot. When they are enough we never
+	// even look at the rest of the window.
+	for (int ch = first_ch; ch < end; ch++) {
+		uint64_t key = mixer_alloc_key(ch, stereo, priority, wave);
+		keys[ch] = key;
+		if (key & MIXER_ALLOC_BUSY)
+			continue;
+		out[chosen++] = ch;
+		if (chosen == count)
+			return chosen;
+		mixer_alloc_retire(keys, ch, first_ch, end, stereo);
+		if (stereo)
+			ch++;   // ch+1 is now part of this pair, skip it
+	}
+
+	// Not enough free slots: the rest has to be stolen from the cheapest
+	// occupants left in the window.
+	while (chosen < count) {
+		int best = -1;
+		for (int ch = first_ch; ch < end; ch++)
+			if (keys[ch] != MIXER_ALLOC_NOKEY && (best < 0 || keys[ch] < keys[best]))
+				best = ch;
+		if (best < 0)
+			break;
+		out[chosen++] = best;
+		mixer_alloc_retire(keys, best, first_ch, end, stereo);
+	}
+	return chosen;
+}
+
+int mixer_play(waveform_t *wave, int priority)
+{
+	assert(mixer_initialized());
+	assert(wave);
+	assertf(priority >= MIXER_PRIORITY_MIN && priority <= MIXER_PRIORITY_MAX,
+		"mixer_play: priority %d out of range", priority);
+
+	bool stereo = wave->channels == 2;
+	int ch;
+	if (!mixer_ch_alloc(0, Mixer.num_channels, 1, stereo, priority, wave, &ch))
+		return -1;
+
+	if (mixer_ch_playing(ch))
+		mixer_ch_stop(ch);
+	if (stereo && mixer_ch_playing(ch + 1))
+		mixer_ch_stop(ch + 1);
+
+	mixer_ch_set_vol_ramp(ch, 1.0f, 1.0f, 0);
+	mixer_ch_set_force_mono(ch, false);
+	mixer_ch_play(ch, wave);
+	mixer_ch_set_priority(ch, priority);
+	return ch;
 }
 
 void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_sz) {
@@ -483,199 +1557,334 @@ void mixer_ch_set_limits(int ch, int max_bits, float max_frequency, int max_buf_
 	assert(!mixer_ch_playing(ch));
 	tracef("mixer_ch_set_limits: ch=%d bits=%d maxfreq:%.2f bufsz:%d\n", ch, max_bits, max_frequency, max_buf_sz);
 
-	Mixer.limits[ch] = (channel_limit_t){
+	channel_limit_t newlimits = {
 		.max_bits = max_bits ? max_bits : 16,
 		.max_frequency = max_frequency ? max_frequency : Mixer.sample_rate,
 		.max_buf_sz = max_buf_sz,
 	};
 
+	// No-op if the limits are unchanged: the sample buffer is sized from them,
+	// so it's still valid and we keep it. Freeing it here (to reallocate lazily)
+	// would churn the uncached buffer on every playback for callers that
+	// re-assert the same limit, fragmenting the heap.
+	if (newlimits.max_bits == Mixer.limits[ch].max_bits &&
+	    newlimits.max_frequency == Mixer.limits[ch].max_frequency &&
+	    newlimits.max_buf_sz == Mixer.limits[ch].max_buf_sz)
+		return;
+
+	Mixer.limits[ch] = newlimits;
+
 	// Free the memory immediately, as it doesn't match the new limits anymore.
 	// We will reallocate it later lazily if needed.
 	if (samplebuffer_is_inited(&Mixer.ch_buf[ch])) {
+		rspq_highpri_sync();
 		samplebuffer_close(&Mixer.ch_buf[ch]);
+		// The waveform that was playing has to be configured again on the new
+		// buffer, so forget it: mixer_ch_play skips that work when it sees the
+		// same waveform it already has.
+		Mixer.channels[ch].wave_uuid = 0;
 		Mixer.channels[ch].flags &= ~CH_FLAGS_STEREO_ALLOC;
 	}
 }
 
-static void mixer_exec(int32_t *out, int num_samples) {
-	tracef("mixer_exec: 0x%x samples\n", num_samples);
+/** @brief Apply global volume (FX16) to a channel volume (FX15). */
+static inline mixer_fx15_t mixer_apply_gvol(mixer_fx15_t vol, mixer_fx16_t gvol_fx16) {
+	int32_t v = (int32_t)(((int64_t)vol * gvol_fx16) >> 16);
+	if (v > 0x7FFF) v = 0x7FFF;
+	if (v < -0x8000) v = -0x8000;
+	return (mixer_fx15_t)v;
+}
 
-	uint32_t fake_loop = 0;
+/** @brief Emit a MIX_CHANNEL rspq command for one channel.
+ *
+ * @p nsamples is latched by the ucode into DMEM (same value for every channel
+ * of a round). It must be even and at most #MIXER_MAX_SAMPLES_PER_ROUND so that
+ * nsamples/2 fits the 9-bit field in a0.
+ */
+static void mixer_emit_channel(int ch, uint32_t flags, mixer_round_vol_t vol,
+	uint32_t pos, uint32_t step, uint32_t len, uint32_t loop_len, void *ptr,
+	int nsamples)
+{
+	assert(ch >= 0 && ch < MIXER_MAX_CHANNELS);
+	assert((nsamples & 1) == 0 && nsamples >= 0 && nsamples <= MIXER_MAX_SAMPLES_PER_ROUND);
+	rspq_write_t w = rspq_write_begin(__mixer_overlay_id, MIXER_CMD_CHANNEL, 9);
+	// a0: ch<<19 | flags<<11 | (nsamples/2)   [5|8|9 bits in the 24-bit payload]
+	rspq_write_arg(&w, ((uint32_t)ch << 19) | ((flags & 0xFF) << 11) | ((uint32_t)nsamples >> 1));
+	rspq_write_arg(&w, ((uint32_t)(uint16_t)vol.l << 16) | (uint16_t)vol.r);
+	rspq_write_arg(&w, pos);
+	rspq_write_arg(&w, step);
+	rspq_write_arg(&w, len);
+	rspq_write_arg(&w, loop_len);
+	rspq_write_arg(&w, ptr ? PhysicalAddr(ptr) : 0);
+	rspq_write_arg(&w, ((uint32_t)(uint16_t)vol.dl << 16) | (uint16_t)vol.dr);
+	rspq_write_arg(&w, ((uint32_t)(uint16_t)vol.tl << 16) | (uint16_t)vol.tr);
+	rspq_write_end(&w);
+}
 
-	for (int i=0; i<Mixer.num_channels; i++) {
-		samplebuffer_t *sbuf = &Mixer.ch_buf[i];
-		mixer_channel_t *ch = &Mixer.channels[i];
-		int bps = ch->flags & CH_FLAGS_BPS_SHIFT;
-		int bps_fx64 = bps + MIXER_FX64_FRAC;
+/**
+ * @brief Record a channel's VADPCM pointers in the ucode channel table.
+ *
+ * The codebook is 8-byte aligned, so the residual width travels in its two low
+ * bits (as `bits-2`) instead of costing a command word: the ucode needs it to
+ * build the unpacking constants, and it never changes without the codebook
+ * changing too.
+ */
+static void mixer_emit_setchannel(int ch, void *codebook, void *state, void *loop_state, int bits)
+{
+	assert(!codebook || ((PhysicalAddr(codebook) & 7) == 0 && bits >= 2 && bits <= 4));
+	rspq_write(__mixer_overlay_id, MIXER_CMD_SETCHANNEL, (uint32_t)ch << 16,
+		codebook ? PhysicalAddr(codebook) | (bits - 2) : 0,
+		state ? PhysicalAddr(state) : 0,
+		loop_state ? PhysicalAddr(loop_state) : 0);
+}
 
-		if (ch->ptr) {
-			int len = ch->len >> bps_fx64;
-			int loop_len = ch->loop_len >> bps_fx64;
-			int wpos = ch->pos >> bps_fx64;
-			// Calculate how many samples we need to have available for this
-			// frame. We used to only calculate the last sample, but in the unlikely
-			// case the playback rate is much higher than the output rate,
-			// this might cause a seek in the waveform (eg: if we play
-			// one sample every 10, we don't want to cause a seek forward by 9,
-			// between the last sample of this frame and the first sample of
-			// next frame). Seeking creates problem with compressed streams, so
-			// we want to avoid it.
-			int wlast = (ch->pos + ch->step*(num_samples-1)) >> bps_fx64;
-			int wnext = (ch->pos + ch->step*num_samples) >> bps_fx64;
-			int wlen = MAX(wlast-wpos+1, wnext-wpos);
+/**
+ * @brief Hand a decoder state the CPU re-seeded over to the RSP.
+ *
+ * Sent as a command rather than written to #mixer_vstate directly, so that it
+ * lands after the rounds already enqueued (whose epilog writes that same
+ * buffer) and before the one that decodes from it.
+ */
+static void mixer_emit_setstate(int ch)
+{
+	const uint32_t *src = Mixer.channels[ch].codec_state;
+	rspq_write(__mixer_overlay_id, MIXER_CMD_SETSTATE, 0,
+		PhysicalAddr(mixer_vstate(ch)), src[0], src[1], src[2], src[3]);
+}
 
-			assertf(wlen >= 0, "channel %d: wpos overflow", i);
-			tracef("ch:%d wpos:%x wlen:%x len:%x loop_len:%x sbuf_size:%x\n", i, wpos, wlen, len, loop_len, sbuf->size);
+/** @brief Largest block MIX_COPY can move at once (the ucode's sample cache). */
+#define MIXER_COPY_MAX_BYTES  320
 
-			if (!loop_len) {
-				// If we reached the end of the waveform, stop the channel
-				// by NULL-ing the buffer pointer.
-				if (wpos >= len) {
-					ch->ptr = 0;
-					if (ch->flags & CH_FLAGS_STEREO)
-						ch[1].flags &= ~CH_FLAGS_STEREO_SUB;
-					continue;
-				}
-				// When there's no loop, do not ask for more samples then
-				// actually present in the waveform.
-				if (wpos+wlen > len)
-					wlen = len-wpos;
-				// FIXME: due to a limit in the RSP ucode, we need to overread
-				// more data, possibly even past the end of the sample
-				wlen += MIXER_LOOP_OVERREAD >> bps;
-				assert(wlen >= 0);
-			} else if (loop_len < sbuf->size) {
-				// If the whole loop fits the sample buffer, we just need to
-				// make sure that it is aligned at the start of the buffer, so
-				// that it can be fully cached.
-				// To do so, we discard everything that comes before the loop 
-				// (once we enter the loop).
-				int loop_pos = len - loop_len;
-				if (wpos >= loop_pos) {
-					tracef("ch:%d discard to align loop wpos:%x loop_pos:%x\n", i, wpos, loop_pos);
-					samplebuffer_discard(sbuf, loop_pos);
-				}
+bool __mixer_rdram_copy(void *dst, void *src, int nbytes)
+{
+	if (!__mixer_overlay_id)
+		return false;
+	assert(((PhysicalAddr(dst) | PhysicalAddr(src) | nbytes) & 7) == 0);
 
-				// Do not ask more samples than the end of waveform. When we
-				// get there, the loop has been already fully cached. The RSP
-				// will correctly follow the loop.
-				while (wpos >= len)
-					wpos -= loop_len;
-				if (wpos+wlen > len)
-					wlen = len-wpos;
+	rspq_highpri_begin();
+	while (nbytes > 0) {
+		int n = MIN(nbytes, MIXER_COPY_MAX_BYTES);
+		rspq_write(__mixer_overlay_id, MIXER_CMD_COPY, n,
+			PhysicalAddr(dst), PhysicalAddr(src));
+		dst = (uint8_t*)dst + n;
+		src = (uint8_t*)src + n;
+		nbytes -= n;
+	}
+	rspq_highpri_end();
+	return true;
+}
 
-				// FIXME: due to a limit in the RSP ucode, we need to overread
-				// more data past the loop end.
-				wlen += MIXER_LOOP_OVERREAD >> bps;
-				assertf(wlen >= 0, "ch:%d wlen=%x wpos=%x len=%x\n", i, wlen, wpos, len);
+// Ring space, in units, that pinning a region of "units" samples actually
+// consumes: the region itself plus the overread past its end, both rounded to
+// whole appends because a block codec (Opus, ULC) always writes full frames.
+// Notably the overread is only a handful of samples but still costs a whole
+// frame, so it cannot be folded into the region's own rounding.
+static int mixer_pin_span(const samplebuffer_t *sbuf, int units) {
+	int overread = DIVIDE_CEIL(MIXER_LOOP_OVERREAD, sbuf->unit_bytes) + 1;
+	int f = sbuf->append_units;
+	if (f > SAMPLEBUFFER_MARGIN_UNITS)
+		return ROUND_UP(units, f) + ROUND_UP(overread, f);
+	return units + overread;
+}
+
+// True if the whole waveform fits in the samplebuffer, so that it can be pinned
+// as a unit instead of just its loop region.
+static bool mixer_wave_fits(int i) {
+	mixer_channel_t *ch = &Mixer.channels[i];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[i];
+	if (!samplebuffer_is_inited(sbuf))
+		return false;
+	bool vadpcm = (ch->flags & CH_FLAGS_VADPCM) != 0;
+	int bps = vadpcm ? 0 : (ch->flags & CH_FLAGS_BPS_SHIFT);
+	int len = ch->len >> (bps + MIXER_FX64_FRAC);
+	int slen = vadpcm ? DIVIDE_CEIL(len, 16) : len;
+	return slen > 0 && mixer_pin_span(sbuf, slen) <= sbuf->size;
+}
+
+/** @brief Pin a streamed loop into the samplebuffer (one-shot). RSP wraps after. */
+static void mixer_fill_loop_cache(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
+	waveform_t *wave = c->wave;
+	bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
+	bool stereo_vadpcm = vadpcm && (c->flags & CH_FLAGS_STEREO);
+	int bps = vadpcm ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT);
+	int bps_fx64 = bps + MIXER_FX64_FRAC;
+	int ub = sbuf->unit_bytes;
+	int len = c->len >> bps_fx64;
+	int loop_len = c->loop_len >> bps_fx64;
+	// A waveform that fits entirely is pinned from its start, so that its
+	// attack stays available and the RSP can wrap it right away.
+	bool whole = mixer_wave_fits(ch);
+	int cache_start = whole ? 0 : len - loop_len;
+	int cache_len = whole ? len : loop_len;
+	// In frames, the pinned region spans from the frame holding its first
+	// sample to the one holding its last: a loop point is not necessarily
+	// aligned to a frame, so this is not just the length rounded up.
+	int sloop_start = vadpcm ? cache_start / 16 : cache_start;
+	int sloop_len = vadpcm ? DIVIDE_CEIL(cache_start + cache_len, 16) - sloop_start : cache_len;
+	int overread = (MIXER_LOOP_OVERREAD + ub - 1) / ub;
+	// What the producer will really write, which for a block codec is more
+	// than what is asked for here.
+	int fill = mixer_pin_span(sbuf, sloop_len);
+	assertf(fill <= sbuf->size, "ch:%d loop cache %x > samplebuffer %x", ch, fill, sbuf->size);
+	assert(wave && wave->read);
+
+	// The pinned copy has to be one contiguous run, which only the top of the
+	// ring can guarantee: this is the one flush that cannot restart forward,
+	// so the rounds that are still reading the ring have to be drained first.
+	// It only happens when a channel starts looping.
+	rspq_highpri_sync();
+	samplebuffer_flush(sbuf);
+	sbuf->wpos = 0;
+	sbuf->wnext = 0;
+	sbuf->head = 0;
+	if (stereo_vadpcm) {
+		samplebuffer_t *sbuf_r = &Mixer.ch_buf[ch+1];
+		int fill_r = mixer_pin_span(sbuf_r, sloop_len);
+		assertf(fill_r <= sbuf_r->size, "ch:%d R loop cache %x > samplebuffer %x", ch+1, fill_r, sbuf_r->size);
+		samplebuffer_flush(sbuf_r);
+		sbuf_r->wpos = 0;
+		sbuf_r->wnext = 0;
+		sbuf_r->head = 0;
+	}
+	// Go through the wrapper: the overread past the loop end must be filled
+	// with the samples at the loop start, which is exactly what the RSP reads
+	// there once it starts wrapping the pinned copy on its own.
+	waveform_read(wave->ctx, sbuf, sloop_start, sloop_len + overread, true);
+	sbuf->wpos = sloop_start;
+	sbuf->wnext = sloop_start + sbuf->widx;
+	if (stereo_vadpcm) {
+		samplebuffer_t *sbuf_r = &Mixer.ch_buf[ch+1];
+		sbuf_r->wpos = sloop_start;
+		sbuf_r->wnext = sloop_start + sbuf_r->widx;
+		Mixer.channels[ch+1].ptr = (uint8_t*)SAMPLES_PTR(sbuf_r) - sloop_start * VADPCM_FRAME_BYTES(c->vbits);
+		Mixer.channels[ch+1].flags |= CH_FLAGS_LOOP_CACHED;
+	}
+
+	if (vadpcm)
+		c->ptr = (uint8_t*)SAMPLES_PTR(sbuf) - sloop_start * VADPCM_FRAME_BYTES(c->vbits);
+	else
+		c->ptr = (uint8_t*)SAMPLES_PTR(sbuf) - (cache_start << bps);
+	c->flags |= CH_FLAGS_LOOP_CACHED;
+	// The fill reads from the first frame of the pinned region, and the seed
+	// it leaves behind belongs to that frame. Playback is normally already
+	// somewhere inside the region, decoding the very same frames the stream
+	// was serving: handing that seed to the RSP would restart its decoder
+	// several frames behind. Only the seek the fill did for its own sake is
+	// dropped, never one the channel still owed.
+	if (vadpcm) {
+		int frame = (int)(c->pos >> (MIXER_FX64_FRAC + 4));
+		if (frame != sloop_start) {
+			if (c->vframe == frame) {
+				Mixer.vstate_dirty &= ~mixer_bit(ch);
+				if (stereo_vadpcm) Mixer.vstate_dirty &= ~mixer_bit(ch+1);
 			} else {
-				// The loop is larger than the sample buffer. We cannot fully
-				// cache it, so we will have to unroll it in the sample buffer.
-				// This happens by default without doing anything: wpos will
-				// increase, and the actual unrolling logic will be performed
-				// by waveform_read() (see above).
-
-				// To avoid having wpos growing indefinitely (and overflowing),
-				// let's force a manual wrapping of the coordinates. Check if
-				// this is a good moment to do it.
-				if (sbuf->wpos > len && wpos > len) {
-					tracef("mixer_poll: wrapping sample buffer loop: sbuf->wpos:%x len:%x\n", sbuf->wpos, len);
-					samplebuffer_discard(sbuf, wpos);
-					sbuf->wpos = waveform_wrap_wpos(sbuf->wpos, len, loop_len);
-					if (sbuf->wnext >= 0)
-						sbuf->wnext = sbuf->wpos + sbuf->widx;
-					int wpos2 = waveform_wrap_wpos(wpos, len, loop_len);
-					ch->pos -= (int64_t)(wpos-wpos2) << bps_fx64;
-					wpos = wpos2;
-				}
-
-				// We will also lie to the RSP ucode telling it that there is
-				// no loop in this waveform, since the RSP will always see
-				// the loop unrolled in the buffer, so it doesn't need to
-				// do anything.
-				fake_loop |= 1<<i;
+				mixer_vadpcm_seek(c, frame * 16);
 			}
-
-			void* ptr = samplebuffer_get(sbuf, wpos, &wlen);
-			assert(ptr);
-			ch->ptr = (uint8_t*)ptr - (wpos<<bps);
 		}
+		c->vframe = frame;
+		if (stereo_vadpcm) Mixer.channels[ch+1].vframe = frame;
 	}
+	mixer_refresh_max_ns(ch);
+	tracef("ch:%d loop cached at %x len=%x\n", ch, sloop_start, sloop_len);
+}
 
-	volatile rsp_mixer_settings_t *settings = UncachedAddr(&Mixer.ucode_settings);
+// True if the channel's loop is small enough to be pinned into the samplebuffer,
+// so that the RSP can wrap it by itself. Large loops are handled via wrap=seek.
+static bool mixer_loop_fits(int i) {
+	mixer_channel_t *ch = &Mixer.channels[i];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[i];
+	if (!samplebuffer_is_inited(sbuf))
+		return false;
+	bool vadpcm = (ch->flags & CH_FLAGS_VADPCM) != 0;
+	int bps = vadpcm ? 0 : (ch->flags & CH_FLAGS_BPS_SHIFT);
+	int loop_len = ch->loop_len >> (bps + MIXER_FX64_FRAC);
+	int sloop = vadpcm ? DIVIDE_CEIL(loop_len, 16) : loop_len;
+	return sloop > 0 && mixer_pin_span(sbuf, sloop) <= sbuf->size;
+}
 
-	volatile rsp_mixer_channel_t *rsp_wv = settings->channels;
-	mixer_fx15_t lvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
-	mixer_fx15_t rvol[MIXER_MAX_CHANNELS] __attribute__((aligned(8))) = {0};
+// Restart a loop that the RSP does not wrap by itself, from its loop start.
+// Must be done between rounds.
+//
+// A round stops a couple of samples past the loop point (see
+// #mixer_round_length), and #mixer_ch_set_loop can leave the position much
+// further than that: those samples play again. Resuming on them instead would
+// keep the loop period exact, but only the loop start is a position that every
+// codec can restart from (a VADPCM asset only carries the decoder state of the
+// frames it was built with). The loops that reach this function are too large
+// to be pinned in the samplebuffer, so a couple of samples per iteration are
+// inaudible; the short loops that would detune are wrapped by the RSP.
+static void mixer_large_loop_wrap(int i) {
+	mixer_channel_t *ch = &Mixer.channels[i];
+	bool vadpcm = (ch->flags & CH_FLAGS_VADPCM) != 0;
+	int bps_fx64 = (vadpcm ? 0 : (ch->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+	int wpos = ch->pos >> bps_fx64;
+	int loop_start = (ch->len - ch->loop_len) >> bps_fx64;
+	ch->pos -= (int64_t)(wpos - loop_start) << bps_fx64;
+	samplebuffer_flush(&Mixer.ch_buf[i]);
+	if (vadpcm)
+		mixer_vadpcm_seek(ch, loop_start);
+	tracef("ch:%d large-loop restart %x -> %x\n", i, wpos, loop_start);
+}
 
-	for (int ch=0;ch<Mixer.num_channels;ch++) {
+// End-of-sample, loop-cache transition and large-loop seek. Runs before each
+// round: a short loop can be reached in the middle of a mixer_exec, and from
+// that point on the RSP must be the one wrapping it.
+static void mixer_update_loops(void) {
+	for (int i = 0; i < Mixer.hi_ch; i++) {
+		mixer_channel_t *ch = &Mixer.channels[i];
+		bool vadpcm = (ch->flags & CH_FLAGS_VADPCM) != 0;
+		int bps_fx64 = (vadpcm ? 0 : (ch->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+
+		if (!ch->ptr || (ch->flags & CH_FLAGS_STEREO_SUB))
+			continue;
+
+		int len = ch->len >> bps_fx64;
+		int loop_len = ch->loop_len >> bps_fx64;
+		int wpos = ch->pos >> bps_fx64;
+
+		if (!loop_len) {
+			if (wpos >= len)
+				mixer_ch_stop(i);
+			continue;
+		}
+		if (ch->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED))
+			continue;
+
+		// #mixer_ch_set_loop shrinks len to the loop end, and can do it with
+		// playback already past it: restart before anything reads from there.
+		if (wpos >= len) {
+			mixer_large_loop_wrap(i);
+			wpos = ch->pos >> bps_fx64;
+		}
+		if (mixer_loop_fits(i) && (wpos >= len - loop_len || mixer_wave_fits(i)))
+			mixer_fill_loop_cache(i);
+	}
+}
+
+// Refresh the ucode per-channel VADPCM table. The pointers only change when a
+// new waveform starts playing, so in steady state this emits nothing.
+static void mixer_refresh_chtbl(void) {
+	if (!Mixer.chtbl_dirty)
+		return;
+	for (int ch = 0; ch < Mixer.hi_ch; ch++) {
+		if (!(Mixer.chtbl_dirty & mixer_bit(ch)))
+			continue;
 		mixer_channel_t *c = &Mixer.channels[ch];
-
-		// Stereo sub-channel. Will be ignored by RSP but we need to configure
-		// volume correctly.
-		if (c->flags & CH_FLAGS_STEREO_SUB) {
-			rsp_wv[ch].ptr = 0;
-			lvol[ch] = 0;
-			rvol[ch] = Mixer.rvol[ch-1];
+		mixer_chtbl_t *sh = &Mixer.chtbl[ch];
+		mixer_channel_t *src = (c->flags & CH_FLAGS_STEREO_SUB) ? c-1 : c;
+		Mixer.chtbl_dirty &= ~mixer_bit(ch);
+		if (!src->ptr || !(c->flags & CH_FLAGS_VADPCM))
 			continue;
-		}
-
-		// Check if the channel is stopped
-		if (!c->ptr) {
-			rsp_wv[ch].ptr = 0;
-			// Configure the volume to 0 when the channel is keyed off. This
-			// makes sure that we smooth volume correctly even for waveforms
-			// where the sequencer creates an a attack ramp (which would nullify
-			// the one-tap volume filter if the volume started from max).
-			lvol[ch] = 0;
-			rvol[ch] = 0;
-			continue;
-		}
-
-		// Convert to RSP mixer channel structure truncating 64-bit values to 32-bit.
-		// We don't need full absolute position on the RSP, so 32-bit is more
-		// than enough. In fact, we only expose 31 bits, so that we can use the
-		// 32nd bit later to correctly update the position without overflow bugs.
-		rsp_wv[ch].pos = (uint32_t)c->pos & 0x7FFFFFFF;
-		rsp_wv[ch].step = (uint32_t)c->step & 0x7FFFFFFF;
-		rsp_wv[ch].ptr = c->ptr + ((c->pos & ~0x7FFFFFFF) >> MIXER_FX64_FRAC);
-		rsp_wv[ch].flags = c->flags;
-
-		// If the loop is fake (i.e. we are unrolling it), or the current
-		// position has been truncated but it's far from the end of the waveform,
-		// just tell the RSP that there is no loop.
-		if (fake_loop & (1<<ch) || c->pos>>31 != c->len>>31) {
-			rsp_wv[ch].len = 0xFFFFFFFF;
-			rsp_wv[ch].loop_len = 0;
-		} else {
-			rsp_wv[ch].len = (uint32_t)c->len & 0x7FFFFFFF;
-			// We can't represent a very long loop in RSP. But those loops
-			// should be unrolled anyway (and thus be a fake_loop), so we
-			// should not get here.
-			assert(c->loop_len <= 0x7FFFFFFF);
-			rsp_wv[ch].loop_len = (uint32_t)c->loop_len & 0x7FFFFFFF;
-		}
-
-		if (c->flags & CH_FLAGS_STEREO) {
-			lvol[ch] = Mixer.lvol[ch];
-			rvol[ch] = 0;
-		} else {
-			lvol[ch] = Mixer.lvol[ch];
-			rvol[ch] = Mixer.rvol[ch];
-		}
+		void *state = mixer_vstate(ch);
+		*sh = (mixer_chtbl_t){ c->codebook, state, c->loop_state };
+		mixer_emit_setchannel(ch, c->codebook, state, c->loop_state, c->vbits);
 	}
+}
 
-	uint32_t *lvol32 = (uint32_t*)lvol;
-	uint32_t *rvol32 = (uint32_t*)rvol;
-	for (int ch=0;ch<MIXER_MAX_CHANNELS/2;ch++)  {
-		settings->lvol[ch] = lvol32[ch];
-		settings->rvol[ch] = rvol32[ch];
-	}
-
-	// Check if we the user pressed RESET. If so, we can apply
-	// a simple global volume ramp to fade out the volume.
-	// This is just a user-level feature. audio.c will truncate
-	// DMA transfers to AI anyway.
+// Global volume to apply this call, including the fade-out on reset.
+static mixer_fx16_t mixer_global_volume(void) {
 	float gvol = Mixer.vol;
 	uint32_t reset_time = exception_reset_time();
 	if (reset_time) {
@@ -683,27 +1892,520 @@ static void mixer_exec(int32_t *out, int num_samples) {
 		float elapsed = (float)reset_time / TICKS_PER_SECOND;
 		gvol *= (FADE_OUT_TIME - MIN(elapsed, FADE_OUT_TIME)) / FADE_OUT_TIME;
 	}
+	return MIXER_FX16(gvol);
+}
 
-	uint32_t t0 = TICKS_READ();
-	rspq_highpri_begin();
-	rspq_write(__mixer_overlay_id, 0,
-		(((uint32_t)MIXER_FX16(gvol)) & 0xFFFF),
-		(num_samples << 16) | Mixer.num_channels,
-		PhysicalAddr(out),
-		PhysicalAddr(&Mixer.ucode_settings));
-	rspq_highpri_end();
+/** Cap of output samples a streamed channel can take in one round.
+ *
+ * A streamed channel can only be given one contiguous window of the
+ * samplebuffer, that is #SAMPLEBUFFER_MARGIN_UNITS minus the units the RSP may
+ * overread past its end. Convert that window (16 samples per unit for VADPCM,
+ * one otherwise) into output samples through the resampling step: past this
+ * point the RSP would outrun what the CPU can hand it in a single piece.
+ * Channels reading straight from RDRAM (resident, pinned loop, stereo sub)
+ * have no such limit.
+ *
+ * One unit is reserved on top of the overread because #mixer_channel_window
+ * counts an inclusive span (last-pos+1), which can be one past the position
+ * advance that this cap is derived from when the fractional part of pos is
+ * large relative to step. For VADPCM that same reserve also absorbs the
+ * ceiling to frames: a span of N samples starting mid-frame covers
+ * ceil((pos%16+N)/16) frames, one more than N/16 when pos is not aligned.
+ */
+static void mixer_refresh_max_ns(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	if (!c->ptr || !c->step ||
+		(c->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED | CH_FLAGS_STEREO_SUB))) {
+		c->max_round_ns = MIXER_MAX_SAMPLES_PER_ROUND;
+		return;
+	}
+	bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
+	int bps_fx64 = (vadpcm ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+	int ub = Mixer.ch_buf[ch].unit_bytes;
+	int overread = (MIXER_LOOP_OVERREAD + ub - 1) / ub;
+	int max_wlen = MAX(SAMPLEBUFFER_MARGIN_UNITS - overread - 1, 1);
+	uint64_t units = vadpcm ? (uint64_t)max_wlen * 16 : (uint64_t)max_wlen;
+	int ns = (int)((units << bps_fx64) / c->step);
+	c->max_round_ns = MIN(MAX(ns, 1), MIXER_MAX_SAMPLES_PER_ROUND);
+}
 
-	rspq_highpri_sync();
+// Number of samples the next round can mix: a full round, unless a streamed
+// channel would outrun what the CPU is able to feed it in one go. Volume ramps
+// never enter into it: the ucode is told where they end and clamps to it, so
+// one can land anywhere inside a round.
+//
+// The result is always even, so that each round advances the output pointer by
+// a multiple of 8 bytes and MIX_FLUSH can DMA the accumulator out as-is
+// (see #mixer_poll_async).
+static int mixer_round_length(int max_ns) {
+	int ns = MIN(max_ns, MIXER_MAX_SAMPLES_PER_ROUND);
 
-	__mixer_profile_rsp += TICKS_READ() - t0;
+	for (int ch = 0; ch < Mixer.hi_ch; ch++) {
+		mixer_channel_t *c = &Mixer.channels[ch];
+		if (!c->ptr || !c->step ||
+			(c->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED | CH_FLAGS_STEREO_SUB)))
+			continue;
+		// max_round_ns is 0 until the first set_freq/play refresh; treat as
+		// unlimited so a stale zero cannot collapse the round to empty (which
+		// would spin forever in mixer_exec).
+		if (c->max_round_ns > 0)
+			ns = MIN(ns, c->max_round_ns);
 
-	for (int i=0;i<Mixer.num_channels;i++) {
-		mixer_channel_t *ch = &Mixer.channels[i];
-		if (ch->ptr)
-			ch->pos += (uint64_t)rsp_wv[i].pos - (uint64_t)(ch->pos & 0x7FFFFFFF);
+		// Stop where the CPU has to step in: the start of a small loop (pinned
+		// by mixer_update_loops before the next round), or len for a large one
+		// (rebased by a seek).
+		if (c->loop_len) {
+			mixer_fx64_t limit = mixer_loop_fits(ch) ? c->len - c->loop_len : c->len;
+			if (c->pos < limit && c->pos + c->step * (uint64_t)ns >= limit) {
+				int64_t dist = (int64_t)(limit - c->pos);
+				int ns2 = (int)((dist + (int64_t)c->step - 1) / (int64_t)c->step);
+				ns = MIN(ns, MAX(ns2, 1));
+			}
+		}
 	}
 
-	Mixer.ticks += num_samples;
+	// Truncate to an even number of samples. Stopping one sample before a
+	// constraint is always safe (the next round resumes there); the only
+	// exception is a limit exactly one sample away, where we mix one sample
+	// too many. That sample is still valid data: past a small loop point it
+	// is the loop body the CPU is about to pin, past the end of a large loop
+	// it is covered by #MIXER_LOOP_OVERREAD, and in both cases the CPU takes
+	// over from the next round.
+	return MAX(ns & ~1, 2);
+}
+
+// Output volumes of a channel whose own volume pair is (@p vl, @p vr): a stereo
+// owner only carries the L plane and its sub channel only the R one, and
+// FORCE_MONO folds the surviving plane onto both outputs. @p flags are the
+// owner's flags.
+static void mixer_fold_volumes(uint32_t flags, bool sub, mixer_fx16_t gvol,
+	mixer_fx15_t vl, mixer_fx15_t vr, mixer_fx15_t *lvol, mixer_fx15_t *rvol)
+{
+	bool mono = (flags & CH_FLAGS_FORCE_MONO) != 0;
+	if (sub) {
+		*lvol = mono ? mixer_apply_gvol(vr >> 1, gvol) : 0;
+		*rvol = mixer_apply_gvol(mono ? vr >> 1 : vr, gvol);
+	} else if (flags & CH_FLAGS_STEREO) {
+		*lvol = mixer_apply_gvol(mono ? vl >> 1 : vl, gvol);
+		*rvol = mono ? *lvol : 0;
+	} else if (mono) {
+		*lvol = *rvol = mixer_apply_gvol((vl + vr) >> 1, gvol);
+	} else {
+		*lvol = mixer_apply_gvol(vl, gvol);
+		*rvol = mixer_apply_gvol(vr, gvol);
+	}
+}
+
+static mixer_fx15_t mixer_fx15_scale(mixer_fx15_t v, float g)
+{
+	if (g >= 1.0f) return v;
+	if (g <= 0.0f) return 0;
+	return (mixer_fx15_t)((float)v * g + 0.5f);
+}
+
+// Increment the ucode adds every 4 samples to walk @p delta units in @p
+// nblocks of them. Rounded away from zero, so that the ramp always reaches
+// its target within the blocks it was given: overshooting is free, since the
+// ucode clamps, while falling short would leave the volume hanging.
+static mixer_fx15_t mixer_ramp_step(int delta, int nblocks)
+{
+	int d = DIVIDE_CEIL(ABS(delta), nblocks);
+	return (mixer_fx15_t)CLAMP(delta < 0 ? -d : d, -0x8000, 0x7FFF);
+}
+
+// Volumes a channel is mixed with over the round of @p ns samples starting at
+// tick @p tick: the value at its first sample, the value it stops on, and the
+// increment that walks from one to the other every 4 samples. All are derived
+// from the absolute tick, so a round never inherits the rounding of the ones
+// before it. Mono gain is folded in here; the RSP still sees a plain linear
+// L/R walk for the round.
+static mixer_round_vol_t mixer_channel_volumes(int ch, uint32_t flags, bool sub,
+	mixer_fx16_t gvol, int64_t tick, int ns)
+{
+	// A stereo sub channel is a plane of its owner, and follows its ramps.
+	int och = sub ? ch-1 : ch;
+	mixer_round_vol_t vol = {0};
+	mixer_fx15_t vl0, vr0;
+	float g0 = mixer_ramp_at(&Mixer.gain_ramp[och], Mixer.gain[och], tick);
+
+	mixer_ch_vol_at(och, tick, &vl0, &vr0);
+	mixer_fold_volumes(flags, sub, gvol,
+		mixer_fx15_scale(vl0, g0), mixer_fx15_scale(vr0, g0),
+		&vol.l, &vol.r);
+	vol.tl = vol.l;
+	vol.tr = vol.r;
+
+	bool l_ramping = mixer_ramp_active(&Mixer.lvol_ramp[och], tick);
+	bool r_ramping = mixer_ramp_active(&Mixer.rvol_ramp[och], tick);
+	bool gain_ramping = mixer_ramp_active(&Mixer.gain_ramp[och], tick);
+	if (l_ramping || r_ramping || gain_ramping) {
+		// The slice of the ramp(s) this round covers, and nothing beyond it: the
+		// volume it ends on is what the ucode clamps to, and the increment
+		// walks the round's own blocks. The increment is a whole number of
+		// fx15 units, so a ramp shallower than one unit per block cannot be
+		// walked at its slope; taking the end of the whole ramp as the bound
+		// would let such a ramp run through every round many times too fast
+		// and be pulled back to the right value at the next one, which is an
+		// audible flutter on any ramp of more than a couple of seconds. Held
+		// to the round, it lands early and waits there, and the round after
+		// it picks up exactly where it stopped. With several ramps, walk until
+		// the later of their ends (within the round).
+		int64_t end = tick + ns;
+		int64_t last = tick;
+		if (l_ramping)
+			last = MAX(last, MIN(Mixer.lvol_ramp[och].start_tick + Mixer.lvol_ramp[och].duration, end));
+		if (r_ramping)
+			last = MAX(last, MIN(Mixer.rvol_ramp[och].start_tick + Mixer.rvol_ramp[och].duration, end));
+		if (gain_ramping)
+			last = MAX(last, MIN(Mixer.gain_ramp[och].start_tick + Mixer.gain_ramp[och].duration, end));
+		if (last <= tick) last = end;
+
+		// Reuse the unscaled L/R (and/or gain) when that ramp is idle.
+		mixer_fx15_t el = vl0, er = vr0;
+		float g1 = g0;
+		if (gain_ramping)
+			g1 = mixer_ramp_at(&Mixer.gain_ramp[och], Mixer.gain[och], last);
+		if (l_ramping || r_ramping)
+			mixer_ch_vol_at(och, last, &el, &er);
+		mixer_fold_volumes(flags, sub, gvol,
+			mixer_fx15_scale(el, g1), mixer_fx15_scale(er, g1),
+			&vol.tl, &vol.tr);
+		int nblocks = MAX(DIVIDE_CEIL((int)(last - tick), 4), 1);
+		vol.dl = mixer_ramp_step(vol.tl - vol.l, nblocks);
+		vol.dr = mixer_ramp_step(vol.tr - vol.r, nblocks);
+	}
+	return vol;
+}
+
+// Waveform bounds to send to the RSP. The top bit of pos and len is a wrap
+// flag: when the two differ the position is past the end of the waveform, and
+// the RSP must not compare against len. @p wrap is false for the loops that
+// the CPU wraps by itself between rounds.
+static void mixer_rsp_bounds(mixer_channel_t *c, bool wrap, uint32_t *len, uint32_t *loop_len) {
+	if (c->pos>>31 != c->len>>31) {
+		*len = 0xFFFFFFFF;
+		*loop_len = 0;
+	} else {
+		*len = (uint32_t)c->len & 0x7FFFFFFF;
+		*loop_len = wrap ? (uint32_t)c->loop_len & 0x7FFFFFFF : 0;
+	}
+}
+
+// Byte offset that the CPU folds into the pointer sent to the RSP. The ucode
+// only receives the low 31 bits of the position, so a streamed channel (whose
+// position grows with the stream instead of wrapping) must carry everything
+// above that bit in the base pointer. VADPCM positions count samples, and the
+// ucode addresses one compressed frame every 16 of them.
+static int32_t mixer_pos_fold(const mixer_channel_t *c) {
+	int64_t high = c->pos & ~(int64_t)0x7FFFFFFF;
+	if (c->flags & CH_FLAGS_VADPCM)
+		return (high >> (MIXER_FX64_FRAC+4)) * VADPCM_FRAME_BYTES(c->vbits);
+	return high >> MIXER_FX64_FRAC;
+}
+
+// samplebuffer window that @p ns output samples read from a channel, in units
+// (VADPCM frames or PCM samples), including the overread the RSP does at loops.
+static void mixer_channel_window(int ch, int ns, int *wpos, int *wlen) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
+	bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
+	int bps = vadpcm ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT);
+	int bps_fx64 = bps + MIXER_FX64_FRAC;
+	int ub = sbuf->unit_bytes;
+
+	int pos = c->pos >> bps_fx64;
+	int last = (c->pos + c->step * (uint64_t)(ns > 0 ? ns-1 : 0)) >> bps_fx64;
+	int next = (c->pos + c->step * (uint64_t)ns) >> bps_fx64;
+	int len = MAX(last - pos + 1, next - pos);
+
+	if (vadpcm) {
+		*wpos = pos / 16;
+		*wlen = (pos + len + 15) / 16 - *wpos + (MIXER_LOOP_OVERREAD + ub - 1) / ub;
+	} else {
+		*wpos = pos;
+		*wlen = len + (MIXER_LOOP_OVERREAD >> bps);
+	}
+}
+
+// Fetch from the samplebuffer the input window this round is going to read.
+// Updates c->ptr to the waveform base; the RSP pointer for PCM may need
+// the high-bit pos offset applied by the caller.
+static void mixer_fetch_window(int ch, int ns) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	samplebuffer_t *sbuf = &Mixer.ch_buf[ch];
+	int wpos, wlen;
+	mixer_channel_window(ch, ns, &wpos, &wlen);
+
+#ifndef NDEBUG
+	// Every window handed to a round stays live until the RSP runs it. A ring
+	// that does not span a whole poll would overwrite its own windows: the
+	// poll barrier (see #mixer_poll_barrier) only frees space from older polls.
+	// Waveforms that end up entirely in the ring never refill: exempt.
+	if (!mixer_wave_fits(ch) && !mixer_loop_fits(ch)) {
+		int poll_ns = __mixer_inflight_samples() / MIXER_POLL_LOOKAHEAD;
+		bool vadpcm = (c->flags & CH_FLAGS_VADPCM) != 0;
+		int bps_fx64 = (vadpcm ? 0 : (c->flags & CH_FLAGS_BPS_SHIFT)) + MIXER_FX64_FRAC;
+		uint64_t span = ((uint64_t)poll_ns * c->step) >> bps_fx64;
+		int need = (vadpcm ? (int)DIVIDE_CEIL(span, 16) : (int)span)
+			+ SAMPLEBUFFER_PREFETCH_UNITS
+			+ DIVIDE_CEIL(MIXER_LOOP_OVERREAD, sbuf->unit_bytes)
+			+ sbuf->append_units;
+		assertf(sbuf->size >= need,
+			"ch%d: sample buffer holds %d units, %d needed to play at %.0f Hz "
+			"for the %d samples of a poll; raise max_buf_sz in "
+			"mixer_ch_set_limits (or convert the asset again)",
+			ch, sbuf->size, need,
+			(double)c->step * Mixer.sample_rate / (double)(1ull << bps_fx64),
+			poll_ns);
+	}
+#endif
+
+	if (c->flags & CH_FLAGS_VADPCM) {
+		if (sbuf->widx == 0 || wpos < sbuf->wpos || wpos > sbuf->wpos + sbuf->widx)
+			c->vframe = wpos;
+		void *p = samplebuffer_get(sbuf, wpos, &wlen);
+		assert(p);
+		c->ptr = (uint8_t*)p - wpos * VADPCM_FRAME_BYTES(c->vbits);
+	} else {
+		void *p = samplebuffer_get(sbuf, wpos, &wlen);
+		assert(p);
+		c->ptr = (uint8_t*)p - (wpos << (c->flags & CH_FLAGS_BPS_SHIFT));
+	}
+}
+
+// Kick the fetches the next mixer_exec will need, so their PI DMA flies while
+// the CPU sequences the song and the RSP mixes the rounds just enqueued.
+static void mixer_prefetch_next(int num_samples) {
+	for (int ch = 0; ch < Mixer.hi_ch; ch++) {
+		mixer_channel_t *c = &Mixer.channels[ch];
+		mixer_channel_t *owner = (c->flags & CH_FLAGS_STEREO_SUB) ? c-1 : c;
+		if (!owner->ptr || !c->step ||
+			(owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)))
+			continue;
+		// A stereo pair streams through the owner's read, which fills both rings.
+		if (c->flags & CH_FLAGS_STEREO_SUB)
+			continue;
+		// Nothing to overlap with if the waveform is produced synchronously.
+		waveform_t *wave = Mixer.ch_buf[ch].wave;
+		if (!wave || !wave->async_read)
+			continue;
+		int wpos, wlen;
+		mixer_channel_window(ch, num_samples, &wpos, &wlen);
+		samplebuffer_prefetch(&Mixer.ch_buf[ch], wpos, wlen);
+	}
+}
+
+/** Wait for any in-flight PI DMA into the samplebuffer this channel reads. */
+static void mixer_wait_channel_dma(int ch) {
+	mixer_channel_t *c = &Mixer.channels[ch];
+	if (c->flags & CH_FLAGS_RESIDENT)
+		return;
+	// PCM stereo R shares the owner's interleaved buffer.
+	int bufch = ((c->flags & CH_FLAGS_STEREO_SUB) && !(c->flags & CH_FLAGS_VADPCM)) ? ch - 1 : ch;
+	if (samplebuffer_is_inited(&Mixer.ch_buf[bufch]))
+		samplebuffer_dma_wait(&Mixer.ch_buf[bufch]);
+}
+
+// Emit one mix round: a MIX_CHANNEL per active channel, plus the flush that
+// writes the accumulator out to @p out.
+//
+// Phase A kicks all streamed fetches so PI DMAs pipeline across channels;
+// Phase B waits for each channel's DMA only when about to emit its command.
+static void mixer_emit_round(int32_t *out, int ns, mixer_fx16_t gvol, int64_t tick) {
+	bool clear_accum = true;
+
+	// The windows fetched below belong to this round, and stay live until the
+	// RSP publishes its id back (see MIX_FLUSH / #__mixer_round_done).
+	uint32_t round_id = ++Mixer.round_id;
+
+	PROFILE_SCOPE(PS_MIXER_FETCH) {
+		// Frequency ramps are piecewise-constant per round: sample Hz at @p tick
+		// into step before sizing fetches and emitting MIX_CHANNEL.
+		for (int ch = 0; ch < Mixer.hi_ch; ch++)
+			mixer_ch_sync_freq(ch, tick);
+
+		// Phase A: enqueue all PI DMAs back-to-back.
+		for (int ch = 0; ch < Mixer.hi_ch; ch++) {
+			mixer_channel_t *c = &Mixer.channels[ch];
+			mixer_channel_t *owner = (c->flags & CH_FLAGS_STEREO_SUB) ? c-1 : c;
+			if (!owner->ptr || (owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)))
+				continue;
+			if (c->flags & CH_FLAGS_STEREO_SUB) {
+				if (!(owner->flags & CH_FLAGS_VADPCM))
+					continue; // PCM R shares the owner's fetch
+				c->pos = owner->pos;
+				c->step = owner->step;
+				c->len = owner->len;
+				c->loop_len = owner->loop_len;
+			}
+			mixer_fetch_window(ch, ns);
+		}
+	}
+
+	// Phase B: emit, syncing each channel's DMA at the last moment.
+	PROFILE_SCOPE(PS_MIXER_CMD) {
+	for (int ch = 0; ch < Mixer.hi_ch; ch++) {
+		mixer_channel_t *c = &Mixer.channels[ch];
+		mixer_channel_t *owner = (c->flags & CH_FLAGS_STEREO_SUB) ? c-1 : c;
+		uint32_t flags = c->flags & (CH_FLAGS_BPS_SHIFT | CH_FLAGS_16BIT |
+			CH_FLAGS_STEREO | CH_FLAGS_STEREO_SUB | CH_FLAGS_VADPCM);
+		mixer_round_vol_t vol = {0};
+		void *ptr = NULL;
+		uint32_t pos = 0, step = 0, len = 0xFFFFFFFF, loop_len = 0;
+
+		if (!owner->ptr) {
+			// A channel with no data has nothing to mix and no state left
+			// behind on the RSP: drop it from the round entirely.
+			continue;
+		} else if (c->flags & CH_FLAGS_STEREO_SUB) {
+			PROFILE_SCOPE(PS_MIXER_VOL) {
+				vol = mixer_channel_volumes(ch, owner->flags, true, gvol, tick, ns);
+			}
+
+			if (!(owner->flags & CH_FLAGS_VADPCM)) {
+				// PCM interleaved: extract R from the owner's sample stream.
+				flags = (owner->flags & (CH_FLAGS_BPS_SHIFT | CH_FLAGS_16BIT | CH_FLAGS_STEREO)) | CH_FLAGS_STEREO_SUB;
+				pos = (uint32_t)owner->pos & 0x7FFFFFFF;
+				step = (uint32_t)owner->step & 0x7FFFFFFF;
+				ptr = (uint8_t*)owner->ptr + mixer_pos_fold(owner);
+				mixer_rsp_bounds(owner, true, &len, &loop_len);
+			} else {
+				// Stereo VADPCM R: timing already synced in Phase A when streamed.
+				c->pos = owner->pos;
+				c->step = owner->step;
+				c->len = owner->len;
+				c->loop_len = owner->loop_len;
+				flags = CH_FLAGS_VADPCM | CH_FLAGS_16BIT;
+				pos = (uint32_t)c->pos & 0x7FFFFFFF;
+				step = (uint32_t)c->step & 0x7FFFFFFF;
+				if (owner->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)) {
+					ptr = c->ptr;
+					mixer_rsp_bounds(c, true, &len, &loop_len);
+				} else {
+					ptr = (uint8_t*)c->ptr + mixer_pos_fold(c);
+				}
+			}
+		} else {
+			PROFILE_SCOPE(PS_MIXER_VOL) {
+				vol = mixer_channel_volumes(ch, c->flags, false, gvol, tick, ns);
+			}
+			pos = (uint32_t)c->pos & 0x7FFFFFFF;
+			step = (uint32_t)c->step & 0x7FFFFFFF;
+
+			if (c->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)) {
+				ptr = c->ptr;
+				mixer_rsp_bounds(c, true, &len, &loop_len);
+			} else {
+				ptr = (uint8_t*)c->ptr + mixer_pos_fold(c);
+				// Small loops are pinned by mixer_update_loops, large ones are
+				// wrapped by the CPU between rounds: either way the RSP is
+				// never allowed to wrap a streamed channel.
+				if (!c->loop_len)
+					mixer_rsp_bounds(c, false, &len, &loop_len);
+			}
+		}
+
+		PROFILE_SCOPE(PS_MIXER_DMAWAIT) {
+			if (owner->ptr)
+				mixer_wait_channel_dma(ch);
+		}
+
+		PROFILE_SCOPE(PS_MIXER_RSPQ) {
+			// A state the CPU re-seeded rides with the first round that needs it,
+			// which is where it belongs in the queue.
+			if (Mixer.vstate_dirty & mixer_bit(ch)) {
+				Mixer.vstate_dirty &= ~mixer_bit(ch);
+				if ((c->flags & CH_FLAGS_VADPCM) && c->codec_state)
+					mixer_emit_setstate(ch);
+			}
+
+			// A command that starts on the frame the loop starts on must decode
+			// from the state saved for that frame: the one the stream left behind
+			// belongs to the end of the waveform, since it is the CPU that wraps
+			// the position between rounds. The ucode has no cheap way to tell,
+			// while here it is a comparison on values already at hand.
+			if ((flags & CH_FLAGS_VADPCM) && loop_len && Mixer.chtbl[ch].loop_state &&
+				(pos >> (MIXER_FX64_FRAC+4)) == ((len - loop_len) >> (MIXER_FX64_FRAC+4)))
+				flags |= CH_FLAGS_VLOOP_STATE;
+
+			if (clear_accum) {
+				flags |= CH_FLAGS_CLEAR_ACCUM;
+				clear_accum = false;
+			}
+
+			mixer_emit_channel(ch, flags, vol, pos, step, len, loop_len, ptr, ns);
+		}
+	}
+
+	PROFILE_START(PS_MIXER_RSPQ, 1);
+	// All channels were silent: the accumulator must still be cleared before
+	// being flushed out.
+	if (clear_accum)
+		mixer_emit_channel(0, CH_FLAGS_CLEAR_ACCUM, (mixer_round_vol_t){0}, 0, 0, 0, 0, NULL, ns);
+
+	rspq_write(__mixer_overlay_id, MIXER_CMD_FLUSH,
+		(uint32_t)ns, PhysicalAddr(out), round_id,
+		PhysicalAddr((void*)Mixer.round_done));
+	PROFILE_STOP(PS_MIXER_RSPQ, 1);
+	}
+}
+
+// Advance all channels by the samples just mixed, wrapping the loops that the
+// RSP does not wrap by itself.
+static void mixer_advance(int ns) {
+	for (int i = 0; i < Mixer.hi_ch; i++) {
+		mixer_channel_t *ch = &Mixer.channels[i];
+		if (!ch->ptr || (ch->flags & CH_FLAGS_STEREO_SUB))
+			continue;
+		ch->pos += ch->step * (uint64_t)ns;
+		if (ch->loop_len && ch->pos >= ch->len) {
+			if (ch->flags & (CH_FLAGS_RESIDENT | CH_FLAGS_LOOP_CACHED)) {
+				while (ch->pos >= ch->len)
+					ch->pos -= ch->loop_len;
+			} else {
+				// Streamed loop crossed between two rounds of the same call.
+				mixer_large_loop_wrap(i);
+			}
+		}
+		if (ch->flags & CH_FLAGS_VADPCM) {
+			ch->vframe = (int)(ch->pos >> (MIXER_FX64_FRAC+4));
+			if (ch->flags & CH_FLAGS_STEREO) ch[1].vframe = ch->vframe;
+		}
+	}
+}
+
+static void mixer_invoke_soft(int round_ns);
+
+static void mixer_exec(int32_t *out, int num_samples) {
+	PROFILE_SCOPE(PS_MIXER_EXEC) {
+	tracef("mixer_exec: 0x%x samples\n", num_samples);
+
+	mixer_fx16_t gvol = mixer_global_volume();
+
+	for (int offset = 0; offset < num_samples; ) {
+		int ns;
+		rspq_highpri_begin();
+		PROFILE_SCOPE(PS_MIXER_PREP) {
+			mixer_update_loops();
+			mixer_refresh_chtbl();
+			ns = mixer_round_length(num_samples - offset);
+		}
+		PROFILE_SCOPE(PS_MIXER_EMIT) {
+			mixer_emit_round(out + offset, ns, gvol, Mixer.ticks);
+		}
+		PROFILE_SCOPE(PS_MIXER_ADVANCE) {
+			mixer_advance(ns);
+			Mixer.ticks += ns;
+		}
+		rspq_highpri_end();
+		mixer_invoke_soft(ns);
+		offset += ns;
+	}
+
+	PROFILE_SCOPE(PS_MIXER_PREFETCH) {
+		mixer_prefetch_next(num_samples);
+	}
+	}
 }
 
 static mixer_event_t* mixer_next_event(void) {
@@ -716,6 +2418,7 @@ static mixer_event_t* mixer_next_event(void) {
 }
 
 void mixer_add_event(int64_t delay, MixerEvent cb, void *ctx) {
+	assertf(Mixer.num_events < MAX_EVENTS, "too many mixer events");
 	Mixer.events[Mixer.num_events++] = (mixer_event_t){
 		.cb = cb,
 		.ctx = ctx,
@@ -734,7 +2437,50 @@ void mixer_remove_event(MixerEvent cb, void *ctx) {
 	assertf("mixer_remove_event: specified event does not exist\ncb:%p ctx:%p", (void*)cb, ctx);
 }
 
-void mixer_poll(int16_t *out16, int num_samples) {
+static void mixer_invoke_soft(int round_ns)
+{
+	for (int i = 0; i < Mixer.num_soft; ) {
+		int n = Mixer.num_soft;
+		Mixer.soft[i].cb(Mixer.soft[i].ctx, round_ns);
+		if (Mixer.num_soft < n)
+			continue; // callback removed itself (or another); recheck index
+		i++;
+	}
+}
+
+void mixer_add_soft_event(MixerSoftEvent cb, void *ctx)
+{
+	assertf(cb, "mixer_add_soft_event: NULL callback");
+	assertf(Mixer.num_soft < MAX_SOFT_EVENTS, "too many soft mixer events");
+	Mixer.soft[Mixer.num_soft++] = (mixer_soft_event_t){ .cb = cb, .ctx = ctx };
+}
+
+void mixer_remove_soft_event(MixerSoftEvent cb, void *ctx)
+{
+	for (int i = 0; i < Mixer.num_soft; i++) {
+		if (Mixer.soft[i].cb == cb && Mixer.soft[i].ctx == ctx) {
+			memmove(&Mixer.soft[i], &Mixer.soft[i+1],
+				sizeof(mixer_soft_event_t) * (Mixer.num_soft - i - 1));
+			Mixer.num_soft--;
+			return;
+		}
+	}
+	assertf("mixer_remove_soft_event: specified event does not exist\ncb:%p ctx:%p",
+		(void*)cb, ctx);
+}
+
+void mixer_throttle(float num_samples) {
+	Mixer.max_samples += num_samples;
+	Mixer.throttled = true;
+}
+
+void mixer_unthrottle(void) {
+	Mixer.max_samples = 0;
+	Mixer.throttled = false;
+}
+
+/** @brief Poll the mixer asynchronously. */
+void mixer_poll_async(int16_t *out16, int num_samples) {
 	int32_t *out = (int32_t*)out16;
 
 	// Since the AI can only play an even number of samples,
@@ -742,21 +2488,112 @@ void mixer_poll(int16_t *out16, int num_samples) {
 	// otherwise buffering might become complicated / impossible.
 	assert(num_samples % 2 == 0);
 
+	// MIX_FLUSH DMAs the accumulator straight out of DMEM, so every output
+	// address the RSP is given must be 8-byte aligned. That holds as long as
+	// the buffer itself is aligned and we only ever advance it by an even
+	// number of stereo samples, which is what the rest of this function and
+	// #mixer_round_length guarantee.
+	assertf(((uint32_t)out16 & 7) == 0,
+		"mixer output buffer must be 8-byte aligned: %p", out16);
+
+	// Sample buffers span #MIXER_POLL_LOOKAHEAD polls. Wait for the oldest
+	// still-live one before starting, so a refill cannot overwrite windows
+	// the RSP has not read yet. The first LOOKAHEAD polls never wait.
+	mixer_poll_barrier();
+
+	assertf(num_samples <= __mixer_inflight_samples(),
+		"cannot mix %d samples in one go: sample buffers are sized for %d",
+		num_samples, __mixer_inflight_samples());
+
+	// Check if the mixer is throttled. If so, do not produce more
+	// than the allowance (with a small extra equal to a full audio buffer,
+	// to avoid issues with fixed-size buffers like those provided by audio.c),
+	// and silence after it.
+	if (Mixer.throttled) {
+		int extra = Mixer.sample_rate / MIXER_POLL_PER_SECOND;
+		int total = num_samples;
+		num_samples = (int)MIN(num_samples, Mixer.max_samples+extra) & ~1;
+		Mixer.max_samples -= num_samples;
+		memset(out + num_samples, 0, (total - num_samples) * sizeof(int32_t));
+	}
+
 	while (num_samples > 0) {
 		mixer_event_t *e = mixer_next_event();
 
-		int ns = MIN(num_samples, e ? e->ticks - Mixer.ticks : num_samples);
+		// Stop at the next event, rounding the split up to an even number of
+		// samples. The event then fires up to one sample late, but without
+		// drifting: its schedule stays anchored to absolute ticks.
+		int ns = num_samples;
+		if (e) {
+			int64_t delay = e->ticks - Mixer.ticks;
+			ns = delay > 0 ? MIN(ns, (int)ROUND_UP(delay, 2)) : 0;
+		}
 		if (ns > 0) {
 			mixer_exec(out, ns);
 			out += ns;
 			num_samples -= ns;
 		}
-		if (e && Mixer.ticks == e->ticks) {
+		if (e && Mixer.ticks >= e->ticks) {
 			int64_t repeat = e->cb(e->ctx);
 			if (repeat)
 				e->ticks += repeat;
 			else
 				mixer_remove_event(e->cb, e->ctx);
 		}
+	}
+
+	// Remember where this poll ended, so that #mixer_poll_would_wait /
+	// #mixer_poll_barrier can tell whether the ring space of the polls
+	// before it has been freed.
+	Mixer.poll_round[Mixer.poll_count % MIXER_POLL_LOOKAHEAD] = Mixer.round_id;
+	Mixer.poll_count++;
+}
+
+void mixer_poll(int16_t *out16, int num_samples) {
+	// Sample buffers only span what a poll can queue (see
+	// #__mixer_inflight_samples), so a caller asking for more than that in one
+	// go would wrap onto windows still live from earlier in the same call.
+	// Sync along the way instead, which costs nothing for the usual sizes.
+	int budget = __mixer_inflight_samples() & ~1;
+	while (num_samples > budget) {
+		mixer_poll_async(out16, budget);
+		rspq_highpri_sync();
+		out16 += budget * 2;
+		num_samples -= budget;
+	}
+	mixer_poll_async(out16, num_samples);
+	// Preserve the synchronous contract for direct callers (user-owned
+	// buffer / legacy audio_set_buffer_callback). One sync per poll instead
+	// of one per mixer_exec.
+	rspq_highpri_sync();
+}
+
+void mixer_try_play(void)
+{
+	PROFILE_SCOPE(PS_MIXER) {
+	// To smooth out the pacing for mixer and wav64 decodes, we fill buffers
+	// to at least audio_get_num_buffers()-1, but fill completely, if there is
+	// only one free one left.
+	int free_buffers = audio_get_num_buffers() - audio_get_queued_buffers();
+	if (free_buffers <= 0)
+		goto done;
+
+	int queued = audio_get_queued_buffers();
+	int buffers_to_fill = MAX(free_buffers - 1, 1);
+	while (buffers_to_fill-- > 0) {
+		// Filling one more buffer now would mean waiting for the RSP to free
+		// the ring space of an older poll. There is already mixed audio
+		// queued, so leave the rest for the next frame rather than spending
+		// it here. With nothing queued the wait is unavoidable: the AI needs
+		// samples now.
+		if (queued > 1 && mixer_poll_would_wait())
+			break;
+		short *buf = audio_write_begin();
+		mixer_poll_async(buf, audio_get_buffer_length());
+		audio_write_end();
+		queued++;
+	}
+	rspq_flush();
+done: ;
 	}
 }

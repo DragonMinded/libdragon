@@ -24,6 +24,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "common/polyfill.h"
 
 #define SAVETYPE_NONE      0x00
 #define SAVETYPE_EEPROM4K  0x10
@@ -34,6 +35,12 @@
 #define SAVETYPE_SRAM1M    0x60
 #define SAVETYPE_INVALID   0xFF
 #define ROMCONFIG_NOT_SET  0x00
+
+#define EXPANSIONPAK_UNSPECIFIED 0x00
+#define EXPANSIONPAK_UNUSED      0x01
+#define EXPANSIONPAK_RECOMMENDED 0x02
+#define EXPANSIONPAK_REQUIRED    0x03
+#define EXPANSIONPAK_INVALID     0xFF
 
 #define CONTROLLERTYPE_INVALID 0xFE
 #define CONTROLLERTYPE_N64 0x00
@@ -63,16 +70,27 @@
 
 int print_usage(const char * prog_name)
 {
-	fprintf(stderr, "Usage: %s [-r] [-c] [-w <savetype>] <file>\n\n", prog_name);
+	fprintf(stderr, "Usage: %s [-r] [-c] [-w <savetype>] [-e <expansionpak>] <file>\n\n", prog_name);
 	fprintf(stderr, "This program takes a big-endian N64 ROM and sets the header so that\n");
 	fprintf(stderr, "it follows the Homebrew ROM header format as specified by:\n");
 	fprintf(stderr, "https://n64brew.dev/wiki/ROM_Header#Advanced_Homebrew_ROM_Header\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Command-line flags:\n");
-	fprintf(stderr, "\t-w, --savetype <type>           Declare cartridge save type.\n");
+	fprintf(stderr, "\t-w, --savetype <type>           Declare cartridge save type. The <type> should be one of:\n");
+	fprintf(stderr, "\t    none                        Game does not save or uses Controller Pak.\n");
+	fprintf(stderr, "\t    eeprom4k                    Game saves to 4 kilobit EEPROM.\n");
+	fprintf(stderr, "\t    eeprom16k                   Game saves to 16 kilobit EEPROM.\n");
+	fprintf(stderr, "\t    sram256k                    Game saves to 256 kilobit SRAM\n");
+	fprintf(stderr, "\t    sram768k                    Game saves to 768 kilobit SRAM\n");
+	fprintf(stderr, "\t    sram1m                      Game saves to 1 megabit SRAM (Flashcart specific dependency)\n");
+	fprintf(stderr, "\t    flashram                    Game saves to 1 megabit FlashRAM\n");
+	fprintf(stderr, "\t-e, --expansionpak <type>       Declare expansion pak usage. The <type> should be one of:\n");
+	fprintf(stderr, "\t    unused                      Game will not detect the Expansion Pak at all or will have no changes from it.\n");
+	fprintf(stderr, "\t    recommended                 Game can play without the expansion pak with reduced performance / functionality.\n");
+	fprintf(stderr, "\t    required                    Game cannot play without an expansion pak.\n");
 	fprintf(stderr, "\t-c, --rtc                       Declare real-time clock support.\n");
 	fprintf(stderr, "\t-r, --regionfree                Declare region-free ROM.\n");
-	fprintf(stderr, "\t-1, --controller1 <type>        Define controller 1 hardware type. <type> should be one of:\n");
+	fprintf(stderr, "\t-1, --controller1 <type>        Configure initial controller 1 hardware/accessory type. <type> should be one of:\n");
 	fprintf(stderr, "\t    n64                         N64 controller without attachments\n");
 	fprintf(stderr, "\t    n64,pak=rumble              N64 controller with Rumble Pak\n");
 	fprintf(stderr, "\t    n64,pak=controller          N64 controller with Controller Pak\n");
@@ -83,18 +101,11 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t    gamecube                    GameCube controller\n");
 	fprintf(stderr, "\t    randnetkeyboard             Randnet keyboard\n");
 	fprintf(stderr, "\t    gamecubekeyboard            GameCube keyboard\n");
-	fprintf(stderr, "\t-2, --controller2 <type>        Define controller 2 hardware type. For <type>, see --controller1.\n");
-	fprintf(stderr, "\t-3, --controller3 <type>        Define controller 3 hardware type. For <type>, see --controller1.\n");
-	fprintf(stderr, "\t-4, --controller4 <type>        Define controller 4 hardware type. For <type>, see --controller1.\n");
+	fprintf(stderr, "\t-2, --controller2 <type>        Configure controller 2 hardware/accessory type. For <type>, see --controller1.\n");
+	fprintf(stderr, "\t-3, --controller3 <type>        Configure controller 3 hardware/accessory type. For <type>, see --controller1.\n");
+	fprintf(stderr, "\t-4, --controller4 <type>        Configure controller 4 hardware/accessory type. For <type>, see --controller1.\n");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Supported cartridge save types:\n");
-	fprintf(stderr, "\tnone        Game does not save or uses Controller Pak.\n");
-	fprintf(stderr, "\teeprom4k    Game saves to 4 kilobit EEPROM.\n");
-	fprintf(stderr, "\teeprom16k   Game saves to 16 kilobit EEPROM.\n");
-	fprintf(stderr, "\tsram256k    Game saves to 256 kilobit SRAM\n");
-	fprintf(stderr, "\tsram768k    Game saves to 768 kilobit SRAM\n");
-	fprintf(stderr, "\tsram1m      Game saves to 1 megabit SRAM\n");
-	fprintf(stderr, "\tflashram    Game saves to 1 megabit FlashRAM\n");
+
 	return STATUS_BADUSAGE;
 }
 
@@ -104,8 +115,8 @@ bool check_flag(const char * arg, const char * shortFlag, const char * longFlag)
 }
 
 /**
- * Corresponds to ED64 ROM Configuration Database values:
- * @see https://github.com/krikzz/ED64/blob/master/docs/rom_config_database.md
+ * Corresponds to the Advanced Homebrew ROM Header values:
+ * @see https://n64brew.dev/wiki/ROM_Header#Advanced Homebrew ROM Header (offset 0x3F)
  */
 uint8_t parse_save_type(const char * arg)
 {
@@ -117,6 +128,19 @@ uint8_t parse_save_type(const char * arg)
 	if(!strcmp(arg, "flashram"))  return SAVETYPE_FLASHRAM;
 	if(!strcmp(arg, "sram1m"))    return SAVETYPE_SRAM1M;
 	return SAVETYPE_INVALID;
+}
+
+/**
+ * Corresponds to the Advanced Homebrew ROM Header values:
+ * @see https://n64brew.dev/wiki/ROM_Header#Advanced Homebrew ROM Header (offset 0x3F)
+ */
+uint8_t parse_expansionpak_type(const char * arg)
+{
+	if(!strcmp(arg, "unspecified")) return EXPANSIONPAK_UNSPECIFIED;
+	if(!strcmp(arg, "unused"))      return EXPANSIONPAK_UNUSED;
+	if(!strcmp(arg, "recommended")) return EXPANSIONPAK_RECOMMENDED;
+	if(!strcmp(arg, "required"))    return EXPANSIONPAK_REQUIRED;
+	return EXPANSIONPAK_INVALID;
 }
 
 /**
@@ -147,10 +171,12 @@ uint8_t parse_controller_type(const char* arg)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
 	FILE * write_file = NULL;
 	bool force_rtc = false;
 	bool region_free = false;
 	uint8_t save_type = SAVETYPE_NONE;
+	uint8_t expansionpak_type = EXPANSIONPAK_UNSPECIFIED;
 	uint8_t controller_type1 = CONTROLLERTYPE_N64;
 	uint8_t controller_type2 = CONTROLLERTYPE_N64;
 	uint8_t controller_type3 = CONTROLLERTYPE_N64;
@@ -191,6 +217,26 @@ int main(int argc, char *argv[])
 			{
 				/* Invalid save type */
 				fprintf(stderr, "ERROR: Invalid savetype argument\n\n");
+				return print_usage(argv[0]);
+			}
+
+			continue;
+		}
+		if(check_flag(arg, "-m", "--expansionpak"))
+		{
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to expansionpak flag\n\n");
+				return print_usage(argv[0]);
+			}
+
+			expansionpak_type = parse_expansionpak_type(argv[i++]);
+
+			if(expansionpak_type == EXPANSIONPAK_INVALID)
+			{
+				/* Invalid mem expansion type */
+				fprintf(stderr, "ERROR: Invalid expansionpak argument\n\n");
 				return print_usage(argv[0]);
 			}
 
@@ -302,10 +348,10 @@ int main(int argc, char *argv[])
 
 	if(force_rtc && (save_type == SAVETYPE_EEPROM4K || save_type == SAVETYPE_EEPROM16K))
 	{
-		fprintf(stderr, "WARNING: The combination of EEPROM + RTC does not work on EverDrive!\n");
+		fprintf(stderr, "WARNING: The combination of EEPROM + RTC may not work on earlier EverDrive OS versions!\n");
 	}
 
-	uint8_t config = save_type | (force_rtc ? 1 : 0) | (region_free ? 2 : 0);
+	uint8_t config = save_type | (force_rtc ? 1 : 0) | (region_free ? 2 : 0) | (expansionpak_type << 2);
 
 	const char cart_id[CART_ID_SIZE] = {'E', 'D'};
 	fseek(write_file, CART_ID_OFFSET, SEEK_SET);

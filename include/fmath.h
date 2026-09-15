@@ -59,19 +59,41 @@
 #ifndef __LIBDRAGON_FMATH_H
 #define __LIBDRAGON_FMATH_H
 
+
 #include <math.h>
 #include <string.h>
 #include <stdint.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+/**
+ * @brief Error constant for approximate comparisons.
+ */
+#define FM_EPSILON      1e-4f
+
+/**
+ * @brief Single precision pi constant.
+ */
+#define FM_PI           3.14159265358979f
+
+/**
+ * @brief Convert degrees to radians.
+ */
+#define FM_DEG2RAD(deg) ((deg) * (FM_PI / 180.0f))
+
+/**
+ * @brief Convert radians to degrees.
+ */
+#define FM_RAD2DEG(rad) ((rad) * (180.0f / FM_PI))
+
 /** @brief Reinterpret the bits composing a float as a int32. 
  *
  * This version is type-punning safe and produces optimal code when optimizing. 
  **/
-#define BITCAST_F2I(f) ({ int32_t i; memcpy(&i, &f, 4); i; })
+#define BITCAST_F2I(f) ({ int32_t i; float _f = (f); memcpy(&i, &_f, 4); i; })
 
 /** @brief Reinterpret the bits composing a int32 as a float.
  *
@@ -95,7 +117,7 @@ static inline float fm_truncf(float x) {
 }
 
 /**
- * @brief Faster version of floorf
+ * @brief Faster version of ceilf
  * 
  * Optimized version using the MIPS ceil.w.s instruction.
  */
@@ -114,6 +136,20 @@ static inline float fm_ceilf(float x) {
 static inline float fm_floorf(float x) {
     float yint, y;
     __asm ("floor.w.s  %0,%1" : "=f"(yint) : "f"(x));
+    __asm ("cvt.s.w  %0,%1" : "=f"(y) : "f"(yint));
+    return y;
+}
+
+/**
+ * @brief Faster version of roundf
+ * @preview
+ * 
+ * Optimized version using the MIPS round.w.s instruction.
+ */
+ LIBDRAGON_PREVIEW_API
+ static inline float fm_roundf(float x) {
+    float yint, y;
+    __asm ("round.w.s  %0,%1" : "=f"(yint) : "f"(x));
     __asm ("cvt.s.w  %0,%1" : "=f"(y) : "f"(yint));
     return y;
 }
@@ -213,6 +249,66 @@ void fm_sincosf(float x, float *sin, float *cos);
  */
 float fm_atan2f(float y, float x);
 
+/**
+ * @brief Approximation of exp(x) with a relative error <3%.
+ * @preview
+ * This is several times faster than exp(x). The implementation uses a
+ * method by Nicole Schraudolph.
+ *
+ * Note that this function does not have bounds check 
+ * and will overflow if x is not in ~(-85;85) range.
+ * It is recommended to clamp x and do fm_exp(CLAMP(x, -85, 85))
+ *
+ */
+LIBDRAGON_PREVIEW_API
+float fm_expf(float x);
+
+/**
+ * @brief Faster version of exp2f (2^x).
+ * @preview
+ *
+ * Splits @p x into an integer power of two (via the IEEE754 exponent field)
+ * and a fractional part evaluated with a degree-5 minimax polynomial on
+ * `[0, 1]`. Relative error is about `1e-5` — several times more accurate
+ * than #fm_expf, and far cheaper than newlib `exp2f` / `powf`.
+ *
+ * No bounds check: overflows if @p x is outside roughly `(-126, 128)`.
+ */
+LIBDRAGON_PREVIEW_API
+float fm_exp2f(float x);
+
+/**
+ * @brief Linearly interpolate between two scalar values.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
+inline float fm_lerp(float a, float b, float t)
+{
+    return a + (b - a) * t;
+}
+
+/**
+ * @brief Linearly interpolate between two angles, using the shortest path.
+ * @preview
+ * 
+ * @param a The start angle in radians
+ * @param b The end angle in radians
+ * @param t The interpolation factor
+ * @return The interpolated angle.
+ */
+LIBDRAGON_PREVIEW_API
+float fm_lerp_angle(float a, float b, float t);
+
+/**
+ * @brief Wrap an angle into [0..pi*2] range.
+ * @preview
+ * 
+ * @param[in] angle An angle in radians.
+ * @return The wrapped angle.
+ */
+LIBDRAGON_PREVIEW_API
+float fm_wrap_angle(float angle);
+
 #ifdef LIBDRAGON_FAST_MATH
     #define truncf(x)     fm_truncf(x)
     #define floorf(x)     fm_floorf(x)
@@ -230,6 +326,8 @@ float fm_atan2f(float y, float x);
     #define cosf(x)         (__builtin_constant_p(x) ? cosf(x) : fm_cosf(x))
     #define sincosf(x,s,c)  (__builtin_constant_p(x) ? sincosf(x,s,c) : fm_sincosf(x,s,c))
     #define atan2f(y, x)    ((__builtin_constant_p(x) && __builtin_constant_p(y)) ? atan2f(y, x) : fm_atan2f(y, x))
+    #define expf(x)         (__builtin_constant_p(x) ? expf(x) : fm_expf(x))
+    #define exp2f(x)        (__builtin_constant_p(x) ? exp2f(x) : fm_exp2f(x))
 #endif
 
 #ifdef __cplusplus

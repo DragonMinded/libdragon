@@ -38,7 +38,7 @@ sprite_t *read_sprite( const char * const spritename )
 int main(void)
 {
     /* Initialize peripherals */
-    display_init( res, bit, 2, GAMMA_NONE, FILTERS_RESAMPLE );
+    display_init( res, bit, 2, GAMMA_NONE, FILTERS_DISABLED );
     dfs_init( DFS_DEFAULT_LOCATION );
     joypad_init();
 

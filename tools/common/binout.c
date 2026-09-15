@@ -8,6 +8,9 @@
 
     For more information, please refer to <http://unlicense.org/>
 */
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
@@ -21,9 +24,9 @@
 struct placeholder_data {
 	int64_t offset;
 	uint64_t *pending_offsets_64;
-	uint32_t *pending_offsets_32;
-	uint16_t *pending_offsets_16;
-	uint8_t *pending_offsets_8;
+	uint64_t *pending_offsets_32;
+	uint64_t *pending_offsets_16;
+	uint64_t *pending_offsets_8;
 };
 
 struct {
@@ -52,6 +55,21 @@ void _w64(FILE *f, uint64_t v)
 {
     w32(f, v >> 32);
     w32(f, v & 0xffffffff);
+}
+
+void wleb128u(FILE *f, uint64_t v)
+{
+	while (v >= 0x80) {
+		w8(f, (v & 0x7F) | 0x80);
+		v >>= 7;
+	}
+	w8(f, v & 0x7F);
+}
+
+void wleb128s(FILE *f, int64_t v)
+{
+	uint64_t uv = (v << 1) ^ (v >> 63);
+	wleb128u(f, uv);
 }
 
 int w32_placeholder(FILE *f)

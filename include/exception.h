@@ -61,6 +61,7 @@ typedef enum {
     EXCEPTION_CODE_TRAP = 13,
     EXCEPTION_CODE_FLOATING_POINT = 15,
     EXCEPTION_CODE_WATCH = 23,
+    EXCEPTION_CODE_EMUX = 24,
 } exception_code_t;
 
 /**

@@ -25,11 +25,9 @@ enum {
     RSPQ_CMD_INVALID           = 0x00,
 
     /**
-     * @brief RSPQ command: No-op
-     * 
-     * This commands does nothing. It can be useful for debugging purposes.
+     * @brief RSPQ command: Sets a 32-bit word in DMEM
      */
-    RSPQ_CMD_NOOP              = 0x01,
+    RSPQ_CMD_WRITE_WORD        = 0x01,
 
     /**
      * @brief RSPQ command: Jump to another buffer
@@ -111,18 +109,6 @@ enum {
     RSPQ_CMD_TEST_WRITE_STATUS = 0x08,
 
     /**
-     * @brief RSPQ command: Wait for RDP to be idle.
-     * 
-     * This command will let the RSP spin-wait until the RDP is idle (that is,
-     * the DP_STATUS_BUSY bit in COP0_DP_STATUS goes to 0). Notice that the
-     * RDP is fully asynchronous, and reading DP_STATUS_BUSY basically makes
-     * sense only after a RDP SYNC_FULL command (#rdpq_sync_full()), when it
-     * really does make sure that all previous commands have finished
-     * running.
-     */
-    RSPQ_CMD_RDP_WAIT_IDLE     = 0x09,
-
-    /**
      * @brief RSPQ Command: send a new buffer to RDP and/or configure it for new commands
      * 
      * This command configures a new buffer in RSP for RDP commands. It requires three
@@ -133,7 +119,7 @@ enum {
      * some RDP commands that will be sent to RDP right away. Sentinel is the end of the
      * buffer. If cur==sentinel, the buffer is full and no more commands will be written to it. 
      */
-    RSPQ_CMD_RDP_SET_BUFFER    = 0x0A,
+    RSPQ_CMD_RDP_SET_BUFFER    = 0x09,
 
     /**
      * @brief RSPQ Command: send more data to RDP (appended to the end of the current buffer)
@@ -141,7 +127,7 @@ enum {
      * This commands basically just sets DP_END to the specified argument, allowing new
      * commands appended in the current buffer to be sent to RDP.
      */
-    RSPQ_CMD_RDP_APPEND_BUFFER = 0x0B,
+    RSPQ_CMD_RDP_APPEND_BUFFER = 0x0A,
 };
 
 /** @brief Write an internal command to the RSP queue */
@@ -149,7 +135,17 @@ enum {
 
 ///@cond
 typedef struct rdpq_block_s rdpq_block_t;
+typedef struct rspq_block_cb_s rspq_block_cb_t;
 ///@endcond
+
+/**
+ * @brief Linked list of callbacks for storage inside a rspq block.
+ */
+typedef struct rspq_block_cb_s {
+    void (*cb)(void*);      ///< The callback function pointer
+    void* ctx;              ///< The context that will be passed into the callback
+    rspq_block_cb_t *next;  ///< Next callback in the linked list
+} rspq_block_cb_t;
 
 /**
  * @brief A rspq block: pre-recorded array of commands
@@ -160,9 +156,12 @@ typedef struct rdpq_block_s rdpq_block_t;
  * calls (a block can call another block), up to 8 levels deep.
  */
 typedef struct rspq_block_s {
-    uint32_t nesting_level;     ///< Nesting level of the block
-    rdpq_block_t *rdp_block;    ///< Option RDP static buffer (with RDP commands)
-    uint32_t cmds[];            ///< Block contents (commands)
+    uint8_t nesting_level;   ///< Nesting level of the block
+    uint8_t min_ph_level;    ///< Lowest slot used by any called placeholders, default: max nesting level
+    uint8_t padding[2];      ///< Padding
+    rdpq_block_t *rdp_block; ///< Option RDP static buffer (with RDP commands)
+    rspq_block_cb_t *atexit; ///< List of callbacks to call upon freeing the block
+    uint32_t cmds[];         ///< Block contents (commands)
 } rspq_block_t;
 
 /** @brief RDP render mode definition 
@@ -187,35 +186,44 @@ typedef struct __attribute__((packed)) {
 } rspq_ovl_table_t;
 
 /**
+ * @brief RSP profiling data for a single overlay.
+ */
+typedef struct rspq_profile_slot_dmem_s {
+    uint32_t total_ticks;
+    uint32_t sample_count;
+} rspq_profile_slot_dmem_t;
+
+/**
  * @brief RSP Queue data in DMEM.
  * 
- * This structure is defined by rsp_queue.S, and represents the
+ * This structure is defined by rsp_queue.inc, and represents the
  * top portion of DMEM.
  */
 typedef struct rsp_queue_s {
+    uint8_t shift_consts[8];             ///< Shift constants
     rspq_ovl_table_t rspq_ovl_table;     ///< Overlay table
     /** @brief Pointer stack used by #RSPQ_CMD_CALL and #RSPQ_CMD_RET. */
     uint32_t rspq_pointer_stack[RSPQ_MAX_BLOCK_NESTING_LEVEL];
     uint32_t rspq_dram_lowpri_addr;      ///< Address of the lowpri queue (special slot in the pointer stack)
     uint32_t rspq_dram_highpri_addr;     ///< Address of the highpri queue  (special slot in the pointer stack)
     uint8_t banner[32];                  ///< Banner
+    uint32_t cmds[RSPQ_DMEM_BUFFER_SIZE/4]; ///< RSPQ command buffer
     rspq_rdp_mode_t rdp_mode;            ///< RDP current render mode definition
     uint64_t rdp_scissor_rect;           ///< Current RDP scissor rectangle
     uint32_t rspq_rdp_buffers[2];        ///< RDRAM Address of dynamic RDP buffers
     uint32_t rspq_rdp_current;           ///< Current RDP RDRAM write pointer (normally DP_END)
     uint32_t rspq_rdp_sentinel;          ///< Current RDP RDRAM end pointer (when rdp_current reaches this, the buffer is full)
     uint32_t rdp_fill_color;             ///< Current RDP fill color
+    uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
     uint8_t rdp_target_bitdepth;         ///< Current RDP target buffer bitdepth
     uint8_t rdp_syncfull_ongoing;        ///< True if a SYNC_FULL is currently ongoing
-    uint8_t rdpq_debug;                  ///< Debug mode flag
-    uint8_t padding;                     ///< Padding
-    uint32_t rspq_dram_addr;             ///< Current RDRAM address being processed
-    uint16_t current_ovl;                ///< Current overlay ID
-    uint16_t padding2;                   ///< Padding
+#if RSPQ_PROFILE
+    uint32_t rspq_profile_cur_slot;
+    uint32_t rspq_profile_start_time;
+    rspq_profile_slot_dmem_t rspq_profile_cslots[RSPQ_PROFILE_CSLOT_COUNT];
+    rspq_profile_slot_dmem_t rspq_profile_builtin_slot;
+#endif
  } __attribute__((aligned(16), packed)) rsp_queue_t;
-
-/** @brief Address of the RSPQ data header in DMEM (see #rsp_queue_t) */
-#define RSPQ_DATA_ADDRESS                8
 
 /** @brief ID of the last syncpoint reached by RSP (plus padding). */
 extern volatile int __rspq_syncpoints_done[4];
@@ -223,11 +231,25 @@ extern volatile int __rspq_syncpoints_done[4];
 /** @brief Registered overlays */
 extern rsp_ucode_t *rspq_overlay_ucodes[RSPQ_MAX_OVERLAYS];
 
-/** @brief True if we are currently building a block. */
-static inline bool rspq_in_block(void) {
-    extern rspq_block_t *rspq_block;
-    return rspq_block != NULL;
-}
+/** @brief Flag to mark deferred calls that needs to wait for RDP SYNC_FULL */
+#define RSPQ_DCF_WAITRDP                 (1<<0)
+
+/** @brief A call deferred for execution after RSP reaches a certain syncpoint */
+typedef struct rspq_deferred_call_s {
+    union {
+        void (*func)(void *arg);        ///< Function to call
+        uint32_t flags;                 ///< Flags (see RSPQ_DCF_*) -- used last 2 bits
+    };
+    void *arg;                          ///< Argument to pass to the function
+    rspq_syncpoint_t sync;              ///< Syncpoint to wait for
+    void *next;                         ///< Next deferred call (linked list)
+} rspq_deferred_call_t;
+
+/** @brief Enqueue a new deferred call. */
+rspq_syncpoint_t __rspq_call_deferred(void (*func)(void *), void *arg, bool waitrdp);
+
+/** @brief Polls the deferred calls list, calling callbacks ready to be called. */
+bool __rspq_deferred_poll(void);
 
 /** @brief True if we are currently in highpri mode */
 bool rspq_in_highpri(void);

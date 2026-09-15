@@ -1,10 +1,12 @@
 #include <malloc.h>
+#include <stddef.h>
 #include <string.h>
 
 #include <rspq.h>
 #include <rspq_constants.h>
 #include <rdp.h>
 #include <rdpq_constants.h>
+#include "../src/rspq/rspq_internal.h"
 #include "test_rspq_constants.h"
 
 #define ASSERT_GP_BACKWARD           0xF001   // Also defined in rsp_test.S
@@ -35,7 +37,7 @@ static uint32_t test2_ovl_id;
 
 void test_ovl_init()
 {   
-    void *test_ovl_state = rspq_overlay_get_state(&rsp_test);
+    void *test_ovl_state = UncachedAddr(rspq_overlay_get_state(&rsp_test));
     memset(test_ovl_state, 0, sizeof(uint32_t) * 2);
 
     rspq_init();
@@ -157,14 +159,14 @@ const unsigned long rspq_timeout = 100;
     ASSERT_RSPQ_EPILOG_SP_STATUS((s)); \
 })
 
-void test_rspq_queue_single(TestContext *ctx)
+void test_rspq_cmd_single(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
 
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_rspq_queue_multiple(TestContext *ctx)
+void test_rspq_cmd_multiple(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
     
@@ -173,7 +175,7 @@ void test_rspq_queue_multiple(TestContext *ctx)
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
-void test_rspq_queue_rapid(TestContext *ctx)
+void test_rspq_cmd_rapid(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
     
@@ -203,6 +205,93 @@ void test_rspq_wrap(TestContext *ctx)
     for (uint32_t i = 0; i < block_count; i++)
         rspq_noop();
     
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_buffer_handoff_atomic(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    volatile uint32_t *first_buffer = rspq_cur_pointer;
+    uint32_t command_count = 0;
+
+    // Fill the initial low-priority buffer until rspq_next_buffer switches to
+    // its replacement. Each no-op occupies exactly one word, so the handoff
+    // command starts immediately after the commands counted here.
+    do {
+        rspq_noop();
+        command_count++;
+    } while ((uintptr_t)rspq_cur_pointer >= (uintptr_t)first_buffer &&
+             (uintptr_t)rspq_cur_pointer <
+                 (uintptr_t)(first_buffer + RSPQ_DRAM_LOWPRI_BUFFER_SIZE));
+
+    volatile uint32_t *handoff = first_buffer + command_count;
+    ASSERT_EQUAL_HEX(handoff[0] >> 24, RSPQ_CMD_WRITE_WORD,
+        "buffer handoff must stage its target before signaling completion");
+    ASSERT_EQUAL_HEX(handoff[0] & 0x00FFFFFF,
+        offsetof(rsp_queue_t, rspq_pointer_stack),
+        "buffer handoff stages its target in the wrong pointer slot");
+    ASSERT_EQUAL_HEX(handoff[1],
+        PhysicalAddr((void *)rspq_cur_pointer),
+        "buffer handoff has the wrong jump target");
+    ASSERT_EQUAL_HEX(handoff[2] >> 24, RSPQ_CMD_SWAP_BUFFERS,
+        "buffer completion and jump must use one atomic RSPQ command");
+    ASSERT_EQUAL_HEX(handoff[2] & 0x00FFFFFF, 0,
+        "buffer handoff loads its target from the wrong pointer slot");
+    ASSERT_EQUAL_HEX(handoff[3], 0,
+        "buffer handoff saves its discarded return to the wrong pointer slot");
+    ASSERT_EQUAL_HEX(handoff[4], SP_WSTATUS_SET_SIG_BUFDONE_LOW,
+        "buffer handoff has the wrong completion signal");
+    ASSERT_EQUAL_HEX(handoff[5], 0,
+        "buffer handoff must not leave a separate jump command");
+
+    ASSERT(rspq_cur_sentinel == rspq_cur_pointer +
+            RSPQ_DRAM_LOWPRI_BUFFER_SIZE -
+            (RSPQ_MAX_SHORT_COMMAND_SIZE + 5),
+        "lowpri sentinel must reserve the full atomic handoff");
+
+    // Exercise repeated highpri requests immediately after lowpri wraps. The
+    // layout assertions above make the old implementation fail deterministically;
+    // this loop also runs the handoff under the preemption pattern that exposed
+    // the original race.
+    for (int i = 0; i < 32; i++) {
+        volatile uint32_t *buffer = rspq_cur_pointer;
+        uint32_t buffer_command_count = 0;
+        do {
+            rspq_noop();
+            buffer_command_count++;
+        } while (rspq_cur_pointer == buffer + buffer_command_count);
+
+        rspq_highpri_begin();
+        rspq_noop();
+        rspq_highpri_end();
+    }
+    rspq_highpri_sync();
+
+    // Highpri cannot itself be preempted, so it should retain the compact
+    // status-plus-jump handoff and its original usable buffer capacity.
+    rspq_highpri_begin();
+    volatile uint32_t *first_highpri_buffer = rspq_cur_pointer;
+    uint32_t highpri_command_count = 0;
+    do {
+        rspq_noop();
+        highpri_command_count++;
+    } while (rspq_cur_pointer ==
+        first_highpri_buffer + highpri_command_count);
+
+    volatile uint32_t *highpri_handoff =
+        first_highpri_buffer + highpri_command_count;
+    ASSERT_EQUAL_HEX(highpri_handoff[0] >> 24, RSPQ_CMD_WRITE_STATUS,
+        "highpri handoff should retain its compact completion signal");
+    ASSERT_EQUAL_HEX(highpri_handoff[1] >> 24, RSPQ_CMD_JUMP,
+        "highpri handoff should retain its compact jump");
+    ASSERT(rspq_cur_sentinel == rspq_cur_pointer +
+            RSPQ_DRAM_HIGHPRI_BUFFER_SIZE -
+            (RSPQ_MAX_SHORT_COMMAND_SIZE + 2),
+        "highpri sentinel should reserve only its two-word handoff");
+    rspq_highpri_end();
+    rspq_highpri_sync();
+
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
@@ -516,6 +605,113 @@ void test_rspq_block(TestContext *ctx)
     TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
+static int rspq_block_reuse_atexit_count;
+
+static void rspq_block_reuse_atexit_cb(void *ctx)
+{
+    rspq_block_reuse_atexit_count++;
+    (void)ctx;
+}
+
+void test_rspq_block_begin_reuse(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    // begin_reuse(NULL) should behave like rspq_block_begin (same effect on RSP side).
+    rspq_block_begin_reuse(NULL);
+    rspq_test_8(1);
+    rspq_test_8(2);
+    rspq_block_t *b_reuse_null = rspq_block_end();
+    DEFER(rspq_block_free(b_reuse_null));
+
+    rspq_block_begin();
+    rspq_test_8(1);
+    rspq_test_8(2);
+    rspq_block_t *b_traditional = rspq_block_end();
+    DEFER(rspq_block_free(b_traditional));
+
+    uint64_t sum_reuse[2] __attribute__((aligned(16))) = {0};
+    uint64_t sum_trad[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(sum_reuse, 16);
+    data_cache_hit_writeback_invalidate(sum_trad, 16);
+
+    rspq_test_reset();
+    rspq_block_run(b_reuse_null);
+    rspq_test_output(sum_reuse);
+    rspq_wait();
+
+    rspq_test_reset();
+    rspq_block_run(b_traditional);
+    rspq_test_output(sum_trad);
+    rspq_wait();
+    ASSERT_EQUAL_UNSIGNED(sum_reuse[0], sum_trad[0], "begin_reuse(NULL) block differs from rspq_block_begin");
+
+    // Same pointer after re-recording; second recording still runs.
+    rspq_block_begin();
+    rspq_test_8(7);
+    rspq_block_t *p = rspq_block_end();
+    rspq_block_begin_reuse(p);
+    rspq_test_8(8);
+    rspq_block_t *p2 = rspq_block_end();
+    ASSERT(p == p2, "begin_reuse must keep the same block pointer");
+
+    data_cache_hit_invalidate(sum_reuse, 16);
+    rspq_test_reset();
+    rspq_block_run(p2);
+    rspq_test_output(sum_reuse);
+    rspq_wait();
+    data_cache_hit_invalidate(sum_reuse, 16);
+    ASSERT_EQUAL_UNSIGNED(sum_reuse[0], 8u, "reused block wrong sum");
+
+    DEFER(rspq_block_free(p2));
+
+    // Large block (extra RSP chain chunks), then reuse and run again.
+    rspq_block_begin();
+    for (uint32_t i = 0; i < 4096; i++) {
+        rspq_test_8(1);
+        if (i % 256 == 0)
+            rspq_test_wait(0x10);
+    }
+    rspq_block_t *big = rspq_block_end();
+    rspq_block_begin_reuse(big);
+    for (uint32_t i = 0; i < 4096; i++) {
+        rspq_test_8(1);
+        if (i % 256 == 0)
+            rspq_test_wait(0x10);
+    }
+    rspq_block_t *big2 = rspq_block_end();
+    ASSERT(big == big2, "large block pointer must be stable");
+
+    data_cache_hit_invalidate(sum_trad, 16);
+    rspq_test_reset();
+    rspq_block_run(big2);
+    rspq_test_output(sum_trad);
+    rspq_wait();
+    data_cache_hit_invalidate(sum_trad, 16);
+    ASSERT_EQUAL_UNSIGNED(sum_trad[0], 4096u, "large reused block wrong sum");
+
+    DEFER(rspq_block_free(big2));
+
+    // atexit runs on begin_reuse (tear down old content) and on free.
+    rspq_block_reuse_atexit_count = 0;
+    rspq_block_begin();
+    rspq_block_atexit(rspq_block_reuse_atexit_cb, NULL);
+    rspq_test_8(1);
+    rspq_block_t *ac = rspq_block_end();
+    ASSERT_EQUAL_UNSIGNED((unsigned)rspq_block_reuse_atexit_count, 0u, "atexit before reuse");
+    rspq_block_begin_reuse(ac);
+    ASSERT_EQUAL_UNSIGNED((unsigned)rspq_block_reuse_atexit_count, 1u, "atexit not run on begin_reuse");
+    rspq_block_atexit(rspq_block_reuse_atexit_cb, NULL);
+    rspq_block_end();
+    ASSERT_EQUAL_UNSIGNED((unsigned)rspq_block_reuse_atexit_count, 1u, "atexit must not run on end");
+    rspq_block_free(ac);
+    ASSERT_EQUAL_UNSIGNED((unsigned)rspq_block_reuse_atexit_count, 2u, "atexit not run on free");
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
 void test_rspq_wait_sync_in_block(TestContext *ctx)
 {
     TEST_RSPQ_PROLOG();
@@ -525,11 +721,13 @@ void test_rspq_wait_sync_in_block(TestContext *ctx)
     rspq_syncpoint_t syncpoint = rspq_syncpoint_new();
 
     rspq_block_begin();
-    DEFER(rspq_block_end());
-
     rspq_syncpoint_wait(syncpoint);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
 
-    // Test will cause an RSP crash (timeout) if it fails.
+    rspq_wait();
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
 }
 
 // Test the basic working of highpri queue.
@@ -815,3 +1013,263 @@ void test_rspq_rdp_dynamic_switch(TestContext *ctx)
     }
 }
 
+
+void test_rspq_deferred_call(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+    test_ovl_init();
+
+    int num_call_expected = 0;
+    int num_call_found = 0;
+
+    uint64_t *actual_sum = malloc_uncached(2 * sizeof(uint64_t));
+    DEFER(free_uncached(actual_sum));
+
+    int value = 0;
+
+    void cb1(void* expectedp) {
+        ++num_call_found;
+        int exp = (int)expectedp;
+        volatile uint64_t cur_counter = actual_sum[0];
+        ASSERT(cur_counter >= exp, "invalid sequence for deferred call (expected %d, got %d)", exp, (int)cur_counter);
+    }
+
+    rspq_test_reset();
+
+    SRAND(123);
+    for (int i=0;i<1000;i++) {
+        switch (RANDN(8)) {
+        case 0: case 1: case 2: {
+            rspq_test_4(1); value+=1;
+        }   break;
+        case 3: {
+            rspq_test_output(actual_sum);
+            rspq_syncpoint_new_cb(cb1, (void*)value);
+            num_call_expected++;
+        }   break;
+        case 4: case 5: {
+            int count = RANDN(RSPQ_DRAM_LOWPRI_BUFFER_SIZE / 16);
+            for (int j=0;j<count;j++)
+                rspq_noop();
+        }   break;
+        case 6: case 7: {
+            rspq_flush();
+        }
+        }
+        if (ctx->result == TEST_FAILED)
+            return;
+    }
+
+    rspq_wait();
+    if (ctx->result == TEST_FAILED)
+        return;
+
+    ASSERT_EQUAL_UNSIGNED(num_call_found, num_call_expected, "invalid number of deferred calls");
+}
+
+void test_rspq_queue_basic(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    rspq_queue_t *q = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q));
+
+    const uint32_t count = 8;
+    uint64_t actual_sum[4] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, sizeof(actual_sum));
+
+    rspq_test_reset();
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < count; i++)
+        rspq_test_4(1);
+
+    rspq_test_output(actual_sum + 0);
+    rspq_queue_run(q);
+
+    for (uint32_t i = 0; i < count; i++)
+        rspq_test_4(1);
+    rspq_test_output(actual_sum + 2);
+    rspq_queue_run(q);
+
+    rspq_queue_switch(NULL);
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum[0], count, "queue sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[2], count*2, "queue sum is not correct");
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_queue_clear(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    rspq_queue_t *q = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q));
+
+    const uint32_t count_a = 32*8;
+    const uint32_t count_b = 5*8;
+
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < count_a; i++)
+        rspq_test_4(1);
+
+    rspq_queue_clear(q);
+
+    for (uint32_t i = 0; i < count_b; i++)
+        rspq_test_4(1);
+    rspq_queue_switch(NULL);
+
+    rspq_test_reset();
+
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
+
+    rspq_queue_run(q);
+    rspq_test_output(actual_sum);
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, count_b, "queue clear did not discard old commands");
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_queue_growth(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    rspq_queue_t *q = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q));
+
+    const uint32_t count = RSPQ_BLOCK_MIN_SIZE * 8;
+
+    rspq_test_reset();
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < count; i++)
+        rspq_test_8(1);
+    rspq_queue_switch(NULL);
+
+    uint64_t actual_sum[2] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, 16);
+
+    rspq_queue_run(q);
+    rspq_test_output(actual_sum);
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(*actual_sum, count, "queue growth sum is not correct");
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_queue_order(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    rspq_queue_t *q1 = rspq_queue_create();
+    rspq_queue_t *q2 = rspq_queue_create();
+    rspq_queue_t *q3 = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q3));
+    DEFER(rspq_queue_destroy(q2));
+    DEFER(rspq_queue_destroy(q1));
+
+    const uint32_t count1 = 3;
+    const uint32_t count2 = 5;
+    const uint32_t count3 = 7;
+
+    rspq_queue_switch(q1);
+    for (uint32_t i = 0; i < count1; i++)
+        rspq_test_4(1);
+
+    rspq_queue_switch(q2);
+    for (uint32_t i = 0; i < count2; i++)
+        rspq_test_4(1);
+
+    rspq_queue_switch(q3);
+    for (uint32_t i = 0; i < count3; i++)
+        rspq_test_4(1);
+
+    uint64_t actual_sum[6] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, sizeof(actual_sum));
+
+    rspq_queue_switch(NULL);
+    rspq_test_reset();
+
+    rspq_queue_run(q2);
+    rspq_test_output(actual_sum + 0);
+
+    rspq_queue_run(q1);
+    rspq_test_output(actual_sum + 2);
+
+    rspq_queue_run(q3);
+    rspq_test_output(actual_sum + 4);
+
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum[0], count2, "queue order step 1 is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[2], count2 + count1, "queue order step 2 is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[4], count2 + count1 + count3, "queue order step 3 is not correct");
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}
+
+void test_rspq_queue_block_nesting(TestContext *ctx)
+{
+    TEST_RSPQ_PROLOG();
+
+    test_ovl_init();
+    DEFER(test_ovl_close());
+
+    const uint32_t b1_count = 4;
+    const uint32_t b2_extra = 2;
+    const uint32_t q_before = 3;
+    const uint32_t q_after = 5;
+
+    rspq_block_begin();
+    for (uint32_t i = 0; i < b1_count; i++)
+        rspq_test_4(1);
+    rspq_block_t *b1 = rspq_block_end();
+    DEFER(rspq_block_free(b1));
+
+    rspq_block_begin();
+    rspq_block_run(b1);
+    for (uint32_t i = 0; i < b2_extra; i++)
+        rspq_test_4(1);
+    rspq_block_t *b2 = rspq_block_end();
+    DEFER(rspq_block_free(b2));
+
+    rspq_queue_t *q = rspq_queue_create();
+    DEFER(rspq_queue_destroy(q));
+
+    uint64_t actual_sum[6] __attribute__((aligned(16))) = {0};
+    data_cache_hit_writeback_invalidate(actual_sum, sizeof(actual_sum));
+
+    rspq_queue_switch(q);
+    for (uint32_t i = 0; i < q_before; i++)
+        rspq_test_4(1);
+    rspq_test_output(actual_sum + 0);
+    rspq_block_run(b2);
+    rspq_test_output(actual_sum + 2);
+    for (uint32_t i = 0; i < q_after; i++)
+        rspq_test_4(1);
+    rspq_test_output(actual_sum + 4);
+    rspq_queue_switch(NULL);
+
+    rspq_test_reset();
+    rspq_queue_run(q);
+    rspq_wait();
+
+    ASSERT_EQUAL_UNSIGNED(actual_sum[0], q_before, "queue pre-block sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[2], q_before + b1_count + b2_extra, "queue block sum is not correct");
+    ASSERT_EQUAL_UNSIGNED(actual_sum[4], q_before + b1_count + b2_extra + q_after, "queue post-block sum is not correct");
+
+    TEST_RSPQ_EPILOG(0, rspq_timeout);
+}

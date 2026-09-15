@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>N64 ROM Metadata Browser</title>
+<style>
+body {
+  margin: 0;
+  background: radial-gradient(circle at top, #2b1a4a, #05030a);
+  color: #e6e6ff;
+  font-family: system-ui, sans-serif;
+}
+header {
+  padding: 16px;
+  background: linear-gradient(#1c1435, #120c24);
+  border-bottom: 1px solid #3a2c6a;
+}
+h1 {
+  margin: 0;
+  font-size: 20px;
+}
+main {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 16px;
+  padding: 16px;
+}
+.card {
+  background: #0e0a1e;
+  border: 1px solid #3a2c6a;
+  border-radius: 12px;
+  padding: 12px;
+}
+.cover {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: linear-gradient(135deg, #302060, #100820);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+.title {
+  margin: 6px 0 10px;
+  font-size: 18px;
+  font-weight: 600;
+}
+.kv {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+.k {
+  color: #9fa3ff;
+}
+img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin-top: 8px;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+input {
+  margin-right: 8px;
+}
+footer {
+  padding: 12px;
+  font-size: 12px;
+  color: #aaa;
+}
+</style>
+
+<header>
+  <h1>Nintendo 64 ROM Metadata Browser</h1>
+  <span>Select ROM file:</span>
+  <input type="file" id="romInput" accept=".z64">
+  <span>Select metadata file:</span>
+  <input type="file" id="metaInput" accept=".meta,.zip">
+</header>
+
+<main>
+  <div class="card">
+    <div class="title" id="gameTitle">No ROM loaded</div>
+    <div class="cover"><img id="boxart" alt="Boxart"></div>
+    <div class="kv" id="metaKV"></div>
+  </div>
+
+  <div class="card">
+    <h3>Description</h3>
+    <pre id="description"></pre>
+    <h3>Screenshots</h3>
+    <div id="screenshots"></div>
+  </div>
+</main>
+
+<footer>
+  ROM Metadata parsed according to the
+  <a href="https://n64brew.dev/wiki/ROM_Metadata" target="_blank" rel="noopener">N64brew ROM Metadata specification</a>.
+</footer>
+
+<script>
+const romInput = document.getElementById("romInput");
+const metaInput = document.getElementById("metaInput");
+const titleEl = document.getElementById("gameTitle");
+const boxartEl = document.getElementById("boxart");
+const kvEl = document.getElementById("metaKV");
+const descEl = document.getElementById("description");
+const shotsEl = document.getElementById("screenshots");
+
+romInput.onchange = async e => {
+  const buf = await e.target.files[0].arrayBuffer();
+  const view = new DataView(buf);
+  const hasMeta = (view.getUint8(0x38) & 1) !== 0;
+
+  if (hasMeta) {
+    const zip = await extractZip(buf);
+    handleMetadata(zip);
+  } else {
+    titleEl.textContent = "No embedded metadata";
+  }
+};
+
+metaInput.onchange = async e => {
+  const zip = await extractZip(await e.target.files[0].arrayBuffer());
+  handleMetadata(zip);
+};
+
+async function extractZip(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const dv = new DataView(buffer);
+  const sig = [0x50, 0x4b, 0x05, 0x06];
+  const min = Math.max(0, bytes.length - 65558);
+  for (let i = bytes.length - 22; i >= min; i--) {
+    if (sig.every((b, j) => bytes[i + j] === b)) {
+      const cdSize = dv.getUint32(i + 12, true);
+      const cdOff = dv.getUint32(i + 16, true);
+      const commentLen = dv.getUint16(i + 20, true);
+      const cdPos = i - cdSize;
+      let zipStart = cdPos - cdOff;
+      const zipEnd = i + 22 + commentLen;
+      if (zipStart < 0 || zipEnd > bytes.length || cdPos < 0) {
+        break;
+      }
+      if (bytes[zipStart] !== 0x50 || bytes[zipStart + 1] !== 0x4b ||
+          bytes[zipStart + 2] !== 0x03 || bytes[zipStart + 3] !== 0x04) {
+        let found = -1;
+        for (let j = zipStart; j + 3 < cdPos; j++) {
+          if (bytes[j] === 0x50 && bytes[j + 1] === 0x4b &&
+              bytes[j + 2] === 0x03 && bytes[j + 3] === 0x04) {
+            found = j;
+            break;
+          }
+        }
+        if (found === -1) break;
+        zipStart = found;
+      }
+      return new Blob([bytes.slice(zipStart, zipEnd)]);
+    }
+  }
+  throw "ZIP not found";
+}
+
+async function handleMetadata(zipBlob) {
+  try {
+    const zip = await new Response(zipBlob).arrayBuffer();
+    const files = unzip(zip);
+    if (!files["metadata.ini"]) {
+      throw "metadata.ini not found in ZIP";
+    }
+    const ini = parseINI(new TextDecoder("utf-8").decode(files["metadata.ini"]));
+
+    titleEl.textContent = ini.meta?.name || "Unknown title";
+    boxartEl.style.display = "none";
+    if (ini.boxart && ini.boxart.front && files[ini.boxart.front]) {
+      boxartEl.src = URL.createObjectURL(new Blob([files[ini.boxart.front]]));
+      boxartEl.style.display = "block";
+    }
+    kvEl.innerHTML = "";
+    if (ini.meta) {
+      for (const k in ini.meta) {
+        addKV(k, ini.meta[k]);
+      }
+    }
+
+    descEl.textContent = "";
+    if (ini.meta && ini.meta["long-desc"]) {
+      const name = ini.meta["long-desc"].trim();
+      if (name && files[name]) {
+        descEl.textContent = new TextDecoder("utf-8").decode(files[name]);
+      }
+    } else if (ini.meta && ini.meta["short-desc"]) {
+      descEl.textContent = ini.meta["short-desc"];
+    }
+
+    shotsEl.innerHTML = "";
+    if (ini.meta && ini.meta.screenshots) {
+      ini.meta.screenshots.split(",").forEach(f => {
+        const name = f.trim();
+        if (!name || !files[name]) return;
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(new Blob([files[name]]));
+        shotsEl.appendChild(img);
+      });
+    }
+  } catch (err) {
+    titleEl.textContent = "Metadata parse failed";
+    boxartEl.style.display = "none";
+    kvEl.innerHTML = "";
+    shotsEl.innerHTML = "";
+    descEl.textContent = String(err);
+  }
+}
+
+function addKV(k,v){
+  kvEl.innerHTML += `<div class="k">${k}</div><div>${v}</div>`;
+}
+
+function parseINI(text) {
+  const out = {};
+  let sec = null;
+  text.split(/\r?\n/).forEach(l => {
+    l = l.trim();
+    if (!l || l.startsWith(";")) return;
+    if (l.startsWith("[")) {
+      sec = l.slice(1, -1);
+      out[sec] = {};
+    } else if (sec) {
+      const i = l.indexOf("=");
+      if (i === -1) return;
+      out[sec][l.slice(0, i).trim()] = l.slice(i + 1).trim();
+    }
+  });
+  return out;
+}
+
+/* extremely small ZIP reader: only STORED files */
+function unzip(buf) {
+  const dv = new DataView(buf);
+  const out = {};
+  let i = 0;
+  while (dv.getUint32(i, true) === 0x04034b50) {
+    const flags = dv.getUint16(i + 6, true);
+    const comp = dv.getUint16(i + 8, true);
+    const nameLen = dv.getUint16(i + 26, true);
+    const extraLen = dv.getUint16(i + 28, true);
+    const size = dv.getUint32(i + 22, true);
+    if (flags & 0x08) {
+      throw "ZIP uses data descriptors (unsupported)";
+    }
+    if (comp !== 0) {
+      throw "ZIP contains compressed entries (unsupported)";
+    }
+    const name = new TextDecoder().decode(new Uint8Array(buf, i + 30, nameLen));
+    const dataOff = i + 30 + nameLen + extraLen;
+    out[name] = buf.slice(dataOff, dataOff + size);
+    i = dataOff + size;
+  }
+  return out;
+}
+</script>
+</html>

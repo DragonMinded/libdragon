@@ -1,6 +1,7 @@
 /**
  * @file graphics.c
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief 2D Graphics
  * @ingroup graphics
  */
@@ -8,7 +9,8 @@
 #include <malloc.h>
 #include <string.h>
 #include <stdio.h>
-#include "display.h"
+#include "vi.h"
+#include "n64sys.h"
 #include "graphics.h"
 #include "sprite.h"
 #include "font.h"
@@ -98,7 +100,7 @@ uint32_t graphics_make_color( int r, int g, int b, int a )
 
 uint32_t graphics_convert_color( color_t color )
 {
-    if( display_get_bitdepth() == 2 )
+    if( vi_get_bpp() == 16 )
     {
         // Pack twice for compatibility with RDP packed colors and the old deprecated RDP API.
         uint32_t conv = color_to_packed16(color);
@@ -141,6 +143,76 @@ static int __is_transparent( int bitdepth, uint32_t color )
     }
 
     return 0;
+}
+
+/**
+ * @brief Clip a source rectangle blitted at (x,y) to the surface bounds.
+ *
+ * @param[in]     disp  Destination surface
+ * @param[in]     x     Destination X coordinate of the source origin (sx, sy)
+ * @param[in]     y     Destination Y coordinate of the source origin (sx, sy)
+ * @param[in,out] sx    Source X start (inclusive), advanced if clipped on the left
+ * @param[in,out] sy    Source Y start (inclusive), advanced if clipped on the top
+ * @param[in,out] ex    Source X end (exclusive), reduced if clipped on the right
+ * @param[in,out] ey    Source Y end (exclusive), reduced if clipped on the bottom
+ * @param[out]    tx    Destination X offset such that dest = (tx + xp, ty + yp)
+ * @param[out]    ty    Destination Y offset such that dest = (tx + xp, ty + yp)
+ *
+ * @retval 1 if any portion of the blit is visible
+ * @retval 0 if the blit is fully outside the surface
+ */
+static int __clip_blit( surface_t *disp, int x, int y, int *sx, int *sy, int *ex, int *ey, int *tx, int *ty )
+{
+    *tx = x - *sx;
+    *ty = y - *sy;
+
+    if( (*tx + *ex) <= 0 ) { return 0; }
+    if( (*ty + *ey) <= 0 ) { return 0; }
+    if( *tx >= (int)disp->width ) { return 0; }
+    if( *ty >= (int)disp->height ) { return 0; }
+
+    if( x < 0 ) { *sx += -x; }
+    if( y < 0 ) { *sy += -y; }
+    if( (*tx + *ex) >= (int)disp->width ) { *ex = disp->width - *tx; }
+    if( (*ty + *ey) >= (int)disp->height ) { *ey = disp->height - *ty; }
+
+    return 1;
+}
+
+/**
+ * @brief Clip a filled rectangle to the surface bounds.
+ *
+ * @param[in]     disp    Destination surface
+ * @param[in]     x       Top-left X coordinate
+ * @param[in]     y       Top-left Y coordinate
+ * @param[in]     width   Rectangle width in pixels
+ * @param[in]     height  Rectangle height in pixels
+ * @param[out]    x0      Clipped top-left X (inclusive)
+ * @param[out]    y0      Clipped top-left Y (inclusive)
+ * @param[out]    x1      Clipped bottom-right X (exclusive)
+ * @param[out]    y1      Clipped bottom-right Y (exclusive)
+ *
+ * @retval 1 if any portion of the rectangle is visible
+ * @retval 0 if the rectangle is fully outside the surface
+ */
+static int __clip_box( surface_t *disp, int x, int y, int width, int height, int *x0, int *y0, int *x1, int *y1 )
+{
+    if( width <= 0 || height <= 0 ) { return 0; }
+
+    *x0 = x;
+    *y0 = y;
+    *x1 = x + width;
+    *y1 = y + height;
+
+    if( *x1 <= 0 || *y1 <= 0 ) { return 0; }
+    if( *x0 >= (int)disp->width || *y0 >= (int)disp->height ) { return 0; }
+
+    if( *x0 < 0 ) { *x0 = 0; }
+    if( *y0 < 0 ) { *y0 = 0; }
+    if( *x1 > (int)disp->width ) { *x1 = disp->width; }
+    if( *y1 > (int)disp->height ) { *y1 = disp->height; }
+
+    return 1;
 }
 
 void graphics_draw_pixel( surface_t* disp, int x, int y, uint32_t color )
@@ -328,28 +400,42 @@ void graphics_draw_box( surface_t* disp, int x, int y, int width, int height, ui
 {
     if( disp == 0 ) { return; }
 
-    int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
-    if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )
-    {
-        uint16_t *buffer16 = (uint16_t *)__get_buffer( disp );
+    int x0, y0, x1, y1;
+    if( !__clip_box( disp, x, y, width, height, &x0, &y0, &x1, &y1 ) ) { return; }
 
-        for(int j = y; j < y + height; j++)
+    tex_format_t format = surface_get_format(disp);
+    size_t row_bytes = TEX_FORMAT_PIX2BYTES(format, x1 - x0);
+    size_t box_bytes = row_bytes * (size_t)(y1 - y0);
+    uint8_t *row_ptr = (uint8_t *)__get_buffer(disp) + y0 * disp->stride + TEX_FORMAT_PIX2BYTES(format, x0);
+
+    if( TEX_FORMAT_BITDEPTH(format) == 16 )
+    {
+        uint16_t color16 = (uint16_t)color;
+        if( row_bytes == disp->stride )
         {
-            for(int i = x; i < x + width; i++)
+            sys_hw_memset16(row_ptr, color16, box_bytes);
+        }
+        else
+        {
+            for(int j = y0; j < y1; j++)
             {
-                __set_pixel( buffer16, i, j, color );
+                sys_hw_memset16(row_ptr, color16, row_bytes);
+                row_ptr += disp->stride;
             }
         }
     }
     else
     {
-        uint32_t *buffer32 = (uint32_t *)__get_buffer( disp );
-
-        for(int j = y; j < y + height; j++)
+        if( row_bytes == disp->stride )
         {
-            for(int i = x; i < x + width; i++)
+            sys_hw_memset32(row_ptr, color, box_bytes);
+        }
+        else
+        {
+            for(int j = y0; j < y1; j++)
             {
-                __set_pixel( buffer32, i, j, color );
+                sys_hw_memset32(row_ptr, color, row_bytes);
+                row_ptr += disp->stride;
             }
         }
     }
@@ -359,14 +445,17 @@ void graphics_draw_box_trans( surface_t* disp, int x, int y, int width, int heig
 {
     if( disp == 0 ) { return; }
 
+    int x0, y0, x1, y1;
+    if( !__clip_box( disp, x, y, width, height, &x0, &y0, &x1, &y1 ) ) { return; }
+
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
     if( TEX_FORMAT_BITDEPTH(surface_get_format( disp )) == 16 )
     {
         uint16_t *buffer16 = (uint16_t *)__get_buffer( disp );
 
-        for(int j = y; j < y + height; j++)
+        for(int j = y0; j < y1; j++)
         {
-            for(int i = x; i < x + width; i++)
+            for(int i = x0; i < x1; i++)
             {
                 /* Only display the pixel if alpha bit is set */
                 if( !__is_transparent( 2, color ) )
@@ -380,9 +469,9 @@ void graphics_draw_box_trans( surface_t* disp, int x, int y, int width, int heig
     {
         uint32_t *buffer32 = (uint32_t *)__get_buffer( disp );
 
-        for(int j = y; j < y + height; j++)
+        for(int j = y0; j < y1; j++)
         {
-            for(int i = x; i < x + width; i++)
+            for(int i = x0; i < x1; i++)
             {
                 /* Get 32bit representations */
                 uint32_t cur_color = __get_pixel( buffer32, i, j );
@@ -422,12 +511,14 @@ void graphics_fill_screen( surface_t* disp, uint32_t c )
 {
     if( disp == 0 ) { return; }
 
-    int len = TEX_FORMAT_PIX2BYTES(surface_get_format(disp), disp->width * disp->height) / 8;
-
-    uint64_t c64 = ((uint64_t)c << 32) | c;
-    uint64_t *buffer = (uint64_t *)__get_buffer(disp);
-    for( int i = 0; i < len; i++ )
-        buffer[i] = c64;
+    int width_bytes = TEX_FORMAT_PIX2BYTES(surface_get_format(disp), disp->width);
+    if (width_bytes == disp->stride) {
+        sys_hw_memset32(disp->buffer, c, width_bytes * disp->height);
+    } else {
+        for (int y = 0; y < disp->height; y++) {
+            sys_hw_memset32(disp->buffer + y * disp->stride, c, width_bytes);
+        }
+    }
 }
 
 void graphics_set_default_font( void )
@@ -449,7 +540,7 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
     if( disp == 0 ) { return; }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
-    int depth = display_get_bitdepth();
+    int depth = TEX_FORMAT_BITDEPTH(surface_get_format(disp)) >> 3;
 
     // resetting to default font if bit depth has been changed
     if( sprite_font.sprite != NULL && depth*8 != TEX_FORMAT_BITDEPTH(sprite_get_format(sprite_font.sprite)) )
@@ -463,13 +554,13 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
     if ( sprite_font.sprite != NULL )
     {
         // Use custom font
-        const int sx = ( ch % sprite_font.sprite->hslices ) * sprite_font.font_width;
-        const int sy = ( ch / sprite_font.sprite->hslices ) * sprite_font.font_height;
-        const int ex = sx + sprite_font.font_width;
-        const int ey = sy + sprite_font.font_height;
+        int sx = ( ch % sprite_font.sprite->hslices ) * sprite_font.font_width;
+        int sy = ( ch / sprite_font.sprite->hslices ) * sprite_font.font_height;
+        int ex = sx + sprite_font.font_width;
+        int ey = sy + sprite_font.font_height;
+        int tx, ty;
 
-        const int tx = x - sx;
-        const int ty = y - sy;
+        if( !__clip_blit( disp, x, y, &sx, &sy, &ex, &ey, &tx, &ty ) ) { return; }
 
         if( depth == 2 )
         {
@@ -531,34 +622,38 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
         }
     } else {
         // Use 1bpp default font
-        int trans = __is_transparent( depth, b_color );
+        int sx = 0;
+        int sy = 0;
+        int ex = 8;
+        int ey = 8;
+        int tx, ty;
+
+        if( !__clip_blit( disp, x, y, &sx, &sy, &ex, &ey, &tx, &ty ) ) { return; }
 
         if( depth == 2 )
         {
             uint16_t *buffer = (uint16_t *)__get_buffer( disp );
 
-            for( int row = 0; row < 8; row++ )
+            for( int yp = sy; yp < ey; yp++ )
             {
-                unsigned char c = __font_data[(ch * 8) + row];
+                unsigned char c = __font_data[(ch * 8) + yp];
 
-                for( int col = 0; col < 8; col++ )
+                for( int xp = sx; xp < ex; xp++ )
                 {
-                    int active = (c & 0x80) != 0;
+                    int active = (c & (0x80 >> xp)) != 0;
                     if( trans )
                     {
                         if( active )
                         {
                             /* Only draw it if it is active */
-                            __set_pixel( buffer, x + col, y + row, f_color );
+                            __set_pixel( buffer, tx + xp, ty + yp, f_color );
                         }
                     }
                     else
                     {
                         /* Display foreground or background depending on font data */
-                        __set_pixel( buffer, x + col, y + row, active ? f_color : b_color );
+                        __set_pixel( buffer, tx + xp, ty + yp, active ? f_color : b_color );
                     }
-
-                    c <<= 1;
                 }
             }
         }
@@ -566,28 +661,26 @@ void graphics_draw_character( surface_t* disp, int x, int y, char ch )
         {
             uint32_t *buffer = (uint32_t *)__get_buffer( disp );
 
-            for( int row = 0; row < 8; row++ )
+            for( int yp = sy; yp < ey; yp++ )
             {
-                unsigned char c = __font_data[(ch * 8) + row];
+                unsigned char c = __font_data[(ch * 8) + yp];
 
-                for( int col = 0; col < 8; col++ )
+                for( int xp = sx; xp < ex; xp++ )
                 {
-                    int active = (c & 0x80) != 0;
+                    int active = (c & (0x80 >> xp)) != 0;
                     if( trans )
                     {
                         if( active )
                         {
                             /* Only draw it if it is active */
-                            __set_pixel( buffer, x + col, y + row, f_color );
+                            __set_pixel( buffer, tx + xp, ty + yp, f_color );
                         }
                     }
                     else
                     {
                         /* Display foreground or background depending on font data */
-                        __set_pixel( buffer, x + col, y + row, active ? f_color : b_color );
+                        __set_pixel( buffer, tx + xp, ty + yp, active ? f_color : b_color );
                     }
-
-                    c <<= 1;
                 }
             }
         }
@@ -642,8 +735,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
     __sprite_upgrade(sprite);
 
     /* For spritemaps */
-    int tx = x;
-    int ty = y;
+    int tx, ty;
 
     /* Calculate the location size of the actual sprite we will be blitting */
     int sx, sy, ex, ey;
@@ -658,9 +750,6 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
         sy = (offset / sprite->hslices) * theight;
         ex = sx + twidth;
         ey = sy + theight;
-
-        tx -= sx;
-        ty -= sy;
     }
     else
     {
@@ -671,41 +760,7 @@ void graphics_draw_sprite_stride( surface_t* disp, int x, int y, sprite_t *sprit
         ey = sprite->height;
     }
 
-    /* Too far left */
-    if( (tx + ex) <= 0 ) { return; }
-
-    /* Too far up */
-    if( (ty + ey) <= 0 ) { return; }
-
-    /* Too far right */
-    if( tx >= (int)disp->width ) { return; }
-
-    /* Too far down */
-    if( ty >= (int)disp->height ) { return; }
-
-    /* Clipping left */
-    if( x < 0 )
-    {
-        sx += (x * -1);
-    }
-
-    /* Clipping top */
-    if( y < 0 )
-    {
-        sy += (y * -1);
-    }
-
-    /* Clipping right */
-    if( (tx + ex) >= (int)disp->width )
-    {
-        ex = disp->width - tx;
-    }
-
-    /* Clipping bottom */
-    if( (ty + ey) >= disp->height )
-    {
-        ey = disp->height - ty;
-    }
+    if( !__clip_blit( disp, x, y, &sx, &sy, &ex, &ey, &tx, &ty ) ) { return; }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
     int depth = TEX_FORMAT_BITDEPTH(surface_get_format( disp ));
@@ -757,8 +812,7 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
     __sprite_upgrade(sprite);
 
     /* For spritemaps */
-    int tx = x;
-    int ty = y;
+    int tx, ty;
 
     /* Calculate the location size of the actual sprite we will be blitting */
     int sx, sy, ex, ey;
@@ -773,9 +827,6 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
         sy = (offset / sprite->hslices) * theight;
         ex = sx + twidth;
         ey = sy + theight;
-
-        tx -= sx;
-        ty -= sy;
     }
     else
     {
@@ -786,41 +837,7 @@ void graphics_draw_sprite_trans_stride( surface_t* disp, int x, int y, sprite_t 
         ey = sprite->height;
     }
 
-    /* Too far left */
-    if( (tx + ex) <= 0 ) { return; }
-
-    /* Too far up */
-    if( (ty + ey) <= 0 ) { return; }
-
-    /* Too far right */
-    if( tx >= (int)disp->width ) { return; }
-
-    /* Too far down */
-    if( ty >= (int)disp->height ) { return; }
-
-    /* Clipping left */
-    if( x < 0 )
-    {
-        sx += (x * -1);
-    }
-
-    /* Clipping top */
-    if( y < 0 )
-    {
-        sy += (y * -1);
-    }
-
-    /* Clipping right */
-    if( (tx + ex) >= (int)disp->width )
-    {
-        ex = disp->width - tx;
-    }
-
-    /* Clipping bottom */
-    if( (ty + ey) >= disp->height )
-    {
-        ey = disp->height - ty;
-    }
+    if( !__clip_blit( disp, x, y, &sx, &sy, &ex, &ey, &tx, &ty ) ) { return; }
 
     int pix_stride = TEX_FORMAT_BYTES2PIX(surface_get_format(disp), disp->stride);
     int depth = TEX_FORMAT_BITDEPTH(surface_get_format( disp ));

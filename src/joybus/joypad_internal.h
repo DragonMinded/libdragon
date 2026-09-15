@@ -1,6 +1,7 @@
 /**
  * @file joypad_internal.h
  * @author Christopher Bonhage <me@christopherbonhage.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief Joypad internal
  * @ingroup joypad
  */
@@ -12,7 +13,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "joypad_accessory.h"
+#include "joypad_accessory_internal.h"
 #include "utils.h"
 
 /**
@@ -84,8 +85,6 @@ typedef struct joypad_gcn_origin_s
 /** @brief "Cold" (non-volatile) Joypad device structure. */
 typedef struct joypad_device_cold_s
 {
-    /** @brief Joybus device type identifier. */
-    joybus_identifier_t identifier;
     /** @brief Joypad style. */
     joypad_style_t style;
     /** @brief Joypad inputs for current frame. */
@@ -105,7 +104,6 @@ typedef struct joypad_device_hot_s
     bool rumble_active;
 } joypad_device_hot_t;
 
-extern volatile joybus_identifier_t joypad_identifiers_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_device_hot_t joypad_devices_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_gcn_origin_t joypad_origins_hot[JOYPAD_PORT_COUNT];
 extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
@@ -125,22 +123,38 @@ extern volatile joypad_accessory_t  joypad_accessories_hot[JOYPAD_PORT_COUNT];
  */
 joypad_inputs_t joypad_read_n64_inputs(joypad_port_t port);
 
-/**
- * @brief Get the Joypad accessory state for a Joypad port.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * 
- * @return Joypad accessory state enumeration value 
- */
-int joypad_get_accessory_state(joypad_port_t port);
+/** 
+  * @brief Joypad accessory library vtable.
+  *
+  * This structure is used to allow avoid linking the Joypad accessory library
+  * into the application if it is not needed. WHen the library is linked, the
+  * __joypad_accessory_vtable will be set to a valid vtable by a constructor.
+  */
+typedef struct {
+    /** @brief Initialize the accessory library. */
+    void (*init)(void);
+
+    /** @brief Close the accessory library. */
+    void (*close)(void);
+
+    /** @brief Reset accessory state for a given port. */
+    void (*reset)(joypad_port_t port);
+
+    /** @brief Detect the accessory on a given port, asynchronously. */
+    void (*detect_async)(joypad_port_t port);
+} joypad_accessory_library_vtable_t;
+
+extern const joypad_accessory_library_vtable_t *__joypad_accessory_vtable;
 
 /**
- * @brief Get the Joypad accessory error for a Joypad port.
- * 
- * @param port Joypad port number (#joypad_port_t)
- * @return Joypad accessory error enumeration value 
+ * @brief Returns true if joypad_init has been called.
  */
-int joypad_get_accessory_error(joypad_port_t port);
+bool __joypad_is_initialized(void);
+
+/**
+ * @brief Toggle GameCube rumble and keep cached read command in sync.
+ */
+void __joypad_gcn_controller_rumble_toggle(joypad_port_t port, bool active);
 
 #ifdef __cplusplus
 }

@@ -8,6 +8,7 @@
 #ifndef LIBDRAGON_RDPQ_TEX_H
 #define LIBDRAGON_RDPQ_TEX_H
 
+#include "preview.h"
 #include "rdpq.h"
 #include <stdint.h>
 
@@ -39,7 +40,7 @@ extern "C" {
  */
 typedef struct rdpq_texparms_s {
     int tmem_addr;           ///< TMEM address where to load the texture (default: 0)
-    int palette;             ///< Palette number where TLUT is stored (used only for CI4 textures)
+    int palette;             ///< Palette number where TLUT is stored (used only for CI4 textures, or Ci8 textures with less than 256 colors)
 
     struct {
         float   translate;    ///< Translation of the texture (in pixels)
@@ -107,6 +108,10 @@ int tex_loader_calc_max_height(tex_loader_t *tload, int s0, int s1);
  * use #rdpq_tex_upload_sub, or alternatively create a sub-surface using
  * #surface_make_sub and pass it to #rdpq_tex_upload. See #rdpq_tex_upload_sub
  * for an example of both techniques.
+ *
+ * @note This function might corrupt the next tile descriptor (tile+1) to
+ *       speed up the upload. Loading tile descriptors in increasing order
+ *       will avoid issues.
  * 
  * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
@@ -168,6 +173,9 @@ int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_
  * be 8-byte aligned (like all RDP textures), so it can only be used if the
  * rectangle that needs to be loaded respects such constraint as well.
  * 
+ * @note This function might corrupt the next tile descriptor (tile+1) to
+ *       speed up the upload. Loading tile descriptors in increasing order
+ *       will avoid issues.
  * 
  * @param tile       Tile descriptor that will be initialized with this texture
  * @param tex        Surface containing the texture to load
@@ -176,12 +184,26 @@ int rdpq_tex_upload(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_
  * @param t0         Top-left Y coordinate of the rectangle to load
  * @param s1         Bottom-right *exclusive* X coordinate of the rectangle
  * @param t1         Bottom-right *exclusive* Y coordinate of the rectangle
- * @return int       Number of bytes used in TMEM for this texture
+ * @return           Number of bytes used in TMEM for this texture
  * 
  * @see #rdpq_tex_upload
  * @see #surface_make_sub
  */
 int rdpq_tex_upload_sub(rdpq_tile_t tile, const surface_t *tex, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
+
+/**
+ * @brief Check if a surface can be fully uploaded to TMEM
+ * @preview
+ *
+ * This helper verifies whether a full-surface upload via #rdpq_tex_upload
+ * would fit in TMEM for the surface format.
+ *
+ * @param tex        Surface to check
+ * @return true      The surface fits in TMEM
+ * @return false     The surface does not fit in TMEM
+ */
+LIBDRAGON_PREVIEW_API
+bool rdpq_tex_can_upload(const surface_t *tex);
 
 /**
  * @brief Load one or more palettes into TMEM
@@ -228,7 +250,7 @@ void rdpq_tex_upload_tlut(uint16_t *tlut, int color_idx, int num_colors);
  * @param t0         Top-left Y coordinate of the rectangle to reuse
  * @param s1         Bottom-right *exclusive* X coordinate of the rectangle
  * @param t1         Bottom-right *exclusive* Y coordinate of the rectangle
- * @return int       Number of bytes used in TMEM for this texture (always 0)
+ * @return           Number of bytes used in TMEM for this texture (always 0)
  */
 int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, int t0, int s1, int t1);
 
@@ -247,7 +269,7 @@ int rdpq_tex_reuse_sub(rdpq_tile_t tile, const rdpq_texparms_t *parms, int s0, i
  * 
  * @param tile       Tile descriptor that will be initialized with reused texture
  * @param parms      All optional parameters on how to sample reused texture. Refer to #rdpq_texparms_t for more information.
- * @return int       Number of bytes used in TMEM for this texture (always 0)
+ * @return           Number of bytes used in TMEM for this texture (always 0)
  */
 int rdpq_tex_reuse(rdpq_tile_t tile, const rdpq_texparms_t *parms);
 
@@ -314,6 +336,9 @@ typedef struct rdpq_blitparms_s {
     float scale_x;      ///< Horizontal scale factor to apply to the surface. This scaling is applied along the X axis before rotation. If 0, no scaling is performed (the same as 1.0f). If negative, horizontal flipping is applied
     float scale_y;      ///< Vertical scale factor to apply to the surface. This scaling is applied along the Y axis before rotation. If 0, no scaling is performed (the same as 1.0f). If negative, vertical flipping is applied
     float theta;        ///< Counter-clockwise rotation angle in radians
+    
+    LIBDRAGON_PREVIEW_SYM
+    bool allow_xform;   ///< True if blit should be affected by transforms applied by rdpq_xform @preview
     
     // FIXME: replace this with CPU tracking of filtering mode?
     bool filtering;     ///< True if texture filtering is enabled (activates workaround for filtering artifacts when splitting textures in chunks)

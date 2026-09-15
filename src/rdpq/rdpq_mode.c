@@ -8,6 +8,7 @@
 #include "rdpq_mode.h"
 #include "rspq.h"
 #include "rdpq_internal.h"
+#include "yuv.h"
 
 /** 
  * @brief Like #rdpq_write, but for mode commands.
@@ -117,23 +118,26 @@ void rdpq_set_mode_standard(void) {
 void rdpq_set_mode_yuv(bool bilinear) {
     uint64_t cc, som;
 
-    if (!bilinear) {
-        som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV;
-        cc = RDPQ_COMBINER1((TEX0, K4, K5, TEX0), (ZERO, ZERO, ZERO, ONE));
-    } else {
-        som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_SAMPLE_BILINEAR | SOM_TF0_RGB | SOM_TF1_YUVTEX0;
-        cc = RDPQ_COMBINER2((TEX1, K4, K5, TEX1), (ZERO, ZERO, ZERO, ONE),
-                            (ZERO, ZERO, ZERO, COMBINED), (ZERO, ZERO, ZERO, COMBINED));
-    }
+    som = SOM_RGBDITHER_NONE | SOM_ALPHADITHER_NONE | SOM_TF0_YUV | SOM_TF1_YUV;
+    cc = RDPQ_COMBINER1((TEX0, K4, K5, TEX0), (0, 0, 0, 1));
+
     __rdpq_reset_render_mode(
         cc >> 32,   cc & 0xFFFFFFFF,
         som >> 32, som & 0xFFFFFFFF);
+    if (bilinear) {
+        rdpq_mode_filter(FILTER_BILINEAR);
+        cc = RDPQ_COMBINER1((TEX1, K4, K5, TEX1), (0, 0, 0, 1));
+    }
+    rdpq_mode_combiner(cc); // FIXME: this should not be required, but we need it for the mipmap mask
+
     if (!rdpq_tracking.mode_freeze)
         rdpq_tracking.cycle_type_known = 1;
     else
         rdpq_tracking.cycle_type_frozen = 1;
 
-    rdpq_set_yuv_parms(179,-44,-91,227,111,43);  // BT.601 coefficients (Kr=0.299, Kb=0.114, TV range)
+    // Set the YUV coefficients (FIXME: make this configurable)
+    const yuv_colorspace_t *cs = &YUV_BT601_TV;
+    rdpq_set_yuv_parms(cs->k0, cs->k1, cs->k2, cs->k3, cs->k4, cs->k5);
 }
 
 void rdpq_mode_begin(void)

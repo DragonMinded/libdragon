@@ -29,6 +29,8 @@
 #ifndef __MINGW32__
 #include <sys/errno.h>
 #endif
+#include "common/polyfill.h"
+#include "common/crc32.c"
 
 // Default header to use if none is specified
 #include "ipl3.h"
@@ -60,7 +62,8 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 //  
 // To allow the maximum compatibility, we pad to 16 KiB by default. Users can still
 // force a specific length with --size, if they need to.
-#define PAD_ALIGN    16384
+// We also allow changing the padding alignment with --padding.
+int pad_align = 16384;
 
 #define WRITE_SIZE   (1024 * 1024)
 
@@ -83,25 +86,37 @@ size_t __strlcpy(char * restrict dst, const char * restrict src, size_t dstsize)
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define SWAPLONG(i) (i)
+#define SWAPSHORT(i) (i)
 #else
 #define SWAPLONG(i) (((uint32_t)((i) & 0xFF000000) >> 24) | ((uint32_t)((i) & 0x00FF0000) >>  8) | ((uint32_t)((i) & 0x0000FF00) <<  8) | ((uint32_t)((i) & 0x000000FF) << 24))
+#define SWAPSHORT(i) (((uint16_t)((i) & 0xFF00) >> 8) | ((uint16_t)((i) & 0x00FF) << 8))
 #endif
 
 static const unsigned char zero[1024] = {0};
 static char * tmp_output = NULL;
 static uint32_t elf_loadpoint = 0xFFFFFFFF;
 
+// The TOC cookie could be just a 32-bit random number; its goal is just to
+// differentiate different ROMs, to detect if a ROM was "swapped" by a flashcart
+// during runtime.
+// However we don't want to use a random number as we want ROMs to be reproducible,
+// so we will instead hash the various file contents to generate a fixed-but-random
+// cookie.
+static uint32_t toc_cookie = 0xFFFFFFFF;
+
 struct toc_s {
-	char magic[4];
+	char magic_version[4];
+	uint32_t cookie;
 	uint32_t toc_size;
-	uint32_t entry_size;
-	uint32_t num_entries;
+	uint16_t entry_size;
+	uint16_t num_entries;
 	struct {
 		uint32_t offset;
-		char name[TOC_ENTRY_SIZE - 4];
+		uint32_t size;
+		char name[TOC_ENTRY_SIZE - 8];
 	} files[TOC_MAX_ENTRIES];
 } toc = {
-	.magic = "TOC0",
+	.magic_version = "TOC0",
 	.toc_size = TOC_SIZE,
 	.entry_size = TOC_ENTRY_SIZE,
 	.num_entries = 0,
@@ -118,6 +133,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "General flags (to be used before any file):\n");
 	fprintf(stderr, "\t-t, --title <title>    Title of ROM (max %d characters).\n", TITLE_SIZE);
 	fprintf(stderr, "\t-l, --size <size>      Force ROM output file size to <size> (min 1 mebibyte).\n");
+	fprintf(stderr, "\t-P, --padding <size>   Padding alignment for the final ROM (default: 16 KiB).\n");
 	fprintf(stderr, "\t-h, --header <file>    Use <file> as IPL3 header (default: use libdragon IPL3).\n");
 	fprintf(stderr, "\t-o, --output <file>    Save output ROM to <file>.\n");
 	fprintf(stderr, "\t-C, --category <cat>   N64 Media Category Code (default: 'N' - N64 Game Pak).\n");
@@ -125,7 +141,7 @@ int print_usage(const char * prog_name)
 	fprintf(stderr, "\t-T, --toc              Create a table of contents in the ROM.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "File flags (to be used before each file):\n");
-	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (minimum: 4).\n");
+	fprintf(stderr, "\t-a, --align <align>    Next file is aligned at <align> bytes from top of memory (default: 16).\n");
 	fprintf(stderr, "\t-s, --offset <offset>  Next file starts at <offset> from top of memory. Offset must be 4-byte aligned.\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Binary byte size/offset suffix notation:\n");
@@ -187,6 +203,9 @@ ssize_t copy_file(FILE * dest, const char * file)
 
 		fread(buffer, 1, write_size, read_file);
 		fwrite(buffer, 1, write_size, dest);
+
+		/* Update the TOC cookie with file contents. */
+		toc_cookie = crc32_update(toc_cookie, buffer, write_size);
 	}
 
 	free(buffer);
@@ -208,6 +227,7 @@ ssize_t output_zeros(FILE * dest, ssize_t amount)
 		if (sz > sizeof(zero))
 			sz = sizeof(zero);
 		fwrite(zero, 1, sz, dest);
+		toc_cookie = crc32_update(toc_cookie, zero, sz);
 		amount -= sz;
 	}
 
@@ -327,6 +347,7 @@ int parse_elf_loadpoint(const char *elf_fn, uint32_t *loadpoint)
 
 int main(int argc, char *argv[])
 {
+    winconsole_utf8();
 	FILE * write_file = NULL;
 	const char * header = NULL;
 	const char * output = NULL;
@@ -336,7 +357,7 @@ int main(int argc, char *argv[])
 	bool create_toc = false;
 	size_t toc_offset = 0;
 	int header_size = 0;
-	int align_next = 0;
+	int align_next = 16;
 
 	char category = 'N';
 	// Some flashcarts (at least Everdrive X7) seem to automatically set the TV type based on the region field.
@@ -402,13 +423,6 @@ int main(int argc, char *argv[])
 			}
 
 			output = argv[i++];
-
-			size_t output_len = strlen(output);
-			if(output_len < 5 || strcmp(output + output_len - 4, ".z64"))
-			{
-				fprintf(stderr, "WARNING: The output should have a '.z64' file extension\n");
-			}
-
 			asprintf(&tmp_output, "%s.tmp", output);
 			continue;
 		}
@@ -435,6 +449,27 @@ int main(int argc, char *argv[])
 			}				
 
 			declared_size = size;
+			continue;
+		}
+		if(check_flag(arg, "-P", "--padding"))
+		{
+			if(i >= argc)
+			{
+				/* Expected another argument */
+				fprintf(stderr, "ERROR: Expected an argument to padding flag\n\n");
+				return print_usage(argv[0]);
+			}
+
+			ssize_t size = parse_bytes(argv[i++]);
+
+			if (size < 0)
+			{
+				/* Invalid size */
+				fprintf(stderr, "ERROR: Invalid padding argument; must be positive\n\n");
+				return print_usage(argv[0]);				
+			}
+            
+            pad_align = size;
 			continue;
 		}
 		if(check_flag(arg, "-T", "--toc"))
@@ -661,9 +696,10 @@ int main(int argc, char *argv[])
 
 				total_bytes_written += num_zeros;
 			}
-
-			align_next = 0;
 		}
+
+		/* Reset to 16 for next file (default) */
+		align_next = 16;
 
 		size_t offset = ftell(write_file);
 
@@ -680,6 +716,7 @@ int main(int argc, char *argv[])
 		{
 			/* Add the file to the toc */
 			toc.files[toc.num_entries].offset = offset;
+			toc.files[toc.num_entries].size = bytes_copied;
 
 			const char *basename = strrchr(arg, '/');
 			if (!basename) basename = strrchr(arg, '\\');
@@ -722,7 +759,8 @@ int main(int argc, char *argv[])
 		   size that is padded to the correct alignment. Notice that this variable
 		   declares the size WITHOUT header, but the padding refers to the final
 		   ROM and so it must be calculated with the header. */
-		declared_size = ROUND_UP(header_size, PAD_ALIGN)-header_size;
+		if (pad_align)
+			declared_size = ROUND_UP(header_size, pad_align)-header_size;
 	}
 	if(declared_size > total_bytes_written)
 	{
@@ -734,10 +772,10 @@ int main(int argc, char *argv[])
 			return print_usage(argv[0]);
 		}
 	}
-	else if(((total_bytes_written+header_size) % PAD_ALIGN) != 0)
+	else if(pad_align && ((total_bytes_written+header_size) % pad_align) != 0)
 	{
 		/* Pad size as required. */
-		ssize_t num_zeros = PAD_ALIGN - ((total_bytes_written+header_size) % PAD_ALIGN);
+		ssize_t num_zeros = pad_align - ((total_bytes_written+header_size) % pad_align);
 		if(output_zeros(write_file, num_zeros))
 		{
 			fprintf(stderr, "ERROR: Couldn't pad %zu bytes to %zu bytes.\n", total_bytes_written, total_bytes_written+num_zeros);
@@ -771,11 +809,16 @@ int main(int argc, char *argv[])
 	/* Write table of contents */
 	if(create_toc)
 	{
-		for (int i=0; i<toc.num_entries; i++)
+		for (int i=0; i<toc.num_entries; i++) {
 			toc.files[i].offset = SWAPLONG(toc.files[i].offset);
-		toc.num_entries = SWAPLONG(toc.num_entries);
+			toc.files[i].size = SWAPLONG(toc.files[i].size);
+		}
 		toc.toc_size = SWAPLONG(toc.toc_size);
-		toc.entry_size = SWAPLONG(toc.entry_size);
+		toc.num_entries = SWAPSHORT(toc.num_entries);
+		toc.entry_size = SWAPSHORT(toc.entry_size);
+
+		toc_cookie = ~crc32_update(toc_cookie, (uint8_t *)&toc, sizeof(toc));
+		toc.cookie = SWAPLONG(toc_cookie);
 
 		fseek(write_file, toc_offset, SEEK_SET);
 		fwrite(&toc, 1, sizeof(toc), write_file);

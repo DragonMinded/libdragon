@@ -54,6 +54,14 @@ static const unsigned int crc_table[256] = {
 	0x2d02ef8dL
 };
 
+unsigned int crc32_update(unsigned int crc, const unsigned char *buffer, unsigned int len)
+{
+	for (unsigned int i = 0; i < len; i++) {
+		crc = crc_table[(crc ^ buffer[i]) & 0xff] ^ (crc >> 8);
+	}
+	return crc;
+}
+
 unsigned int crc32(const unsigned char *buffer, unsigned int len)
 {
 	unsigned int crc = 0xffffffffL;

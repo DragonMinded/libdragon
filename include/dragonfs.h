@@ -47,10 +47,10 @@
  * @{
  */
 
+#include "n64types.h"
+
 #ifdef N64
-
 #include "ioctl.h"
-
 #endif
 
 /**
@@ -74,7 +74,27 @@
 #define MAX_DIRECTORY_DEPTH 100
 
 /**
- * @brief Base ROM Address Request ioctl Command Code
+ * @brief Return the PI address of an open DragonFS file
+ *
+ * DragonFS files are stored contiguously in ROM, so this ioctl returns the
+ * PI address of the first byte of the file. The address does not depend on
+ * the current seek position; add the result of lseek(fd, 0, SEEK_CUR) to
+ * obtain the address of the current offset.
+ *
+ * The address is written to a #pi_addr_t pointed to by the ioctl argument.
+ * Direct access to ROM data must go through #io_read or #dma_read. The
+ * address is guaranteed to be 2-byte aligned, but not necessarily 4-byte
+ * aligned, so #io_read should be used with care.
+ *
+ * This is the ioctl equivalent of #dfs_rom_addr for an already-open file.
+ *
+ * \code{.c}
+ *    FILE *f = fopen("rom:/myfile.dat", "rb");
+ *    pi_addr_t rom_addr = 0;
+ *    ioctl(fileno(f), IODFS_GET_ROM_BASE, &rom_addr);
+ * \endcode
+ *
+ * @see #dfs_rom_addr
  */
 #define IODFS_GET_ROM_BASE _IO('D', 0)
 
@@ -145,17 +165,17 @@ extern "C" {
  * rompak_internal.h). Most users should use this option.
  * 
  * Otherwise, if the ROM cannot be built with a rompak TOC for some reason,
- * a virtual address should be passed. This is normally 0xB0000000 + the offset
- * used when building your ROM + the size of the header file used (typically 0x1000). 
+ * a PI address should be passed. This is normally 0x10000000 + the offset
+ * at which the DFS image is located within the ROM.
  *
  * @param[in] base_fs_loc
- *            Virtual address in cartridge space at which to find the filesystem, or
+ *            PI address in cartridge space at which to find the filesystem, or
  *            DFS_DEFAULT_LOCATION to automatically search for the filesystem in the
  *            cartridge (using the rompak).
  *
  * @return DFS_ESUCCESS on success or a negative error otherwise.
  */
-int dfs_init(uint32_t base_fs_loc);
+int dfs_init(pi_addr_t base_fs_loc);
 
 
 /**
@@ -247,25 +267,28 @@ int dfs_eof(uint32_t handle);
 int dfs_size(uint32_t handle);
 
 /**
- * @brief Return the physical address of a file (in ROM space)
+ * @brief Return the PI address of a file (in ROM space)
  *
  * This function should be used for highly-specialized, high-performance
- * use cases. Using dfs_open / dfs_read is generally acceptable
+ * use cases. Using open / fopen / read / fread is generally acceptable
  * performance-wise, and is easier to use rather than managing
  * direct access to PI space.
  * 
- * Direct access to ROM data must go through io_read or dma_read. Do not
- * dereference directly as the console might hang if the PI is busy.
+ * Direct access to ROM data must go through #io_read or #dma_read. Notice
+ * that the address is guaranteed to be 2-byte aligned, but not necessarily
+ * 4-byte aligned, so #io_read should be used with care.
+ *
+ * To obtain the address of an already-open file, use #ioctl with IODFS_GET_ROM_BASE.
  *
  * @param[in] path
  *            Name of the file
  *
- * @return A pointer to the physical address of the file body, or 0
- *         if the file was not found.
+ * @return The PI address of the file body, or 0 if the file was not found.
  * 
  * @see #dfs_rom_size
+ * @see #IODFS_GET_ROM_BASE
  */
-uint32_t dfs_rom_addr(const char *path);
+pi_addr_t dfs_rom_addr(const char *path);
 
 /**
  * @brief Return the size of a file (in ROM data)

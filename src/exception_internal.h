@@ -14,6 +14,11 @@
 extern "C" {
 #endif
 
+///@cond 
+typedef struct surface_s surface_t;
+typedef union joypad_buttons_u joypad_buttons_t;
+///@endcond
+
 /**
  * @brief Names of the 34 MIPS general-purpose registers.
  */
@@ -53,6 +58,19 @@ void __inspector_assertion(const char *failedexpr, const char *msg, va_list args
  */
 __attribute__((noreturn))
 void __inspector_cppexception(const char *exctype, const char *what);
+
+/**
+ * @brief A page in the inspector.
+ */
+typedef void (*inspector_page_t)(surface_t *disp, exception_t* ex, joypad_buttons_t *key_pressed);
+
+
+/**
+ * @brief Add a page to the inspector.
+ * 
+ * @param page The page to add.
+ */
+void __inspector_add_page(inspector_page_t page);
 
 #ifdef __cplusplus
 }

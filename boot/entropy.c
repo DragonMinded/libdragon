@@ -4,7 +4,7 @@
  * @brief Entropy accumulator
  * 
  * This module implements a simple entropy accumulator. During IPL3, we
- * accumulate entropy from several sources and accumulate it using entropy_add.
+ * collect entropy from several sources and accumulate it using entropy_add.
  * After we are done, we call entropy_get to retrieve the accumulated entropy
  * in the form of a random 32-bit integer.
  * 

@@ -1,6 +1,7 @@
 /**
  * @file rdpq.h
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @brief RDP Command queue
  * @ingroup rdpq
  */
@@ -144,9 +145,11 @@
 #ifndef __LIBDRAGON_RDPQ_H
 #define __LIBDRAGON_RDPQ_H
 
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include "preview.h"
 #include "graphics.h"
 #include "n64sys.h"
 #include "rdpq_macros.h"
@@ -164,6 +167,7 @@ enum {
     RDPQ_CMD_NOOP                       = 0x00,
     RDPQ_CMD_SET_LOOKUP_ADDRESS         = 0x01,
     RDPQ_CMD_FILL_RECTANGLE_EX          = 0x02,
+    RDPQ_CMD_CLEAR_ZBUFFER              = 0x03,
     RDPQ_CMD_RESET_RENDER_MODE          = 0x04,
     RDPQ_CMD_SET_COMBINE_MODE_2PASS     = 0x05,
     RDPQ_CMD_PUSH_RENDER_MODE           = 0x06,
@@ -185,6 +189,7 @@ enum {
     RDPQ_CMD_SET_FILL_COLOR_32          = 0x16,
     RDPQ_CMD_SET_BLENDING_MODE          = 0x18,
     RDPQ_CMD_SET_FOG_MODE               = 0x19,
+    RDPQ_CMD_WAIT_IDLE                  = 0x1A,
     RDPQ_CMD_SET_COMBINE_MODE_1PASS     = 0x1B,
     RDPQ_CMD_AUTOTMEM_SET_ADDR          = 0x1C,
     RDPQ_CMD_AUTOTMEM_SET_TILE          = 0x1D,
@@ -380,6 +385,39 @@ uint32_t rdpq_config_enable(uint32_t cfg_enable_bits);
  * @see #rdpq_config_enable
  */
 uint32_t rdpq_config_disable(uint32_t cfg_disable_bits);
+
+/**
+ * @brief Low level function to set the components of the chroma key
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
+inline void rdpq_set_chromakey_parms(color_t color, 
+    int edge_r, int edge_g, int edge_b,
+    int width_r, int width_g, int width_b)
+{
+    float fsr = 1.0f / edge_r;
+    float fsg = 1.0f / edge_g;
+    float fsb = 1.0f / edge_b;
+    uint8_t sr = fsr * 255.0f;
+    uint8_t sg = fsg * 255.0f;
+    uint8_t sb = fsb * 255.0f;
+    float fwr = width_r * fsr;
+    float fwg = width_g * fsg;
+    float fwb = width_b * fsb;
+    uint16_t wr = fwr * 255.0f;
+    uint16_t wg = fwg * 255.0f;
+    uint16_t wb = fwb * 255.0f;
+
+    extern void __rdpq_write8_syncchange(uint32_t cmd_id, uint32_t arg0, uint32_t arg1, uint32_t autosync);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_KEY_R,
+        0, 
+        _carg(wr, 0xFFF, 16) | _carg(color.r, 0xFF, 8) | _carg(sr, 0xFF, 0),
+        AUTOSYNC_PIPE);
+    __rdpq_write8_syncchange(RDPQ_CMD_SET_KEY_GB,
+        _carg(wg, 0xFFF, 12) | _carg(wb, 0xFFF, 0),
+        _carg(color.g, 0xFF, 24) | _carg(sg, 0xFF, 16) | _carg(color.b, 0xFF, 8) | _carg(sb, 0xFF, 0),
+        AUTOSYNC_PIPE);
+}
 
 /**
  * @brief Low level functions to set the matrix coefficients for texture format conversion
@@ -591,9 +629,10 @@ inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16
 inline void rdpq_load_tlut_raw(rdpq_tile_t tile, int color_idx, int num_colors)
 {
     extern void __rdpq_write8_syncchangeuse(uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+    assertf(num_colors <= 256, "invalid palette length %d: must be smaller than 256", num_colors);
     __rdpq_write8_syncchangeuse(RDPQ_CMD_LOAD_TLUT, 
         _carg(color_idx, 0xFF, 14), 
-        _carg(tile, 0x7, 24) | _carg(color_idx+num_colors-1, 0xFF, 14),
+        _carg(tile, 0x7, 24) | _carg(color_idx+num_colors-1, 0x1FF, 14),
         AUTOSYNC_TMEM(0),
         AUTOSYNC_TILE(tile));
 }
@@ -978,7 +1017,7 @@ inline void rdpq_set_prim_color(color_t color)
 inline void rdpq_set_detail_factor(float value)
 {
     // NOTE: this does not require a pipe sync
-    int8_t conv = (1.0 - value) * 31;
+    int8_t conv = (1.0f - value) * 31;
     extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_PRIM_COLOR_COMPONENT, ((conv & 0x1F) << 8) | (2<<16), 0, 0);
 }
@@ -1170,7 +1209,7 @@ inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_
     extern void __rdpq_set_color_image(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_set_color_image(
         _carg(format, 0x1F, 19) | _carg(TEX_FORMAT_BYTES2PIX(format, stride)-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31),
+        _carg(index, 0xF, 26) | (offset & 0x1FFFFFF) | _carg((height-1)>>9, 0x1, 31),
         _carg(0, 0xFFF, 12) | _carg(0, 0xFFF, 0),                 // for set_scissor
         _carg(width*4, 0xFFF, 12) | _carg(height*4, 0xFFF, 0));   // for set_scissor
 }
@@ -1200,7 +1239,7 @@ inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset)
     extern void __rdpq_fixup_write8_syncchange(uint32_t, uint32_t, uint32_t, uint32_t);
     __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_Z_IMAGE,
         0, 
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF),
+        _carg(index, 0xF, 26) | (offset & 0x1FFFFFF),
         AUTOSYNC_PIPE);
 }
 
@@ -1236,7 +1275,7 @@ inline void rdpq_set_texture_image_raw(uint8_t index, uint32_t offset, tex_forma
     // to help the validator to a better job. The RDP hardware ignores those bits.
     __rdpq_fixup_write8_syncchange(RDPQ_CMD_SET_TEXTURE_IMAGE,
         _carg(format, 0x1F, 19) | _carg(width-1, 0x3FF, 0) | _carg(height-1, 0x1FF, 10),
-        _carg(index, 0xF, 28) | (offset & 0xFFFFFF) | _carg((height-1)>>9, 0x1, 31),
+        _carg(index, 0xF, 26) | (offset & 0x1FFFFFF) | _carg((height-1)>>9, 0x1, 31),
         AUTOSYNC_PIPE);
 }
 
@@ -1261,7 +1300,7 @@ inline void rdpq_load_block_linear(int32_t offset, void *buffer, uint16_t size)
     rdpq_set_texture_image_raw(0, PhysicalAddr(buffer), FMT_RGBA16, 8, size / 8);
     rdpq_set_tile(RDPQ_TILE_INTERNAL, FMT_RGBA16, offset, 0, NULL);
     uint32_t num_texels = size / 2;
-    rdpq_load_block(RDPQ_TILE_INTERNAL, 0, 0, num_texels, 16);
+    rdpq_load_block_fx(RDPQ_TILE_INTERNAL, 0, 0, num_texels, 0);
 }
 
 /**
@@ -1488,6 +1527,19 @@ inline void rdpq_set_combiner_raw(uint64_t comb) {
 }
 
 /**
+ * @brief Read the current combiner register.
+ * @preview
+ * 
+ * This function executes a full sync (#rspq_wait) and then extracts the
+ * current raw combiner from the RSP state. This should be used only
+ * for debugging purposes.
+ *
+ * @return     THe current value of the combiner register.
+ */
+LIBDRAGON_PREVIEW_API
+uint64_t rdpq_get_combiner_raw(void);
+
+/**
  * @brief Add a fence to synchronize RSP with RDP commands.
  * 
  * This function schedules a fence in the RSP queue that makes RSP waits until
@@ -1528,6 +1580,40 @@ void rdpq_fence(void);
  * @note This function cannot be called within a block.
  */
 void rdpq_exec(void *buffer, int size);
+
+/**
+ * @brief Enqueue a callback that will be called after the RSP and the RDP have
+ * @preview
+ *        finished processing all commands enqueued until now.
+ * 
+ * This function is similar to #rspq_call_deferred, but it also guarantees
+ * that the callback is called after the RDP has finished processing all
+ * commands enqueued until now.
+ * 
+ * For example:
+ * 
+ * @code{.c}
+ *      // Draw a green rectangle
+ *      rdpq_mode_set_fill(RGBA(0,255,0,0));
+ *      rdpq_fill_rectangle(10, 10, 100, 100);
+ * 
+ *      // Enqueue a callback. The callback is guaranteed to be called
+ *      // after the RSP has finished prepared the RDP command list for the
+ *      // filled rectangle. It is possible that the RDP would still
+ *      // be processing the rectangle when the callback is called.
+ *      rspq_call_deferred(my_callback1, NULL);
+ * 
+ *      // Enqueue a callback. The callback is guaranteed to be called
+ *      // after the rectangle has been fully drawn to the target buffer, so
+ *      // that for instance the callback could readback the green pixels.
+ *      rdpq_call_deferred(my_callback2, NULL);
+ * @endcode
+ * 
+ * @param func          Callback function to call 
+ * @param arg           Argument to pass to the callback function
+ */
+LIBDRAGON_PREVIEW_API
+void rdpq_call_deferred(void (*func)(void *), void *arg);
 
 /**
  * @brief Enqueue a RSP command that also generates RDP commands.
@@ -1577,8 +1663,44 @@ void rdpq_exec(void *buffer, int size);
     rspq_write(ovl_id, cmd_id, ##__VA_ARGS__); \
 })
 
+/**
+ * @brief Begin enqueuing a RSP command that also generates RDP commands.
+ *
+ * This macro is similar to #rspq_write_begin, but like #rdpq_write (versus
+ * #rspq_write), it also declares that the RSP command is going to generate
+ * RDP commands as part of its execution, so that space for them can be
+ * reserved in the RDP static buffer when this is called within a block.
+ *
+ * Use this instead of #rdpq_write whenever the command is too complex or
+ * variable-sized to be built with a single #rdpq_write call; finish the
+ * command with (zero or more) calls to #rspq_write_arg followed by a call
+ * to #rspq_write_end.
+ *
+ * @param num_rdp_commands    Maximum number of RDP 8-byte commands that will be
+ *                            generated by the RSP command. Use -1 if the number
+ *                            is unbounded and potentially high.
+ * @param ovl_id              ID of the overlay for the command (see #rspq_write_begin)
+ * @param cmd_id              ID of the command (see #rspq_write_begin)
+ * @param size                Size of the command, in 32-bit words (see #rspq_write_begin)
+ * @return                    A write cursor, that must be passed to #rspq_write_arg
+ *                            and #rspq_write_end
+ *
+ * @see #rdpq_write
+ * @see #rspq_write_begin
+ * @hideinitializer
+ */
+#define rdpq_write_begin(num_rdp_commands, ovl_id, cmd_id, size) ({ \
+    int __num_rdp_commands = (num_rdp_commands); \
+    if (!__builtin_constant_p(__num_rdp_commands) || __num_rdp_commands != 0) { \
+        if (__builtin_expect(rspq_block != NULL, 0)) { \
+            __rdpq_block_reserve(__num_rdp_commands); \
+        } \
+    } \
+    rspq_write_begin(ovl_id, cmd_id, size); \
+})
+
 /// @cond
-// Declarations used by rdpq_write, not part of the public API.
+// Declarations used by rdpq_write and rdpq_write_begin, not part of the public API.
 typedef struct rspq_block_s rspq_block_t;
 extern rspq_block_t *rspq_block;
 extern void __rdpq_block_reserve(int); \

@@ -72,7 +72,9 @@
 #define STORE_VTX3
 #endif
 
-
+#ifndef RDPQ_TRIANGLE_TRICMD
+#define RDPQ_TRIANGLE_TRICMD  a0
+#endif
 
     #####################################################################
     # RDPQ_Triangle_Send_Async
@@ -129,7 +131,7 @@
 
     .func RDPQ_Triangle_Send_Async
 RDPQ_Triangle_Send_Async:
-    #define tricmd a0
+    #define tricmd RDPQ_TRIANGLE_TRICMD // a0
     #define vtx1   RDPQ_TRIANGLE_VTX1   // a1
     #define vtx2   RDPQ_TRIANGLE_VTX2   // a2
     #define vtx3   RDPQ_TRIANGLE_VTX3   // a3
@@ -195,7 +197,7 @@ RDPQ_Triangle_Send_Async:
 
 #if RDPQ_TRIANGLE_PROFILE
     mfc0 fp, COP0_DP_CLOCK
-    emux_trace_start
+    xtracestart
 #endif
 
     #define vall1    $v01
@@ -638,11 +640,11 @@ rdpq_triangle_change_buffer_done:
                                                     sdv vzout1.e0, 0x00,z_dmem
 
 #if RDPQ_TRIANGLE_PROFILE
-    emux_trace_stop
+    xtracestop
     mfc0 t0, COP0_DP_CLOCK
     sub t0, t0, fp
-    emux_log_string "RDPQ_Triangle:  "
-    emux_dump_gpr t0
+    xlog_string "RDPQ_Triangle:  "
+    xlogregs_gpr t0
 #endif
 
     jr ra

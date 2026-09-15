@@ -1,5 +1,6 @@
 /**
  * @file rdpq_mode.h
+ * @author Giovanni Bajo <giovannibajo@gmail.com>
  * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief RDP Command queue: mode setting
  * @ingroup rdpq
@@ -92,6 +93,7 @@
 #ifndef LIBDRAGON_RDPQ_MODE_H
 #define LIBDRAGON_RDPQ_MODE_H
 
+#include "preview.h"
 #include "rdpq.h"
 #include <stdint.h>
 
@@ -251,6 +253,7 @@ typedef enum rdpq_mipmap_s {
     MIPMAP_INTERPOLATE = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear")
     MIPMAP_INTERPOLATE_SHARPEN = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOM_TEXTURE_SHARPEN) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear") with sharpening enabled
     MIPMAP_INTERPOLATE_DETAIL = (SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOM_TEXTURE_DETAIL) >> 32,   ///< Interpolate between the two nearest mipmap levels (also known as "trilinear") with detail texture enabled
+    MIPMAP_INTERPOLATE_SHQ = (SOMX_LOD_INTERPOLATE_SHQ) >> 32,       ///< Special mipmap mode that must be used for SHC textures
 } rdpq_mipmap_t;
 
 /**
@@ -261,6 +264,17 @@ typedef enum rdpq_antialias_s {
     AA_STANDARD = 1,        ///< Standard antialiasing
     AA_REDUCED = 2,         ///< Reduced antialiasing
 } rdpq_antialias_t;
+
+/**
+ * @brief Types of Z-buffering modes supported by RDP
+ * 
+ * See #rdpq_mode_zmode for more information.
+ */
+typedef enum rdpq_zmode_s {
+    ZMODE_STANDARD = 0,             ///< Standard Z-buffer mode
+    ZMODE_INTERPENETRATING = 1,     ///< Z-buffer mode for interpenetrating surfaces
+    ZMODE_DECAL = 3,                ///< Z-buffer mode for decal surfaces
+} rdpq_zmode_t;
 
 
 /**
@@ -374,7 +388,7 @@ void rdpq_set_mode_yuv(bool bilinear);
  * #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER to #display_init.
  * 
  * On the other hand, if you want to make sure that no antialias is performed,
- * disable antialias with `rdpq_mode_antialias(false)` (which is the default
+ * disable antialias with `rdpq_mode_antialias(AA_NONE)` (which is the default
  * for #rdpq_set_mode_standard), and that will make sure that the VI will not
  * do anything to the image, even if #display_init was called with
  * #FILTERS_RESAMPLE_ANTIALIAS or #FILTERS_RESAMPLE_ANTIALIAS_DEDITHER.
@@ -551,8 +565,8 @@ inline void rdpq_mode_combiner(rdpq_combiner_t comb) {
  * use #RDPQ_BLENDER_MULTIPLY_CONST.
  * 
  * #RDPQ_BLENDER_ADDITIVE is mostly broken on RDP, as it doesn't handle correctly
- * overflowing values. Basically, values up to 1.5 are correctly clamped to 1,
- * but values above 1.5 are wrapped back to 0, which makes the mode almost useless.
+ * overflowing values. Basically, values that overflow 1.0 are not clamped but
+ * wrap back to 0, which makes the mode almost useless.
  * 
  * It is possible to also create custom formulas. The blender unit
  * allows for up to two passes. Use #RDPQ_BLENDER to create a one-pass
@@ -696,12 +710,12 @@ inline void rdpq_mode_dithering(rdpq_dither_t dither) {
  */
 inline void rdpq_mode_alphacompare(int threshold) {
     if (threshold == 0) {
-        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, 0);
+        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK | SOMX_ALPHACOMPARE, 0);
     } else if (threshold > 0) {
-        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_THRESHOLD);
+        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK | SOMX_ALPHACOMPARE, SOM_ALPHACOMPARE_THRESHOLD | SOMX_ALPHACOMPARE);
         rdpq_set_blend_color(RGBA32(0,0,0,(uint8_t)threshold));
     } else {
-        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK, SOM_ALPHACOMPARE_NOISE);
+        __rdpq_mode_change_som(SOM_ALPHACOMPARE_MASK | SOMX_ALPHACOMPARE, SOM_ALPHACOMPARE_NOISE | SOMX_ALPHACOMPARE);
     }
 }
 
@@ -752,6 +766,31 @@ inline void rdpq_mode_zoverride(bool enable, float z, int16_t deltaz) {
     );
 }
 
+/**
+ * @brief Configure the Z buffering mode
+ * @preview
+ * 
+ * This function allows to tune the internal Z buffer formula to obtain several
+ * different effects. In addition to the standard operating mode (#ZMODE_STANDARD),
+ * there are two special modes that can be activated:
+ * 
+ *  * #ZMODE_DECAL: this mode can be used to draw polygons that are coplanar with
+ *    already drawn polygons, normally called "decals". NOTE: this will never
+ *    be bulletproof. If you still get some Z-fighting flickering in this mode,
+ *    try to subdivide the background polygons so that they share vertices
+ *    exactly with the decal.
+ *  * #ZMODE_INTERPENETRATING: this mode can be used to reduce z-fighting when
+ *    two objects intersect each other, and anti-aliasing is enabled. A common
+ *    case can be objects like trees positioned slightly under the terrain.
+ * 
+ * @param mode      Z-buffering mode to use
+ * 
+ * @see #rdpq_zmode_t
+ */
+LIBDRAGON_PREVIEW_API
+inline void rdpq_mode_zmode(rdpq_zmode_t mode) {
+    __rdpq_mode_change_som(SOM_ZMODE_MASK, (uint64_t)mode << SOM_ZMODE_SHIFT);
+}
 
 /**
  * @brief Activate palette lookup during drawing
@@ -819,7 +858,7 @@ inline void rdpq_mode_mipmap(rdpq_mipmap_t mode, int num_levels) {
         num_levels = 0;
     if (num_levels)
         num_levels -= 1;
-    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE | SOMX_NUMLODS_MASK | SOM_TEXTURE_SHARPEN | SOM_TEXTURE_DETAIL, 
+    __rdpq_mode_change_som(SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK | SOMX_NUMLODS_MASK | SOM_TEXTURE_SHARPEN | SOM_TEXTURE_DETAIL,
         ((uint64_t)mode << 32) | ((uint64_t)num_levels << SOMX_NUMLODS_SHIFT));
 };
 

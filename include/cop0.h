@@ -256,6 +256,50 @@
  */
 #define C0_WRITE_WIRED(x) asm volatile("mtc0 %0,$6; nop; nop"::"r"(x))
 
+/**
+ * @brief Read the COP0 PARITYERR register
+ *
+ * This register is documented as unused on VR4300.
+ */
+ #define C0_PARITYERR() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$26":"=r"(x)); \
+    x; \
+})
+
+/**
+ * @brief Read the COP0 CACHEERR register
+ *
+ * This register is unused on the hardware and always returns 0.
+ * 
+ * @note The emux homebrew spec (ab)uses this register to specify the cause of
+ *       an emux exception.
+ */
+#define C0_CACHEERR() ({ \
+    uint32_t x; \
+    asm volatile("mfc0 %0,$27":"=r"(x)); \
+    x; \
+})
+
+/**
+ * @brief Write the COP0 PARITYERR register
+ *
+ * This register is documented as unused on VR4300. The low 8 bits 
+ * are writable and are returned on next reads, but they are not used
+ * by the hardware.
+ */
+#define C0_WRITE_PARITYERR(x)   asm volatile("mtc0 %0,$26"::"r"(x))
+
+/**
+ * @brief Write the COP0 CACHEERR register
+ *
+ * This register is unused on the hardware. Writes appear to be ignored.
+ *
+ * @note The emux homebrew spec (ab)uses this register to specify the cause of
+ *       an emux exception. Writing to it resets the value to 0.
+ */
+#define C0_WRITE_CACHEERR(x)    asm volatile("mtc0 %0,$27"::"r"(x))
+
 /** @cond */
 /* Deprecated version of macros with wrong naming that include "READ" */
 #define C0_READ_CR()         C0_CAUSE()
@@ -267,6 +311,22 @@
 #define C0_STATUS_IE        0x00000001      ///< Status: interrupt enable
 #define C0_STATUS_EXL       0x00000002      ///< Status: within exception 
 #define C0_STATUS_ERL       0x00000004      ///< Status: within error
+#define C0_STATUS_KSU       0x00000018      ///< Status: kernel/user mode
+#define C0_STATUS_UX        0x00000020      ///< Status: 64-bit addressing in user mode
+#define C0_STATUS_SX        0x00000040      ///< Status: 64-bit addressing in supervisor mode
+#define C0_STATUS_KX        0x00000080      ///< Status: 64-bit addressing in kernel mode
+#define C0_STATUS_IM        0x0000FF00      ///< Status: interrupt mask bits
+#define C0_STATUS_IM_SHIFT  8               ///< Status: interrupt mask bits shift
+#define C0_STATUS_SR        0x00010000      ///< Status: soft reset
+#define C0_STATUS_TS        0x00020000      ///< Status: TLB shutdown
+#define C0_STATUS_BEV       0x00400000      ///< Status: use boot exception vectors
+#define C0_STATUS_RE        0x02000000      ///< Status: reverse endian
+#define C0_STATUS_FR        0x04000000      ///< Status: FPU register mode
+#define C0_STATUS_RP        0x08000000      ///< Status: reduced power
+#define C0_STATUS_CU0       0x10000000      ///< Status: coprocessor 0 usable
+#define C0_STATUS_CU1       0x20000000      ///< Status: coprocessor 1 usable
+#define C0_STATUS_CU2       0x40000000      ///< Status: coprocessor 2 usable
+#define C0_STATUS_CU3       0x80000000      ///< Status: coprocessor 3 usable
 
 /* COP0 Cause bits definition. Please refer to MIPS R4300 manual. */
 #define C0_CAUSE_BD         0x80000000      ///< Cause: exception triggered in delay slot
@@ -289,17 +349,17 @@
 #define C0_INTERRUPT_TIMER  C0_INTERRUPT_7  ///< Status/Cause: HW interrupt 7 (Timer)
 
 /**
- * @brief Get the CE value from the COP0 status register
+ * @brief Get the CE value from the COP0 cause register
  *
  * Gets the Coprocessor unit number referenced by a coprocessor unusable
- * exception from the given COP0 Status register value.
+ * exception from the given COP0 Cause register value.
  */
 #define C0_GET_CAUSE_CE(cr) (((cr) & C0_CAUSE_CE) >> 28)
 
 /**
- * @brief Get the exception code value from the COP0 status register value
+ * @brief Get the exception code value from the COP0 cause register value
  */
-#define C0_GET_CAUSE_EXC_CODE(sr) (((sr) & C0_CAUSE_EXC_CODE) >> 2)
+#define C0_GET_CAUSE_EXC_CODE(cr) (((cr) & C0_CAUSE_EXC_CODE) >> 2)
 
 /* Flag bits valid for COP0 ENTRYLO0/ENTRYLO1 registers */
 #define C0_ENTRYLO_GLOBAL      (1<<0)       ///< ENTRYLO: mapping is global (all ASIDs)

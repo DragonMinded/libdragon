@@ -102,6 +102,15 @@ void rsp_opus_memmove(celt_sig *dst, celt_sig *src, opus_int32 len) {
     rspq_flush();
 }
 
+/** @brief Do a memmove with RSP to move arbitrary bytes (dst/src must be 8-byte aligned) */
+void rsp_opus_memmove_bytes(void *dst, void *src, opus_int32 nbytes) {
+    rspq_write(RSP_OPUS_IMDCT_ID, 0x2,
+        PhysicalAddr(dst),
+        PhysicalAddr(src),
+        (uint32_t)nbytes);
+    rspq_flush();
+}
+
 /** @brief Clear output buffer with RSP. Len must be in 32-bit samples (not bytes) */
 void rsp_opus_clear(celt_sig *dst, opus_int32 len) {
     rsp_cmd_clear(dst, len);
@@ -428,7 +437,10 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
     // 0-3840:      temporary buffer holding up to 1920 FFT values (after deinterleaving)
     // 3840-7936:   DMEM backup
     static uint8_t *rsp_workram = NULL;
-    if (!rsp_workram) rsp_workram = malloc_uncached(3840+4096);
+    if (!rsp_workram) {
+        rsp_workram = malloc_uncached(3840+4096);
+        assertf(rsp_workram, "Out of memory");
+    }
 
     if (out == CachedAddr(out))
         data_cache_hit_writeback_invalidate(out, N*2*stride+overlap*2); // FIXME: maybe *stride is wrong? 
@@ -449,6 +461,7 @@ void rsp_clt_mdct_backward(const mdct_lookup *l, kiss_fft_scalar *in, kiss_fft_s
         // RSP window function requires values to be swizzled according to
         // a specific pattern for optimization reasons
         rsp_window = malloc_uncached(overlap * 2 * sizeof(int16_t));
+        assertf(rsp_window, "Out of memory");
         assert((overlap % 8) == 0);
         for (int i=0;i<overlap;i+=8) {
             rsp_window[i+0] = window[i+0];
