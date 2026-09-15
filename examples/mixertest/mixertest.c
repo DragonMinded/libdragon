@@ -25,18 +25,17 @@ int main(void) {
 	// let user increase it.
 	mixer_ch_set_limits(CHANNEL_MUSIC, 0, 128000, 0);
 
-	wav64_t sfx_cannon, sfx_laser, sfx_monosample;
-
-	wav64_open(&sfx_cannon, "rom:/cannon.wav64");
+	wav64_t *sfx_cannon = wav64_load("rom:/cannon.wav64", NULL);
 	
-	wav64_open(&sfx_laser, "rom:/laser.wav64");
-	wav64_set_loop(&sfx_laser, true);
+	wav64_t *sfx_laser = wav64_load("rom:/laser.wav64", NULL);
+	wav64_set_loop(sfx_laser, true);
 
-	wav64_open(&sfx_monosample, "rom:/monosample8.wav64");
-	wav64_set_loop(&sfx_monosample, true);
+	wav64_t *sfx_monosample = wav64_load("rom:/monosample8.wav64", NULL);
+	wav64_set_loop(sfx_monosample, true);
 
 	bool music = false;
-	int music_frequency = sfx_monosample.wave.frequency;
+	bool force_mono = false;
+	int music_frequency = sfx_monosample->wave.frequency;
 
 	while (1) {
 		display_context_t disp = display_get();
@@ -47,6 +46,9 @@ int main(void) {
 		graphics_draw_text(disp, 50, 70, "B - Play laser (keep pressed)");
 		graphics_draw_text(disp, 50, 80, "Z - Start / stop background music");
 		graphics_draw_text(disp, 70, 90, "L/R - Change music frequency");
+		graphics_draw_text(disp, 50, 100, "C-Left / C-Right - Cannon panned hard L/R");
+		graphics_draw_text(disp, 50, 110, "C-Up - Toggle force mono");
+		graphics_draw_text(disp, 50, 120, force_mono ? "Output: MONO" : "Output: STEREO");
 		graphics_draw_text(disp, 50, 140, "Music courtesy of MishtaLu / indiegamemusic.com");
 		display_show(disp);
 
@@ -54,17 +56,39 @@ int main(void) {
 		joypad_buttons_t ckeys = joypad_get_buttons_pressed(JOYPAD_PORT_1);
 
 		if (ckeys.a) {
-			wav64_play(&sfx_cannon, CHANNEL_SFX1);
+			wav64_play(sfx_cannon, CHANNEL_SFX1);
+			// Restore centered vol — C-Left/C-Right leave SFX1's
+			// stored vol hard-panned, and mixer_ch_play does not
+			// reset it.
+			mixer_ch_set_vol(CHANNEL_SFX1, 1.0f, 1.0f);
 		}
 		if (ckeys.b) {
-			wav64_play(&sfx_laser, CHANNEL_SFX2);
+			wav64_play(sfx_laser, CHANNEL_SFX2);
 			mixer_ch_set_vol(CHANNEL_SFX2, 0.25f, 0.25f);
+		}
+		if (ckeys.c_left) {
+			// Hard-pan to the left so the force-mono toggle has an audible
+			// effect: with it off, the cannon only hits the left speaker;
+			// with it on, it splits across both at half amplitude.
+			wav64_play(sfx_cannon, CHANNEL_SFX1);
+			mixer_ch_set_vol(CHANNEL_SFX1, 1.0f, 0.0f);
+		}
+		if (ckeys.c_right) {
+			wav64_play(sfx_cannon, CHANNEL_SFX1);
+			mixer_ch_set_vol(CHANNEL_SFX1, 0.0f, 1.0f);
+		}
+		if (ckeys.c_up) {
+			force_mono = !force_mono;
+			// Global toggle: re-applies the flag across every channel
+			// the mixer currently owns. Voices already playing pick
+			// up the change at the next mixer_poll without restart.
+			mixer_set_force_mono(force_mono);
 		}
 		if (ckeys.z) {
 			music = !music;
 			if (music) {
-				wav64_play(&sfx_monosample, CHANNEL_MUSIC);
-				music_frequency = sfx_monosample.wave.frequency;
+				wav64_play(sfx_monosample, CHANNEL_MUSIC);
+				music_frequency = sfx_monosample->wave.frequency;
 			}
 			else
 				mixer_ch_stop(CHANNEL_MUSIC);
@@ -86,10 +110,6 @@ int main(void) {
 
 		// Check whether one audio buffer is ready, otherwise wait for next
 		// frame to perform mixing.
-		if (audio_can_write()) {    	
-			short *buf = audio_write_begin();
-			mixer_poll(buf, audio_get_buffer_length());
-			audio_write_end();
-		}
+		mixer_try_play();
 	}
 }

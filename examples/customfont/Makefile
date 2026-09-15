@@ -20,7 +20,7 @@ $(BUILD_DIR)/customfont.dfs: filesystem/libdragon-font.sprite
 $(BUILD_DIR)/customfont.elf: $(OBJS)
 
 clean:
-	rm -rf $(BUILD_DIR) *.z64
+	rm -rf $(BUILD_DIR) *.z64 filesystem
 .PHONY: clean
 
 -include $(DEPS)

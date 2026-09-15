@@ -30,7 +30,7 @@ filesystem/scene_common.dso: $(scene_common_SRC:%.cpp=$(BUILD_DIR)/%.o)
 filesystem/scene/bg_test.dso: $(bgtest_SRC:%.cpp=$(BUILD_DIR)/%.o)
 filesystem/scene/sprite_test.dso: $(spritetest_SRC:%.cpp=$(BUILD_DIR)/%.o)
 
-$(BUILD_DIR)/overlays_scene.msym: $(BUILD_DIR)/overlays_scene.elf
+$(BUILD_DIR)/overlays_scene.msym: $(BUILD_DIR)/overlays_scene.elf $(MAIN_ELF_EXTERNS)
 
 overlays_scene.z64: N64_ROM_TITLE="Actor Overlay Demo"
 overlays_scene.z64: $(BUILD_DIR)/overlays_scene.dfs $(BUILD_DIR)/overlays_scene.msym

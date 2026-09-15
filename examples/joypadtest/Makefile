@@ -2,6 +2,8 @@ all: joypadtest.z64
 .PHONY: all
 
 BUILD_DIR = build
+# This example uses cpak, which is a preview API
+LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
 OBJS = $(BUILD_DIR)/joypadtest.o
