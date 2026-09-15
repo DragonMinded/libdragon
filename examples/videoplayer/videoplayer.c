@@ -41,7 +41,11 @@ int main(void)
 	mixer_init(8);
 
 	video_register_codec(&mpeg1_codec);
+#ifdef VIDEO_CODEC_IN_DSO
+	void *video_codec_h264_handle = video_register_codec_dso("rom:/video_codec_h264.dso");
+#else
 	video_register_codec(&h264_codec);
+#endif
 
 	// Initialize profiling (FIXME)
 	profile_init(NULL);
@@ -91,4 +95,8 @@ int main(void)
 		.loop = true,
 		.osd_callback = osd_callback,
 	});
+
+#ifdef VIDEO_CODEC_IN_DSO
+	video_unregister_codec_dso(video_codec_h264_handle);
+#endif
 }

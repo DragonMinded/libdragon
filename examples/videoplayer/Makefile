@@ -3,9 +3,18 @@ BUILD_DIR=build
 LIBDRAGON_PREVIEW = 2
 include $(N64_INST)/include/n64.mk
 
+# Set to 1 to load the video codecs from DSOs
+VIDEO_CODEC_IN_DSO := 0
+
 MOVIE_FILE=caminandes.ogv
 MOVIE_URL=https://archive.org/download/CaminandesLlamigos/Caminandes_%20Llamigos-1080p.ogv
 DFS_FILES=filesystem/caminandes.h264 filesystem/caminandes.wav64 filesystem/caminandes.seek
+
+ifeq ($(VIDEO_CODEC_IN_DSO),1)
+DSOS := filesystem/video_codec_h264.dso
+DFS_FILES += $(DSOS)
+CFLAGS += -DVIDEO_CODEC_IN_DSO
+endif
 
 src = videoplayer.c
 
@@ -56,6 +65,18 @@ filesystem/caminandes.h264: $(MOVIE_FILE)
 
 filesystem/caminandes.wav64: filesystem/caminandes.h264
 filesystem/caminandes.seek: filesystem/caminandes.h264
+
+ifeq ($(VIDEO_CODEC_IN_DSO),1)
+$(eval $(call n64_video_codec_h264_dso_template,filesystem/video_codec_h264.dso))
+
+MAIN_ELF_EXTERNS := $(BUILD_DIR)/videoplayer.externs
+
+$(MAIN_ELF_EXTERNS): $(DSOS)
+$(BUILD_DIR)/videoplayer.elf: $(MAIN_ELF_EXTERNS)
+
+videoplayer.z64: $(BUILD_DIR)/videoplayer.msym
+$(BUILD_DIR)/videoplayer.msym: $(BUILD_DIR)/videoplayer.elf $(MAIN_ELF_EXTERNS)
+endif
 
 # Download the movie file if wget or curl is available and it isn't already downloaded
 $(MOVIE_FILE):

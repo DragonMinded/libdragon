@@ -3,6 +3,7 @@ all: libdragon
 V = 1  # force verbose (at least until we have converted all sub-Makefiles)
 SOURCE_DIR = src
 BUILD_DIR = build
+N64_DSOLDSCRIPT = dso.ld  # Avoid using the (possibly not installed yet) dso.ld from N64_INST
 include n64.mk
 INSTALLDIR = $(N64_INST)
 
@@ -114,6 +115,12 @@ $(SOURCE_DIR)/magma/rsp_magma.h: $(BUILD_DIR)/magma/rsp_magma.o
 
 $(BUILD_DIR)/magma/magma.o: $(SOURCE_DIR)/magma/rsp_magma.h
 
+libdragon: $(LIBDRAGON_DSOS)
+$(BUILD_DIR)/dso/%.o: $(SOURCE_DIR)/%.c
+	@mkdir -p $(dir $@)
+	@echo "    [CC] $<"
+	$(CC) -c $(CFLAGS) -G 0 -fvisibility=hidden -o $@ $<
+
 libdragon.a: $(LIBDRAGON_OBJS)
 
 %.a:
@@ -191,6 +198,8 @@ install: install-mk libdragon
 	install -Cv -m 0644 dso.ld $(INSTALLDIR)/$(N64_TARGET)/lib/dso.ld
 	install -Cv -m 0644 rsp.ld $(INSTALLDIR)/$(N64_TARGET)/lib/rsp.ld
 	install -Cv -m 0644 libdragonsys.a $(INSTALLDIR)/$(N64_TARGET)/lib/libdragonsys.a
+	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/lib/dso
+	install -Cv -m 0644 $(LIBDRAGON_DSOS) $(LIBDRAGON_DSOS:.dso=.dso.sym) $(INSTALLDIR)/$(N64_TARGET)/lib/dso/
 	@echo "    [INSTALL] libdragon.version"
 	mkdir -p $(INSTALLDIR)/$(N64_TARGET)/include
 	if [ -f "$(BUILD_DIR)/libdragon.version" ]; then \
