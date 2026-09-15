@@ -96,6 +96,24 @@
  * Blocks must always be created at runtime once (eg: at init time) before
  * being used.
  * 
+ * ## Queues
+ * 
+ * A queue (#rspq_queue_t) is a buffered sequence of commands that can
+ * be recorded and executed later. Unlike blocks, queues can only be run
+ * once, but they can be cleared and re-recorded multiple times, with efficient
+ * memory usage.
+ *
+ * A typical use case can be to create different draw layers, eg: a layer for
+ * opaque objects and a layer for transparent objects. You can add commands to
+ * each of the queue at any time, and then at the end of the frame, run each
+ * queue once to draw the corresponding layer.
+ * 
+ * To create a queue, use #rspq_queue_create. Then, use #rspq_queue_switch to
+ * switch to the queue and add commands with #rspq_write. Use #rspq_queue_run to
+ * execute the queue. Use #rspq_queue_clear to clear the queue contents, keeping
+ * its memory for reuse. Use #rspq_queue_destroy to destroy the queue and free
+ * all its memory.
+ * 
  * ## Syncpoints
  * 
  * The RSP command queue is designed to be fully lockless, but sometimes it is
@@ -168,7 +186,9 @@
 #ifndef __LIBDRAGON_RSPQ_H
 #define __LIBDRAGON_RSPQ_H
 
+
 #include <stdint.h>
+#include "preview.h"
 #include "rsp.h"
 #include "debug.h"
 #include "n64sys.h"
@@ -202,6 +222,15 @@ extern "C" {
 typedef struct rspq_block_s rspq_block_t;
 
 /**
+ * @brief A buffered queue of commands
+ *
+ * A queue (#rspq_queue_t) is a mutable, buffered sequence of commands that can
+ * be recorded and later executed. Unlike blocks, queues can be cleared and
+ * reused multiple times.
+ */
+typedef struct rspq_queue_s rspq_queue_t;
+
+/**
  * @brief A syncpoint in the queue
  * 
  * A syncpoint can be thought of as a pointer to a position in the command queue.
@@ -220,6 +249,40 @@ typedef struct rspq_block_s rspq_block_t;
  * @note A valid syncpoint is an integer greater than 0.
  */
 typedef int rspq_syncpoint_t;
+
+
+/**
+ * @brief Placeholder #0 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_0   ((rspq_block_t*)0)
+/**
+ * @brief Placeholder #1 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_1   ((rspq_block_t*)1)
+/**
+ * @brief Placeholder #2 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_2   ((rspq_block_t*)2)
+/**
+ * @brief Placeholder #3 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_3   ((rspq_block_t*)3)
+/**
+ * @brief Placeholder #4 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_4   ((rspq_block_t*)4)
+/**
+ * @brief Placeholder #5 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_5   ((rspq_block_t*)5)
+/**
+ * @brief Placeholder #6 pointer to be used with rspq_block_run()
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_6   ((rspq_block_t*)6)
+/**
+ * @brief Number of placeholders that are available in blocks
+ */
+#define RSPQ_BLOCK_PLACEHOLDER_COUNT 7
 
 /**
  * @brief Initialize the RSPQ library.
@@ -292,6 +355,36 @@ uint32_t rspq_overlay_register(rsp_ucode_t *overlay_ucode);
  * @see #rspq_overlay_register
  */
 void rspq_overlay_register_static(rsp_ucode_t *overlay_ucode, uint32_t overlay_id);
+
+/**
+ * @brief Make an overlay share the state with another
+ * @preview
+ * 
+ * Sometimes it is useful for two overlays to share their state. This is
+ * common when a larger ucode is split into several ucodes for IMEM limit size,
+ * but the state must be shared among them.
+ * 
+ * This function "patches" overlay_dest so that it will actually use the state
+ * of overlay_source. If the state of the dest overlay was declared as smaller,
+ * it is assumed to be a prefix of the source overlay state. It is not possible
+ * for the dest overlay to have a split state (part shared with source, part
+ * kept private).
+ * 
+ * It is allowed for the state in the source and dest overlay to be kept at
+ * different offsets in DMEM.
+ * 
+ * It is possible for more than two overlays to share the same state; make sure to
+ * always use the same single overlay as source of truth.
+ * 
+ * This function must be called before beginning to use the overlays (before or
+ * after registration).
+ * 
+ * @param overlay_dest          Overlay that will be patched to share the state
+ *                              with overlay_source.
+ * @param overlay_source        Overlay whose state will be shared.
+ */
+LIBDRAGON_PREVIEW_API
+void rspq_overlay_share_state(rsp_ucode_t *overlay_dest, rsp_ucode_t *overlay_source);
 
 /**
  * @brief Unregister a ucode overlay from the RSP queue engine.
@@ -637,8 +730,36 @@ void rspq_wait(void);
  *       in the same order they have been created.
  * 
  * @see #rspq_syncpoint_t
+ * @see #rspq_syncpoint_new_cb
  */
 rspq_syncpoint_t rspq_syncpoint_new(void);
+
+/**
+ * @brief Create a syncpoint in the queue that triggers a callback on the CPU.
+ * @preview
+ * 
+ * This function is similar to #rspq_syncpoint_new: it creates a new "syncpoint"
+ * that references the current position in the queue. When the RSP reaches
+ * the syncpoint, it notifies the CPU, that will invoke the provided callback
+ * function.
+ * 
+ * The callback function will be called *outside* of the interrupt context, so
+ * that it is safe for instance to call into most the standard library.
+ * 
+ * The callback function is guaranteed to be called after the RSP has reached
+ * the syncpoint, but there is no guarantee on "how much" after. In general
+ * the callbacks will be treated as "lower priority" by rspq, so they will
+ * be called in best effort.
+ * 
+ * @param func          Callback function to call when the syncpoint is reached
+ * @param arg           Argument to pass to the callback function
+ * @return rspq_syncpoint_t     ID of the just-created syncpoint.
+ * 
+ * @see #rspq_syncpoint_t
+ * @see #rspq_syncpoint_new
+ */
+LIBDRAGON_PREVIEW_API
+rspq_syncpoint_t rspq_syncpoint_new_cb(void (*func)(void *), void *arg);
 
 /**
  * @brief Check whether a syncpoint was reached by RSP or not.
@@ -668,25 +789,85 @@ bool rspq_syncpoint_check(rspq_syncpoint_t sync_id);
  */
 void rspq_syncpoint_wait(rspq_syncpoint_t sync_id);
 
+/**
+ * @brief Enqueue a callback to be called by the CPU
+ * @preview
+ * 
+ * This function enqueues a callback that will be called by the CPU when
+ * the RSP has finished all commands put in the queue until now.
+ * 
+ * An example of a use case for this function is to free resources such as
+ * rspq blocks that are no longer needed, but that you want to make sure that
+ * are not referenced anymore by the RSP.
+ * 
+ * See also #rdpq_call_deferred that, in addition to waiting for RSP, it also
+ * waits for RDP to process all pending commands before calling the callback.
+ * 
+ * @note DO NOT CALL RSPQ FUNCTIONS INSIDE THE CALLBACK (including enqueueing
+ *       new rspq commands). This might cause a deadlock or corruption, and it
+ *       is not supported.
+ * 
+ * @param func      Callback function
+ * @param arg       Argument to pass to the callback
+ * 
+ * @see #rdpq_call_deferred
+ */
+LIBDRAGON_PREVIEW_API
+inline void rspq_call_deferred(void (*func)(void *), void *arg) {
+    rspq_syncpoint_new_cb(func, arg);
+    rspq_flush();
+}
+
 
 /**
  * @brief Begin creating a new block.
- * 
- * This function begins writing a command block (see #rspq_block_t).
- * While a block is being written, all calls to #rspq_write
- * will record the commands into the block, without actually scheduling them for
- * execution. Use #rspq_block_end to close the block and get a reference to it.
- * 
- * Only one block at a time can be created. Calling #rspq_block_begin
- * twice (without any intervening #rspq_block_end) will cause an assert.
  *
- * During block creation, the RSP will keep running as usual and
- * execute commands that have been already added to the queue.
- *       
- * @note Calls to #rspq_flush are ignored during block creation, as the RSP
- *       is not going to execute the block commands anyway.
+ * While a block is being written, all calls to #rspq_write record commands into
+ * the block without scheduling them for execution. Use #rspq_block_end to close
+ * the block and obtain a reference, #rspq_block_run to enqueue playback, and
+ * #rspq_block_free when the block is no longer needed.
+ *
+ * Only one block at a time can be open. Calling #rspq_block_begin again before
+ * #rspq_block_end asserts. The same applies if you are in highpri mode or
+ * recording a #rspq_queue_t.
+ *
+ * During block creation the RSP keeps running as usual and executes commands
+ * already present in the normal queue.
+ *
+ * @note Calls to #rspq_flush are ignored while the block is open; the RSP does
+ *       not execute recorded block commands until the block is run.
+ *
+ * @see #rspq_block_begin_reuse
+ * @see #rspq_block_run
+ * @see #rspq_block_free
  */
-void rspq_block_begin(void);
+inline void rspq_block_begin(void) {
+    extern void rspq_block_begin_reuse(rspq_block_t *);
+    rspq_block_begin_reuse(NULL);
+}
+
+/**
+ * @brief Begin creation of a block, reusing an existing allocation.
+ *
+ * This function is similar to #rspq_block_begin, but it reuses an existing
+ * allocation instead of allocating a new one. It can be useful to avoid
+ * allocating and freeing memory unnecessarily.
+ *
+ *If @p reuse_block is NULL, this function behaves like #rspq_block_begin.
+ *
+ * @note Just like #rspq_block_free, you must not call this function while
+ *       the RSP has a command to run this block in its command queue. If you
+ *       cannot guarantee that, use #rspq_call_deferred to free the previous
+ *       block and allocate a new one with #rspq_block_begin.
+ *
+ * @param reuse_block The block to reuse
+ *
+ * @see #rspq_block_begin
+ * @see #rspq_block_run
+ * @see #rspq_block_free
+ */
+void rspq_block_begin_reuse(rspq_block_t *reuse_block);
+
 
 /**
  * @brief Finish creating a block.
@@ -706,6 +887,39 @@ void rspq_block_begin(void);
 rspq_block_t* rspq_block_end(void);
 
 /**
+ * @brief Sets the target for a placeholder in a block
+ * @preview
+ * 
+ * If a block contains calls to placeholders, for example:
+ * 
+ * @code{.c}
+ *   rspq_block_begin();
+ *      ...
+ *     rdpq_tex_multi_begin();
+ *       rdpq_sprite_upload(TILE0, texA, NULL);
+ *       rspq_block_run(RSPQ_BLOCK_PLACEHOLDER_0);
+ *     rdpq_tex_multi_end();
+ *     ...
+ *   rspq_block_t *block_caller = rspq_block_end();
+ * @endcode
+ * 
+ * Then this function can be used to set the actual target before running it:
+ * 
+ * @code{.c}
+ *   rspq_block_set_placeholder(RSPQ_BLOCK_PLACEHOLDER_0, the_target_block);
+ *   rspq_block_run(RSPQ_BLOCK_PLACEHOLDER_0);
+ * @endcode
+ * 
+ * @param ph the placeholder slot (RSPQ_BLOCK_PLACEHOLDER_0 - RSPQ_BLOCK_PLACEHOLDER_6)
+ * @param ph_target block the placeholder should point to
+ */
+LIBDRAGON_PREVIEW_API
+void rspq_block_set_placeholder(
+  rspq_block_t *ph,
+  rspq_block_t *ph_target
+);
+
+/**
  * @brief Add to the RSP queue a command that runs a block.
  * 
  * This function runs a block that was previously created via #rspq_block_begin
@@ -717,8 +931,12 @@ rspq_block_t* rspq_block_end(void);
  * created, it is possible to call `rspq_block_run(A)` at any point during the
  * creation of a second block B; this means that B will contain the special
  * command that will call A.
+ * 
+ * It is also possible to use a placeholder instead of a specific block.
+ * This allows the target to be set dynamically later on.
+ * For that pass 'RSPQ_BLOCK_PLACEHOLDER_0' to 'RSPQ_BLOCK_PLACEHOLDER_6' into this function.
  *
- * @param block The block that must be run
+ * @param block The block or placeholder that must be run
  * 
  * @note The maximum depth of nested block calls is 8.
  */
@@ -728,7 +946,13 @@ void rspq_block_run(rspq_block_t *block);
  * @brief Free a block that is not needed any more.
  * 
  * After calling this function, the block is invalid and must not be called
- * anymore.
+ * anymore. Notice that a block that was recently run via #rspq_block_run
+ * might still be referenced in the RSP queue, and in that case it is invalid
+ * to free it before the RSP has processed it. 
+ * 
+ * In this case, you must free it once you are absolutely sure that the RSP
+ * has processed it (eg: at the end of a frame), or use #rspq_call_deferred 
+ * or #rdpq_call_deferred, that handle the synchronization for you. 
  * 
  * @param  block  The block
  * 
@@ -738,6 +962,112 @@ void rspq_block_run(rspq_block_t *block);
  */
 void rspq_block_free(rspq_block_t *block);
 
+/** 
+ * @brief Returns true if a block is currently being built. 
+ * @preview
+ * 
+ * This function returns true if, and only if, it is called after
+ * #rspq_block_begin was called and before #rspq_block_end is called.
+ * Use this function to determine whether a block is currently being recorded.
+ */
+LIBDRAGON_PREVIEW_API
+static inline bool rspq_block_is_recording(void) {
+    extern rspq_block_t *rspq_block;
+    return rspq_block != NULL;
+}
+
+/**
+ * @brief Register a callback to be called when the current block is freed.
+ * @preview
+ * 
+ * Calling this function is only valid when a block is currently being recorded
+ * (see #rspq_block_begin). The callback will be called with the given context
+ * when the currently recorded block is freed using #rspq_block_free.
+ * 
+ * It is possible to call this function multiple times during the recording
+ * of the same block. In that case the callbacks will be called in the reverse
+ * order that they were passed into this function.
+ * 
+ * This function is useful for binding the lifetime of resources to that of a block.
+ * For example if a certain command in an rspq overlay accesses a buffer and that
+ * command is recorded into a block, it's possible to make sure that the block
+ * never outlives that buffer without any additionally required scaffolding.
+ * 
+ * @param  cb   The callback function
+ * @param  ctx  The context that will be passed to the callback
+ */
+LIBDRAGON_PREVIEW_API
+void rspq_block_atexit(void (*cb)(void*), void* ctx);
+
+/**
+ * @brief Create a new buffered queue.
+ * @preview
+ *
+ * The queue is created empty and is not active by default. Use
+ * #rspq_queue_switch to start recording commands into it.
+ *
+ * @return A pointer to the newly created queue
+ */
+ LIBDRAGON_PREVIEW_API
+ rspq_queue_t* rspq_queue_create(void);
+
+ /**
+  * @brief Switch the current recording target to a queue.
+  * @preview
+  *
+  * After this call, all #rspq_write commands will go into the specified queue,
+  * and they will not be executed immediately. Use #rspq_queue_run to execute
+  * the queue.
+  * 
+  * Passing NULL switches back to the default standard command ring buffer.
+  *
+  * @param q         The queue to switch to, or NULL to switch back to default
+  *                  command ring buffer.
+  */
+ LIBDRAGON_PREVIEW_API
+ void rspq_queue_switch(rspq_queue_t* q);
+ 
+ /**
+  * @brief Execute the RSP commands in the queue.
+  * @preview
+  *
+  * This function will execute all pending RSP commands in the queue, in order.
+  * It is safe to call this function multiple times: each time, it will execute
+  * only new commands that were enqueued since the last call.
+  *
+  * @param q         The queue to execute
+  */
+ LIBDRAGON_PREVIEW_API
+ void rspq_queue_run(rspq_queue_t* q);
+
+ /**
+  * @brief Clear a queue contents, keeping its memory for reuse.
+  * @preview
+  *
+  * This function clears the queue contents, basically resetting its internal
+  * write pointer to the start.
+  *
+  * Notice that this function cannot check if the RSP is still running the queue;
+  * given that the RSP is asynchronous, you must make sure that the RSP is not
+  * running the queue before calling this function. A good way to do this is
+  * to use a syncpoint, or double/triple buffer the queue(s).
+  *
+  * @param q         The queue to clear
+  */
+ LIBDRAGON_PREVIEW_API
+ void rspq_queue_clear(rspq_queue_t* q);
+ 
+ /**
+  * @brief Destroy a queue and free all its memory.
+  * @preview
+  * 
+  * After this call, the queue is invalid and must not be used anymore.
+  *
+  * @param q Queue to destroy
+  */
+ LIBDRAGON_PREVIEW_API
+ void rspq_queue_destroy(rspq_queue_t* q);
+ 
 /**
  * @brief Start building a high-priority queue.
  * 
@@ -795,6 +1125,11 @@ void rspq_highpri_end(void);
  * all high-priority queues. It is meant for debugging purposes or for situations
  * in which the high-priority queue is known to be very short and fast to run.
  * Also note that it is not possible to create syncpoints in the high-priority queue.
+ * 
+ * The function can either be called while a high-priority queue is being built
+ * (that is, between #rspq_highpri_begin and #rspq_highpri_end), or
+ * after the high-priority queue has been closed (that is, after
+ * #rspq_highpri_end).
  */
 void rspq_highpri_sync(void);
 

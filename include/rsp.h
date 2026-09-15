@@ -285,6 +285,16 @@ typedef struct {
     uint8_t *data;         ///< Pointer to the data segment
     void    *data_end;     ///< Pointer past the end of the data segment
 
+    /**
+     * @brief Pointer to the meta segment.
+     * 
+     * This is a special data segment which may contain arbitrary user-defined data.
+     * All sections with the prefix ".meta" are automatically placed here by the linker script.
+     * The contents are never loaded into DMEM or IMEM.
+     */
+    uint8_t *meta;
+    void    *meta_end;     ///< Pointer past the end of the meta segment
+
     const char *name;      ///< Name of the ucode
     uint32_t start_pc;     ///< Initial RSP PC
 
@@ -347,13 +357,17 @@ typedef struct {
 #define DEFINE_RSP_UCODE(ucode_name, ...) \
     extern uint8_t ucode_name ## _text_start[]; \
     extern uint8_t ucode_name ## _data_start[]; \
+    extern uint8_t ucode_name ## _meta_start[]; \
     extern uint8_t ucode_name ## _text_end[0]; \
     extern uint8_t ucode_name ## _data_end[0]; \
+    extern uint8_t ucode_name ## _meta_end[0]; \
     rsp_ucode_t ucode_name = (rsp_ucode_t){ \
         .code = ucode_name ## _text_start, \
-        .data = ucode_name ## _data_start, \
         .code_end = ucode_name ## _text_end, \
+        .data = ucode_name ## _data_start, \
         .data_end = ucode_name ## _data_end, \
+        .meta = ucode_name ## _meta_start, \
+        .meta_end = ucode_name ## _meta_end, \
         .name = #ucode_name, .start_pc = 0, \
         .crash_handler = 0, .assert_handler = 0, \
         __VA_ARGS__ \
