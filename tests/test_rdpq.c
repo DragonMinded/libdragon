@@ -52,6 +52,15 @@ uint64_t debug_rdp_stream_last_cc(void) {
     return rdp_stream[rdp_stream_ctx.last_cc];
 }
 
+const char* debug_rdp_stream_last_cc_disasm(void) {
+    uint64_t cmds[1] = { debug_rdp_stream_last_cc() };
+    static char buf[256];
+    FILE *out = fmemopen(buf, sizeof(buf), "w");
+    rdpq_debug_disasm(cmds, out);
+    fclose(out);
+    return buf;
+}
+
 uint32_t debug_rdp_stream_count_cmd(uint32_t cmd_id) {
     uint32_t count = 0;
     for (int i=0;i<rdp_stream_ctx.idx;i++) {
@@ -290,6 +299,32 @@ void test_rdpq_block(TestContext *ctx)
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, WIDTH*WIDTH*2, "Framebuffer contains wrong data!");
 }
 
+void test_rdpq_block_begin_reuse(TestContext *ctx)
+{
+    RDPQ_INIT();
+
+    rspq_block_begin();
+    rdpq_set_mode_fill(RGBA32(0, 0, 0, 0));
+    rdpq_set_fill_color(RGBA16(1, 2, 3, 4));
+    rdpq_set_scissor(0, 0, 8, 8);
+    rdpq_fill_rectangle(0, 0, 32, 32);
+    rspq_block_t *block = rspq_block_end();
+    DEFER(rspq_block_free(block));
+
+    ASSERT(block->rdp_block != NULL, "expected RDP static buffer");
+    void *rdp_head = block->rdp_block;
+
+    rspq_block_begin_reuse(block);
+    rdpq_set_mode_fill(RGBA32(0, 0, 0, 0));
+    rdpq_set_fill_color(RGBA16(5, 6, 7, 8));
+    rdpq_set_scissor(0, 0, 8, 8);
+    rdpq_fill_rectangle(0, 0, 32, 32);
+    rspq_block_t *b2 = rspq_block_end();
+
+    ASSERT(block == b2, "rspq block pointer must be stable after begin_reuse");
+    ASSERT(block->rdp_block == rdp_head, "RDP static buffer head must be reused");
+}
+
 void test_rdpq_block_coalescing(TestContext *ctx)
 {
     RDPQ_INIT();
@@ -464,12 +499,14 @@ void test_rdpq_block_nested(TestContext *ctx)
         rdpq_set_blend_color(RGBA32(0x22,0x22,0x22,0x22));
         rdpq_set_prim_color(RGBA32(0x11,0x11,0x11,0x11));
     rspq_block_t *block1 = rspq_block_end();
+    DEFER(rspq_block_free(block1));
 
     rspq_block_begin();
         rdpq_set_fog_color(RGBA32(0x33,0x33,0x33,0x33));
         rspq_block_run(block1);
         rdpq_set_env_color(RGBA32(0x44,0x44,0x44,0x44));
     rspq_block_t *block2 = rspq_block_end();
+    DEFER(rspq_block_free(block2));
 
     rspq_block_run(block2);
     rspq_wait();
@@ -921,7 +958,7 @@ void test_rdpq_lookup_address_offset(TestContext *ctx)
 {
     RDPQ_INIT();
 
-    const int WIDTH = 15;
+    const int WIDTH = 16;
     surface_t fb = surface_alloc(FMT_RGBA16, WIDTH, WIDTH);
     DEFER(surface_free(&fb));
     surface_clear(&fb, 0);
@@ -1321,6 +1358,17 @@ void test_rdpq_automode(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (comb=2pass, blender=1pass)");
 
+    // Set 1pass combiner with TEX1
+    rdpq_debug_log_msg("1pass combiner w/ TEX1 => 2 cycle");
+    surface_clear(&fb, 0xFF);
+    rdpq_mode_combiner(RDPQ_COMBINER1((ZERO, ZERO, ZERO, TEX1), (ZERO, ZERO, ZERO, ZERO)));
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+    rspq_wait();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_2, "invalid cycle type");
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (comb=1pass w/ TEX1)");
+
     // Set simple combiner => 1 cycle
     rdpq_debug_log_msg("1pass combiner => 1 cycle");
     surface_clear(&fb, 0xFF);
@@ -1419,7 +1467,7 @@ void test_rdpq_blender(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=none)");
 
-    // Enable two-pass bleder
+    // Enable two-pass blender
     rdpq_mode_blender(RDPQ_BLENDER2(
         (IN_RGB, 0, BLEND_RGB, INV_MUX_ALPHA),
         (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, 1)
@@ -1429,12 +1477,31 @@ void test_rdpq_blender(TestContext *ctx) {
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend2, FBWIDTH*FBWIDTH*2, 
         "Wrong data in framebuffer (blender=pass0+1)");
 
-    // Disable blend
+    // Switch from two-pass to one-pass blending.
+    // This should clear the internal 2-pass blender flag and return to 1-cycle mode.
+    rdpq_mode_blender(RDPQ_BLENDER((IN_RGB, ZERO, BLEND_RGB, INV_MUX_ALPHA)));
+    rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
+    rspq_wait();
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOMX_BLEND_2PASS, 0, "two-pass blender flag was not cleared");
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type after 2pass->1pass transition");
+    ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_blend, FBWIDTH*FBWIDTH*2, 
+        "Wrong data in framebuffer (blender=pass1 after pass0+1)");
+
+    // Re-enable two-pass blender, then disable directly.
+    // This exercises the 2pass -> 0 transition path.
+    rdpq_mode_blender(RDPQ_BLENDER2(
+        (IN_RGB, 0, BLEND_RGB, INV_MUX_ALPHA),
+        (CYCLE1_RGB, FOG_ALPHA, BLEND_RGB, 1)
+    ));
     rdpq_mode_blender(0);
     rdpq_texture_rectangle(0, 4, 4, FBWIDTH-4, FBWIDTH-4, 0, 0);
     rspq_wait();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOMX_BLEND_2PASS, 0, "two-pass blender flag was not cleared after 2pass->0 transition");
+    ASSERT_EQUAL_HEX(som & SOM_CYCLE_MASK, SOM_CYCLE_1, "invalid cycle type after 2pass->0 transition");
     ASSERT_EQUAL_MEM((uint8_t*)fb.buffer, (uint8_t*)expected_fb_tex, FBWIDTH*FBWIDTH*2, 
-        "Wrong data in framebuffer (blender=pass0)");
+        "Wrong data in framebuffer (blender=none after pass0+1)");
 }
 
 void test_rdpq_blender_memory(TestContext *ctx) {
@@ -1789,6 +1856,16 @@ void test_rdpq_mode_alphacompare(TestContext *ctx) {
          SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG_TIMES_CC,
         "invalid SOM configuration: %08llx", som);
 
+    rdpq_debug_log_msg("aa+threshold>0+tlut");
+    rdpq_mode_tlut(TLUT_RGBA16);
+    draw_tri();
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & 
+        (SOM_ALPHACOMPARE_MASK      | SOM_BLALPHA_MASK), 
+         SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG_TIMES_CC,
+        "invalid SOM configuration after tlut: %08llx", som);
+    rdpq_mode_tlut(TLUT_NONE);
+
     rdpq_debug_log_msg("aa+threshold<0");
     rdpq_mode_alphacompare(-1);
     draw_tri();
@@ -1798,6 +1875,57 @@ void test_rdpq_mode_alphacompare(TestContext *ctx) {
          SOM_ALPHACOMPARE_NONE      | SOM_BLALPHA_CVG_TIMES_CC,
         "invalid SOM configuration: %08llx", som);
 }
+
+void test_rdpq_mode_zmode(TestContext *ctx) {
+    RDPQ_INIT();
+
+    rdpq_debug_log_msg("standard mode");
+    rdpq_set_mode_standard();
+    uint64_t som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+
+    rdpq_debug_log_msg("AA standard");
+    rdpq_mode_antialias(AA_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+
+    rdpq_debug_log_msg("blending+AA");
+    rdpq_mode_blender(RDPQ_BLENDER_MULTIPLY);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("blending");
+    rdpq_mode_antialias(AA_NONE);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("Interpenetrating+blending");
+    rdpq_mode_zmode(ZMODE_INTERPENETRATING);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_INTERPENETRATING, "invalid zmode");
+
+    rdpq_debug_log_msg("Decal+blending");
+    rdpq_mode_zmode(ZMODE_DECAL);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_DECAL, "invalid zmode");
+
+    rdpq_debug_log_msg("Standard+blending");
+    rdpq_mode_zmode(ZMODE_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_TRANSPARENT, "invalid zmode");
+
+    rdpq_debug_log_msg("Decal");
+    rdpq_mode_zmode(ZMODE_DECAL);
+    rdpq_mode_blender(0);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_DECAL, "invalid zmode");
+
+    rdpq_debug_log_msg("Standard");
+    rdpq_mode_zmode(ZMODE_STANDARD);
+    som = rdpq_get_other_modes_raw();
+    ASSERT_EQUAL_HEX(som & SOM_ZMODE_MASK, SOM_ZMODE_OPAQUE, "invalid zmode");
+}
+
 
 void test_rdpq_mode_freeze(TestContext *ctx) {
     RDPQ_INIT();
@@ -2009,6 +2137,87 @@ void test_rdpq_mipmap(TestContext *ctx) {
             ASSERT_EQUAL_SIGNED(levels, 4, "invalid number of mipmap levels");
         }
     }
+}
+
+void test_rdpq_mipmap_interpolate(TestContext *ctx) {
+    RDPQ_INIT();
+    debug_rdp_stream_init();
+
+    const int FBWIDTH = 16;
+    surface_t fb = surface_alloc(FMT_RGBA16, FBWIDTH, FBWIDTH);
+    DEFER(surface_free(&fb));
+    surface_clear(&fb, 0);
+
+    rdpq_set_color_image(&fb);
+    rdpq_set_mode_standard();
+    rdpq_mode_combiner(RDPQ_COMBINER_TEX_SHADE);
+    rspq_wait();
+
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_som() & 
+        (SOM_CYCLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK), 
+         SOM_CYCLE_1                                             ,
+        "invalid SOM configuration: %08llx", debug_rdp_stream_last_som());
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_cc() & RDPQ_COMB1_MASK,
+        RDPQ_COMBINER1((TEX0, 0, SHADE, 0), (TEX0, 0, SHADE, 0)) & RDPQ_COMB1_MASK,
+        "invalid combiner configuration:\n%s", debug_rdp_stream_last_cc_disasm());
+
+    rdpq_mode_mipmap(MIPMAP_NEAREST, 4);
+    rspq_wait();
+
+    #define CC_PASSTHROUGH1 (COMBINED,COMBINED,COMBINED,COMBINED)
+    #define CC_PASSTHROUGH2 (COMBINED,COMBINED,LOD_FRAC,COMBINED)
+
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_som() & 
+        (SOM_CYCLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK), 
+         SOM_CYCLE_2    | SOM_TEXTURE_LOD                        ,
+        "invalid SOM configuration: %08llx", debug_rdp_stream_last_som());
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_cc() & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        RDPQ_COMBINER2((TEX0,0,SHADE,0), (TEX0,0,SHADE,0), CC_PASSTHROUGH1, CC_PASSTHROUGH2) & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        "invalid combiner configuration:\n%s", debug_rdp_stream_last_cc_disasm());
+
+    rdpq_mode_mipmap(MIPMAP_INTERPOLATE, 4);
+    rspq_wait();
+
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_som() & 
+        (SOM_CYCLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK), 
+         SOM_CYCLE_2    | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE ,
+        "invalid SOM configuration: %08llx", debug_rdp_stream_last_som());
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_cc() & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        RDPQ_COMBINER2((TEX1,TEX0,LOD_FRAC,TEX0), (TEX1,TEX0,LOD_FRAC,TEX0), (COMBINED,0,SHADE,0),(COMBINED,0,SHADE,0)) & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        "invalid combiner configuration:\n%s", debug_rdp_stream_last_cc_disasm());
+
+    rdpq_mode_combiner(RDPQ_COMBINER_TEX_FLAT);
+    rspq_wait();
+
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_som() & 
+        (SOM_CYCLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK), 
+         SOM_CYCLE_2    | SOM_TEXTURE_LOD | SOMX_LOD_INTERPOLATE ,
+        "invalid SOM configuration: %08llx", debug_rdp_stream_last_som());
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_cc() & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        RDPQ_COMBINER2((TEX1,TEX0,LOD_FRAC,TEX0), (TEX1,TEX0,LOD_FRAC,TEX0), (COMBINED,0,PRIM,0),(COMBINED,0,PRIM,0)) & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        "invalid combiner configuration:\n%s", debug_rdp_stream_last_cc_disasm());
+
+    rdpq_mode_mipmap(MIPMAP_INTERPOLATE_SHQ, 4);
+    rspq_wait();
+
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_som() & 
+        (SOM_CYCLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK), 
+         SOM_CYCLE_2    |                   SOMX_LOD_INTERPOLATE_SHQ,
+        "invalid SOM configuration: %08llx", debug_rdp_stream_last_som());
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_cc() & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        RDPQ_COMBINER2((TEX0,TEX1,K5,0), (0,0,0,TEX1), (COMBINED,0,PRIM,0),(COMBINED,0,PRIM,0)) & (RDPQ_COMB0_MASK|RDPQ_COMB1_MASK),
+        "invalid combiner configuration:\n%s", debug_rdp_stream_last_cc_disasm());
+
+    rdpq_mode_mipmap(MIPMAP_NONE, 0);
+    rspq_wait();
+
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_som() & 
+        (SOM_CYCLE_MASK | SOM_TEXTURE_LOD | SOMX_LOD_INTERP_MASK), 
+         SOM_CYCLE_1                                             ,
+        "invalid SOM configuration: %08llx", debug_rdp_stream_last_som());
+    ASSERT_EQUAL_HEX(debug_rdp_stream_last_cc() & (RDPQ_COMB0_MASK),
+        RDPQ_COMBINER1((TEX0,0,PRIM,0),(TEX0,0,PRIM,0)) & (RDPQ_COMB0_MASK),
+        "invalid combiner configuration:\n%s", debug_rdp_stream_last_cc_disasm());
 }
 
 void test_rdpq_autotmem(TestContext *ctx) {
