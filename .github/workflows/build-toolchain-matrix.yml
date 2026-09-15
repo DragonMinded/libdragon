@@ -50,6 +50,10 @@ jobs:
           sudo apt-get install texinfo
           sudo apt-get install libmpc-dev
           sudo apt-get install squashfs-tools
+          sudo apt-get install liblzma-dev
+          sudo apt-get install xz-utils
+          sudo apt-get install xzdec
+
           # If there are other dependencies, we should add them here and make sure the documentation is updated!
 
       - name: Install x-compile system build dependencies
@@ -85,20 +89,21 @@ jobs:
         with:
           path: |
             ./tools/**/*.tar.gz
+            ./tools/**/*.tar.xz
             ./tools/**/*.tar.bz2
           key: ${{ runner.os }}-dependency-downloads # TODO: concurrency errors may currently occur due to matrix, but they are the same files.
 
       - name: Get versions from toolchain file
         id: gcc-version-generator
         run: |
-          echo "BINUTILS_VERSION=$(grep -Po 'BINUTILS_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
-          echo "GCC_VERSION=$(grep -Po 'GCC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
-          echo "NEWLIB_VERSION=$(grep -Po 'NEWLIB_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
-          echo "GDB_VERSION=$(grep -Po 'GDB_V=\K[^"]*' ./tools/build-gdb.sh)" >> $GITHUB_OUTPUT
+          echo "BINUTILS_VERSION=$(grep -Po -m 1 'BINUTILS_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "GCC_VERSION=$(grep -Po -m 1 'GCC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "NEWLIB_VERSION=$(grep -Po -m 1 'NEWLIB_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "GDB_VERSION=$(grep -Po -m 1 'GDB_V=\K[^"]*' ./tools/build-gdb.sh)" >> $GITHUB_OUTPUT
 
-          echo "GMP_VERSION=$(grep -Po 'GMP_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
-          echo "MPC_VERSION=$(grep -Po 'MPC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
-          echo "MPFR_VERSION=$(grep -Po 'MPFR_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "GMP_VERSION=$(grep -Po -m 1 'GMP_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "MPC_VERSION=$(grep -Po -m 1 'MPC_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
+          echo "MPFR_VERSION=$(grep -Po -m 1 'MPFR_V=\K[^"]*' ./tools/build-toolchain.sh)" >> $GITHUB_OUTPUT
           # TODO: this version is set explicitly. We need to fix!
           echo "MAKE_VERSION=4.4" >> $GITHUB_OUTPUT
         continue-on-error: false
