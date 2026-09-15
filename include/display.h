@@ -2,15 +2,59 @@
  * @file display.h
  * @author Jennifer Taylor <dragonminded@dragonminded.com>
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @author SpookyIluha <https://github.com/SpookyIluha>
  * @brief Display Subsystem
  * @ingroup display
+ * 
+ * The display subsystem module is responsible for initializing the proper video
+ * mode for displaying 2D, 3D and software graphics. It is the higher level module
+ * that most applications should use to configure the video output.
+ * 
+ * To set up video on the N64, code should call #display_init with the appropriate
+ * options. It is a powerful API with many options (see #resolution_t) but
+ * it can still be a simple one-liner for basic cases. It allows to configure
+ * any resolution including custom ones, any aspect ratio, any kind of
+ * letterboxing, overscan, interlacing, and so on. It also allocates a
+ * framebuffer chain.
+ * 
+ * Once the display has been set, a surface can be requested from the display
+ * subsystem using #display_get.  To draw to the acquired surface, code should
+ * use functions present in the @ref rdpq or @ref graphics modules (the latter
+ * being just a simpler, CPU-only small graphic library).
+ * 
+ * Once drawing to a surface is complete, the rendered graphic can be displayed
+ * to the screen using  #display_show.  Once code has finished rendering all
+ * graphics, #display_close can be used to shut down the display subsystem.
+ * 
+ * To obtain a Z-buffer, simply call #display_get_zbuf(). This is preferrable
+ * to manually allocating it, as display.h will manage the memory allocations
+ * spreading them across RDRAM banks to maximize rendering performance.
+ * 
+ * ## Frame counter, delta time and frame limiter
+ * 
+ * You can acquire at any time a very accurate frame rate estimation using
+ * #display_get_fps. This is measure the actual time that it takes for a 
+ * frame to reach the display, rather than the time it takes to be calculated,
+ * so it is more accurate especially when there's a high variance or long
+ * framebuffer chains.
+ * 
+ * Use #display_get_delta_time to get an estimation of the best delta time
+ * that can be used to calculate the next frame. This builds up on the
+ * FPS calculator, so again it is more accurate and smoother than just
+ * taking the time yourself in your main loop.acos
+ * 
+ * If you want to limit frame rate, call #display_set_fps_limit. This allows
+ * to limit the frame rate to a specific value, and not only submultiples of
+ * the TV refresh rate. For instance, you can call "display_set_fps_limit(45)"
+ * and it will work as expected, as smooth as possible.
  */
 #ifndef __LIBDRAGON_DISPLAY_H
 #define __LIBDRAGON_DISPLAY_H
 
+
 #include <stdbool.h>
 #include <stdint.h>
+#include "preview.h"
+#include "vi.h"
 
 /**
  * @defgroup display Display Subsystem
@@ -20,22 +64,25 @@
  *
  * The display subsystem handles interfacing with the video interface (VI)
  * and the hardware rasterizer (RDP) to allow software and hardware graphics
- * operations.  It consists of the @ref display, the @ref graphics and the
- * @ref rdp modules.  A separate module, the @ref console, provides a rudimentary
- * console for developers.  Only the display subsystem or the console can be
- * used at the same time.  However, commands to draw console text to the display
- * subsystem are available.
- *
- * The display subsystem module is responsible for initializing the proper video
- * mode for displaying 2D, 3D and software graphics.  To set up video on the N64,
- * code should call #display_init with the appropriate options.  Once the display
- * has been set, a surface can be requested from the display subsystem using
- * #display_get.  To draw to the acquired surface, code should use functions
- * present in the @ref graphics and the @ref rdp modules.  Once drawing to a surface
- * is complete, the rendered graphic can be displayed to the screen using 
- * #display_show.  Once code has finished rendering all graphics, #display_close can 
- * be used to shut down the display subsystem.
- *
+ * operations.  It consists of:
+ * 
+ * * vi.h: the low-level VI programming module. This is useful for people
+ *   wanting to tinker with low-level video programming such as custom
+ *   timings or weird effects, 
+ * * display.h: the higher-level display module. This is the basic module
+ *   most libdragon applications will use to setup a screen resolution,
+ *   a framebuffer chain, and draw onto the screen. display.h builds upon
+ *   vi.h for low-level access.
+ * * graphics.h: this is a simple graphics library that uses CPU to draw on
+ *   the screen. It is meant for very simple graphic applications like basic
+ *   test ROMs, or situations where you don't want to touch the RDP
+ *   (eg: exception handlers). Most applications should instead use
+ *   the @ref rdpq library to draw graphics.
+ * * console.h: it provides a rudimentary textual console for developers,
+ *   where you can simply write text using printf(). This is useful just for
+ *   very basic tests. Notice that this console is not meant to be running
+ *   while the display subsystem is active, as it will conflict with it.
+ * 
  */
 
 ///@cond
@@ -47,36 +94,91 @@ typedef struct surface_s surface_t;
  * @{
  */
 
+/** @brief Valid interlace modes */
+typedef enum {
+    /** @brief Video output is not interlaced */
+    INTERLACE_OFF,
+    /** @brief Video output is interlaced and buffer is swapped on odd and even fields */
+    INTERLACE_HALF,
+    /** @brief Video output is interlaced and buffer is swapped only on even fields */
+    INTERLACE_FULL,
+} interlace_mode_t;
+
 /**
  * @brief Video resolution structure
  *
- * You can either use one of the pre-defined constants
- * (such as #RESOLUTION_320x240) or define a custom resolution.
+ * This structure allows to configure the video resolution, which includes both
+ * the framebuffer size and some parameters of how the framebuffer is displayed
+ * on the screen (aspect ratio, TV overscan margins, etc.).
+ * 
+ * Most users should just use one of the pre-defined constants (such as 
+ * #RESOLUTION_320x240), but it is possible to configure custom resolutions
+ * by manually filling fields in this structure.
  */
 typedef struct {
-    /** @brief Screen width (must be between 2 and 800) */
+    /** @brief Framebuffer width (must be between 2 and 800) */
     int32_t width;
-    /** @brief Screen height (must be between 1 and 720) */
+    /** @brief Framebuffer height (must be between 1 and 720) */
     int32_t height;
-    /** @brief True if interlaced mode enabled */
-    bool interlaced;
+    /** @brief Interlace mode */
+    interlace_mode_t interlaced;
+    /** 
+     * @brief Configure the desired aspect ratio of the output display picture.
+     * @preview
+     * 
+     * By default (when this value is 0), the framebuffer will be displayed as
+     * a 4:3 picture, irrespective of its width and height. By tweaking this
+     * value, the image will instead be letterboxed (with black bars) to
+     * achieve the requested aspect ratio.
+     * 
+     * For instance, to display the framebuffer as letterboxed 16:9, specify
+     * `16.0f / 9.0f` (aka `1.777777777f`) here.
+     */
+    LIBDRAGON_PREVIEW_SYM
+    float aspect_ratio;
+    /**
+     * @brief Add a margin to the display output to compensate for the TV overscan.
+     * @preview
+     * 
+     * Leave 0 for emulators, upscaler or LCD TVs. Use #VI_CRT_MARGIN for
+     * adding some margin that will allow the picture to be fully visible on
+     * most TV CRTs.
+     * 
+     * By default (when this value is 0), the framebuffer will be displayed at
+     * the maximum extents allowed by VI (not a physical maximum, but a good
+     * maximum that doesn't compromise compatibility of the video signal).
+     * This picture will be good for emulators, upscalers, or LCD TVs.
+     * 
+     * On TV CRTs, instead, part of the picture will be displayed by the TV
+     * overscan. To compensate for this, you can reduce the picture size by this
+     * specified amount (expressed in percentage of the original picture).
+     * #VI_CRT_MARGIN (which is 0.05, aka 5%) is the suggested value you can
+     * use for this field
+     */
+    LIBDRAGON_PREVIEW_SYM
+    float overscan_margin;
 } resolution_t;
 
 ///@cond
 #define const static const /* fool doxygen to document these static members */
 ///@endcond
-/** @brief 256x240 mode */
-const resolution_t RESOLUTION_256x240 = {256, 240, false};
-/** @brief 320x240 mode */
-const resolution_t RESOLUTION_320x240 = {320, 240, false};
-/** @brief 512x240 mode, high-res progressive */
-const resolution_t RESOLUTION_512x240 = {512, 240, false};
-/** @brief 640x240 mode, high-res progressive */
-const resolution_t RESOLUTION_640x240 = {640, 240, false};
-/** @brief 512x480 mode, interlaced */
-const resolution_t RESOLUTION_512x480 = {512, 480, true};
-/** @brief 640x480 mode, interlaced */
-const resolution_t RESOLUTION_640x480 = {640, 480, true};
+
+/** Good default for a safe CRT overscan margin (5%) */
+#define VI_CRT_MARGIN      0.05f
+
+/** @brief 256x240 mode, stretched to 4:3, no borders */
+const resolution_t RESOLUTION_256x240 = {.width = 256, .height = 240, .interlaced = INTERLACE_OFF};
+/** @brief 320x240 mode, no borders */
+const resolution_t RESOLUTION_320x240 = {.width = 320, .height = 240, .interlaced = INTERLACE_OFF};
+/** @brief 512x240 mode, stretched to 4:3, no borders */
+const resolution_t RESOLUTION_512x240 = {.width = 512, .height = 240, .interlaced = INTERLACE_OFF};
+/** @brief 640x240 mode, stretched to 4:3, no borders */
+const resolution_t RESOLUTION_640x240 = {.width = 640, .height = 240, .interlaced = INTERLACE_OFF};
+/** @brief 512x480 mode, interlaced, stretched to 4:3, no borders */
+const resolution_t RESOLUTION_512x480 = {.width = 512, .height = 480, .interlaced = INTERLACE_HALF};
+/** @brief 640x480 mode, interlaced, no borders */
+const resolution_t RESOLUTION_640x480 = {.width = 640, .height = 480, .interlaced = INTERLACE_HALF};
+
 #undef const
 
 /** @brief Valid bit depths */
@@ -91,13 +193,22 @@ typedef enum
 /** @brief Valid gamma correction settings */
 typedef enum
 {
-    /** @brief Uncorrected gamma, should be used by default and with assets built by libdragon tools */
-    GAMMA_NONE,
-    /** @brief Corrected gamma, should be used on a 32-bit framebuffer
-     * only when assets have been produced in linear color space and accurate blending is important */
-    GAMMA_CORRECT,
+    /** 
+     * @brief Uncorrected gamma.
+     * 
+     * This is the default settings, and should be used with assets
+     * built by libdragon tools
+     */
+    GAMMA_NONE = 0,
+    /** 
+     * @brief Corrected gamma.
+     * 
+     * It should be used on a 32-bit framebuffer, only when assets have been
+     * produced in linear color space and accurate blending is important
+     */
+    GAMMA_CORRECT = VI_GAMMA_ENABLE,
     /** @brief Corrected gamma with hardware dithered output */
-    GAMMA_CORRECT_DITHER
+    GAMMA_CORRECT_DITHER = VI_GAMMA_DITHER_ENABLE,
 } gamma_t;
 
 /** @brief Valid display filter options.
@@ -115,8 +226,8 @@ typedef enum
     /** @brief All display filters are disabled */
     FILTERS_DISABLED,
     /** @brief Resize the output image with a bilinear filter. 
-     * In general, VI is in charge of resizing the framebuffer to fit the TV resolution 
-     * (which is always NTSC 640x480 or PAL 640x512). 
+     * In general, VI is in charge of resizing the framebuffer to fit the virtual
+     * TV resolution (which is always 640x480 on NTSC/MPAL, 640x576 on PAL).
      * This option enables a bilinear interpolation that can be used during this resize. */
     FILTERS_RESAMPLE,
     /** @brief Reconstruct a 32-bit output from dithered 16-bit framebuffer. */
@@ -197,6 +308,43 @@ extern "C" {
 void display_init( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters );
 
 /**
+ * @brief Change display parameters without reallocating framebuffers
+ * @preview
+ *
+ * Reapplies the same configuration options as #display_init but reuses the
+ * existing framebuffer memory. Use this to change resolution, bit depth,
+ * number of buffers, gamma or filters at run time without calling
+ * #display_close and #display_init.
+ *
+ * The display must already be initialized with #display_init. The new
+ * configuration is constrained: \p num_buffers must be less than or equal
+ * to the number of buffers originally allocated, and the new framebuffer
+ * size (width × height × bytes per pixel) must not exceed the originally
+ * allocated size. Multiple successive calls to #display_change are allowed,
+ * always within the memory initially allocated by #display_init.
+ *
+ * No allocation is performed: the same buffer pointers are reused. Buffers
+ * that were obtained via #display_get before the change complete their
+ * lifecycle with the old dimensions and are shown correctly; only buffers
+ * obtained via #display_get after the change use the new dimensions.
+ *
+ * Getters such as #display_get_width, #display_get_height and
+ * #display_get_bitdepth return the new dimensions immediately after
+ * #display_change returns.
+ *
+ * The actual VI register updates are applied lazily by the display subsystem
+ * after any pre-change queued frames have been shown.
+ *
+ * @param[in] res    Requested resolution (same meaning as in #display_init)
+ * @param[in] bit    Requested bit depth
+ * @param[in] num_buffers  Number of buffers (must be ≤ originally allocated)
+ * @param[in] gamma  Requested gamma setting
+ * @param[in] filters  Requested display filtering options
+ */
+LIBDRAGON_PREVIEW_API
+void display_change( resolution_t res, bitdepth_t bit, uint32_t num_buffers, gamma_t gamma, filter_options_t filters );
+
+/**
  * @brief Close the display
  *
  * Close a display and free buffer memory associated with it.
@@ -246,6 +394,20 @@ surface_t* display_try_get(void);
 void display_show(surface_t* surf);
 
 /**
+ * @brief Return a memory surface that can be used as Z-buffer for the current
+ * @preview
+ *        resolution
+ *
+ * This function lazily allocates and returns a surface that can be used
+ * as Z-buffer for the current resolution. The surface is automatically freed
+ * when the display is closed.
+ *
+ * @return The Z-buffer surface
+ */
+LIBDRAGON_PREVIEW_API
+surface_t* display_get_zbuf(void);
+
+/**
  * @brief Get the currently configured width of the display in pixels
  */
 uint32_t display_get_width(void);
@@ -266,12 +428,64 @@ uint32_t display_get_bitdepth(void);
 uint32_t display_get_num_buffers(void);
 
 /**
+ * @brief Get the current refresh rate of the video output in Hz
+ * @preview
+ * 
+ * The refresh rate is normally 50 for PAL and 60 for NTSC, but this function
+ * returns the hardware-accurate number which is close to those but not quite
+ * exact. Moreover, this will also account for advanced VI configurations
+ * affecting the refresh rate, like PAL60.
+ * 
+ * @return Refresh rate in Hz (frames per second)
+ */
+LIBDRAGON_PREVIEW_API
+float display_get_refresh_rate(void);
+
+/**
  * @brief Get the current number of frames per second being rendered
  * 
- * @return float Frames per second
+ * @return Frames per second
  */
 float display_get_fps(void);
 
+/**
+ * @brief Returns the "delta time", that is the time it took to the last frame
+ * @preview
+ *        to be prepared and rendered.
+ * 
+ * This function is useful for time-based animations and physics, as it allows
+ * to calculate the time elapsed between frames. Call this function once per
+ * frame to get the time elapsed since the last frame.
+ * 
+ * @note Do not call this function more than once per frame. If needed, cache
+ *       the result in a variable and use it multiple times.
+ * 
+ * @return Time elapsed since the last complete frame (in seconds)
+ */
+LIBDRAGON_PREVIEW_API
+float display_get_delta_time(void);
+
+/**
+ * @brief Configure a limit for the frames per second
+ * @preview
+ *
+ * This function allows to set a limit for the frames per second to render.
+ * The limit is enforced by the display module, which will slow down calls
+ * to display_get() if need to respect the limit.
+ *
+ * Passing 0 as argument will disable the limit.
+ *
+ * @param fps           The maximum number of frames per second to render (fractionals allowed)
+ */
+LIBDRAGON_PREVIEW_API
+void display_set_fps_limit(float fps);
+
+/**
+ * @brief Returns a surface that points to the framebuffer currently being shown on screen.
+ * @preview
+ */
+LIBDRAGON_PREVIEW_API
+surface_t display_get_current_framebuffer(void);
 
 /** @cond */
 __attribute__((deprecated("use display_get or display_try_get instead")))

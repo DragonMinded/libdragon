@@ -1,16 +1,17 @@
 /**
  * @file sprite.h
  * @author Giovanni Bajo <giovannibajo@gmail.com>
- * @author Dennis Heinze <dennisjp.heinze@gmail.com>
  * @brief 2D Graphics
  * @ingroup graphics
  */
 #ifndef __LIBDRAGON_SPRITE_H
 #define __LIBDRAGON_SPRITE_H
 
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <surface.h>
+#include "preview.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,6 +88,7 @@ typedef struct sprite_detail_s
 
 #define SPRITE_FLAGS_TEXFORMAT      0x1F    ///< Pixel format of the sprite
 #define SPRITE_FLAGS_OWNEDBUFFER    0x20    ///< Flag specifying that the sprite buffer must be freed by sprite_free
+#define SPRITE_FLAGS_NODATA         0x40    ///< Sprite does not contain data in the base section; all data is in the extended section
 #define SPRITE_FLAGS_EXT            0x80    ///< Sprite contains extended information (new format)
 
 
@@ -102,7 +104,7 @@ typedef struct sprite_detail_s
  * 
  * @param fn           Filename of the sprite, including filesystem specifier.
  *                     For instance: "rom:/hero.sprite" to load from DFS.
- * @return sprite_t*   The loaded sprite
+ * @return             The loaded sprite
  */
 sprite_t *sprite_load(const char *fn);
 
@@ -120,7 +122,7 @@ sprite_t *sprite_load(const char *fn);
  *
  * @param buf           Pointer to the sprite file data
  * @param sz            Size of the sprite file buffer
- * @return sprite_t*    The loaded sprite
+ * @return              The loaded sprite
  */
 sprite_t *sprite_load_buf(void *buf, int sz);
 
@@ -167,7 +169,7 @@ surface_t sprite_get_pixels(sprite_t *sprite);
  * 
  * @param sprite        The sprite to access
  * @param num_level     The number of LOD level. 0 is the main sprite.
- * @return surface_t    The surface containing the data.
+ * @return              The surface containing the data.
  */
 surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
 
@@ -189,7 +191,7 @@ surface_t sprite_get_lod_pixels(sprite_t *sprite, int num_level);
  * @param sprite        The sprite to access
  * @param info          The detail information struct to fill if needed
  * @param infoparms     The detail texture sampling struct to fill if needed
- * @return surface_t    The surface containing the data.
+ * @return              The surface containing the data.
  */
 surface_t sprite_get_detail_pixels(sprite_t *sprite, sprite_detail_t *info, rdpq_texparms_t *infoparms);
 
@@ -223,6 +225,16 @@ surface_t sprite_get_tile(sprite_t *sprite, int h, int v);
  * @return              A pointer to the palette data, or NULL if the sprite does not have a palette
  */
 uint16_t* sprite_get_palette(sprite_t *sprite);
+
+/**
+ * @brief Get number of colors actually used in palette
+ * @preview
+ *
+ * @param   sprite      The sprite to access
+ * @return              Number of used palette colors
+ */
+LIBDRAGON_PREVIEW_API
+int sprite_get_palette_used_colors(sprite_t *sprite);
 
 /**
  * @brief Get a copy of the RDP texparms, optionally stored within the sprite.
@@ -270,6 +282,18 @@ int sprite_get_lod_count(sprite_t *sprite);
  */
 bool sprite_fits_tmem(sprite_t *sprite);
 
+/** 
+ * @brief Return true if the sprite is in SHQ format
+ * @preview
+ * 
+ * This is a special sprite made of two mipmaps (one I4 and one RGBA16)
+ * that must be displayed using subtractive blending.
+ * 
+ * @param sprite        The sprite to access
+ * @return              True if the sprite is in SHQ format, false otherwise
+ */
+LIBDRAGON_PREVIEW_API
+bool sprite_is_shq(sprite_t *sprite);
 
 #ifdef __cplusplus
 }

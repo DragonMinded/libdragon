@@ -15,8 +15,11 @@
 #include <unistd.h>
 #include "system.h"
 #include "cop0.h"
+#include "vi.h"
+#include "display.h"
 #include "console.h"
 #include "graphics.h"
+#include "debug.h"
 
 /* Prototypes */
 static void __console_render(void);
@@ -138,9 +141,10 @@ void console_init()
 {
     /* In case they initialized the display already */
     display_close();
-    display_init( RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_RESAMPLE );
+    display_init( RESOLUTION_640x240, DEPTH_16_BPP, 2, GAMMA_NONE, FILTERS_DISABLED );
 
     render_buffer = malloc(CONSOLE_SIZE);
+    assertf(render_buffer, "Out of memory");
 
     console_set_render_mode(RENDER_AUTOMATIC);
     console_clear();
@@ -225,17 +229,14 @@ static void __console_render(void)
     }
 
 end:;
+    display_show(dc);
+
     /* If the interrupts are disabled, the console wouldn't show to the screen.
      * Since the console is only used for development and emergency context,
      * it is better to force display irrespective of vblank. */
     uint32_t c0_status = C0_STATUS();
     if ((c0_status & C0_STATUS_IE) == 0 || ((c0_status & (C0_STATUS_EXL|C0_STATUS_ERL)) != 0))
-    {
-        extern void display_show_force(display_context_t dc);
-        display_show_force(dc);
-    }
-    else
-        display_show(dc);
+        vi_wait_vblank();
 }
 
 void console_render()

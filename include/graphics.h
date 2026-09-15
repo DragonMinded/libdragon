@@ -95,6 +95,46 @@ _Static_assert(sizeof(color_t) == 4, "invalid sizeof for color_t");
 /** @brief Create a #color_t from the R,G,B,A components in the RGBA32 range (0-255). */
 #define RGBA32(rx,gx,bx,ax) ((color_t){.r=rx, .g=gx, .b=bx, .a=ax})
 
+/** @brief Create a #color_t from the R,G,B,A components in the linear 16bit color space (that is: RGB in 0-31 squared, A in 0-1), use with #GAMMA_CORRECT display. */
+#define LINEAR16(rx, gx, bx, ax) \
+    (__builtin_constant_p(rx) && \
+     __builtin_constant_p(gx) && \
+     __builtin_constant_p(bx) && \
+     __builtin_constant_p(ax) ? \
+        ((color_t){ \
+            .r = ((((rx) << 3) | ((rx) >> 3))*(((rx) << 3) | ((rx) >> 3))) >> 8, \
+            .g = ((((gx) << 3) | ((gx) >> 3))*(((gx) << 3) | ((gx) >> 3))) >> 8, \
+            .b = ((((bx) << 3) | ((bx) >> 3))*(((bx) << 3) | ((bx) >> 3))) >> 8, \
+            .a = (ax) ? 0xFF : 0 \
+        }) : \
+        ( __extension__ ({ \
+            int rx0 = rx, gx0 = gx, bx0 = bx; \
+            int rx1 = (rx0<<3)|(rx0>>3), gx1 = (gx0<<3)|(gx0>>3), bx1 = (bx0<<3)|(bx0>>3); \
+            rx1 *= rx1; gx1 *= gx1; bx1 *= bx1; \
+            rx1 >>= 8; gx1 >>= 8; bx1 >>= 8; \
+            (color_t){.r=rx1, .g=gx1, .b=bx1, .a=ax ? 0xFF : 0}; \
+        }) ) \
+        )
+/** @brief Create a #color_t from the R,G,B,A components in the linear color space (0-255 squared), use with #GAMMA_CORRECT display. */
+#define LINEAR32(rx, gx, bx, ax) \
+    (__builtin_constant_p(rx) && \
+     __builtin_constant_p(gx) && \
+     __builtin_constant_p(bx) && \
+     __builtin_constant_p(ax) ? \
+        ((color_t){ \
+            .r = (((rx)*(rx)) >> 8), \
+            .g = (((gx)*(gx)) >> 8), \
+            .b = (((bx)*(bx)) >> 8), \
+            .a = ax \
+        }) : \
+        ( __extension__ ({ \
+            int rx1 = rx, gx1 = gx, bx1 = bx; \
+            rx1 *= rx1; gx1 *= gx1; bx1 *= bx1; \
+            rx1 >>= 8; gx1 >>= 8; bx1 >>= 8; \
+            (color_t){.r=rx1, .g=gx1, .b=bx1, .a=ax}; \
+        }) ) \
+        )
+
 /** @brief Convert a #color_t to the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
 inline uint16_t color_to_packed16(color_t c) {
     return (((int)c.r >> 3) << 11) | (((int)c.g >> 3) << 6) | (((int)c.b >> 3) << 1) | (c.a >> 7);
@@ -102,7 +142,7 @@ inline uint16_t color_to_packed16(color_t c) {
 
 /** @brief Convert a #color_t to the 32-bit packed format used by a #FMT_RGBA32 surface (RGBA 8888) */
 inline uint32_t color_to_packed32(color_t c) {
-    return *(uint32_t*)&c;
+    return (c.r << 24) | (c.g << 16) | (c.b << 8) | (c.a << 0);
 }
 /** @brief Create a #color_t from the 16-bit packed format used by a #FMT_RGBA16 surface (RGBA 5551) */
 inline color_t color_from_packed16(uint16_t c) {
