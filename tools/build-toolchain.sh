@@ -47,11 +47,17 @@ GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
 BINUTILS_V=2.45
+BINUTILS_C=c50c0e7f9cb188980e2cc97e4537626b1672441815587f1eab69d2a1bfbef5d2 # from fedora, converted, tar.xz version
 GCC_V=16.2.0
+GCC_C=e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e # from arch, tar.xz version
 NEWLIB_V=4.4.0.20231231
+NEWLIB_C=0c166a39e1bf0951dfafcd68949fe0e4b6d3658081d6282f39aeefc6310f2f13 # from arch, tar.gz version
 GMP_V=6.3.0
+GMP_C=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 # from fedora, converted, tar.xz version
 MPC_V=1.3.1
+MPC_C=ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8 # from arch, tar.gz version
 MPFR_V=4.2.1
+MPFR_C=277807353a6726978996945af13e52829e3abd7a9a5b7fb2793894e18f1fcbb2 # from arch, converted, tar.xz version
 ZLIB_V=${ZLIB_V:-""}
 MAKE_V=${MAKE_V:-""}
 
@@ -89,6 +95,19 @@ download () {
 download_gnu () {
     download "https://mirrors.kernel.org/gnu/$1"
 }
+
+checksum () {
+    SHASUM="sha256sum"
+    if [[ $OSTYPE == 'darwin'* ]]; then
+        SHASUM="shasum -a 256"
+    fi
+    if [ "$($SHASUM $1 | awk '{print $1}')" = "$2" ]; then
+        return 0
+    fi
+    return 1
+}
+
+
 
 # Compilation on macOS via homebrew
 if [[ $OSTYPE == 'darwin'* ]]; then
@@ -136,38 +155,64 @@ else
 fi
 
 # Dependency downloads and unpack
-test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" || download_gnu "binutils/binutils-$BINUTILS_V.tar.gz"
-test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xzf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.gz" -C "$BUILD_PATH"
+test -f "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.xz" || download "https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_V.tar.xz"
+if ! checksum "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.xz" $BINUTILS_C ; then
+    echo "binutils failed checksum test"
+    exit 1
+fi
+test -d "$BUILD_PATH/binutils-$BINUTILS_V"           || tar -xf "$DOWNLOAD_PATH/binutils-$BINUTILS_V.tar.xz" -C "$BUILD_PATH"
 
-test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz"           || download_gnu "gcc/gcc-$GCC_V/gcc-$GCC_V.tar.gz"
-test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xzf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.gz" -C "$BUILD_PATH"
+test -f "$DOWNLOAD_PATH/gcc-$GCC_V.tar.xz"           || download "https://ftp.gnu.org/gnu/gcc/gcc-$GCC_V/gcc-$GCC_V.tar.xz"
+if ! checksum "$DOWNLOAD_PATH/gcc-$GCC_V.tar.xz" $GCC_C ; then
+    echo "gcc failed checksum test"
+    exit 1
+fi
+test -d "$BUILD_PATH/gcc-$GCC_V"                     || tar -xf "$DOWNLOAD_PATH/gcc-$GCC_V.tar.xz" -C "$BUILD_PATH"
 
 test -f "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz"     || download "https://sourceware.org/pub/newlib/newlib-$NEWLIB_V.tar.gz"
-test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xzf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
+if ! checksum "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" $NEWLIB_C ; then
+    echo "newlib failed checksum test"
+    exit 1
+fi
+test -d "$BUILD_PATH/newlib-$NEWLIB_V"               || tar -xf "$DOWNLOAD_PATH/newlib-$NEWLIB_V.tar.gz" -C "$BUILD_PATH"
 
 if [ "$GMP_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2"      || download_gnu "gmp/gmp-$GMP_V.tar.bz2"
-    test -d "$BUILD_PATH/gmp-$GMP_V"                 || tar -xf "$DOWNLOAD_PATH/gmp-$GMP_V.tar.bz2" -C "$BUILD_PATH" # note: no .gz download file currently available
+    test -f "$DOWNLOAD_PATH/gmp-$GMP_V.tar.xz"       || download "https://ftp.gnu.org/gnu/gmp/gmp-$GMP_V.tar.xz"
+    if ! checksum "$DOWNLOAD_PATH/gmp-$GMP_V.tar.xz" $GMP_C ; then
+        echo "gmp failed checksum test"
+        exit 1
+    fi
+    test -d "$BUILD_PATH/gmp-$GMP_V"                 || tar -xf "$DOWNLOAD_PATH/gmp-$GMP_V.tar.xz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"gmp-$GMP_V" "gmp"
     popd
 fi
 
 if [ "$MPC_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"       || download_gnu "mpc/mpc-$MPC_V.tar.gz"
-    test -d "$BUILD_PATH/mpc-$MPC_V"                 || tar -xzf "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz" -C "$BUILD_PATH"
+    test -f "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"       || download "https://ftp.gnu.org/gnu/mpc/mpc-$MPC_V.tar.gz"
+    if ! checksum "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz"  $MPC_C ; then
+        echo "mpc failed checksum test"
+        exit 1
+    fi
+    test -d "$BUILD_PATH/mpc-$MPC_V"                 || tar -xf "$DOWNLOAD_PATH/mpc-$MPC_V.tar.gz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpc-$MPC_V" "mpc"
     popd
 fi
 
 if [ "$MPFR_V" != "" ]; then
-    test -f "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz"     || download_gnu "mpfr/mpfr-$MPFR_V.tar.gz"
-    test -d "$BUILD_PATH/mpfr-$MPFR_V"               || tar -xzf "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.gz" -C "$BUILD_PATH"
+    test -f "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.xz"     || download "https://ftp.gnu.org/gnu/mpfr/mpfr-$MPFR_V.tar.xz"
+    if ! checksum "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.xz"  $MPFR_C ; then
+        echo "mpfr failed checksum test"
+        exit 1
+    fi
+    test -d "$BUILD_PATH/mpfr-$MPFR_V"               || tar -xf "$DOWNLOAD_PATH/mpfr-$MPFR_V.tar.xz" -C "$BUILD_PATH"
     pushd "$BUILD_PATH/gcc-$GCC_V"
     ln -sf ../"mpfr-$MPFR_V" "mpfr"
     popd
 fi
+
+exit
 
 if [ "$MAKE_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz"     || download_gnu "make/make-$MAKE_V.tar.gz"
