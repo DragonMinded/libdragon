@@ -4,6 +4,7 @@
  * @brief FAT filesystem interface and newlib wrappers.
  */
 #include <string.h>
+#include <stdbool.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/errno.h>
@@ -21,6 +22,76 @@
 static fat_disk_t fat_disks[FF_VOLUMES] = {0};
 static FATFS *fat_volumes[FF_VOLUMES] = {0};
 static filesystem_t *fat_filesystems[FF_VOLUMES] = {0};
+
+/*********************************************************************
+ * Single-sector LRU cache (FAT/dir metadata)
+ *
+ * FatFs (TINY) uses disk_read(..., 1) for metadata via move_window, and
+ * multi-sector I/O for aligned file data. Caching only count==1 accesses
+ * keeps hot FAT/dir sectors across bulk file reads/writes.
+ *********************************************************************/
+
+_Static_assert(FF_MIN_SS == 512 && FF_MAX_SS == 512, "sector cache assumes 512-byte sectors");
+
+#define FAT_SECTOR_CACHE_SIZE  8
+
+typedef struct {
+	bool     valid;
+	LBA_t    sector;
+	uint32_t tick;
+	uint8_t  data[512];
+} fat_sector_cache_slot_t;
+
+typedef struct {
+	uint32_t tick;
+	fat_sector_cache_slot_t slots[FAT_SECTOR_CACHE_SIZE];
+} fat_sector_cache_t;
+
+static fat_sector_cache_t *fat_sector_caches[FF_VOLUMES] = {0};
+
+static fat_sector_cache_slot_t *__fat_cache_lookup(fat_sector_cache_t *cache, LBA_t sector)
+{
+	for (int i = 0; i < FAT_SECTOR_CACHE_SIZE; i++) {
+		fat_sector_cache_slot_t *slot = &cache->slots[i];
+		if (slot->valid && slot->sector == sector)
+			return slot;
+	}
+	return NULL;
+}
+
+static fat_sector_cache_slot_t *__fat_cache_evict(fat_sector_cache_t *cache)
+{
+	fat_sector_cache_slot_t *victim = NULL;
+	for (int i = 0; i < FAT_SECTOR_CACHE_SIZE; i++) {
+		fat_sector_cache_slot_t *slot = &cache->slots[i];
+		if (!slot->valid)
+			return slot;
+		if (!victim || slot->tick < victim->tick)
+			victim = slot;
+	}
+	return victim;
+}
+
+static void __fat_cache_store(fat_sector_cache_t *cache, LBA_t sector, const uint8_t *data)
+{
+	fat_sector_cache_slot_t *slot = __fat_cache_lookup(cache, sector);
+	if (!slot)
+		slot = __fat_cache_evict(cache);
+	slot->valid = true;
+	slot->sector = sector;
+	slot->tick = ++cache->tick;
+	memcpy(slot->data, data, 512);
+}
+
+static void __fat_cache_invalidate_range(fat_sector_cache_t *cache, LBA_t sector, UINT count)
+{
+	LBA_t end = sector + count;
+	for (int i = 0; i < FAT_SECTOR_CACHE_SIZE; i++) {
+		fat_sector_cache_slot_t *slot = &cache->slots[i];
+		if (slot->valid && slot->sector >= sector && slot->sector < end)
+			slot->valid = false;
+	}
+}
 
 /** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DSTATUS disk_initialize(BYTE pdrv)
@@ -41,17 +112,45 @@ DSTATUS disk_status(BYTE pdrv)
 /** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DRESULT disk_read(BYTE pdrv, BYTE* buff, LBA_t sector, UINT count)
 {
-	if (fat_disks[pdrv].disk_read)
-		return fat_disks[pdrv].disk_read(buff, sector, count);
-	return RES_PARERR;
+	if (!fat_disks[pdrv].disk_read)
+		return RES_PARERR;
+
+	fat_sector_cache_t *cache = fat_sector_caches[pdrv];
+	if (PhysicalAddr(buff) < 0x00800000 && cache && count == 1) {
+		fat_sector_cache_slot_t *slot = __fat_cache_lookup(cache, sector);
+		if (slot) {
+			slot->tick = ++cache->tick;
+			memcpy(buff, slot->data, 512);
+			return RES_OK;
+		}
+		DRESULT res = fat_disks[pdrv].disk_read(buff, sector, count);
+		if (res == RES_OK)
+			__fat_cache_store(cache, sector, buff);
+		return res;
+	}
+
+	return fat_disks[pdrv].disk_read(buff, sector, count);
 }
 
 /** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
 DRESULT disk_write(BYTE pdrv, const BYTE* buff, LBA_t sector, UINT count)
 {
-	if (fat_disks[pdrv].disk_write)
-		return fat_disks[pdrv].disk_write(buff, sector, count);
-	return RES_PARERR;
+	if (!fat_disks[pdrv].disk_write)
+		return RES_PARERR;
+
+	DRESULT res = fat_disks[pdrv].disk_write(buff, sector, count);
+	if (res != RES_OK)
+		return res;
+
+	fat_sector_cache_t *cache = fat_sector_caches[pdrv];
+	if (!cache)
+		return res;
+
+	if (count == 1)
+		__fat_cache_store(cache, sector, buff);
+	else
+		__fat_cache_invalidate_range(cache, sector, count);
+	return res;
 }
 
 /** @brief FatFS disk API: implementation by forwarding to a disk-specific function. */
@@ -102,10 +201,6 @@ DWORD get_fattime(void)
 	fat_name; \
 })
 
-/** @brief Number of static FAT file objects. */
-#define NUM_STATIC_FAT_FILES 4
-static FIL static_fat_files[NUM_STATIC_FAT_FILES] = {0};
-
 static void __fresult_set_errno(FRESULT err)
 {
 	assertf(err != FR_INT_ERR, "FatFS assertion error");
@@ -136,17 +231,10 @@ static void __fresult_set_errno(FRESULT err)
 static void *__fat_open(char *name, int flags, int volid)
 {
 	FIL *fp = NULL;
-	for (int i=0; i<NUM_STATIC_FAT_FILES; i++)
-		if (static_fat_files[i].obj.fs == NULL) {
-			fp = &static_fat_files[i];
-			break;
-		}
+	fp = malloc(sizeof(FIL));
 	if (!fp) {
-		fp = malloc(sizeof(FIL));
-		if (!fp) {
-			errno = ENOMEM;
-			return NULL;
-		}
+		errno = ENOMEM;
+		return NULL;
 	}
 
 	int fatfs_flags = 0;
@@ -172,10 +260,7 @@ static void *__fat_open(char *name, int flags, int volid)
 	if (res != FR_OK)
 	{
 		__fresult_set_errno(res);
-		if (fp >= static_fat_files && fp < static_fat_files+NUM_STATIC_FAT_FILES)
-			fp->obj.fs = NULL;
-		else
-			free(fp);
+		free(fp);
 		return NULL;
 	}
 	return fp;
@@ -252,10 +337,7 @@ static int __fat_close(void *file)
 	FIL *fp = file;
 	FRESULT res = f_close(fp);
 
-	if (fp >= static_fat_files && fp < static_fat_files+NUM_STATIC_FAT_FILES)
-		fp->obj.fs = NULL;
-	else
-		free(fp);
+	free(fp);
 
 	if (res != FR_OK) {
 		__fresult_set_errno(res);
@@ -468,6 +550,10 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
     fat_disks[vol_id] = *disk;
     fat_filesystems[vol_id] = NULL;
 
+    fat_sector_cache_t *cache = calloc(1, sizeof(fat_sector_cache_t));
+	assertf(cache, "Out of memory");
+    fat_sector_caches[vol_id] = cache;
+
     FATFS *fatfs = malloc(sizeof(FATFS));
 	assertf(fatfs, "Out of memory");
     char path[3] = {'0' + vol_id, ':', 0};
@@ -476,6 +562,8 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
     if (err != FR_OK) {
         __fresult_set_errno(err);
         free(fatfs);
+        free(cache);
+        fat_sector_caches[vol_id] = NULL;
         fat_disks[vol_id] = (fat_disk_t){0};
         return -1;
     }
@@ -498,6 +586,8 @@ int fat_mount(const char *prefix, const fat_disk_t* disk, int flags)
             free(fatfs);
             fat_volumes[vol_id] = NULL;
             free(newlib_fs);
+            free(cache);
+            fat_sector_caches[vol_id] = NULL;
             fat_disks[vol_id] = (fat_disk_t){0};
             return -1;
         }
@@ -530,6 +620,8 @@ int fat_unmount(int vol_id)
     fat_filesystems[vol_id] = NULL;
     free(fat_volumes[vol_id]);
     fat_volumes[vol_id] = NULL;
+    free(fat_sector_caches[vol_id]);
+    fat_sector_caches[vol_id] = NULL;
     fat_disks[vol_id] = (fat_disk_t){0};
 
     if (detach_errno) {

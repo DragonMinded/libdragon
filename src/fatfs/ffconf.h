@@ -302,6 +302,18 @@
 */
 
 
+#define FF_FAST_CONTIGUOUS_READ		1
+#define FF_FAST_CONTIGUOUS_WRITE	1
+/* FF_FAST_CONTIGUOUS_* coalesce multi-cluster I/O into one disk_read/disk_write
+/  when the FAT chain is contiguous on disk. FatFs normally clips each transfer
+/  at the cluster boundary; enabling this walks the chain and issues a larger
+/  transfer when consecutive clusters are adjacent. Useful when per-transfer
+/  setup cost dominates (e.g. SD card).
+/
+/  0: Clip at each cluster (stock FatFs behavior).
+/  1: Merge contiguous clusters into one transfer.
+*/
+
 
 /*--- End of configuration options ---*/
 
