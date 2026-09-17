@@ -19,6 +19,9 @@
 #include "../common/utils.h"
 #include "../include/rdpq_macros.h"
 
+#define CGLTF_IMPLEMENTATION
+#include "../common/cgltf.h"
+
 #define INI_HANDLER_LINENO 1
 #define INI_INLINE_COMMENT_PREFIXES ";#"
 #define INI_CALL_HANDLER_ON_NEW_SECTION 1
@@ -456,6 +459,143 @@ std::vector<Material> parse_mat(const char *fn)
     return materials;
 }
 
+static const std::vector<std::string> RGB_SLOTS_A = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "noise", "0" };
+static const std::vector<std::string> RGB_SLOTS_B = { "combined", "tex0", "tex1", "prim", "shade", "env", "keycenter", "k4", "0" };
+static const std::vector<std::string> RGB_SLOTS_C = { "combined", "tex0", "tex1", "prim", "shade", "env", "keyscale", "combined.a", "tex0.a", "tex1.a", "prim.a", "shade.a", "env.a", "lod_frac", "prim_lod_frac", "k5", "0" };
+static const std::vector<std::string> RGB_SLOTS_D = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
+
+static const std::vector<std::string> ALPHA_SLOTS_A = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
+static const std::vector<std::string> ALPHA_SLOTS_B = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
+static const std::vector<std::string> ALPHA_SLOTS_C = { "lod_frac", "tex0", "tex1", "prim", "shade", "env", "prim_lod_frac", "0" };
+static const std::vector<std::string> ALPHA_SLOTS_D = { "combined", "tex0", "tex1", "prim", "shade", "env", "1", "0" };
+
+std::string parse_cc_component(const nlohmann::json& comp, const std::vector<std::string>& slots)
+{
+    return slots[comp.get<uint8_t>()];
+}
+
+std::string parse_cc_rgb(const nlohmann::json& cc)
+{
+    return "(" 
+        + parse_cc_component(cc["A"], RGB_SLOTS_A) + ","
+        + parse_cc_component(cc["B"], RGB_SLOTS_B) + ","
+        + parse_cc_component(cc["C"], RGB_SLOTS_C) + ","
+        + parse_cc_component(cc["D"], RGB_SLOTS_D) + ")";
+}
+
+std::string parse_cc_alpha(const nlohmann::json& cc)
+{
+    return "(" 
+        + parse_cc_component(cc["A_alpha"], ALPHA_SLOTS_A) + ","
+        + parse_cc_component(cc["B_alpha"], ALPHA_SLOTS_B) + ","
+        + parse_cc_component(cc["C_alpha"], ALPHA_SLOTS_C) + ","
+        + parse_cc_component(cc["D_alpha"], ALPHA_SLOTS_D) + ")";
+}
+
+std::string parse_color(const nlohmann::json& color)
+{
+    return nlohmann::to_string(color[0]) + ","
+        + nlohmann::to_string(color[1]) + ","
+        + nlohmann::to_string(color[2]) + ","
+        + nlohmann::to_string(color[3]);
+}
+
+bool is_flag_set(const nlohmann::json& f3d_mat, std::string flag)
+{
+    auto iter = f3d_mat.find(flag);
+    return iter != f3d_mat.end() && iter->get<uint32_t>() != 0;
+}
+
+void parse_tex(nlohmann::json& mat, const nlohmann::json& f3d_mat, std::string key)
+{
+    if (!f3d_mat.contains(key)) return;
+
+    auto f3d_tex = f3d_mat[key];
+    if (!f3d_tex.contains("tex")) return;
+
+    auto tex = f3d_tex["tex"];
+    if (!tex.contains("name")) return;
+
+    mat[key + ".name"] = tex["name"].get<std::string>();
+}
+
+nlohmann::json parse_f3d_mat(const nlohmann::json& f3d_mat)
+{
+    using json = nlohmann::json;
+    auto mat = json::object();
+
+    if (is_flag_set(f3d_mat, "set_combiner")) {
+        auto cc1 = f3d_mat["combiner1"];
+        auto cc2 = f3d_mat["combiner2"];
+
+        mat["combiner.rgb.raw"] = parse_cc_rgb(cc1) + "," + parse_cc_rgb(cc2);
+        mat["combiner.alpha.raw"] = parse_cc_alpha(cc1) + "," + parse_cc_alpha(cc2);
+    }
+
+    if (is_flag_set(f3d_mat, "set_prim")) {
+        mat["combiner.reg.prim"] = parse_color(f3d_mat["prim_color"]);
+    } else {
+        mat["combiner.reg.prim"] = "1,1,1,1";
+    }
+
+    if (is_flag_set(f3d_mat, "set_env")) {
+        mat["combiner.reg.env"] = parse_color(f3d_mat["env_color"]);
+    }
+
+    parse_tex(mat, f3d_mat, "tex0");
+    parse_tex(mat, f3d_mat, "tex1");
+
+    fprintf(stderr, "%s\n", mat.dump().c_str());
+    return mat;
+}
+
+bool parse_jmat_material(Material &out_material, const nlohmann::json &jmat, const char *fn)
+{
+    bool mat_error = false;
+    
+    // Parse all key-value pairs for this material
+    for (auto& [key, value] : jmat.items()) {
+        if (!value.is_string()) {
+            fprintf(stderr, "%s: error: value for key '%s' must be a string (material: %s)\n", 
+                    fn, key.c_str(), out_material.name.c_str());
+            mat_error = true;
+            continue;
+        }
+        
+        try {
+            out_material.parse_attr(key, value.get<std::string>());
+        } catch (std::runtime_error &e) {
+            fprintf(stderr, "%s: error: %s (material: %s, key: %s)\n", fn, e.what(), out_material.name.c_str(), key.c_str());
+            mat_error = true;
+        }
+    }
+
+    return !mat_error;
+}
+
+bool add_unique_material(std::vector<Material> &materials, Material &&mat, const char *fn)
+{
+    try {
+        mat.validate();
+    } catch (std::runtime_error &e) {
+        fprintf(stderr, "%s: error: %s (material: %s)\n", fn, e.what(), mat.name.c_str());
+        return true;
+    }
+        
+    // Check if the material already exists
+    for (const auto &existing : materials) {
+        if (existing.name == mat.name) {
+            fprintf(stderr, "%s: duplicate material: %s (previous occurrence: %s)\n", 
+                    fn, mat.name.c_str(), existing.parse_info.filename.c_str());
+            return false;
+        }
+    }
+    
+    verbose("%s: parsed material: %s\n", fn, mat.name.c_str());
+    materials.push_back(std::move(mat));
+    return true;
+}
+
 std::vector<Material> parse_jmat(const char *fn)
 {
     using json = nlohmann::json;
@@ -505,53 +645,135 @@ std::vector<Material> parse_jmat(const char *fn)
         mat.parse_info.filename = fn;
         mat.parse_info.lineno = 0; // Line numbers not available for JSON format
         
-        bool mat_error = false;
-        
-        // Parse all key-value pairs for this material
-        for (auto& [key, value] : material_obj.items()) {
-            if (!value.is_string()) {
-                fprintf(stderr, "%s: error: value for key '%s' must be a string (material: %s)\n", 
-                       fn, key.c_str(), material_name.c_str());
-                mat_error = true;
-                continue;
-            }
-            
-            try {
-                mat.parse_attr(key, value.get<std::string>());
-            } catch (std::runtime_error &e) {
-                fprintf(stderr, "%s: error: %s (material: %s, key: %s)\n", fn, e.what(), material_name.c_str(), key.c_str());
-                mat_error = true;
-            }
+        if (!parse_jmat_material(mat, material_obj, fn)) {
+            continue;
         }
-        
-        if (!mat_error) {
-            try {
-                mat.validate();
-                
-                // Check if the material already exists
-                for (const auto &existing : materials) {
-                    if (existing.name == mat.name) {
-                        fprintf(stderr, "%s: duplicate material: %s (previous occurrence: %s)\n", 
-                                fn, mat.name.c_str(), existing.parse_info.filename.c_str());
-                        texture_dirs.pop_front();
-                        return {};
-                    }
-                }
-                
-                verbose("%s: parsed material: %s\n", fn, mat.name.c_str());
-                materials.push_back(std::move(mat));
-            } catch (std::runtime_error &e) {
-                fprintf(stderr, "%s: error: %s (material: %s)\n", fn, e.what(), material_name.c_str());
-            }
+
+        if (!add_unique_material(materials, std::move(mat), fn)) {
+            texture_dirs.pop_front();
+            return {};
         }
     }
     
     if (materials.empty()) {
         fprintf(stderr, "%s: error: no valid materials found\n", fn);
-        texture_dirs.pop_front();
-        return {};
     }
     
     texture_dirs.pop_front();
+    return materials;
+}
+
+cgltf_extension *find_rdpq_mat_extension(cgltf_material *mat)
+{
+    for (size_t i = 0; i < mat->extensions_count; i++) {
+        if (strcmp(mat->extensions[i].name, "EXT_libdragon_rdpq_materials_jmat") == 0) {
+            return &mat->extensions[i];
+        }
+    }
+    return nullptr;
+}
+
+bool fixup_texture(Material &out_material, nlohmann::json &mat, cgltf_data *data, int tex_index, const char *fn)
+{
+    auto tex_key = "tex" + std::to_string(tex_index);
+    auto source_key = tex_key + ".source";
+    if (!mat.contains(source_key)) return true;
+
+    int source_idx = mat[source_key].get<int>();
+    if (source_idx < 0 || source_idx >= data->images_count) {
+        fprintf(stderr, "%s: error: texture source index out of range (material: %s, key: %s)", fn, out_material.name.c_str(), source_key.c_str());
+        return false;
+    }
+
+    cgltf_image *source = &data->images[source_idx];
+    if (source->uri) {
+        mat[tex_key + ".name"] = source->uri;
+    } else if (source->buffer_view) {
+        auto &tex_data = out_material.tex[tex_index].data;
+        tex_data.resize(source->buffer_view->size);
+        memcpy(&tex_data[0], cgltf_buffer_view_data(source->buffer_view), source->buffer_view->size);
+    }
+
+    mat.erase(source_key);
+    return true;
+}
+
+bool fixup_gltf_textures(Material &out_material, nlohmann::json &jmat, cgltf_data *data, const char *fn)
+{
+    return fixup_texture(out_material, jmat, data, 0, fn)
+        && fixup_texture(out_material, jmat, data, 1, fn);
+}
+
+bool parse_gltf_material(Material &out_material, cgltf_material *in_material, cgltf_data *data, const char *fn)
+{
+    // First, look for extension "EXT_libdragon_rdpq_materials_jmat"
+    cgltf_extension *rdpq_mat_extension = find_rdpq_mat_extension(in_material);
+    if (rdpq_mat_extension) {
+        auto ext_jmat = nlohmann::json::parse(rdpq_mat_extension->data);
+        if (!fixup_gltf_textures(out_material, ext_jmat, data, fn)) {
+            return false;
+        }
+        return parse_jmat_material(out_material, ext_jmat, fn);
+    }
+
+    // Finally, look for f3d material from fast64
+    auto extras = nlohmann::json::parse(in_material->extras.data);
+    if (extras.contains("f3d_mat")) {
+        auto f3d_jmat = parse_f3d_mat(extras["f3d_mat"]);
+        return parse_jmat_material(out_material, f3d_jmat, fn);
+    }
+
+    return false;
+}
+
+std::vector<Material> parse_gltf(const char *fn)
+{
+    cgltf_options options = {};
+    cgltf_data* data = NULL;
+    cgltf_result result = cgltf_parse_file(&options, fn, &data);
+    if (result == cgltf_result_file_not_found) {
+        fprintf(stderr, "error: file not found: %s\n", fn);
+        return {};
+    }
+    if (result != cgltf_result_success) {
+        fprintf(stderr, "%s: error: glTF parsing error\n", fn);
+        return {};
+    }
+
+    if (cgltf_validate(data) != cgltf_result_success) {
+        fprintf(stderr, "%s: error: glTF validation failed\n", fn);
+        cgltf_free(data);
+        return {};
+    }
+
+    cgltf_load_buffers(&options, data, fn);
+
+    texture_dirs.push_front(dirname(fn));
+
+    std::vector<Material> materials;
+    for (size_t i = 0; i < data->materials_count; i++)
+    {
+        Material material = {};
+        material.name = data->materials[i].name;
+        material.parse_info.filename = fn;
+        material.parse_info.lineno = 0; // Line numbers not available for glTF format
+
+        if (!parse_gltf_material(material, &data->materials[i], data, fn)) {
+            continue;
+        }
+        
+        if (!add_unique_material(materials, std::move(material), fn)) {
+            texture_dirs.pop_front();
+            cgltf_free(data);
+            return {};
+        }
+    }
+    
+    if (materials.empty()) {
+        fprintf(stderr, "%s: error: no valid materials found\n", fn);
+    }
+
+    texture_dirs.pop_front();
+    cgltf_free(data);
     return materials;
 }

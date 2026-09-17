@@ -67,7 +67,7 @@ int main(int argc, char *argv[])
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
                     return 1;
                 }
-                texture_dirs.push_back(argv[i++]);
+                texture_dirs.push_back(argv[i]);
             } else if (!strcmp(argv[i], "-o") || !strcmp(argv[i], "--output")) {
                 if (++i == argc) {
                     fprintf(stderr, "missing argument for %s\n", argv[i-1]);
@@ -111,6 +111,8 @@ int main(int argc, char *argv[])
             std::vector<Material> materials;
             if (strstr(argv[i], ".jmat") || strcmp(argv[i], "-") == 0) {
                 materials = parse_jmat(argv[i]);
+            } else if (strstr(argv[i], ".glb") || strstr(argv[i], ".gltf")) {
+                materials = parse_gltf(argv[i]);
             } else if (strstr(argv[i], ".mat")) {
                 materials = parse_mat(argv[i]);
             } else {

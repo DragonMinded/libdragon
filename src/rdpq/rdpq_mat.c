@@ -204,6 +204,21 @@ static void mat_unload(void *mat)
     }
 }
 
+static void mat_get_tex(void *mat, sprite_t **tex0, sprite_t **tex1)
+{
+    mat += FETCH(mat, uint8_t); // skip the name
+    uint16_t flags = FETCH(mat, uint16_t);
+    mat++; // skip extension offset
+
+    if (flags & MATFLAG_TEXTURE) {
+        uint32_t t0 = FETCH(mat, uint32_t);
+        uint32_t t1 = FETCH(mat, uint32_t);
+
+        if (t0) *tex0 = hashtable_lookup(&tex_cache, t0);
+        if (t1) *tex1 = hashtable_lookup(&tex_cache, t1);
+    }
+}
+
 rdpq_matdb_t* rdpq_matdb_open(const char *filename)
 {
     rdpq_matdb_t *mdb = asset_load(filename, NULL);
@@ -426,6 +441,11 @@ static bool mat_ext_get(void *mat, uint32_t ext_key, void *ext_value, int ext_ty
         default:
             return false; // unsupported type
     }
+}
+
+void rdpq_mat_get_textures(rdpq_mat_t *mat, sprite_t **tex0, sprite_t **tex1)
+{
+    mat_get_tex(mat, tex0, tex1);
 }
 
 ///@cond

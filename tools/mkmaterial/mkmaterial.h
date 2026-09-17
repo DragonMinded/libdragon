@@ -69,17 +69,18 @@ struct MyEnum {
 
 struct Texture {
     std::string name{""};
+    std::vector<uint8_t> data;
     std::string fmt{"AUTO"};
     std::string mipmap{"NONE"};
     std::string dithering{"NONE"};
     struct {
         float translate{0};
-        int scale{1};
+        int scale{0};
         float repeats{2048};
         bool mirror{false};
     } s, t;
 
-    operator bool() const { return !name.empty(); }
+    operator bool() const { return !name.empty() || !data.empty(); }
     void parse_attr(std::string key, std::string value);
     void validate_name(void);
 
@@ -166,6 +167,7 @@ int parse_int(std::string value, int min, int max);
 std::string parse_enum(std::string value, const std::vector<std::string> &enums);
 std::vector<Material> parse_mat(const char *fn);
 std::vector<Material> parse_jmat(const char *fn);
+std::vector<Material> parse_gltf(const char *fn);
 
 // mkmaterial_export.cpp
 void mat_convert(Material &mat);
