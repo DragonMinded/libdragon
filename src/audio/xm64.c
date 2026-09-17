@@ -151,6 +151,7 @@ typedef struct __attribute__((packed)) {
 void xm64player_open(xm64player_t *player, const char *fn) {
 	memset(player, 0, sizeof(*player));
 	player->fd = -1;
+	player->first_ch = -1;
 
 	// No pending seek at the moment, we start from beginning anyway.
 	player->seek.patidx = -1;
@@ -230,6 +231,7 @@ void xm64player_set_loop(xm64player_t *player, bool loop) {
 }
 
 void xm64player_play(xm64player_t *player, int first_ch) {
+	player->stop_requested = false;
 	assert(first_ch + xm_get_number_of_channels(player->ctx) <= MIXER_MAX_CHANNELS);
 
 	if (!player->playing) {
@@ -315,7 +317,7 @@ void xm64player_close(xm64player_t *player) {
 		player->playing = false;
 	}
 
-	for (int i=0;i<player->ctx->module.num_channels;i++) {
+	for (int i=0;player->first_ch >= 0 && i<player->ctx->module.num_channels;i++) {
 		mixer_ch_stop(player->first_ch+i);
 		mixer_ch_set_limits(player->first_ch+i, 0, 0, 0);
 	}
