@@ -47,17 +47,17 @@ GCC_CONFIGURE_ARGS=()
 
 # Dependency source libs (Versions)
 BINUTILS_V=2.45
-BINUTILS_C=c50c0e7f9cb188980e2cc97e4537626b1672441815587f1eab69d2a1bfbef5d2 # from fedora, converted, tar.xz version
+BINUTILS_C=c50c0e7f9cb188980e2cc97e4537626b1672441815587f1eab69d2a1bfbef5d2
 GCC_V=16.2.0
-GCC_C=e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e # from arch, tar.xz version
+GCC_C=e6738e29597f733270731aa90600f37ffdc045079dfc27ec7e8192cc81085c3e
 NEWLIB_V=4.4.0.20231231
-NEWLIB_C=0c166a39e1bf0951dfafcd68949fe0e4b6d3658081d6282f39aeefc6310f2f13 # from arch, tar.gz version
+NEWLIB_C=0c166a39e1bf0951dfafcd68949fe0e4b6d3658081d6282f39aeefc6310f2f13
 GMP_V=6.3.0
-GMP_C=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898 # from fedora, converted, tar.xz version
+GMP_C=a3c2b80201b89e68616f4ad30bc66aee4927c3ce50e33929ca819d5c43538898
 MPC_V=1.3.1
-MPC_C=ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8 # from arch, tar.gz version
+MPC_C=ab642492f5cf882b74aa0cb730cd410a81edcdbec895183ce930e706c1c759b8
 MPFR_V=4.2.1
-MPFR_C=277807353a6726978996945af13e52829e3abd7a9a5b7fb2793894e18f1fcbb2 # from arch, converted, tar.xz version
+MPFR_C=277807353a6726978996945af13e52829e3abd7a9a5b7fb2793894e18f1fcbb2
 ZLIB_V=${ZLIB_V:-""}
 MAKE_V=${MAKE_V:-""}
 
@@ -211,8 +211,6 @@ if [ "$MPFR_V" != "" ]; then
     ln -sf ../"mpfr-$MPFR_V" "mpfr"
     popd
 fi
-
-exit
 
 if [ "$MAKE_V" != "" ]; then
     test -f "$DOWNLOAD_PATH/make-$MAKE_V.tar.gz"     || download_gnu "make/make-$MAKE_V.tar.gz"
