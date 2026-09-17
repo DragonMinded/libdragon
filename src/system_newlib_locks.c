@@ -38,27 +38,37 @@ struct __lock __lock___dd_hash_mutex;
 struct __lock __lock___arc4random_mutex;
 ///@endcond
 
-/** Pool of dynamically allocated lists  */
-static struct __lock __libc_mutexes[64];
-static uint64_t __libc_mutexes_bitmap = 0;
+/** Size of the dynamic lock pool, configurable when building libdragon.
+ * Every open FILE consumes one slot, including stdin, stdout and stderr. */
+#ifndef LIBC_MUTEX_POOL
+#define LIBC_MUTEX_POOL 64
+#endif
+
+_Static_assert(LIBC_MUTEX_POOL > 0, "LIBC_MUTEX_POOL must be a positive integer");
+
+/** Pool of dynamically allocated locks */
+static struct __lock __libc_mutexes[LIBC_MUTEX_POOL];
+static uint64_t __libc_mutexes_bitmap[(LIBC_MUTEX_POOL + 63) / 64];
 extern bool __kernel;
 
-/** Alloca a dynamic lock from our static pool */
+/** Allocate a dynamic lock from our static pool */
 static struct __lock* __alloc_libc_mutex(void) {
-    for (int i = 0; i < 64; i++) {
-        if (!(__libc_mutexes_bitmap & (1ull << i))) {
-            __libc_mutexes_bitmap |= (1ull << i);
+    for (int i = 0; i < LIBC_MUTEX_POOL; i++) {
+        int w = i / 64;
+        uint64_t mask = 1ull << (i % 64);
+        if (!(__libc_mutexes_bitmap[w] & mask)) {
+            __libc_mutexes_bitmap[w] |= mask;
             return &__libc_mutexes[i];
         }
     }
-    assert(0);
+    assert(0 && "newlib lock pool exhausted: increase LIBC_MUTEX_POOL when building libdragon");
     return NULL;
 }
 
 /** Free a dynamic lock from our static pool */
 static void __free_libc_mutex(struct __lock* lock) {
     int i = lock - __libc_mutexes;
-    __libc_mutexes_bitmap &= ~(1ull << i);
+    __libc_mutexes_bitmap[i / 64] &= ~(1ull << (i % 64));
 }
 
 ///@cond

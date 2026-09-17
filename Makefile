@@ -18,6 +18,11 @@ N64_BACKTRACE_FILE_PREFIX=libdragon
 
 LIBDRAGON_CFLAGS = -I$(CURDIR)/src -D__LIBDRAGON_INTERNAL_BUILD
 
+# Number of dynamic newlib locks (positive integer).
+# To change: make clean, then make install LIBC_MUTEX_POOL=256; relink your ROM.
+LIBC_MUTEX_POOL ?= 64
+$(BUILD_DIR)/system.o: CFLAGS += -DLIBC_MUTEX_POOL=$(LIBC_MUTEX_POOL)
+
 # Activate N64 toolchain for libdragon build
 libdragon: CC=$(N64_CC)
 libdragon: CXX=$(N64_CXX)
