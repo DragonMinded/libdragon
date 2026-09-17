@@ -254,6 +254,18 @@ static inline void samplebuffer_set_bps(samplebuffer_t *buf, int bps) {
 void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRead read);
 
 /**
+ * @brief Configure waveform and unit size together on empty samplebuffer.
+ * @preview
+ *
+ * Use when switching codecs: incoming append margin must match incoming
+ * unit size during capacity checks. Separate setters can combine stale
+ * margin with new unit size, or new margin with stale unit size.
+ */
+LIBDRAGON_PREVIEW_API
+void samplebuffer_configure(samplebuffer_t *buf, waveform_t *wave,
+    WaveformRead read, int unit_bytes);
+
+/**
  * @brief Get a pointer to specific set of samples in the buffer (zero-copy).
  *
  * "wpos" is the absolute waveform position of the first sample that the

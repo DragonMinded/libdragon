@@ -184,6 +184,16 @@ void samplebuffer_set_waveform(samplebuffer_t *buf, waveform_t *wave, WaveformRe
 		samplebuffer_recalc_size(buf);
 }
 
+void samplebuffer_configure(samplebuffer_t *buf, waveform_t *wave,
+	WaveformRead read, int unit_bytes) {
+	assert(wave->state_size <= buf->state_size);
+	// Install incoming margin/producer before resizing ring.
+	buf->wave = wave;
+	buf->wv_read = read;
+	buf->append_units = wave->append_units;
+	samplebuffer_set_unit_bytes(buf, unit_bytes);
+}
+
 bool samplebuffer_is_inited(samplebuffer_t *buf)
 {
 	return SAMPLES_PTR(buf) != NULL;

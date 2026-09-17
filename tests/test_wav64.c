@@ -904,6 +904,42 @@ static void ru_reset(waveform_t *w)
 	ru_sbuf = NULL;
 }
 
+// Block PCM -> mono VADPCM -> block PCM must reuse ring without stale margin.
+static bool test_mixer_block_vadpcm_reuse(void)
+{
+	const int ch = 6;
+	waveform_t block = {
+		.name = "block-reuse", .bits = 16, .channels = 1,
+		.frequency = 11025, .len = 4096, .append_units = 1024,
+		.state_size = sizeof(wav64_state_vadpcm_t), .start = ru_start,
+	};
+	waveform_t mono = block;
+	mono.name = "vadpcm-reuse";
+	mono.append_units = 0;
+	mono.format = WAVEFORM_FORMAT_VADPCM;
+	mono.codec = &sv_codec;
+	mixer_ch_stop(ch);
+	mixer_ch_set_limits(ch, 16, 11025, 0);
+	ru_sbuf = NULL;
+	mixer_ch_play(ch, &block);
+	bool ok = ru_sbuf && ru_sbuf->capacity_bytes < 1024 * 9;
+	void *ring = ru_sbuf ? SAMPLES_PTR(ru_sbuf) : NULL;
+	for (int i = 0; ok && i < 32; i++) {
+		mixer_ch_play(ch, &mono);
+		ok = ru_sbuf->wave == &mono && ru_sbuf->unit_bytes == 9
+			&& ru_sbuf->append_units == 0 && ru_sbuf->margin_units == 128
+			&& SAMPLES_PTR(ru_sbuf) == ring;
+		mixer_ch_play(ch, &block);
+		ok = ok && ru_sbuf->wave == &block && ru_sbuf->unit_bytes == 2
+			&& ru_sbuf->append_units == 1024 && ru_sbuf->margin_units == 1024
+			&& SAMPLES_PTR(ru_sbuf) == ring;
+	}
+	mixer_ch_stop(ch);
+	mixer_ch_set_limits(ch, 16, 48000, 0);
+	if (!ok) printf("FAILED block/VADPCM ring reuse\n");
+	return ok;
+}
+
 // End state of "ring closed and reinited, configure skipped": uuid and wave
 // pointer still say this waveform, but unit_bytes is 0. Replay must restore it.
 static bool test_mixer_stale_unit_bytes(void)
@@ -3464,6 +3500,7 @@ int main(void)
     printf("Streamed mono PCM tests\n");
     fflush(stdout);
     sv_init();
+    total++; if (!test_mixer_block_vadpcm_reuse()) failed++;
     // Below the sample rate: step < 1 makes the inclusive window one unit
     // larger than the position advance, which is what used to overrun the
     // samplebuffer margin. Odd starts exercise the 8-bit ring parity path.

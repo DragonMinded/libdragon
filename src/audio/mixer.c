@@ -1151,14 +1151,12 @@ void mixer_ch_play(int ch, waveform_t *wave)
 				memset(c->codec_state, 0, wave->state_size);
 			}
 		} else {
-			if (wave->format == WAVEFORM_FORMAT_VADPCM) {
-				samplebuffer_set_unit_bytes(sbuf, mixer_vadpcm_frame_bytes(wave));
-				if (stereo_vadpcm)
-					samplebuffer_set_unit_bytes(&Mixer.ch_buf[ch+1], mixer_vadpcm_frame_bytes(wave));
-			} else {
-				samplebuffer_set_bps(sbuf, wave->bits*wave->channels);
-			}
-			samplebuffer_set_waveform(sbuf, wave, wave->read ? waveform_read : NULL);
+			int unit_bytes = vadpcm ? mixer_vadpcm_frame_bytes(wave)
+				: wave->bits * wave->channels / 8;
+			samplebuffer_configure(sbuf, wave,
+				wave->read ? waveform_read : NULL, unit_bytes);
+			if (stereo_vadpcm)
+				samplebuffer_set_unit_bytes(&Mixer.ch_buf[ch+1], unit_bytes);
 			c->codec_state = sbuf->state;
 		}
 
