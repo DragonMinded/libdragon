@@ -1259,6 +1259,7 @@ extern inline void rdpq_load_block_linear(int32_t offset, void *buffer, uint16_t
 extern inline void rdpq_load_tile_fx(rdpq_tile_t tile, uint16_t s0, uint16_t t0, uint16_t s1, uint16_t t1);
 extern inline void rdpq_set_combiner_raw(uint64_t cc);
 extern inline void rdpq_set_other_modes_raw(uint64_t mode);
+extern inline void rdpq_set_other_modes_unsafe(uint64_t mode);
 extern inline void rdpq_change_other_modes_raw(uint64_t mask, uint64_t val);
 extern inline void rdpq_set_color_image_raw(uint8_t index, uint32_t offset, tex_format_t format, uint32_t width, uint32_t height, uint32_t stride);
 extern inline void rdpq_set_z_image_raw(uint8_t index, uint32_t offset);
