@@ -1,7 +1,14 @@
 #! /bin/bash
 # N64 MIPS GCC toolchain build/install script for Unix distributions
-# (c) 2012-2024 DragonMinded and libDragon Contributors.
-# See the root folder for license information.
+# (c) 2012-2025 DragonMinded and LibDragon Contributors.
+# Licensed under the Unlicense. See LICENSE.md for details.
+#
+# This script builds a toolchain for the N64. It is a standard GCC cross-compiler
+# with target "mips64-elf".
+#
+# The script logs all its output to toolchain/build-toolchain.log, that can be
+# used for debugging build issues.
+#
 
 # Bash strict mode http://redsymbol.net/articles/unofficial-bash-strict-mode/
 set -euo pipefail
@@ -18,6 +25,9 @@ fi
 # Path where the toolchain will be built.
 BUILD_PATH="${BUILD_PATH:-toolchain}"
 DOWNLOAD_PATH="${DOWNLOAD_PATH:-$BUILD_PATH}"
+
+# Create build and download directories
+mkdir -p "$BUILD_PATH" "$DOWNLOAD_PATH"
 
 # Redirect output to a log file
 exec > >(tee "$BUILD_PATH/build-toolchain.log") 2>&1
@@ -55,9 +65,6 @@ MPFR_V=4.2.1
 ZLIB_V=${ZLIB_V:-""}
 MAKE_V=${MAKE_V:-""}
 
-# Create build and download directories
-mkdir -p "$BUILD_PATH" "$DOWNLOAD_PATH"
-
 # Resolve absolute paths for build and download directories
 BUILD_PATH=$(cd "$BUILD_PATH" && pwd)
 DOWNLOAD_PATH=$(cd "$DOWNLOAD_PATH" && pwd)
@@ -66,6 +73,22 @@ DOWNLOAD_PATH=$(cd "$DOWNLOAD_PATH" && pwd)
 command_exists () {
     (command -v "$1" >/dev/null 2>&1)
     return $?
+}
+
+# Automatically run the command with sudo/su if needed.
+autosudo() {
+    "$@" && return 0
+
+    if command_exists sudo; then
+        sudo env PATH="$PATH" "$@" && return 0
+    fi
+
+    if command_exists su; then
+        su -c "env PATH=\"$PATH\" $*"
+        return $?
+    fi
+
+    return 1
 }
 
 # Download the file URL using wget or curl (depending on which is installed)
@@ -249,9 +272,7 @@ if [ "$ZLIB_V" != "" ]; then
                 BINARY_PATH="$INSTALL_PATH/bin" \
                 INCLUDE_PATH="$INSTALL_PATH/include" \
                 LIBRARY_PATH="$INSTALL_PATH/lib"
-            make -f win32/Makefile.gcc install || \
-            sudo make -f win32/Makefile.gcc install || \
-            su -c "make -f win32/Makefile.gcc install"
+            autosudo make -f win32/Makefile.gcc install
         )
     fi
     popd
@@ -260,6 +281,11 @@ fi
 # Build GMP/MFPR and install them. This will be useful later for the gdb build,
 # for mingw32 where those dependencies are not easily available.
 if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
+    # FIXME: GMP 6.3.0 (last released version) is broken with GCC15 / C23:
+    # https://github.com/gmp-mirror/gmp/commit/14837bacbbd80804a11fee2016f660d132bf8aec
+    # Apply a temporary patch to fix compilation, until a newer GMP version is released.
+    sed -i 's/void g(){}/void g(int,...){}/g' gmp-$GMP_V/configure
+
     pushd "gmp-$GMP_V"
     ./configure \
         --prefix="$INSTALL_PATH" \
@@ -267,7 +293,7 @@ if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         --enable-static \
         --disable-shared
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     make distclean
     popd
 
@@ -279,7 +305,7 @@ if [ "$N64_HOST" = "x86_64-w64-mingw32" ]; then
         --enable-static \
         --disable-shared
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     make distclean
     popd
 fi
@@ -287,14 +313,20 @@ fi
 # Compile BUILD->TARGET binutils
 mkdir -p binutils_compile_target
 pushd binutils_compile_target
-../"binutils-$BINUTILS_V"/configure ${BINUTILS_CONFIGURE_ARGS[@]} \
+# NOTE: we pass --without-msgpack to workaround a bug in Binutils, introduced
+# with this commit: https://sourceware.org/git/?p=binutils-gdb.git;a=commit;h=2952f10cd79af4645222f124f28c7928287d8113
+# This is due to the fact that pkg-config is used to activate compilation with msgpack
+# but that it is not correct in the case of a canadian cross.
+../"binutils-$BINUTILS_V"/configure "${BINUTILS_CONFIGURE_ARGS[@]}" \
     --prefix="$CROSS_PREFIX" \
     --target="$N64_TARGET" \
     --with-cpu=mips64vr4300 \
     --enable-targets=mips64-sgi-irix6 \
-    --disable-werror
+    --disable-werror \
+    --without-msgpack \
+    --without-zstd
 make -j "$JOBS"
-make install-strip || sudo make install-strip || su -c "make install-strip"
+autosudo make install-strip
 popd
 
 # Compile GCC for MIPS N64.
@@ -313,46 +345,24 @@ pushd gcc_compile_target
     --disable-shared \
     --with-gcc \
     --with-newlib \
+    --disable-softfloat \
+    --disable-biendian \
     --disable-win32-registry \
     --disable-nls \
     --disable-werror
 make all-gcc -j "$JOBS"
-make install-gcc || sudo make install-gcc || su -c "make install-gcc"
+autosudo make install-gcc
 make all-target-libgcc -j "$JOBS"
-make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
+autosudo make install-target-libgcc
 popd
 
-# Compile newlib for target.
-mkdir -p newlib_compile_target
-pushd newlib_compile_target
-CC_FOR_TARGET="${N64_TARGET}-gcc" \
-CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" \
-../"newlib-$NEWLIB_V"/configure \
-    --prefix="$CROSS_PREFIX" \
-    --target="$N64_TARGET" \
-    --with-cpu=mips64vr4300 \
-    --disable-libssp \
-    --disable-werror \
-    --enable-newlib-io-c99-formats \
-    --enable-newlib-multithread \
-    --enable-newlib-retargetable-locking
-make -j "$JOBS"
-make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
-popd
+# Mark this GCC build directory as the one for target libraries. This might
+# be overridden in case of canadian cross.
+GCC_COMPILE_TARGET="gcc_compile_target"
 
-# For a standard cross-compiler, the only thing left is to finish compiling the target libraries
-# like libstd++. We can continue on the previous GCC build target.
-if [ "$N64_BUILD" == "$N64_HOST" ]; then
-    pushd gcc_compile_target
-    make all -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
-    popd
-else
+# Now check if we need to build a canadian toolchain.
+if [ "$N64_BUILD" != "$N64_HOST" ]; then
     # Compile HOST->TARGET binutils
-    # NOTE: we pass --without-msgpack to workaround a bug in Binutils, introduced
-    # with this commit: https://sourceware.org/git/?p=binutils-gdb.git;a=commit;h=2952f10cd79af4645222f124f28c7928287d8113
-    # This is due to the fact that pkg-config is used to activate compilation with msgpack
-    # but that it is not correct in the case of a canadian cross.
     echo "Compiling binutils-$BINUTILS_V for foreign host"
     mkdir -p binutils_compile_host
     pushd binutils_compile_host
@@ -363,14 +373,15 @@ else
         --target="$N64_TARGET" \
         --enable-targets=mips64-sgi-irix6 \
         --disable-werror \
-        --without-msgpack
+        --without-msgpack \
+        --without-zstd
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     popd
 
     # Compile HOST->TARGET gcc
-    mkdir -p gcc_compile
-    pushd gcc_compile
+    mkdir -p gcc_compile_host
+    pushd gcc_compile_host
     CFLAGS_FOR_TARGET="-O2" CXXFLAGS_FOR_TARGET="-O2" \
         ../"gcc-$GCC_V"/configure \
         --prefix="$INSTALL_PATH" \
@@ -384,39 +395,49 @@ else
         --with-newlib \
         --enable-multilib \
         --with-gcc \
+        --disable-softfloat \
+        --disable-biendian \
         --disable-libssp \
         --disable-shared \
         --disable-win32-registry \
         --disable-nls
+    make all-gcc -j "$JOBS"
+    autosudo make install-gcc
     make all-target-libgcc -j "$JOBS"
-    make install-target-libgcc || sudo make install-target-libgcc || su -c "make install-target-libgcc"
+    autosudo make install-target-libgcc
     popd
 
-    # Compile newlib for target.
-    mkdir -p newlib_compile
-    pushd newlib_compile
-    CC_FOR_TARGET="${N64_TARGET}-gcc" \
-    CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" \
-    ../"newlib-$NEWLIB_V"/configure \
-        --prefix="$INSTALL_PATH" \
-        --target="$N64_TARGET" \
-        --with-cpu=mips64vr4300 \
-        --disable-libssp \
-        --disable-werror \
-        --enable-newlib-io-c99-formats \
-        --enable-newlib-multithread \
-        --enable-newlib-retargetable-locking
-    make -j "$JOBS"
-    make install || sudo env PATH="$PATH" make install || su -c "env PATH=\"$PATH\" make install"
-    popd
-
-    # Finish compiling GCC
-    mkdir -p gcc_compile
-    pushd gcc_compile
-    make all -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
-    popd
+    # Use this compiler to build target libraries, as it targets the correct prefix.
+    # Notice that under the hood, the $CROSS_PREFIX one will be invoked (through
+    # it being in the $PATH) but anyway this is the correct way to do it.
+    GCC_COMPILE_TARGET="gcc_compile_host"
 fi
+
+# Compile newlib for target (once, into the final installation prefix).
+mkdir -p newlib_compile_target
+pushd newlib_compile_target
+CC_FOR_TARGET="${N64_TARGET}-gcc" \
+CFLAGS_FOR_TARGET="-DHAVE_ASSERT_FUNC -O2 -fpermissive" \
+../"newlib-$NEWLIB_V"/configure \
+    --prefix="$INSTALL_PATH" \
+    --target="$N64_TARGET" \
+    --with-cpu=mips64vr4300 \
+    --disable-libssp \
+    --disable-werror \
+    --disable-softfloat \
+    --disable-biendian \
+    --enable-newlib-io-c99-formats \
+    --enable-newlib-multithread \
+    --enable-newlib-retargetable-locking
+make -j "$JOBS"
+autosudo make install
+popd
+
+# Finish building the target libraries (libstdc++, libsupc++, libatomic)
+pushd "$GCC_COMPILE_TARGET"
+make all -j "$JOBS"
+autosudo make install-strip
+popd
 
 if [ "$MAKE_V" != "" ]; then
     pushd "make-$MAKE_V"
@@ -428,12 +449,12 @@ if [ "$MAKE_V" != "" ]; then
         --build="$N64_BUILD" \
         --host="$N64_HOST"
     make -j "$JOBS"
-    make install-strip || sudo make install-strip || su -c "make install-strip"
+    autosudo make install-strip
     popd
 fi
 
-# Create a toolchain.version file in JSON format to identify the toolchain version. 
-# It contains: GCC version, Binutils versions and Newlib/Picolibc version.
+# Create a toolchain.version file in JSON format to identify the toolchain version.
+# It contains: GCC version, Binutils versions and Newlib version.
 TOOLCHAIN_VERSION_FILE="$INSTALL_PATH/$N64_TARGET/include/toolchain.version"
 
 VERSION_CONTENT="{
@@ -443,9 +464,11 @@ VERSION_CONTENT="{
   \"newlib\": \"$NEWLIB_V\"
 }"
 
-printf '%s\n' "$VERSION_CONTENT" > "$TOOLCHAIN_VERSION_FILE" || \
-    sudo sh -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\"" || \
-    su -c "printf '%s\\n' \"$VERSION_CONTENT\" > \"$TOOLCHAIN_VERSION_FILE\""
+VERSION_TMP=$(mktemp)
+printf '%s\n' "$VERSION_CONTENT" > "$VERSION_TMP"
+autosudo mkdir -p "$(dirname "$TOOLCHAIN_VERSION_FILE")"
+autosudo install -m 0644 "$VERSION_TMP" "$TOOLCHAIN_VERSION_FILE"
+rm -f "$VERSION_TMP"
 
 # Final message
 set +x
