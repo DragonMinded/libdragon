@@ -14,6 +14,7 @@
 #include "fatfs/diskio.h"
 #include "debug.h"
 #include "system.h"
+#include "system_internal.h"
 #include "n64sys.h"
 #include "dma.h"
 #include "utils.h"
@@ -142,7 +143,7 @@ static void *__fat_open(char *name, int flags, int volid)
 			break;
 		}
 	if (!fp) {
-		fp = malloc(sizeof(FIL));
+		fp = fs_alloc_descriptor(sizeof(FIL), flags);
 		if (!fp) {
 			errno = ENOMEM;
 			return NULL;
@@ -175,7 +176,7 @@ static void *__fat_open(char *name, int flags, int volid)
 		if (fp >= static_fat_files && fp < static_fat_files+NUM_STATIC_FAT_FILES)
 			fp->obj.fs = NULL;
 		else
-			free(fp);
+			fs_free_descriptor(fp);
 		return NULL;
 	}
 	return fp;
@@ -255,7 +256,7 @@ static int __fat_close(void *file)
 	if (fp >= static_fat_files && fp < static_fat_files+NUM_STATIC_FAT_FILES)
 		fp->obj.fs = NULL;
 	else
-		free(fp);
+		fs_free_descriptor(fp);
 
 	if (res != FR_OK) {
 		__fresult_set_errno(res);

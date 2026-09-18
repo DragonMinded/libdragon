@@ -282,6 +282,7 @@ static const struct Testsuite
 	TEST_FUNC(test_dfs_rom_addr,              25, TEST_FLAGS_IO),
 	TEST_FUNC(test_dfs_rom_size,              25, TEST_FLAGS_IO),
 	TEST_FUNC(test_dfs_ioctl,                  0, TEST_FLAGS_NO_BENCHMARK),
+	TEST_FUNC(test_dfs_shortlived_open,        0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_dfs_directory,              0, TEST_FLAGS_NO_BENCHMARK),
 	TEST_FUNC(test_eepromfs,                   0, TEST_FLAGS_IO),
 	TEST_FUNC(test_cache_invalidate,        1763, TEST_FLAGS_NONE),

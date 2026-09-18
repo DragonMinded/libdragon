@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include "system.h"
+#include "../system_internal.h"
 #include "cpak.h"
 #include "cpakfs.h"
 #include "cpakfs_internal.h"
@@ -651,7 +652,7 @@ static void *__cpakfs_open(char *name, int flags, int port)
     }
 
     int mode = flags & 7;
-    cpakfs_openfile_t *file = malloc(sizeof(cpakfs_openfile_t));
+    cpakfs_openfile_t *file = fs_alloc_descriptor(sizeof(cpakfs_openfile_t), flags);
     if (!file) {
         errno = ENOMEM;
         return NULL;
@@ -690,7 +691,7 @@ static void *__cpakfs_open(char *name, int flags, int port)
             file->size = calc_size(fs, note);
             if (file->size < 0) {
                 errno = EFTYPE;
-                free(file);
+                fs_free_descriptor(file);
                 return NULL;
             }
         }
@@ -752,7 +753,7 @@ static int __cpakfs_close(void *file)
             err = -1;
     }
 
-    free(file);
+    fs_free_descriptor(file);
     return err;
 }
 

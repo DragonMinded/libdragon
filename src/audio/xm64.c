@@ -155,8 +155,8 @@ void xm64player_open(xm64player_t *player, const char *fn) {
 	// No pending seek at the moment, we start from beginning anyway.
 	player->seek.patidx = -1;
 
-	// Open the file as a file descriptor
-	int fd = must_open(fn);
+	// Open the file as a short-lived descriptor for metadata parsing.
+	int fd = must_open_shortlived(fn);
 
 	// Read the header to check if this is a valid XM64 file
 	xm64_header_t header;

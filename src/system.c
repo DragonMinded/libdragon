@@ -1250,7 +1250,7 @@ int stat( const char *file, struct stat *st )
     }
 
     /* Dirty hack, open read only */
-    int fd = open( (char *)file, O_RDONLY );
+    int fd = open( (char *)file, O_RDONLY | O_SHORTLIVED );
     if( fd < 0 )
         return fd;
 
@@ -1487,7 +1487,7 @@ int ftruncate( int file, off_t length )
  */
 int truncate( const char *path, off_t length )
 {
-    int fd = open( path, O_WRONLY );
+    int fd = open( path, O_WRONLY | O_SHORTLIVED );
     if (fd < 0)
         return fd;
 
