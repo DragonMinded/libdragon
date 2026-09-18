@@ -325,7 +325,7 @@ static int rdram_calibrate_current(uint16_t chip_id)
     return autocc;
 }
 
-int rdram_init(void (*bank_found)(int chip_id, bool last))
+int rdram_init(void (*bank_found)(int chip_id, bool last), int max_chips)
 {
     // Configure RI/RAC output current (towards RDRAM). This is necessary to
     // allow communication with the chips. 
@@ -386,15 +386,19 @@ int rdram_init(void (*bank_found)(int chip_id, bool last))
         // Call the callback on the previous chip (if this is not the first),
         // now that we know if it's the last one or not.
         if (chip_id)
-            bank_found(chip_id-2, false);
+            bank_found(chip_id-2, chip_id >= max_chips);
 
         // The RI only supports up to 4 chips, so stop here. If we tried to
         // calibrate a 5th chip connected to the bus, we would confuse RI bank
         // tracking logic and cause all sorts of problems that would eventually
         // lead to a crash. We tried that.
-        if (chip_id >= 8) {
-            debugf("\nWARNING: more than 4 2-MiB RDRAM chips connected");
-            debugf("RI does not support more than 4, skipping remaining\n");
+        if (chip_id >= max_chips) {
+            // Turn off the chip (set DE=0)
+            rdram_reg_w(chip_id, RDRAM_REG_MODE, (1<<6) | (0<<1) | (1<<2));
+            if (max_chips == 8) {
+                debugf("\nWARNING: more than 4 2-MiB RDRAM chips connected");
+                debugf("RI does not support more than 4, skipping remaining\n");
+            }
             break;
         }
 
