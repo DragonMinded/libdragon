@@ -104,6 +104,7 @@ download () {
     if ! [ -z "${2-}" ] ; then
         if ! checksum $file "$2" ; then
             echo "$file failed checksum test"
+            rm "$file"
             exit 1
         fi
     fi
