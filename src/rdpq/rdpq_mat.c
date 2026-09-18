@@ -11,7 +11,7 @@
  * 
  * Header:
  * - 3 bytes: ID string "MDB"
- * - 1 byte: Version number (currently 1)
+ * - 1 byte: Version number (currently 2)
  * - 2 bytes: Number of materials in the database (big-endian)
  * - 2 bytes: Flags (reserved for future use)
  * 
@@ -33,7 +33,7 @@
  * 
  * - The first byte is the name length (up to 255 characters).
  * - The next bytes are the name of the material (without null terminator).
- * - The next 2 bytes are the flags, which can be a combination of the various
+ * - The next 4 bytes are the flags, which can be a combination of the various
  *   MATFLAG_* flags (see rdpq_mat_internal.h). Each flag is a bit that specifies
  *   whether a certain feature is present in the material.
  * - The next byte is the offset of the extension data (since this position in the
@@ -73,6 +73,12 @@
  *     color to pass to #rdpq_set_prim_color.
  *   - If MATFLAG_UNIFORM_ENV is set, the next 4 bytes are the packed environment
  *     color to pass to #rdpq_set_env_color.
+ *   - If MATFLAG_BLEND_RGB is set, the next 4 bytes are the packed blend
+ *     color rgb to pass to #rdpq_set_blend_color_rgb.
+ *   - If MATFLAG_FOG_RGB is set, the next 4 bytes are the packed fog
+ *     color rgb to pass to #rdpq_set_fog_color_rgb.
+ *   - If MATFLAG_FOG_ALPHA is set, the next 1 byte is the fog alpha to 
+ *     pass to #rdpq_set_fog_color_alpha.
  * - Finally, the material ends with a terminator byte (0xAB).
  * 
  * ## Ext binary format
@@ -171,7 +177,7 @@ void rdpq_mat_set_texture_path(const char *path)
 static void mat_load(void *mat)
 {
     mat += FETCH(mat, uint8_t); // skip the name
-    uint16_t flags = FETCH(mat, uint16_t);
+    uint32_t flags = FETCH(mat, uint32_t);
     mat++; // skip extension offset
 
     if (flags & MATFLAG_TEXTURE) {
@@ -186,7 +192,7 @@ static void mat_load(void *mat)
 static void mat_unload(void *mat)
 {
     mat += FETCH(mat, uint8_t); // skip the name
-    uint16_t flags = FETCH(mat, uint16_t);
+    uint32_t flags = FETCH(mat, uint32_t);
     mat++; // skip extension offset
 
     if (flags & MATFLAG_TEXTURE) {
@@ -208,7 +214,7 @@ rdpq_matdb_t* rdpq_matdb_open(const char *filename)
 {
     rdpq_matdb_t *mdb = asset_load(filename, NULL);
     assertf(memcmp(mdb->id, "MDB", 3) == 0, "Invalid MDB header: %s", filename);
-    assertf(mdb->version == 1, "Invalid MDB version (%d): %s", mdb->version, filename);
+    assertf(mdb->version == 2, "Invalid MDB version (%d): %s", mdb->version, filename);
     return mdb;
 }
 
@@ -260,7 +266,7 @@ void rdpq_mat_draw_begin(rdpq_mat_t *mat_ptr)
     char *name = (char*)mat;
     mat += namelen;
 
-    uint16_t flags = FETCH(mat, uint16_t);
+    uint32_t flags = FETCH(mat, uint32_t);
     bool has_overrides = flags & MATFLAG_SOM_MASK;
     if (has_overrides) {
         rdpq_mode_push();
@@ -345,6 +351,18 @@ void rdpq_mat_draw_begin(rdpq_mat_t *mat_ptr)
         uint32_t env = FETCH(mat, uint32_t);
         rdpq_set_env_color(color_from_packed32(env));
     }
+    if (flags & MATFLAG_BLEND_RGB) {
+        uint32_t blend_rgb = FETCH(mat, uint32_t);
+        rdpq_set_blend_color_rgb(color_from_packed32(blend_rgb));
+    }
+    if (flags & MATFLAG_FOG_RGB) {
+        uint32_t fog_rgb = FETCH(mat, uint32_t);
+        rdpq_set_fog_color_rgb(color_from_packed32(fog_rgb));
+    }
+    if (flags & MATFLAG_FOG_ALPHA) {
+        uint8_t fog_alpha = FETCH(mat, uint8_t);
+        rdpq_set_fog_color_alpha(fog_alpha);
+    }
 
     assertf(FETCH(mat, uint8_t) == 0xAB, "material %.*s: missing terminator", namelen, name);
     rdpq_mode_end();
@@ -354,7 +372,7 @@ void rdpq_mat_draw_end(rdpq_mat_t *mat_ptr)
 {
     void *mat = mat_ptr;
     mat += FETCH(mat, uint8_t); // skip the name
-    uint16_t flags = FETCH(mat, uint16_t);
+    uint32_t flags = FETCH(mat, uint32_t);
     bool has_overrides = flags & MATFLAG_SOM_MASK;
 
     if (has_overrides)
@@ -399,7 +417,7 @@ static bool mat_ext_get(void *mat, uint32_t ext_key, void *ext_value, int ext_ty
 {
     // Skip name and flag; now mat points to the extension offset
     uint8_t namelen = FETCH(mat, uint8_t);
-    uint8_t *mat_ext = (uint8_t*)mat + namelen + 2;
+    uint8_t *mat_ext = (uint8_t*)mat + namelen + 4;
     if (*mat_ext == 0)
         return false;
     mat_ext += mat_ext[0];

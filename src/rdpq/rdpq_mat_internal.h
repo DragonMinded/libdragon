@@ -27,6 +27,9 @@
 #define MATFLAG_UNIFORM_PRIMLODFRAC     (1 << 13)   ///< Combiner uniforms: primitive LOD fraction
 #define MATFLAG_UNIFORM_ENV             (1 << 14)   ///< Combiner uniforms: env color
 #define MATFLAG_UNIFORM_PRIM            (1 << 15)   ///< Combiner uniforms: prim color
+#define MATFLAG_BLEND_RGB               (1 << 16)   ///< Blender color rgb is present
+#define MATFLAG_FOG_RGB                 (1 << 17)   ///< Fog color rgb is present
+#define MATFLAG_FOG_ALPHA               (1 << 18)   ///< Fog color alpha is present
 
 #define MATFLAG_SOM_MASK                (MATFLAG_RMO_MASK|MATFLAG_BLENDER)  ///< Mask for all flags that set other modes
 
