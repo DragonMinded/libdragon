@@ -275,8 +275,18 @@ void stage1(void)
     int memsize;
     bool bbplayer = (*MI_VERSION & 0xF0) == 0xB0;
 
+    // If Homebrew ROM header indicates an unused Expansion Pak, limit RDRAM discovery
+    // to 4MiB, effectively simulating a console with Jumper Pak only.
+    uint32_t rom_version = io_read(0xB000003C) & 0xff;
+    bool ignoreExpansionPak = ((rom_version & 0x0C) >> 2) == 0x01;
+    int max_chips = ignoreExpansionPak ? 4 : 8;
+    if (ignoreExpansionPak) {
+        debugf("\nWARNING: ROM is configured to ignore Expansion Pak.");
+        debugf("No more than 2 2-MiB RDRAM chips will be initialized\n");
+    }
+
     if (!bbplayer && *RI_SELECT == 0) {
-        memsize = rdram_init(mem_bank_init);
+        memsize = rdram_init(mem_bank_init, max_chips);
     } else {
         if (bbplayer) {
             // iQue doesn't have a IPL2 and the OS provides boot flags already in lowmem.
@@ -289,6 +299,10 @@ void stage1(void)
             // could be less than the physical total memory. Anyway, it's the value
             // we should use and pass along.
             memsize = *(uint32_t*)0xA0000318;
+
+            if (ignoreExpansionPak) {
+                memsize = 0x400000;
+            }
 
             // Notice that even if 8 MiB were allocated, the top of the memory is
             // in-use by save state emulation, so we shouldn't access it anyway.
@@ -312,7 +326,7 @@ void stage1(void)
             // On warm boots, 
             int chip_id = 0;
             memsize = 0;
-            for (chip_id=0; chip_id<8; chip_id+=2) {
+            for (chip_id=0; chip_id<max_chips; chip_id+=2) {
                 volatile uint32_t *ptr = (void*)0xA0000000 + chip_id * 1024 * 1024;
                 ptr[0]=0;
                 ptr[0]=0x12345678;
