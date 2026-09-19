@@ -152,6 +152,16 @@ typedef struct fmv_parms_s {
     void *osd_ctx;          ///< Context pointer passed to the OSD callback
 
     /**
+     * @brief Number of fully decoded pictures kept buffered (YUV 4:2:0).
+     *
+     * Passed to #video_open as #video_parms_t::buffered_pics. If 0, #fmv_play
+     * keeps its historical default of 8. Constrained ports should set 1 or 2
+     * so the H.264 DPB fits leftover RDRAM instead of requiring a 3 MiB hole.
+     */
+    int buffered_pics;
+
+
+    /**
      * @brief Custom YUV blitter factory (optional)
      *
      * If provided, replaces the default #yuv_blitter_new_fmv blitter used by
