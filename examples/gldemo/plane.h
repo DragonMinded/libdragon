@@ -34,6 +34,8 @@ void setup_plane()
     
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, plane_buffers[1]);
+
     glBindVertexArray(0);
 }
 
@@ -103,13 +105,9 @@ void make_plane_mesh()
 
 void draw_plane()
 {
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, plane_buffers[1]);
     glBindVertexArray(plane_array);
-
     glDrawElements(GL_TRIANGLES, plane_index_count, GL_UNSIGNED_SHORT, 0);
-
     glBindVertexArray(0);
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 void render_plane()

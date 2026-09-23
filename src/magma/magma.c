@@ -693,9 +693,6 @@ void mg_draw(const mg_input_assembly_parms_t *input_assembly_parms, uint32_t ver
     }
 }
 
-/** @brief An index value that triggers a primitive to be restarted. */
-#define SPECIAL_INDEX UINT16_MAX
-
 /// @cond
 typedef struct vertex_cache_block_s vertex_cache_block;
 /// @endcond
@@ -910,7 +907,7 @@ static uint32_t prepare_batch(const mg_input_assembly_parms_t *assembly_parms, c
         for (size_t i = 0; i < required; i++)
         {
             uint16_t index = indices[count + i];
-            if (assembly_parms->primitive_restart_enabled && index == SPECIAL_INDEX) {
+            if (assembly_parms->primitive_restart_enabled && index == MG_PRIM_RESTART) {
                 required = windup + advance;
                 need_insertion = 0;
                 count++;
@@ -983,7 +980,7 @@ static void draw_triangle_strip_batch(const uint16_t *indices, uint32_t current_
     {
         uint16_t index = indices[current_index + i];
 
-        if (restart_enabled && index == SPECIAL_INDEX) {
+        if (restart_enabled && index == MG_PRIM_RESTART) {
             prim_counter = 0;
             continue;
         }
@@ -1011,7 +1008,7 @@ static void draw_triangle_fan_batch(const uint16_t *indices, uint32_t current_in
     {
         uint16_t index = indices[current_index + i];
 
-        if (restart_enabled && index == SPECIAL_INDEX) {
+        if (restart_enabled && index == MG_PRIM_RESTART) {
             prim_counter = 0;
             continue;
         }

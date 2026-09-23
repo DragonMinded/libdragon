@@ -274,7 +274,7 @@ typedef enum
 typedef struct
 {
     mg_primitive_topology_t primitive_topology;     ///< The topology mode of the constructed primitives.
-    bool primitive_restart_enabled;                 ///< If true, construction of primitives will restart whenever a special index value (-1) is encountered in the list.
+    bool primitive_restart_enabled;                 ///< If true, construction of primitives will restart whenever #MG_PRIM_RESTART is encountered in the list.
     const void *mtx_indices;                        ///< Pointer to memory where unsigned 8-bit matrix indices are stored, or NULL if matrix indices are disabled.
     uint32_t mtx_indices_stride;                    ///< Number of bytes to advance to get to the next matrix index.
     const void *matrices;                           ///< Pointer to memory where matrix data is stored.

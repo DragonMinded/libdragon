@@ -2,6 +2,7 @@
 #include <GL/gl.h>
 #include <GL/gl_integration.h>
 #include <rdpq_debug.h>
+#include <magma.h>
 
 #undef ABS
 #include "../src/GL/gl_internal.h"
@@ -12,6 +13,8 @@
     DEFER(surface_free(&test_surf)); \
     surface_t test_z = surface_alloc(FMT_RGBA16, w, h); \
     DEFER(surface_free(&test_z)); \
+    mg_init(); \
+    DEFER(mg_close()); \
     gl_init(); \
     DEFER(gl_close()); \
     rdpq_attach(&test_surf, &test_z); \
@@ -249,3 +252,241 @@ void test_gl_cull(TestContext *ctx)
     tri_count = debug_rdp_stream_count_cmd(RDPQ_CMD_TRI_SHADE + 0xC0);
     ASSERT_EQUAL_UNSIGNED(tri_count, 3, "Triangles should be drawn when culling disabled");
 }
+
+static void assert_drawn_pixel_color(color_t expected_color, surface_t *fb, TestContext *ctx)
+{
+    glBegin(GL_TRIANGLE_STRIP);
+        glVertex2f(-1, -1);
+        glVertex2f(1, -1);
+        glVertex2f(1, 1);
+        glVertex2f(-1, 1);
+    glEnd();
+
+    glFinish();
+
+    color_t actual_color = color_from_packed16(surface_get_pixel(fb, 0, 0));
+
+    // Error introduced by converting from packed 16 bit color to 32 bit
+    uint8_t threshold = 0xff - ((0xff>>3)<<3);
+
+    for (size_t i = 0; i < 4; i++)
+    {
+        uint8_t actual_comp = ((uint8_t*)&actual_color)[i];
+        uint8_t expected_comp = ((uint8_t*)&expected_color)[i];
+
+        if (abs(actual_comp - expected_comp) > threshold) {
+            uint32_t actual32 = color_to_packed32(actual_color);
+            uint32_t expected32 = color_to_packed32(expected_color);
+            ASSERT_EQUAL_HEX(actual32, expected32, "Output pixel does not match expected color within tolerance");
+        }
+    }
+}
+
+#define ASSERT_DRAWN_COLOR(expected_color) assert_drawn_pixel_color((expected_color), &test_surf, ctx)
+
+static const float gl_color_black[] = { 0, 0, 0, 0 };
+static const float gl_color_white[] = { 1, 1, 1, 1 };
+
+void test_gl_pixel_color(TestContext *ctx)
+{
+    GL_INIT();
+
+    glColor4fv(gl_color_white);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0xFFFFFFFF));
+}
+
+void test_gl_pixel_light_model_ambient(TestContext *ctx)
+{
+    GL_INIT();
+
+    float light_model_ambient[] = { 1, 0, 1, 0 };
+    float material_ambient[] = { 1, 1, 0, 0 };
+
+    glEnable(GL_LIGHTING);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, light_model_ambient);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, material_ambient);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0xFF0000FF));
+}
+
+void test_gl_pixel_material_emission(TestContext *ctx)
+{
+    GL_INIT();
+
+    float material_emission[] = { 1, 0, 1, 0 };
+
+    glEnable(GL_LIGHTING);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, gl_color_black);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT_AND_DIFFUSE, gl_color_black);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, material_emission);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0xFF00FFFF));
+}
+
+void test_gl_pixel_light_ambient(TestContext *ctx)
+{
+    GL_INIT();
+
+    float light_position[] = { 0, 0, 1, 0 };
+    float light_ambient[] = { 1, 0, 1, 0 };
+    float material_ambient[] = { 1, 1, 0, 0 };
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, gl_color_black);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, gl_color_black);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, material_ambient);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, gl_color_black);
+
+    glNormal3f(0, 0, 1);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0xFF0000FF));
+}
+
+void test_gl_pixel_light_ambient_backside(TestContext *ctx)
+{
+    GL_INIT();
+
+    float light_position[] = { 0, 0, 1, 0 };
+    float light_ambient[] = { 1, 0, 1, 0 };
+    float material_ambient[] = { 1, 1, 0, 0 };
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, gl_color_black);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, gl_color_black);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, material_ambient);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, gl_color_black);
+
+    glNormal3f(0, 0, -1);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0xFF0000FF));
+}
+
+void test_gl_pixel_material_diffuse(TestContext *ctx)
+{
+    GL_INIT();
+
+    float light_position[] = { 0, 0, 1, 0 };
+    float light_diffuse[] = { 1, 0, 1, 0 };
+    float material_diffuse[] = { 1, 1, 0, 0 };
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, gl_color_black);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, gl_color_black);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, gl_color_black);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, material_diffuse);
+
+    glNormal3f(0, 0, 1);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0xFF0000FF));
+}
+
+void test_gl_pixel_material_diffuse_backside(TestContext *ctx)
+{
+    GL_INIT();
+
+    float light_position[] = { 0, 0, 1, 0 };
+    float light_diffuse[] = { 1, 0, 1, 0 };
+    float material_diffuse[] = { 1, 1, 0, 0 };
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, gl_color_black);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, gl_color_black);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, gl_color_black);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, material_diffuse);
+
+    glNormal3f(0, 0, -1);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0x000000FF));
+}
+
+void test_gl_pixel_material_diffuse_backside_clamp(TestContext *ctx)
+{
+    GL_INIT();
+
+    float light_position[] = { 0, 0, 1, 0 };
+    float light_diffuse[] = { .5f, .5f, .5f, 0 };
+    float light_ambient[] = { 1, 1, 1, 0 };
+    float material_diffuse[] = { 1, 1, 1, 0 };
+    float material_ambient[] = { 1, 1, 1, 0 };
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, gl_color_black);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, material_ambient);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, material_diffuse);
+
+    glNormal3f(0, 0, -1);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0xFFFFFFFF));
+}
+
+void test_gl_pixel_light_ambient_attenuation(TestContext *ctx)
+{
+    GL_INIT();
+
+    float light_position[] = { -1, 1, 0, 1 };
+    float light_ambient[] = { 1, 0, 1, 0 };
+    float material_ambient[] = { 1, 1, 0, 0 };
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, gl_color_black);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, light_ambient);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, gl_color_black);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 2);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, material_ambient);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, gl_color_black);
+
+    glNormal3f(0, 0, 1);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0x7F0000FF));
+}
+
+void test_gl_pixel_material_diffuse_attenuation(TestContext *ctx)
+{
+    GL_INIT();
+
+    float light_position[] = { -1, 1, 1, 1 };
+    float light_diffuse[] = { 1, 0, 1, 0 };
+    float material_diffuse[] = { 1, 1, 0, 0 };
+
+    glEnable(GL_LIGHTING);
+    glEnable(GL_NORMALIZE);
+    glLightModelfv(GL_LIGHT_MODEL_AMBIENT, gl_color_black);
+    glEnable(GL_LIGHT0);
+    glLightfv(GL_LIGHT0, GL_AMBIENT, gl_color_black);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, light_diffuse);
+    glLightfv(GL_LIGHT0, GL_POSITION, light_position);
+    glLightf(GL_LIGHT0, GL_CONSTANT_ATTENUATION, 2);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, gl_color_black);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, material_diffuse);
+
+    glNormal3f(0, 0, 1);
+
+    ASSERT_DRAWN_COLOR(color_from_packed32(0x7F0000FF));
+}
+
+#undef ASSERT_DRAWN_COLOR

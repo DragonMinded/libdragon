@@ -96,29 +96,28 @@ void gl_update_fog()
     // start == end is undefined, so disable fog by setting the factor to 0
     state->fog_factor = fabsf(fog_diff) < FLT_MIN ? 0.0f : 1.0f / fog_diff;
     state->fog_offset = state->fog_end;
-
-    // Convert to s15.16 and premultiply with 1.15 conversion factor
-    int32_t factor_fx = state->fog_factor * (1<<(16 + 7 + (8 - VTX_SHIFT)));
-    int16_t offset_fx = state->fog_offset * (1<<VTX_SHIFT);
-
-    int16_t factor_i = factor_fx >> 16;
-    uint16_t factor_f = factor_fx & 0xFFFF;
-
-    uint64_t packed = (((uint64_t)factor_i) << 48) | (((uint64_t)offset_fx) << 32) | (((uint64_t)factor_f) << 16);
-
-    gl_set_long(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_params), packed);
 }
 
 void gl_set_fog_start(GLfloat param)
 {
     state->fog_start = param;
     gl_update_fog();
+    int32_t start_fx = param * (1<<16);
+    int16_t start_int = start_fx >> 16;
+    uint16_t start_frac = start_fx & 0xFFFF;
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_params) + offsetof(gl_fog_params_t, start_int), start_int);
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_params) + offsetof(gl_fog_params_t, start_frac), start_frac);
 }
 
 void gl_set_fog_end(GLfloat param)
 {
     state->fog_end = param;
     gl_update_fog();
+    int32_t end_fx = param * (1<<16);
+    int16_t end_int = end_fx >> 16;
+    uint16_t end_frac = end_fx & 0xFFFF;
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_params) + offsetof(gl_fog_params_t, end_int), end_int);
+    gl_set_short(GL_UPDATE_NONE, offsetof(gl_server_state_t, fog_params) + offsetof(gl_fog_params_t, end_frac), end_frac);
 }
 
 void glFogi(GLenum pname, GLint param)

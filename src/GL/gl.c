@@ -16,13 +16,15 @@
 #include <math.h>
 #include <malloc.h>
 #include "gl_internal.h"
+#include "buffer.h"
+#include "array_module.h"
+#include "../magma/magma_internal.h"
 
 DEFINE_RSP_UCODE(rsp_gl);
-DEFINE_RSP_UCODE(rsp_gl_pipeline);
+DEFINE_RSP_UCODE(rsp_gl2);
 
 uint32_t gl_overlay_id;
-uint32_t glp_overlay_id;
-uint32_t gl_rsp_state;
+uint32_t gl2_overlay_id;
 
 gl_state_t *state;
 
@@ -55,13 +57,16 @@ uint32_t gl_get_type_size(GLenum type)
 void gl_init()
 {
     rdpq_init();
+    mg_init();
 
     state = calloc(1, sizeof(gl_state_t));
     assertf(state, "Out of memory");
 
     gl_texture_init();
 
-    gl_server_state_t *server_state = UncachedAddr(rspq_overlay_get_state(&rsp_gl));
+    void *gl_overlay_state = rspq_overlay_get_state(&rsp_gl);
+
+    gl_server_state_t *server_state = UncachedAddr(gl_overlay_state);
     memset(server_state, 0, sizeof(gl_server_state_t));
 
     memcpy(&server_state->bound_textures[0], state->default_textures[0].srv_object, sizeof(gl_srv_texture_object_t));
@@ -95,20 +100,20 @@ void gl_init()
     server_state->tex_gen.integer[1][0][1] = 1;
     server_state->tex_gen.integer[1][1][1] = 1;
 
-    state->matrix_stacks[0] = malloc_uncached(sizeof(gl_matrix_srv_t) * MODELVIEW_STACK_SIZE);
-    state->matrix_stacks[1] = malloc_uncached(sizeof(gl_matrix_srv_t) * PROJECTION_STACK_SIZE);
-    state->matrix_stacks[2] = malloc_uncached(sizeof(gl_matrix_srv_t) * TEXTURE_STACK_SIZE);
-    state->matrix_palette = malloc_uncached(sizeof(gl_matrix_srv_t) * MATRIX_PALETTE_SIZE * 2); // Double size for mvp-matrices
+    state->matrix_stacks[0] = malloc_uncached(sizeof(gl_pipeline_matrix_t) * MODELVIEW_STACK_SIZE);
+    state->matrix_stacks[1] = malloc_uncached(sizeof(gl_pipeline_matrix_t) * PROJECTION_STACK_SIZE);
+    state->matrix_stacks[2] = malloc_uncached(sizeof(gl_pipeline_matrix_t) * TEXTURE_STACK_SIZE);
+    state->matrix_palette = malloc_uncached(sizeof(gl_pipeline_matrices_t) * MATRIX_PALETTE_SIZE);
     assertf(state->matrix_stacks[0] && state->matrix_stacks[1] && state->matrix_stacks[2] && state->matrix_palette,
         "Out of memory");
+    memset(state->matrix_palette, 0xff, sizeof(gl_pipeline_matrices_t) * MATRIX_PALETTE_SIZE);
 
     server_state->matrix_pointers[0] = PhysicalAddr(state->matrix_stacks[0]);
     server_state->matrix_pointers[1] = PhysicalAddr(state->matrix_stacks[1]);
     server_state->matrix_pointers[2] = PhysicalAddr(state->matrix_stacks[2]);
     server_state->matrix_pointers[3] = PhysicalAddr(state->matrix_palette);
-    server_state->matrix_pointers[4] = PhysicalAddr(state->matrix_palette + MATRIX_PALETTE_SIZE);
-    server_state->loaded_mtx_index[0] = -1;
-    server_state->loaded_mtx_index[1] = -1;
+
+    server_state->palette_index = offsetof(gl_pipeline_matrices_t, mv);
 
     server_state->flags |= FLAG_FINAL_MTX_DIRTY;
 
@@ -122,15 +127,11 @@ void gl_init()
     server_state->mat_diffuse[3] = 0x7FFF;  // 1.0
     server_state->mat_specular[3] = 0x7FFF; // 1.0
     server_state->mat_emissive[3] = 0x7FFF; // 1.0
-    server_state->mat_color_target[0] = 1;
-    server_state->mat_color_target[1] = 1;
 
     for (uint32_t i = 0; i < LIGHT_COUNT; i++)
     {
-        server_state->lights.position[i][2] = 0x7FFF; // 1.0
-        server_state->lights.ambient[i][3] = 0x7FFF;  // 1.0
-        server_state->lights.diffuse[i][3] = 0x7FFF;  // 1.0
-        server_state->lights.attenuation_frac[i][0] = 1 << 15; // 1.0
+        server_state->lights[i].position[2] = 0x7FFF; // 1.0
+        server_state->lights[i].attenuation_frac[0] = 1 << 15; // 1.0
     }
     
     server_state->light_ambient[0] = 0x1999; // 0.2
@@ -139,15 +140,15 @@ void gl_init()
     server_state->light_ambient[3] = 0x7FFF; // 1.0
 
     server_state->dither_mode = DITHER_SQUARE_SQUARE << (SOM_ALPHADITHER_SHIFT - 32);
-
+    
     gl_overlay_id = rspq_overlay_register(&rsp_gl);
-    glp_overlay_id = rspq_overlay_register(&rsp_gl_pipeline);
-    gl_rsp_state = PhysicalAddr(rspq_overlay_get_state(&rsp_gl));
+    gl2_overlay_id = rspq_overlay_register(&rsp_gl2);
+    rspq_overlay_share_state(&rsp_gl2, &rsp_gl);
 
     gl_matrix_init();
     gl_lighting_init();
     gl_rendermode_init();
-    gl_array_init();
+    array_module_init();
     gl_primitive_init();
     gl_pixel_init();
     gl_list_init();
@@ -164,9 +165,10 @@ void gl_close()
 
     gl_list_close();
     gl_primitive_close();
+    array_module_close();
     gl_texture_close();
+    rspq_overlay_unregister(gl2_overlay_id);
     rspq_overlay_unregister(gl_overlay_id);
-    rspq_overlay_unregister(glp_overlay_id);
 
     // FIXME: some of the above do deferred deletions, others don't.
     // So we need another rspq_wait.
@@ -520,9 +522,22 @@ bool gl_storage_resize(gl_storage_t *storage, uint32_t new_size)
 
 void glTexSizeN64(GLushort width, GLushort height)
 {
-    width <<= TEX_COORD_SHIFT;
-    height <<= TEX_COORD_SHIFT;
     gl_set_word(GL_UPDATE_NONE, offsetof(gl_server_state_t, tex_size[0]), (width << 16) | height);
+}
+
+void gl_pre_init_pipe(GLenum primitive_mode)
+{
+    __rdpq_autosync_change(AUTOSYNC_PIPE | AUTOSYNC_TILES | AUTOSYNC_TMEMS);
+    
+    // PreInitPipeTex will run a block with nesting level 1 for texture upload.
+    // The command itself does not emit RDP commands (the block does that, so
+    // we use a plain gl_write() for it.
+    rspq_block_run_rsp(1);
+    gl2_write(GL_CMD_PRE_INIT_PIPE_TEX);
+    
+    // PreInitPipe is similar to rdpq_set_mode_standard wrt RDP commands.
+    // It issues SET_SCISSOR + CC + SOM.
+    gl2_write_rdp(3, GL_CMD_PRE_INIT_PIPE, primitive_mode);
 }
 
 extern inline uint32_t next_pow2(uint32_t v);
@@ -543,15 +558,7 @@ extern inline void gl_set_current_color(GLfloat *color);
 extern inline void gl_set_current_texcoords(GLfloat *texcoords);
 extern inline void gl_set_current_normal(GLfloat *normal);
 extern inline void gl_pre_init_pipe(GLenum primitive_mode);
-extern inline void glpipe_init();
-extern inline void glpipe_draw_triangle(int i0, int i1, int i2);
 extern inline int gl_get_rdpcmds_for_update_func(gl_update_func_t update_func);
-extern inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, gl_array_type_t array_type);
+extern inline void* gl_get_attrib_pointer(gl_obj_attributes_t *attribs, array_type_t array_type);
 extern inline uint32_t gl_type_to_index(GLenum type);
 extern inline void gl_set_current_mtx_index(GLubyte *index);
-extern inline gl_cmd_stream_t gl_cmd_stream_begin(uint32_t ovl_id, uint32_t cmd_id, int size);
-extern inline void gl_cmd_stream_commit(gl_cmd_stream_t *s);
-extern inline void gl_cmd_stream_put_byte(gl_cmd_stream_t *s, uint8_t v);
-extern inline void gl_cmd_stream_put_half(gl_cmd_stream_t *s, uint16_t v);
-extern inline void gl_cmd_stream_end(gl_cmd_stream_t *s);
-extern inline void glpipe_set_vtx_cmd_size(uint16_t patched_cmd_descriptor, uint16_t *cmd_descriptor);

@@ -42,6 +42,8 @@ void setup_sphere()
     
     glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
 
+    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sphere_buffers[1]);
+
     glBindVertexArray(0);
 
     sphere_list = glGenLists(1);
@@ -77,7 +79,6 @@ void make_sphere_vertex(vertex_t *dst, uint32_t ring, uint32_t segment)
 
 void draw_sphere_internal()
 {
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sphere_buffers[1]);
     glBindVertexArray(sphere_array);
 
     glDrawElements(GL_TRIANGLE_FAN, sphere_segments + 2, GL_UNSIGNED_SHORT, 0);
@@ -85,7 +86,6 @@ void draw_sphere_internal()
     glDrawElements(GL_TRIANGLES, (sphere_rings - 1) * (sphere_segments * 6), GL_UNSIGNED_SHORT, (void*)((sphere_segments + 2) * 2 * sizeof(uint16_t)));
 
     glBindVertexArray(0);
-    glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
 }
 
 void make_sphere_mesh()

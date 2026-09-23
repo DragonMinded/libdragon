@@ -130,6 +130,14 @@
 #include "magma_types.h"
 #include "debug.h"
 
+/** 
+ * @brief A special index value that triggers a primitive to be restarted.
+ * 
+ * @see #mg_input_assembly_parms_t
+ * @see #mg_draw_indexed
+ */
+#define MG_PRIM_RESTART UINT16_MAX
+
 #ifdef __cplusplus
 extern "C" {
 #endif
